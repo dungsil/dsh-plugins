@@ -9,7 +9,5 @@ dist/
 .idea/
 *.iml
 
-### Local Harness preview and packaged plugins ###
-.dsh-dev/
+### Packaged plugins ###
 *.tgz
-.amp/

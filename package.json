@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "lint": "oxlint .",
@@ -13,7 +12,6 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh": "0.2.1-rc.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/node": "26.6.5",
     "esbuild": "0.28.2",

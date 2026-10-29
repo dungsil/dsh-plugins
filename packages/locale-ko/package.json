@@ -2,7 +2,6 @@
   "name": "@dungsil/dsh-plugin-locale-ko",
   "version": "0.1.0",
   "description": "Korean UI language pack for DeepSeek Harness.",
-  "license": "MIT",
   "files": [
     "dist",
     "locale",
@@ -16,12 +15,8 @@
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "node ../../scripts/build.mjs",
-    "dev": "node ../../scripts/dev.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",
     "prepack": "pnpm build"
