@@ -14,7 +14,6 @@
   "devDependencies": {
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/node": "26.6.5",
-    "esbuild": "0.28.2",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
     "oxlint-tsgolint": "7.0.2005",

@@ -16,7 +16,7 @@
     "./locale/*.json": "./locale/*.json"
   },
   "scripts": {
-    "build": "node ../../scripts/build.mjs",
+    "build": "tsdown",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",
     "prepack": "pnpm build"
@@ -24,7 +24,8 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2",
-    "@dungsil/dsh-tsconfig": "workspace:*"
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "tsdown": "0.23.4"
   },
   "engines": {
     "dsh": "0.2.1-rc.2",

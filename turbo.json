@@ -2,7 +2,7 @@
   "$schema": "https://turborepo.org/schema.json",
   "cacheMaxAge": "7d",
   "cacheMaxSize": "5GB",
-  "globalDependencies": ["**/.env", "scripts/**", "tools/tsconfig/**"],
+  "globalDependencies": ["**/.env", "tools/tsconfig/**"],
   "tasks": {
     "dev": {
       "dependsOn": ["build"],
