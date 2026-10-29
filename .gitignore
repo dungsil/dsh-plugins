@@ -8,3 +8,8 @@ dist/
 ### IntelliJ IDEA ###
 .idea/
 *.iml
+
+### Local Harness preview and packaged plugins ###
+.dsh-dev/
+*.tgz
+.amp/

@@ -2,9 +2,21 @@
   "name": "@dungsil/dsh-plugins",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+  },
   "devDependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
     "oxlint-tsgolint": "7.0.2005",

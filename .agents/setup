@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+echo 'Installing locked workspace dependencies'
+pnpm install --frozen-lockfile
+echo 'Building plugins'
+pnpm build

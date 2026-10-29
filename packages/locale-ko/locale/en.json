@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Korean UI",
+    "description": "Adds Korean to the UI language selector. Untranslated text falls back to English."
+  }
+}
