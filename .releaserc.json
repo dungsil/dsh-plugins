@@ -6,7 +6,19 @@
     ["@semantic-release/commit-analyzer", { "preset": "conventionalcommits" }],
     ["@semantic-release/release-notes-generator", { "preset": "conventionalcommits" }],
     ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
-    "./tools/release.mjs",
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false,
+        "pkgRoot": "packages/locale-ko"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "pnpm --filter @dungsil/dsh-plugin-locale-ko pack --pack-destination release"
+      }
+    ],
     [
       "@semantic-release/git",
       {

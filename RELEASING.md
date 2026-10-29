@@ -1,8 +1,9 @@
 # 릴리즈
 
-GitHub Actions의 **Release → Run workflow → main**으로만 실행한다. Push, 태그,
-PR은 릴리즈를 시작하지 않는다. 실행 시점의 최신 `main`을 검증하고 릴리즈하며,
-동시 실행은 직렬화한다.
+GitHub Actions **Release → Run workflow → main**으로 릴리즈한다. 기존 CI는
+변경하지 않는다. 릴리즈는 별도 `workflow_dispatch` 워크플로에서
+`cycjimmy/semantic-release-action`과 기성 플러그인으로 처리한다.
+Push, 태그, PR은 릴리즈를 시작하지 않으며, 동시 릴리즈는 직렬화한다.
 
 ## 최초 설정
 
@@ -33,13 +34,19 @@ PR은 릴리즈를 시작하지 않는다. 실행 시점의 최신 `main`을 검
 본문이 최종 Conventional Commit이 되도록 작성한다. 릴리즈 대상 변경이 없으면
 버전·태그·CHANGELOG·GitHub Release를 만들지 않고 성공으로 종료한다.
 
-1. 기존 CI와 동일한 `pnpm check`를 통과해야 한다.
-2. 릴리즈 노트와 루트 `CHANGELOG.md`를 생성하고 한국어 플러그인의
-   `package.json` 버전을 갱신한다.
-3. 플러그인을 빌드하고 `.tgz`로 패키징한다. npm registry에는 게시하지 않는다.
-4. CHANGELOG와 패키지 버전을 `main`에 커밋하고 그 커밋에 버전 태그를 만든다.
-5. GitHub draft release에 패키지를 업로드한 후 공개한다. 공개된 릴리즈의
-   `immutable: true`도 다시 확인한다.
+기성 semantic-release 플러그인을 설정하여 처리한다. 별도 릴리즈 스크립트는 없다.
+
+1. 기존 CI의 `pnpm check`를 통과해야 한다.
+2. `@semantic-release/changelog`가 루트 `CHANGELOG.md`를 작성하고,
+   `@semantic-release/npm`이 플러그인의 `package.json` 버전을 갱신한다.
+   `npmPublish: false`로 npm registry 게시를 막는다.
+3. `@semantic-release/exec`가 기존 CI의 `pnpm --filter ... pack` 명령을 실행한다.
+   npm pack은 저장소의 pnpm 전용 `devEngines` 설정과 충돌하므로 사용하지 않는다.
+4. `@semantic-release/git`이 CHANGELOG와 패키지 버전을 `main`에 커밋하고,
+   semantic-release가 그 커밋에 버전 태그를 만든다.
+5. `@semantic-release/github`이 draft release에 패키지를 업로드한 후 공개한다.
+   사전에 확인한 저장소의 불변 릴리즈 설정이 태그와 파일을 보호한다.
+   Action의 출력 태그로 공개된 릴리즈의 `immutable: true`를 다시 확인한다.
 
 GitHub의 불변성은 **태그와 첨부 파일**에 적용된다. 릴리즈 제목과 본문은 GitHub
 정책상 편집할 수 있다. 게시된 릴리즈의 태그를 이동하거나 파일을 덮어쓰지 말고,

@@ -17,19 +17,10 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Require immutable releases
-        env:
-          GH_REPO: ${{ github.repository }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo '::error::Set RELEASE_TOKEN with Contents: write and Administration: read permissions.'
-            exit 1
-          fi
-          gh api "repos/$GH_REPO/immutable-releases" --jq '.enabled' | grep -qx true || {
-            echo '::error::Enable release immutability in repository settings and grant RELEASE_TOKEN Administration: read.'
-            exit 1
-          }
+        run: gh api "repos/$GH_REPO/immutable-releases" --jq '.enabled' | grep -qx true
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -42,28 +33,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - name: Publish release and verify immutability
-        run: |
-          pnpm exec node --input-type=module <<'NODE'
-          import { appendFile } from 'node:fs/promises'
-          import semanticRelease from 'semantic-release'
-
-          const result = await semanticRelease()
-          if (!result) {
-            await appendFile(process.env.GITHUB_STEP_SUMMARY, 'No releasable changes since the last release.\n')
-          } else {
-            const tag = result.nextRelease.gitTag
-            const response = await fetch(`${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${encodeURIComponent(tag)}`, {
-              headers: {
-                Authorization: `Bearer ${process.env.GH_TOKEN}`,
-                Accept: 'application/vnd.github+json',
-              },
-            })
-            if (!response.ok) throw new Error(`Release verification failed: HTTP ${response.status}`)
-            const release = await response.json()
-            if (release.draft || release.immutable !== true) {
-              throw new Error(`${tag} is not a published immutable release`)
-            }
-            await appendFile(process.env.GITHUB_STEP_SUMMARY, `Published immutable release [${tag}](${release.html_url}).\n`)
-          }
-          NODE
+      - uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
+        id: release
+        with:
+          semantic_version: 25.0.9
+      - name: Verify immutable release
+        if: steps.release.outputs.new_release_published == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.new_release_git_tag }}
+        run: gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.immutable' | grep -qx true
