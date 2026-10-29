@@ -2,6 +2,11 @@
   "name": "@dungsil/dsh-plugin-locale-ko",
   "version": "0.1.0",
   "description": "Korean UI language pack for DeepSeek Harness.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/locale-ko"
+  },
   "files": [
     "dist",
     "locale",
@@ -14,6 +19,9 @@
     "./client": "./dist/client.js",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown",
