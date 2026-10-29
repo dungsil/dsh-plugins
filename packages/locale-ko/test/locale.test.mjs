@@ -41,11 +41,11 @@ const source = await readFile(new URL('../dist/client.js', import.meta.url), 'ut
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
 
-test('installation accepts validated DSH runtimes and rejects unvalidated releases', () => {
-  for (const version of ['0.2.1-rc.2', '0.2.1-rc.3']) {
+test('installation allows DSH 0.2 updates from rc.2 without opting into the next minor', () => {
+  for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), true, version)
   }
-  for (const version of ['0.2.1-rc.1', '0.2.1-rc.4', '0.2.1', '0.2.2']) {
+  for (const version of ['0.2.0', '0.2.1-rc.1', '0.3.0-rc.1', '0.3.0', '1.0.0']) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), false, version)
   }
 })
