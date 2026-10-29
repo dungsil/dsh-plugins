@@ -2,8 +2,13 @@
 
 GitHub Actions **Release → Run workflow → main**으로 릴리즈한다. 기존 CI는
 변경하지 않는다. 릴리즈는 별도 `workflow_dispatch` 워크플로에서
-`cycjimmy/semantic-release-action`과 기성 플러그인으로 처리한다.
+GitHub 공식 `actions/github-script`가 설치된 semantic-release와 기성 플러그인을
+호출하여 처리한다. `gh api`나 비공식 릴리즈 래퍼 Action은 사용하지 않는다.
 Push, 태그, PR은 릴리즈를 시작하지 않으며, 동시 릴리즈는 직렬화한다.
+
+`workflow_dispatch`는 `on:`의 `branches` 필터를 지원하지 않는다.
+따라서 `main` 제한은 job의 `if: github.ref == 'refs/heads/main'`으로 적용한다.
+다른 브랜치를 선택하면 릴리즈 job을 건너뛴다.
 
 ## 최초 설정
 
@@ -46,7 +51,8 @@ Push, 태그, PR은 릴리즈를 시작하지 않으며, 동시 릴리즈는 직
    semantic-release가 그 커밋에 버전 태그를 만든다.
 5. `@semantic-release/github`이 draft release에 패키지를 업로드한 후 공개한다.
    사전에 확인한 저장소의 불변 릴리즈 설정이 태그와 파일을 보호한다.
-   Action의 출력 태그로 공개된 릴리즈의 `immutable: true`를 다시 확인한다.
+   `actions/github-script`의 인증된 GitHub 클라이언트로 해당 태그의
+   `immutable: true`를 다시 확인한다.
 
 GitHub의 불변성은 **태그와 첨부 파일**에 적용된다. 릴리즈 제목과 본문은 GitHub
 정책상 편집할 수 있다. 게시된 릴리즈의 태그를 이동하거나 파일을 덮어쓰지 말고,

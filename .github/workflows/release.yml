@@ -12,15 +12,20 @@ concurrency:
 
 jobs:
   release:
+    # workflow_dispatch does not support on.branches filters.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-      GH_REPO: ${{ github.repository }}
     steps:
       - name: Require immutable releases
-        run: gh api "repos/$GH_REPO/immutable-releases" --jq '.enabled' | grep -qx true
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ secrets.RELEASE_TOKEN }}
+          script: |
+            const { data } = await github.request('GET /repos/{owner}/{repo}/immutable-releases', context.repo)
+            if (data.enabled !== true) {
+              core.setFailed('Enable release immutability in repository settings before releasing.')
+            }
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -33,12 +38,20 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
-        id: release
-        with:
-          semantic_version: 25.0.9
-      - name: Verify immutable release
-        if: steps.release.outputs.new_release_published == 'true'
+      - name: Publish and verify immutable release
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          RELEASE_TAG: ${{ steps.release.outputs.new_release_git_tag }}
-        run: gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.immutable' | grep -qx true
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        with:
+          github-token: ${{ secrets.RELEASE_TOKEN }}
+          script: |
+            const { default: semanticRelease } = await import(`${process.env.GITHUB_WORKSPACE}/node_modules/semantic-release/index.js`)
+            const result = await semanticRelease()
+            if (!result) return
+            const { data } = await github.rest.repos.getReleaseByTag({
+              ...context.repo,
+              tag: result.nextRelease.gitTag,
+            })
+            if (data.immutable !== true) {
+              core.setFailed(`${result.nextRelease.gitTag} is not an immutable release.`)
+            }
