@@ -6,17 +6,22 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:release": "node --test tools/release.test.mjs",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:release"
   },
   "devDependencies": {
     "@dungsil/dsh-tsconfig": "workspace:*",
+    "@semantic-release/changelog": "7.0.0",
+    "@semantic-release/git": "11.0.1",
     "@types/node": "26.6.5",
+    "conventional-changelog-conventionalcommits": "9.3.1",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
     "oxlint-tsgolint": "7.0.2005",
+    "semantic-release": "25.0.9",
     "turbo": "2.11.10",
     "typescript": "7.0.2"
   },

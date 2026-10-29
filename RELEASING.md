@@ -1,0 +1,50 @@
+# 릴리즈
+
+GitHub Actions의 **Release → Run workflow → main**으로만 실행한다. Push, 태그,
+PR은 릴리즈를 시작하지 않는다. 실행 시점의 최신 `main`을 검증하고 릴리즈하며,
+동시 실행은 직렬화한다.
+
+## 최초 설정
+
+1. 저장소 **Settings → General → Releases → Enable release immutability**를 켠다.
+2. 이 저장소에 접근할 수 있는 fine-grained PAT를 Actions secret
+   **`RELEASE_TOKEN`**으로 등록한다. 필요한 repository permissions는
+   **Contents: Read and write**, **Administration: Read-only**이다.
+   `GITHUB_TOKEN`은 불변 릴리즈 설정 조회에 필요한 Administration 권한이 없어
+   대신 사용할 수 없다. 토큰은 `main`에 릴리즈 커밋을 push할 수 있어야 한다.
+   브랜치 보호 규칙을 사용하는 경우 릴리즈 주체의 push를 허용해야 한다.
+
+설정 조회에 실패하거나 불변 릴리즈가 비활성화되어 있으면, 파일·태그·릴리즈를
+변경하기 전에 실패한다. 기존의 가변 릴리즈는 이 설정으로 소급 변경되지 않는다.
+
+## 자동 버전 및 변경 기록
+
+저장소 전체에 하나의 `vX.Y.Z` 버전을 사용한다. semantic-release가 마지막
+릴리즈 태그 이후의 Conventional Commits를 분석한다. 현재 기준 태그는 `v0.1.1`이다.
+
+| 커밋                                                    | 버전 변경   |
+| ------------------------------------------------------- | ----------- |
+| `fix: ...`, `perf: ...`                                 | patch       |
+| `feat: ...`                                             | minor       |
+| `feat!: ...` 등 `!` 표기 또는 `BREAKING CHANGE:` footer | major       |
+| `docs: ...`, `chore: ...`, `ci: ...`, `test: ...` 등    | 릴리즈 없음 |
+
+여러 커밋이 있으면 가장 큰 변경을 선택한다. Squash merge 시에는 PR 제목과
+본문이 최종 Conventional Commit이 되도록 작성한다. 릴리즈 대상 변경이 없으면
+버전·태그·CHANGELOG·GitHub Release를 만들지 않고 성공으로 종료한다.
+
+1. 기존 CI와 동일한 `pnpm check`를 통과해야 한다.
+2. 릴리즈 노트와 루트 `CHANGELOG.md`를 생성하고 한국어 플러그인의
+   `package.json` 버전을 갱신한다.
+3. 플러그인을 빌드하고 `.tgz`로 패키징한다. npm registry에는 게시하지 않는다.
+4. CHANGELOG와 패키지 버전을 `main`에 커밋하고 그 커밋에 버전 태그를 만든다.
+5. GitHub draft release에 패키지를 업로드한 후 공개한다. 공개된 릴리즈의
+   `immutable: true`도 다시 확인한다.
+
+GitHub의 불변성은 **태그와 첨부 파일**에 적용된다. 릴리즈 제목과 본문은 GitHub
+정책상 편집할 수 있다. 게시된 릴리즈의 태그를 이동하거나 파일을 덮어쓰지 말고,
+변경이 필요하면 새 커밋과 새 버전을 릴리즈한다.
+
+태그 생성 이후 업로드/게시 단계가 실패했다면 자동 재실행으로 복구되지 않을 수 있다.
+해당 실행의 draft release와 태그를 확인하고, 같은 태그의 검증된 패키지를 모두
+첨부한 뒤 draft를 공개한다. 게시된 불변 릴리즈를 삭제하거나 태그를 재사용하지 않는다.

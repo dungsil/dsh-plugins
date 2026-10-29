@@ -11,3 +11,4 @@ dist/
 
 ### Packaged plugins ###
 *.tgz
+release/
