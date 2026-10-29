@@ -1,0 +1,46 @@
+{
+  "name": "@dungsil/dsh-plugin-locale-ko",
+  "version": "0.1.0",
+  "description": "Korean UI language pack for DeepSeek Harness.",
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml",
+    "NOTICE"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "0.2.1-rc.2",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}

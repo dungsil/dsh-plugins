@@ -2,6 +2,15 @@
   "name": "@dungsil/dsh-plugins",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+  },
   "devDependencies": {
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/node": "26.6.5",

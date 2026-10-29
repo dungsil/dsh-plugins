@@ -8,3 +8,6 @@ dist/
 ### IntelliJ IDEA ###
 .idea/
 *.iml
+
+### Packaged plugins ###
+*.tgz
