@@ -1,0 +1,13 @@
+{
+  "$schema": "https://www.schemastore.org/tsconfig",
+
+  "compilerOptions": {
+    "lib": ["ES2025", "ESNext.Collection", "ESNext.Temporal"],
+    "module": "NodeNext",
+    "target": "ES2025",
+    "types": ["node"],
+
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  }
+}

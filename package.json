@@ -1,0 +1,27 @@
+{
+  "name": "@dungsil/dsh-plugins",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@types/node": "26.6.5",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "turbo": "2.11.10",
+    "typescript": "7.0.2"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.16.1",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "26.13.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.16.1"
+}

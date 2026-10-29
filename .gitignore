@@ -1,0 +1,10 @@
+### Turbo ###
+.turbo/
+
+### Node.js ###
+node_modules/
+dist/
+
+### IntelliJ IDEA ###
+.idea/
+*.iml

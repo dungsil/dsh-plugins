@@ -1,0 +1,6 @@
+{
+  "extends": "@dungsil/dsh-tsconfig",
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

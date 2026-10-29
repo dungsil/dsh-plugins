@@ -1,0 +1,15 @@
+savePrefix: ''
+
+packages:
+  - packages/*
+  - tools/*
+
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': false
+  koffi: false
+  node-pty: false
+  protobufjs: false
+
+minimumReleaseAgeExclude:
+  - tsdown@0.23.4
