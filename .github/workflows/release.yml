@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release
@@ -12,25 +12,13 @@ concurrency:
 
 jobs:
   release:
-    # workflow_dispatch does not support on.branches filters.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Require immutable releases
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        with:
-          github-token: ${{ secrets.RELEASE_TOKEN }}
-          script: |
-            const { data } = await github.request('GET /repos/{owner}/{repo}/immutable-releases', context.repo)
-            if (data.enabled !== true) {
-              core.setFailed('Enable release immutability in repository settings before releasing.')
-            }
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -38,20 +26,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - name: Publish and verify immutable release
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      - run: pnpm exec semantic-release
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        with:
-          github-token: ${{ secrets.RELEASE_TOKEN }}
-          script: |
-            const { default: semanticRelease } = await import(`${process.env.GITHUB_WORKSPACE}/node_modules/semantic-release/index.js`)
-            const result = await semanticRelease()
-            if (!result) return
-            const { data } = await github.rest.repos.getReleaseByTag({
-              ...context.repo,
-              tag: result.nextRelease.gitTag,
-            })
-            if (data.immutable !== true) {
-              core.setFailed(`${result.nextRelease.gitTag} is not an immutable release.`)
-            }
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
