@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import { test } from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
+import semver from 'semver'
 import en from './en.json' with { type: 'json' }
 import ko from '../src/ko.json' with { type: 'json' }
 import manifest from '../package.json' with { type: 'json' }
@@ -39,6 +40,15 @@ function loadClient(source, languages = ['en-US']) {
 const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
+
+test('installation accepts validated DSH runtimes and rejects unvalidated releases', () => {
+  for (const version of ['0.2.1-rc.2', '0.2.1-rc.3']) {
+    assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), true, version)
+  }
+  for (const version of ['0.2.1-rc.1', '0.2.1-rc.4', '0.2.1', '0.2.2']) {
+    assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), false, version)
+  }
+})
 
 test('all supported namespaces preserve upstream keys and placeholders', () => {
   assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort())
