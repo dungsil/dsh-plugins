@@ -3,16 +3,24 @@ import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import { test } from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
+import { Window } from 'happy-dom'
 import semver from 'semver'
 import en from './en.json' with { type: 'json' }
 import ko from '../src/ko.json' with { type: 'json' }
 import manifest from '../package.json' with { type: 'json' }
 
-function loadClient(source) {
+function loadClient(source, browser = new Window()) {
   let loaded
   runInNewContext(source, {
+    Date,
+    document: browser.document,
+    Element: browser.Element,
+    HTMLElement: browser.HTMLElement,
+    KeyboardEvent: browser.KeyboardEvent,
     navigator: { languages: ['en-US'] },
     window: {
+      setTimeout,
+      clearTimeout,
       __ModuleLoader__: {
         load({ id, factory }) {
           // LocaleRuntime does not render. Fail if a test touches a UI dependency
@@ -106,4 +114,184 @@ test('built plugin translates, falls back, unloads and reloads through real Cord
   } finally {
     await ctx.fiber.dispose()
   }
+})
+
+await test('IME Enter replays once after commit and respects cancellation and plugin lifecycle', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'] })
+  const browser = new Window()
+  const { document, KeyboardEvent, CompositionEvent } = browser
+  const { LocaleRuntime } = loadClient(upstreamSource).exports
+  const client = loadClient(source, browser).exports
+  const ctx = new Context()
+  ctx.provide('locale', new LocaleRuntime(ctx))
+  let fiber = ctx.plugin(client)
+  await fiber.await()
+  t.after(async () => {
+    await ctx.fiber.dispose()
+    await browser.happyDOM.close()
+  })
+  const settle = () => t.mock.timers.tick(60)
+  let root
+  let replays
+  const key = (type, init = {}, target = root) => {
+    const event = new KeyboardEvent(type, { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, ...init })
+    target.dispatchEvent(event)
+    assert.equal(event.defaultPrevented, false, 'the plugin must leave original IME/default behavior intact')
+  }
+  const composition = (type, target = root) => target.dispatchEvent(new CompositionEvent(type, { bubbles: true }))
+  const commit = (init = {}) => {
+    composition('compositionstart')
+    key('keydown', { isComposing: true, keyCode: 229, ...init })
+    composition('compositionend')
+  }
+  const reset = () => {
+    document.body.innerHTML = '<div data-composer-input contenteditable="true"></div><textarea></textarea>'
+    root = document.querySelector('[data-composer-input]')
+    root.focus()
+    replays = []
+    // Original events have no which=13. Observe the ordinary Enter the host receives.
+    root.addEventListener('keydown', (event) => {
+      if (event.which === 13) replays.push(event)
+    })
+  }
+
+  for (const init of [{}, { ctrlKey: true }, { metaKey: true }, { code: 'NumpadEnter' }]) {
+    await t.test(`committed Enter preserves modifiers ${JSON.stringify(init)}`, () => {
+      reset()
+      commit(init)
+      key('keyup', init)
+      settle()
+      assert.equal(replays.length, 1)
+      assert.equal(replays[0].isComposing, false)
+      assert.equal(replays[0].keyCode, 13)
+      assert.equal(replays[0].ctrlKey, init.ctrlKey ?? false)
+      assert.equal(replays[0].metaKey, init.metaKey ?? false)
+    })
+  }
+
+  await t.test('Safari end-before-keydown and Process/229 keyup-only sequences', () => {
+    for (const keyupFirst of [null, false, true]) {
+      reset()
+      composition('compositionstart')
+      if (keyupFirst !== null) key('keydown', { key: 'Process', code: '', keyCode: 229 })
+      if (keyupFirst) key('keyup')
+      composition('compositionend')
+      if (keyupFirst === null) key('keydown')
+      if (!keyupFirst) key('keyup')
+      settle()
+      assert.equal(replays.length, 1)
+      key('keyup')
+      settle()
+      assert.equal(replays.length, 1, 'late keyup must not submit again')
+    }
+  })
+
+  await t.test('only replays inside the host post-composition guard, not at its boundary', () => {
+    for (const [delay, expected] of [
+      [9, 1],
+      [10, 0],
+      [11, 0],
+    ]) {
+      reset()
+      composition('compositionstart')
+      composition('compositionend')
+      t.mock.timers.tick(delay)
+      key('keydown')
+      key('keyup')
+      settle()
+      assert.equal(replays.length, expected, `${delay} ms after compositionend`)
+    }
+  })
+
+  await t.test('late IME-flagged Enter replays only when a composition end was observed', () => {
+    for (const init of [{ isComposing: true }, { keyCode: 229 }]) {
+      reset()
+      composition('compositionstart')
+      composition('compositionend')
+      t.mock.timers.tick(20)
+      key('keydown', init)
+      settle()
+      assert.equal(replays.length, 1)
+      reset()
+      composition('compositionstart')
+      key('keydown', init)
+      t.mock.timers.tick(500)
+      assert.equal(replays.length, 0, 'an Enter that leaves the IME composing must not send')
+    }
+  })
+
+  for (const init of [{ shiftKey: true }, { altKey: true }, { repeat: true }]) {
+    await t.test(`does not replay ${JSON.stringify(init)}`, () => {
+      reset()
+      commit(init)
+      key('keyup', init)
+      settle()
+      assert.equal(replays.length, 0)
+    })
+  }
+
+  await t.test('ordinary Enter, composition without Enter, and unrelated fields remain untouched', () => {
+    reset()
+    key('keydown')
+    key('keyup')
+    settle()
+    assert.equal(replays.length, 0)
+    composition('compositionstart')
+    composition('compositionend')
+    settle()
+    assert.equal(replays.length, 0)
+    const textarea = document.querySelector('textarea')
+    composition('compositionstart', textarea)
+    key('keydown', { isComposing: true }, textarea)
+    composition('compositionend', textarea)
+    settle()
+    assert.equal(replays.length, 0)
+  })
+
+  for (const action of [
+    () => key('keydown', { key: 'a', code: 'KeyA' }),
+    () => key('keydown', { key: 'ArrowDown', code: 'ArrowDown' }),
+    () => composition('compositionstart'),
+    () => document.querySelector('textarea').focus(),
+    () => root.remove(),
+    () => (root.contentEditable = 'false'),
+    () => key('keydown'),
+  ]) {
+    await t.test(`cancels pending replay: ${String(action)}`, () => {
+      reset()
+      commit()
+      // The last case is a second, ordinary Enter after the host's guard has lifted.
+      t.mock.timers.tick(15)
+      action()
+      settle()
+      assert.equal(replays.length, 0)
+    })
+  }
+
+  await t.test('candidate selection that keeps composing does not send on a later end', () => {
+    reset()
+    composition('compositionstart')
+    key('keydown', { isComposing: true })
+    t.mock.timers.tick(180)
+    composition('compositionend')
+    key('keyup')
+    settle()
+    assert.equal(replays.length, 0)
+  })
+
+  await t.test('disposing cancels pending send; reload installs only one listener set', async () => {
+    reset()
+    commit()
+    await fiber.dispose()
+    settle()
+    assert.equal(replays.length, 0)
+    commit()
+    settle()
+    assert.equal(replays.length, 0)
+    fiber = ctx.plugin(client)
+    await fiber.await()
+    commit()
+    settle()
+    assert.equal(replays.length, 1)
+  })
 })
