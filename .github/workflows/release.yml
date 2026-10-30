@@ -2,11 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      publish_tag:
-        description: Existing GitHub Release tag to publish to npm (leave empty for a new release)
-        type: string
-        required: false
 
 permissions:
   contents: write
@@ -18,7 +13,6 @@ concurrency:
 
 jobs:
   release:
-    if: ${{ !inputs.publish_tag }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -36,38 +30,3 @@ jobs:
       - run: pnpm exec semantic-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  publish-existing:
-    if: ${{ inputs.publish_tag != '' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26.13.0
-          registry-url: https://registry.npmjs.org
-      - name: Download and verify the existing release package
-        working-directory: ${{ runner.temp }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ inputs.publish_tag }}
-        run: |
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          VERSION="${RELEASE_TAG#v}"
-          ASSET="dungsil-dsh-plugin-locale-ko-$VERSION.tgz"
-          gh release download "$RELEASE_TAG" --pattern "$ASSET"
-          DIGEST=$(gh release view "$RELEASE_TAG" --json assets --jq ".assets[] | select(.name == \"$ASSET\") | .digest")
-          echo "${DIGEST#sha256:}  $ASSET" | sha256sum --check
-          tar -xOf "$ASSET" package/package.json | jq -e --arg version "$VERSION" \
-            '.name == "@dungsil/dsh-plugin-locale-ko" and .version == $version'
-      - name: Publish the existing release package to npm
-        working-directory: ${{ runner.temp }}
-        env:
-          RELEASE_TAG: ${{ inputs.publish_tag }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish "dungsil-dsh-plugin-locale-ko-${RELEASE_TAG#v}.tgz" --access public
