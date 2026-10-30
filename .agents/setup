@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# Older Corepack versions do not support pnpm 12's native executable layout.
+echo 'Ensuring the pinned pnpm version is available'
+pnpm_package="$(node -p 'require("./package.json").packageManager')"
+if ! command -v pnpm >/dev/null || [[ "$(pnpm --version)" != "${pnpm_package#pnpm@}" ]]; then
+  time npm install --global "$pnpm_package"
+fi
+
+# pnpm installs the pinned Node runtime from devEngines.
+# Keep node_modules and the pnpm/Turbo caches for exact and stale snapshots alike.
+echo 'Installing the pinned toolchain and workspace dependencies'
+time pnpm install --frozen-lockfile
+
+echo 'Building workspace packages and warming the Turbo cache'
+time pnpm build
+
+echo 'Orb setup ready'
+pnpm --version
+pnpm exec node --version
