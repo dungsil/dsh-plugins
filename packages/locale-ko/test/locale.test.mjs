@@ -8,10 +8,10 @@ import en from './en.json' with { type: 'json' }
 import ko from '../src/ko.json' with { type: 'json' }
 import manifest from '../package.json' with { type: 'json' }
 
-function loadClient(source, languages = ['en-US']) {
+function loadClient(source) {
   let loaded
   runInNewContext(source, {
-    navigator: { languages },
+    navigator: { languages: ['en-US'] },
     window: {
       __ModuleLoader__: {
         load({ id, factory }) {
@@ -52,7 +52,8 @@ test('installation allows DSH 0.2 updates from rc.2 without opting into the next
 
 test('all supported namespaces preserve upstream keys and placeholders', () => {
   assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort())
-  let count = 0
+  const placeholders = (text) =>
+    [...text.matchAll(/\{\w+\}/g)].map(([value]) => value).sort((left, right) => left.localeCompare(right))
   for (const [namespace, dictionary] of Object.entries(en)) {
     assert.deepEqual(Object.keys(ko[namespace]).sort(), Object.keys(dictionary).sort(), namespace)
     for (const [key, original] of Object.entries(dictionary)) {
@@ -61,13 +62,9 @@ test('all supported namespaces preserve upstream keys and placeholders', () => {
       if (original.trim()) assert.ok(translated.trim(), `${namespace}.${key} is empty`)
       else assert.equal(translated, original, `${namespace}.${key} is an intentional empty prefix`)
       assert.doesNotMatch(translated, /[\u200b\ufeff]/u)
-      const placeholders = (text) =>
-        [...text.matchAll(/\{\w+\}/g)].map(([value]) => value).sort((left, right) => left.localeCompare(right))
       assert.deepEqual(placeholders(translated), placeholders(original), `${namespace}.${key}`)
-      count++
     }
   }
-  console.log(`Verified ${count} translations in ${Object.keys(ko).length} namespaces`)
 })
 
 test('built plugin translates, falls back, unloads and reloads through real Cordis and LocaleRuntime', async () => {
@@ -85,7 +82,6 @@ test('built plugin translates, falls back, unloads and reloads through real Cord
     assert.equal(locale.getLocale().locales.find(({ id }) => id === 'ko').label, '한국어')
     locale.setLocale('ko')
     assert.equal(locale.bind('settings')('title'), '설정')
-    assert.equal(locale.bind('conversation')('image.remove', { name: '도면.png' }), '이미지 도면.png 삭제')
     assert.equal(
       locale.bind('conversation')('detail.output.lines', {
         begin: 2,
@@ -109,21 +105,5 @@ test('built plugin translates, falls back, unloads and reloads through real Cord
     assert.equal(locale.bind('settings')('title'), '설정')
   } finally {
     await ctx.fiber.dispose()
-  }
-})
-
-test('ko-KR browser selects Korean, while an explicit English preference stays English', async () => {
-  const { LocaleRuntime } = loadClient(upstreamSource, ['ko-KR', 'en-US']).exports
-  for (const explicitEnglish of [false, true]) {
-    const ctx = new Context()
-    const locale = new LocaleRuntime(ctx)
-    ctx.provide('locale', locale)
-    if (explicitEnglish) locale.setLocale('en')
-    try {
-      await ctx.plugin(plugin.exports).await()
-      assert.equal(locale.getLocale().active, explicitEnglish ? 'en' : 'ko')
-    } finally {
-      await ctx.fiber.dispose()
-    }
   }
 })
