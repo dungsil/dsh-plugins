@@ -36,6 +36,7 @@ jobs:
       - run: pnpm exec semantic-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-existing:
     if: ${{ inputs.publish_tag != '' }}
@@ -48,6 +49,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26.13.0
+          registry-url: https://registry.npmjs.org
       - name: Download and verify the existing release package
         working-directory: ${{ runner.temp }}
         env:
@@ -67,4 +69,5 @@ jobs:
         working-directory: ${{ runner.temp }}
         env:
           RELEASE_TAG: ${{ inputs.publish_tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "dungsil-dsh-plugin-locale-ko-${RELEASE_TAG#v}.tgz" --access public
