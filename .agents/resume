@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Dependencies, the pinned Node runtime, and build caches survive in the snapshot.
+# No authentication or backing services need reconnecting; never install on resume.

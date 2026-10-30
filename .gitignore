@@ -12,3 +12,6 @@ dist/
 ### Packaged plugins ###
 *.tgz
 release/
+
+### Amp portals ###
+.amp/portals/*
