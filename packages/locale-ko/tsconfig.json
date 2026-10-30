@@ -1,6 +1,7 @@
 {
   "extends": "@dungsil/dsh-tsconfig",
   "compilerOptions": {
+    "lib": ["ES2025", "ESNext.Collection", "ESNext.Temporal", "DOM"],
     "strict": true,
     "resolveJsonModule": true,
     "noEmit": true
