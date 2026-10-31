@@ -1,3 +1,9 @@
+## [0.3.1](https://github.com/dungsil/dsh-plugins/compare/v0.3.0...v0.3.1) (2026-10-31)
+
+### Bug Fixes
+
+- **release:** npm 게시 도구 검사 충돌 해결 ([#9](https://github.com/dungsil/dsh-plugins/issues/9)) ([3530ac5](https://github.com/dungsil/dsh-plugins/commit/3530ac59e192ef6254cca5ede70a5c0d5feacab0))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/v0.2.0...v0.3.0) (2026-10-31)
 
 ### Features
