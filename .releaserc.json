@@ -16,7 +16,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "pnpm --filter @dungsil/dsh-plugin-locale-ko pack --pack-destination release"
+        "prepareCmd": "pnpm exec oxfmt --write CHANGELOG.md && pnpm --filter @dungsil/dsh-plugin-locale-ko pack --pack-destination release"
       }
     ],
     [
