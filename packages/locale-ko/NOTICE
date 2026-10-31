@@ -1,6 +1,9 @@
-The Korean dictionaries are translations of DeepSeek Harness UI dictionaries.
+The Korean dictionaries and the official plugin metadata translations in
+`src/plugin-metadata.json` are translations of DeepSeek Harness UI
+dictionaries and plugin metadata.
 The English test fixtures are copied from DeepSeek Harness 0.2.1-rc.2,
-commit 687f282e8625c6b8d11ff58211a90524be2e4317.
+commit 687f282e8625c6b8d11ff58211a90524be2e4317, and the plugin manager page
+dictionary from DeepSeek Harness 0.2.1-rc.5.
 https://github.com/deepseek-ai/deepseek-harness
 
 MIT License
