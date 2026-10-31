@@ -26,11 +26,6 @@
     "typescript": "7.0.2"
   },
   "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "12.16.1",
-      "onFail": "download"
-    },
     "runtime": {
       "name": "node",
       "version": "26.13.0",

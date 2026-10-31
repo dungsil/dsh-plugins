@@ -21,6 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm --filter @dungsil/dsh-plugin-locale-ko pack --pack-destination "$RUNNER_TEMP/packages"
+      - run: npm publish ./packages/locale-ko --dry-run
       - uses: actions/upload-artifact@v4
         with:
           name: locale-ko-package
