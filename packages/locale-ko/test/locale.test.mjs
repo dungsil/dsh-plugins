@@ -90,6 +90,8 @@ test('built plugin translates, falls back, unloads and reloads through real Cord
     assert.equal(locale.getLocale().locales.find(({ id }) => id === 'ko').label, '한국어')
     locale.setLocale('ko')
     assert.equal(locale.bind('settings')('title'), '설정')
+    assert.equal(locale.bind('pluginManager')('extensionsTitle'), '실험적 플러그인')
+    assert.equal(locale.bind('settings.pluginInventory')('search'), '플러그인 검색')
     assert.equal(
       locale.bind('conversation')('detail.output.lines', {
         begin: 2,
@@ -111,6 +113,51 @@ test('built plugin translates, falls back, unloads and reloads through real Cord
     await reloaded.await()
     assert.equal(locale.getLocale().active, 'ko', 'explicit selection is restored after reload')
     assert.equal(locale.bind('settings')('title'), '설정')
+  } finally {
+    await ctx.fiber.dispose()
+  }
+})
+
+await test('official plugin metadata translates, keeps explicit text and unloads with the plugin', async () => {
+  const { LocaleRuntime } = loadClient(upstreamSource).exports
+  const ctx = new Context()
+  const locale = new LocaleRuntime(ctx)
+  ctx.provide('locale', locale)
+  for (const [namespace, dictionary] of Object.entries(en)) locale.register(namespace, 'en', dictionary)
+  // A package metadata map as the Host builds it from locale/en.json and locale/zh.json.
+  const metadata = { en: 'Developer Tools', zh: '开发者工具' }
+  const description = {
+    en: 'Inspect and debug raw session data, grouped chat messages, and the NodeJS backend.',
+    zh: '查看调试会话原始数据、聊天消息分组数据，以及调试 NodeJS 后端',
+  }
+  // A package without locale files falls back to plain strings.
+  const fallback = 'Machine translation with reusable Session results'
+  assert.equal(locale.resolveText(metadata), 'Developer Tools', 'English is the shipped fallback')
+  try {
+    const fiber = ctx.plugin(plugin.exports)
+    await fiber.await()
+    locale.setLocale('ko')
+    assert.equal(locale.resolveText(metadata), '개발자 도구')
+    assert.equal(
+      locale.resolveText(description),
+      '세션 원시 데이터, 그룹화된 채팅 메시지, NodeJS 백엔드를 검사하고 디버깅합니다.'
+    )
+    assert.equal(locale.resolveText(fallback), '재사용 가능한 세션 결과를 이용한 기계 번역')
+    assert.equal(locale.resolveText('Some plugin name'), 'Some plugin name', 'unknown plain strings stay verbatim')
+    assert.equal(locale.resolveText('tool-bash'), 'tool-bash', 'module identifiers stay verbatim')
+    assert.equal(
+      locale.resolveText({ en: 'Developer Tools', ko: '직접 번역' }),
+      '직접 번역',
+      'a package-supplied Korean text wins over the shared dictionary'
+    )
+    assert.equal(locale.resolveText({ en: 'A plugin without a translation' }), 'A plugin without a translation')
+    locale.setLocale('en')
+    assert.equal(locale.resolveText(metadata), 'Developer Tools', 'other active languages keep their own resolution')
+    assert.equal(locale.resolveText(fallback), fallback)
+    locale.setLocale('ko')
+    await fiber.dispose()
+    assert.equal(locale.getLocale().active, 'en')
+    assert.equal(locale.resolveText(metadata), 'Developer Tools', 'disposing the plugin restores the locale service')
   } finally {
     await ctx.fiber.dispose()
   }
