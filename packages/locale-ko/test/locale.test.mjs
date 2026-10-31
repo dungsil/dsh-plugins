@@ -49,7 +49,7 @@ const source = await readFile(new URL('../dist/client.js', import.meta.url), 'ut
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
 
-test('installation allows DSH 0.2 updates from rc.2 without opting into the next minor', () => {
+await test('installation allows DSH 0.2 updates from rc.2 without opting into the next minor', () => {
   for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), true, version)
   }
@@ -58,7 +58,7 @@ test('installation allows DSH 0.2 updates from rc.2 without opting into the next
   }
 })
 
-test('all supported namespaces preserve upstream keys and placeholders', () => {
+await test('all supported namespaces preserve upstream keys and placeholders', () => {
   assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort())
   const placeholders = (text) =>
     [...text.matchAll(/\{\w+\}/g)].map(([value]) => value).sort((left, right) => left.localeCompare(right))
@@ -75,7 +75,7 @@ test('all supported namespaces preserve upstream keys and placeholders', () => {
   }
 })
 
-test('built plugin translates, falls back, unloads and reloads through real Cordis and LocaleRuntime', async () => {
+await test('built plugin translates, falls back, unloads and reloads through real Cordis and LocaleRuntime', async () => {
   assert.equal(plugin.id, manifest.name)
   const { LocaleRuntime } = loadClient(upstreamSource).exports
   const ctx = new Context()
