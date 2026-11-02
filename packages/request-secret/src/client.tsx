@@ -51,20 +51,21 @@ const copy = {
 }
 
 const styles = `
-.dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 8px 0; padding: 20px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 16px; color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: 14px/1.6 var(--dsw-font-family, system-ui); overflow-wrap: anywhere; }
-.dsh-secret-card h3 { margin: 4px 0 8px; font-size: 16px; }
-.dsh-secret-card p { margin: 8px 0; }
-.dsh-secret-card small { display: block; opacity: .75; }
-.dsh-secret-card code { display: block; margin: 8px 0; }
-.dsh-secret-card label { display: block; margin-top: 16px; font-weight: 600; }
-.dsh-secret-card input { box-sizing: border-box; width: 100%; min-height: 44px; margin: 8px 0; padding: 10px 12px; border: 1px solid var(--dsw-alias-border-l4, #8888); border-radius: 10px; font: inherit; color: inherit; background: var(--dsw-alias-bg-layer-1, #f5f5f5); }
+.dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 6px 0; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 10px; color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: 13px/1.45 var(--dsw-font-family, system-ui); overflow-wrap: anywhere; }
+.dsh-secret-card header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.dsh-secret-card h3 { margin: 0; font-size: 14px; }
+.dsh-secret-card p { margin: 4px 0; }
+.dsh-secret-card small { display: block; font-size: 12px; opacity: .75; }
+.dsh-secret-card code { font-size: 12px; opacity: .75; }
+.dsh-secret-card input { box-sizing: border-box; flex: 1 1 140px; min-width: 0; height: 36px; padding: 6px 10px; border: 1px solid var(--dsw-alias-border-l4, #8888); border-radius: 7px; font: inherit; color: inherit; background: var(--dsw-alias-bg-layer-1, #f5f5f5); }
 .dsh-secret-card input:focus-visible, .dsh-secret-card button:focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
-.dsh-secret-card footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-.dsh-secret-card button { border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 10px; padding: 9px 16px; font: inherit; cursor: pointer; background: transparent; color: inherit; }
+.dsh-secret-card footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.dsh-secret-card button { flex: none; min-height: 36px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 7px; padding: 6px 10px; font: inherit; cursor: pointer; background: transparent; color: inherit; }
 .dsh-secret-card button[type=submit] { background: var(--dsw-alias-button-primary-fill, #222); border-color: transparent; color: var(--dsw-alias-label-primary-foreground, white); }
 .dsh-secret-card button:hover:not(:disabled) { filter: brightness(.9); }
 .dsh-secret-card button:disabled { opacity: .5; cursor: default; }
 .dsh-secret-card [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
+@media (max-width: 480px) { .dsh-secret-card input { flex-basis: 100%; } }
 `
 
 type Text = (typeof copy)[keyof typeof copy]
@@ -140,29 +141,29 @@ function SecretForm({
       onKeyPress={(event) => event.stopPropagation()}
       onPaste={(event) => event.stopPropagation()}
     >
-      <p>{text.privacy}</p>
+      <small>{text.privacy}</small>
       <small>{text.access}</small>
       {request.configured && <p>{text.replace}</p>}
-      <label htmlFor={`secret-${request.id}`}>{text.value}</label>
-      <input
-        ref={input}
-        id={`secret-${request.id}`}
-        type="password"
-        autoComplete="off"
-        spellCheck={false}
-        autoCapitalize="off"
-        data-1p-ignore=""
-        data-lpignore="true"
-        required
-        maxLength={maxSecretLength}
-        disabled={busy}
-        onInput={(event) => {
-          event.stopPropagation()
-          setEmpty(!event.currentTarget.value.length)
-        }}
-      />
-      {error && <p role="alert">{text.error}</p>}
       <footer>
+        <input
+          ref={input}
+          id={`secret-${request.id}`}
+          aria-label={text.value}
+          placeholder={text.value}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          autoCapitalize="off"
+          data-1p-ignore=""
+          data-lpignore="true"
+          required
+          maxLength={maxSecretLength}
+          disabled={busy}
+          onInput={(event) => {
+            event.stopPropagation()
+            setEmpty(!event.currentTarget.value.length)
+          }}
+        />
         <button
           type="button"
           disabled={busy}
@@ -176,6 +177,7 @@ function SecretForm({
           {busy ? text.saving : text.save}
         </button>
       </footer>
+      {error && <p role="alert">{text.error}</p>}
     </form>
   )
 }
@@ -220,10 +222,11 @@ export function apply(ctx: Context) {
     }
     return (
       <section className="dsh-secret-card" aria-label={text.title}>
-        <small>{text.title}</small>
-        <h3>{request?.label ?? props.block.args.text('label') ?? text.title}</h3>
+        <header>
+          <h3>{request?.label ?? props.block.args.text('label') ?? text.title}</h3>
+          <code>{request?.ref ?? props.block.args.text('ref')}</code>
+        </header>
         <p>{request?.reason ?? props.block.args.text('reason')}</p>
-        <code>{request?.ref ?? props.block.args.text('ref')}</code>
         {status ? (
           <p role="status">{status}</p>
         ) : request && connection.interactions === 'answer' ? (
