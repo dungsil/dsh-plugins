@@ -193,12 +193,18 @@ importers:
       release-it:
         specifier: 21.1.2
         version: 21.1.2(@types/node@26.6.5)
+      semver:
+        specifier: 7.8.5
+        version: 7.8.5
       turbo:
         specifier: 2.11.10
         version: 2.11.10
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/i-have-adhd:
     devDependencies:

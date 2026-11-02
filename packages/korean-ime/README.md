@@ -14,3 +14,9 @@ DeepSeek Harness 대화 입력창의 한국어 IME Enter 처리를 제공합니�
 ```sh
 dsh plugin --profile web add @dungsil/dsh-plugin-korean-ime
 ```
+
+## 플러그인 화면에서 업데이트
+
+npm 패키지 이름으로 직접 설치했다면 **플러그인 → 설치됨 → 이 플러그인 → 버전 → 업데이트**로 새 버전을 설치합니다. 한국어 UI의 의존성으로만 설치했다면 `locale-ko` 번들을 통해 관리합니다. 설치 조건과 실패 복구는 [공통 업데이트 안내](../../README.md#공통-in-place-업데이트)를 따릅니다.
+
+재로드 시 예약된 Enter 전송과 기존 이벤트 리스너를 해제한 뒤 새 모듈을 등록하므로 중복 전송을 방지합니다.

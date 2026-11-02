@@ -8,8 +8,9 @@ import * as SkillFilesystem from '@deepseek-ai/dsh-skill-filesystem'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as plugin from '../dist/index.js'
 
-await test('automatically includes the unmodified rules in every prompt and unloads cleanly', async () => {
+await test('automatically includes the rules once per prompt across in-place reloads', async (t) => {
   const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
   await ctx.plugin(SkillRegistry)
   await ctx.plugin(SkillFilesystem, { includeDefaultRoots: false, watch: false })
   await ctx.plugin(SystemPrompt, { personaPrefix: 'Existing deployment instructions.' })
@@ -19,9 +20,9 @@ await test('automatically includes the unmodified rules in every prompt and unlo
 
   const fork = ctx.plugin(plugin)
   await fork
+  const firstPrompt = renderPrompt(await ctx.systemPrompt.assemble())
   try {
     // No skill invocation or conversation history is needed, including after compaction.
-    const firstPrompt = renderPrompt(await ctx.systemPrompt.assemble())
     assert.ok(firstPrompt.includes('Existing deployment instructions.'))
     assert.match(firstPrompt, /### 1\. Lead with the next action/)
     assert.match(firstPrompt, /"stop adhd mode" or "normal mode"/)
@@ -58,5 +59,19 @@ await test('automatically includes the unmodified rules in every prompt and unlo
 
   assert.deepEqual(await ctx.skills.list(), [])
   assert.equal(await ctx.skills.get('i-have-adhd'), undefined)
+  assert.equal(renderPrompt(await ctx.systemPrompt.assemble()), baseline)
+
+  // A replacement must register both the skill provider and prompt section anew.
+  const replacement = await import('../dist/index.js?in-place-update')
+  const reloaded = ctx.plugin(replacement)
+  await reloaded
+  assert.deepEqual(
+    (await ctx.skills.list()).map((skill) => skill.name),
+    ['i-have-adhd']
+  )
+  assert.equal((await ctx.skills.get('i-have-adhd')).provider, 'dungsil-i-have-adhd')
+  assert.equal(renderPrompt(await ctx.systemPrompt.assemble()), firstPrompt)
+  await reloaded.dispose()
+  assert.deepEqual(await ctx.skills.list(), [])
   assert.equal(renderPrompt(await ctx.systemPrompt.assemble()), baseline)
 })
