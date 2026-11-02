@@ -87,8 +87,13 @@ await test('installation allows DSH 0.2 updates from rc.2 without opting into th
 })
 
 await test('Korean dictionaries stay complete and well-formed', () => {
-  // These two entries translate an English blank prefix, so they stay blank.
-  const intentionallyBlank = new Set(['chat.message.stepProcess.sharedPrefix', 'pluginManager.sentenceSeparator'])
+  // These entries translate an English blank prefix, so they stay blank.
+  const intentionallyBlank = new Set([
+    'chat.message.stepProcess.sharedPrefix',
+    'pluginManager.sentenceSeparator',
+    'schedule.catalog.cron.part.join',
+    'schedule.manager.cron.part.join',
+  ])
   for (const [namespace, dictionary] of Object.entries(ko)) {
     assert.ok(Object.keys(dictionary).length > 0, `${namespace} is empty`)
     for (const [key, translated] of Object.entries(dictionary)) {
@@ -145,9 +150,17 @@ await test('built plugin translates, falls back, unloads and reloads through rea
     assert.equal(locale.bind('settings.pluginInventory')('search'), '플러그인 검색')
     assert.equal(locale.bind('trajectory')('view.trajectory'), '실행 기록')
     assert.equal(locale.bind('trajectory')('toolbar.search'), '실행 기록 검색')
-    assert.equal(locale.bind('trajectory')('turn.label', { turn: 3 }), '턴 3')
+    assert.equal(locale.bind('trajectory')('turn.label', { turn: 3 }), '3턴')
     assert.equal(locale.bind('trajectory')('summary.toolCalls.other', { count: 2 }), '도구 호출 2회')
     assert.equal(locale.bind('trajectory')('unit.tokensPerSecond', { value: '12.5' }), '12.5토큰/초')
+    assert.equal(locale.bind('job')('count.live.other', { count: 2 }), '백그라운드 작업 2개 실행 중')
+    assert.equal(locale.bind('command')('section.commands'), '명령')
+    assert.equal(locale.bind('plan')('chip.label'), '계획')
+    assert.equal(locale.bind('goal')('phase.active'), '진행 중인 목표')
+    assert.equal(locale.bind('subagent')('duration.minutes', { minutes: 2, seconds: 5 }), '2분 5초')
+    assert.equal(locale.bind('question')('error.incomplete'), '먼저 이 질문에 답변하세요.')
+    assert.equal(locale.bind('sidebarFiles')('type.label'), '파일')
+    assert.equal(locale.bind('schedule.manager')('title'), '자동화 작업')
     assert.equal(
       locale.bind('conversation')('detail.output.lines', {
         begin: 2,
