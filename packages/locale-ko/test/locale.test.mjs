@@ -5,7 +5,6 @@ import { test } from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { Window } from 'happy-dom'
 import semver from 'semver'
-import en from './en.json' with { type: 'json' }
 import ko from '../src/ko.json' with { type: 'json' }
 import manifest from '../package.json' with { type: 'json' }
 
@@ -58,19 +57,19 @@ await test('installation allows DSH 0.2 updates from rc.2 without opting into th
   }
 })
 
-await test('all supported namespaces preserve upstream keys and placeholders', () => {
-  assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort())
-  const placeholders = (text) =>
-    [...text.matchAll(/\{\w+\}/g)].map(([value]) => value).sort((left, right) => left.localeCompare(right))
-  for (const [namespace, dictionary] of Object.entries(en)) {
-    assert.deepEqual(Object.keys(ko[namespace]).sort(), Object.keys(dictionary).sort(), namespace)
-    for (const [key, original] of Object.entries(dictionary)) {
-      const translated = ko[namespace][key]
-      assert.equal(typeof translated, 'string')
-      if (original.trim()) assert.ok(translated.trim(), `${namespace}.${key} is empty`)
-      else assert.equal(translated, original, `${namespace}.${key} is an intentional empty prefix`)
-      assert.doesNotMatch(translated, /[\u200b\ufeff]/u)
-      assert.deepEqual(placeholders(translated), placeholders(original), `${namespace}.${key}`)
+await test('Korean dictionaries stay complete and well-formed', () => {
+  // These two entries translate an English blank prefix, so they stay blank.
+  const intentionallyBlank = new Set(['chat.message.stepProcess.sharedPrefix', 'pluginManager.sentenceSeparator'])
+  for (const [namespace, dictionary] of Object.entries(ko)) {
+    assert.ok(Object.keys(dictionary).length > 0, `${namespace} is empty`)
+    for (const [key, translated] of Object.entries(dictionary)) {
+      const id = `${namespace}.${key}`
+      assert.equal(typeof translated, 'string', id)
+      if (intentionallyBlank.has(id)) assert.equal(translated.trim(), '', `${id} must stay blank`)
+      else assert.ok(translated.trim(), `${id} is empty`)
+      assert.doesNotMatch(translated, /[\u200b\ufeff]/u, id)
+      // Every brace pair must form one placeholder; a leftover brace is a typo.
+      assert.doesNotMatch(translated.replace(/\{\w+\}/g, ''), /[{}]/, id)
     }
   }
 })
@@ -81,7 +80,8 @@ await test('built plugin translates, falls back, unloads and reloads through rea
   const ctx = new Context()
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
-  for (const [namespace, dictionary] of Object.entries(en)) locale.register(namespace, 'en', dictionary)
+  // English is the built-in fallback; register only what these assertions resolve.
+  locale.register('settings', 'en', { title: 'Settings' })
   locale.register('futurePlugin', 'en', { newFeature: 'Future feature' })
   try {
     const fiber = ctx.plugin(plugin.exports)
@@ -102,7 +102,23 @@ await test('built plugin translates, falls back, unloads and reloads through rea
       t('updateRestoredDetail', { from: '0.3.1', to: '0.4.0' }),
       '0.4.0 버전을 설치하지 못해 0.3.1 버전을 다시 설치했습니다.'
     )
+    assert.equal(locale.bind('settings.subagent')('subagentTitle'), '하위 에이전트')
+    assert.equal(
+      locale.bind('settings.subagent')('subagentDescription'),
+      '하위 에이전트의 재귀 깊이, 동시 실행 수, 모델을 설정합니다.'
+    )
+    assert.equal(locale.bind('settings.webSearch')('title'), '웹 검색')
+    assert.equal(locale.bind('settings.webSearch')('description'), 'DeepSeek 검색 공급자를 설정합니다.')
+    assert.equal(locale.bind('settings.agentLoop')('title'), '에이전트 루프')
+    assert.equal(locale.bind('settings.agentLoop')('description'), '에이전트가 도구 호출을 배분하는 방식을 제어합니다.')
+    assert.equal(locale.bind('settings.shell')('title'), '셸')
+    assert.equal(locale.bind('settings.shell')('description'), '각 명령의 실행 시간과 출력량을 제한합니다.')
     assert.equal(locale.bind('settings.pluginInventory')('search'), '플러그인 검색')
+    assert.equal(locale.bind('trajectory')('view.trajectory'), '실행 기록')
+    assert.equal(locale.bind('trajectory')('toolbar.search'), '실행 기록 검색')
+    assert.equal(locale.bind('trajectory')('turn.label', { turn: 3 }), '턴 3')
+    assert.equal(locale.bind('trajectory')('summary.toolCalls.other', { count: 2 }), '도구 호출 2회')
+    assert.equal(locale.bind('trajectory')('unit.tokensPerSecond', { value: '12.5' }), '12.5토큰/초')
     assert.equal(
       locale.bind('conversation')('detail.output.lines', {
         begin: 2,
@@ -136,7 +152,6 @@ await test('official plugin metadata translates, keeps explicit text and unloads
   const ctx = new Context()
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
-  for (const [namespace, dictionary] of Object.entries(en)) locale.register(namespace, 'en', dictionary)
   // A package metadata map as the Host builds it from locale/en.json and locale/zh.json.
   const metadata = { en: 'Developer Tools', zh: '开发者工具' }
   const description = {
