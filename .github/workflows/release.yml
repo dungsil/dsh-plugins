@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
   id-token: write
 
 concurrency:
@@ -29,35 +28,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - uses: changesets/action@v1
-        id: changesets
-        with:
-          version: pnpm version-packages
-          publish: pnpm release
-          title: 'chore(release): version packages'
-          commit: 'chore(release): version packages'
-          createGithubReleases: false
+      - name: Configure release author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      # release-it attaches tarballs to drafts before publishing immutable releases.
+      - run: pnpm release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Attach tarballs before publishing so immutable releases keep their assets.
-      - name: Create package releases
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
-        run: |
-          pnpm -r list --depth -1 --json > "$RUNNER_TEMP/workspace-packages.json"
-          while IFS= read -r package; do
-            name=$(jq -r '.name' <<< "$package")
-            version=$(jq -r '.version' <<< "$package")
-            directory=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .path' "$RUNNER_TEMP/workspace-packages.json")
-            tag="$name@$version"
-            filename="${name#@}"
-            archive="$RUNNER_TEMP/packages/${filename//\//-}-$version.tgz"
-            notes="$RUNNER_TEMP/release-notes.md"
-            pnpm --dir "$directory" pack --pack-destination "$RUNNER_TEMP/packages"
-            awk '/^## / { section++; if (section == 2) exit } section == 1' "$directory/CHANGELOG.md" > "$notes"
-            git push origin "refs/tags/$tag"
-            gh release create "$tag" "$archive" --draft --verify-tag --title "$tag" --notes-file "$notes"
-            gh release edit "$tag" --draft=false
-          done < <(jq -c '.[]' <<< "$PUBLISHED_PACKAGES")

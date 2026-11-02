@@ -1,70 +1,117 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
+import release from 'release-it'
+import { releaseOptions } from './release.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const cli = join(root, 'node_modules/@changesets/cli/bin.js')
 
-await test('public packages keep independent versions, changelogs and tags across releases', (t) => {
-  const cwd = mkdtempSync(join(tmpdir(), 'dsh-release-'))
-  t.after(() => rmSync(cwd, { recursive: true, force: true }))
-  const writeJson = (path, value) => writeFileSync(join(cwd, path), JSON.stringify(value))
-  const readJson = (path) => JSON.parse(readFileSync(join(cwd, path), 'utf8'))
+await test('commit-driven releases preserve independent history, versions, tags and archives', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-release-'))
+  const cwd = join(directory, 'repo')
+  const previousCwd = process.cwd()
+  t.after(() => {
+    process.chdir(previousCwd)
+    rmSync(directory, { recursive: true, force: true })
+  })
+  mkdirSync(cwd)
   const run = (command, args) => execFileSync(command, args, { cwd, encoding: 'utf8' })
-  const changeset = (command) => run(process.execPath, [cli, command])
-
-  mkdirSync(join(cwd, '.changeset'))
-  cpSync(join(root, '.changeset/config.json'), join(cwd, '.changeset/config.json'))
-  symlinkSync(join(root, 'node_modules'), join(cwd, 'node_modules'), 'dir')
-  writeJson('package.json', { name: 'release-fixture', private: true })
-  writeFileSync(join(cwd, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n  - tools/*\n')
-  for (const [directory, manifest] of Object.entries({
-    'packages/locale-ko': { name: '@dungsil/dsh-plugin-locale-ko', version: '0.3.1' },
-    'packages/other': { name: '@fixture/other', version: '2.7.4' },
-    'tools/tsconfig': { name: '@fixture/tsconfig', version: '0.0.0', private: true },
-  })) {
-    mkdirSync(join(cwd, directory), { recursive: true })
-    writeJson(`${directory}/package.json`, {
-      name: manifest.name,
-      version: manifest.version,
-      private: manifest.private,
-    })
+  const write = (path, contents) => writeFileSync(join(cwd, path), contents)
+  const manifest = (name) => JSON.parse(readFileSync(join(cwd, 'packages', name, 'package.json'), 'utf8'))
+  const notes = (name) => readFileSync(join(cwd, 'packages', name, 'CHANGELOG.md'), 'utf8')
+  const commit = (message) => {
+    run('git', ['add', '.'])
+    run('git', ['commit', '-m', message])
   }
-  const history = readFileSync(join(root, 'packages/locale-ko/CHANGELOG.md'), 'utf8')
-  writeFileSync(join(cwd, 'packages/locale-ko/CHANGELOG.md'), history)
+  const publishLocally = async (name, dryRun = false) => {
+    process.chdir(join(cwd, 'packages', name))
+    const options = releaseOptions({ dryRun })
+    // Exercise real versioning, packing, commits and pushes, but only to a local
+    // bare Git repository. Never call npm or GitHub publishing in this test.
+    options.npm.publish = false
+    options.github.release = false
+    return release(options)
+  }
+
+  run('git', ['init', '--bare', join(directory, 'remote.git')])
   run('git', ['init', '--initial-branch=main'])
   run('git', ['config', 'user.name', 'Release Test'])
   run('git', ['config', 'user.email', 'release@example.com'])
-  run('git', ['add', '.'])
-  run('git', ['commit', '-m', 'Initial packages'])
+  run('git', ['remote', 'add', 'origin', join(directory, 'remote.git')])
+  write('package.json', JSON.stringify({ name: 'release-fixture', private: true }))
+  write('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  write('.gitignore', 'node_modules/\nrelease/\n')
+  symlinkSync(join(root, 'node_modules'), join(cwd, 'node_modules'), 'dir')
+  for (const [name, packageName, version] of [
+    ['locale-ko', '@dungsil/dsh-plugin-locale-ko', '0.3.1'],
+    ['other', '@fixture/other', '2.7.4'],
+    ['new', '@fixture/new', '0.0.0'],
+  ]) {
+    mkdirSync(join(cwd, 'packages', name), { recursive: true })
+    write(`packages/${name}/package.json`, JSON.stringify({ name: packageName, version }))
+  }
+  const history = '# @dungsil/dsh-plugin-locale-ko\n\n## 0.3.1\n\nPrevious release.\n'
+  write('packages/locale-ko/CHANGELOG.md', history)
+  commit('chore: initial packages')
+  write('packages/new/index.js', '// new feature\n')
+  commit('feat(new): first feature')
+  run('git', ['tag', 'v0.3.1'])
+  run('git', ['tag', '@fixture/other@2.7.4'])
+  run('git', ['push', '-u', 'origin', 'main', '--tags'])
 
-  writeFileSync(
-    join(cwd, '.changeset/locale-fix.md'),
-    '---\n"@dungsil/dsh-plugin-locale-ko": patch\n---\n\nLocale fix.\n'
-  )
-  changeset('version')
-  assert.equal(readJson('packages/locale-ko/package.json').version, '0.3.2')
-  assert.equal(readJson('packages/other/package.json').version, '2.7.4')
-  const localeNotes = readFileSync(join(cwd, 'packages/locale-ko/CHANGELOG.md'), 'utf8')
-  assert.match(localeNotes, /^# @dungsil\/dsh-plugin-locale-ko\n\n## 0\.3\.2/)
-  assert.match(localeNotes, /Locale fix\./)
-  assert.ok(localeNotes.endsWith(history.slice(history.indexOf('## '))))
+  write('packages/locale-ko/index.js', '// locale fix\n')
+  commit('fix(unrelated-scope): locale correction')
+  write('README.md', 'Root-only change\n')
+  commit('feat!: root-only change must not bump packages')
+  write('packages/other/README.md', 'Documentation\n')
+  commit('docs(other): documentation only')
 
-  writeFileSync(join(cwd, '.changeset/other-feature.md'), '---\n"@fixture/other": minor\n---\n\nOther feature.\n')
-  changeset('version')
-  assert.equal(readJson('packages/locale-ko/package.json').version, '0.3.2')
-  assert.equal(readJson('packages/other/package.json').version, '2.8.0')
-  assert.equal(readJson('tools/tsconfig/package.json').version, '0.0.0')
-  assert.equal(readFileSync(join(cwd, 'packages/locale-ko/CHANGELOG.md'), 'utf8'), localeNotes)
-  assert.match(readFileSync(join(cwd, 'packages/other/CHANGELOG.md'), 'utf8'), /## 2\.8\.0[\s\S]*Other feature\./)
+  const head = run('git', ['rev-parse', 'HEAD'])
+  const preview = await publishLocally('locale-ko', true)
+  assert.equal(preview.version, '0.3.2')
+  assert.equal(manifest('locale-ko').version, '0.3.1')
+  assert.equal(notes('locale-ko'), history)
+  assert.equal(run('git', ['rev-parse', 'HEAD']), head)
 
-  changeset('tag')
+  assert.equal((await publishLocally('locale-ko')).version, '0.3.2')
+  assert.equal(manifest('locale-ko').version, '0.3.2')
+  assert.match(notes('locale-ko'), /locale correction/)
+  assert.doesNotMatch(notes('locale-ko'), /first feature|root-only change/)
+  assert.ok(notes('locale-ko').endsWith(history.slice(history.indexOf('## '))))
+  const localeNotes = notes('locale-ko')
+  const archive = join(cwd, 'release/dungsil-dsh-plugin-locale-ko/dungsil-dsh-plugin-locale-ko-0.3.2.tgz')
+  assert.equal(JSON.parse(run('tar', ['-xOf', archive, 'package/package.json'])).version, '0.3.2')
+  assert.equal(run('tar', ['-xOf', archive, 'package/CHANGELOG.md']), localeNotes)
+
+  assert.equal((await publishLocally('new')).version, '0.1.0')
+  assert.equal(manifest('new').version, '0.1.0')
+  assert.match(notes('new'), /first feature/)
+  assert.doesNotMatch(notes('new'), /locale correction|0\.3\.1/)
+  assert.equal((await publishLocally('other')).version, undefined)
+  assert.equal(manifest('other').version, '2.7.4')
+  assert.equal((await publishLocally('locale-ko')).version, undefined)
+
+  write('packages/other/index.js', '// feature\n')
+  commit('feat(other): independent feature')
+  assert.equal((await publishLocally('other')).version, '2.8.0')
+  assert.equal(notes('locale-ko'), localeNotes)
+  write('packages/locale-ko/index.js', '// breaking API\n')
+  commit('refactor(locale-ko)!: incompatible locale API')
+  assert.equal((await publishLocally('locale-ko')).version, '1.0.0')
+  assert.equal(manifest('other').version, '2.8.0')
+  assert.equal((await publishLocally('locale-ko')).version, undefined)
   assert.deepEqual(run('git', ['tag', '--list']).trim().split('\n'), [
     '@dungsil/dsh-plugin-locale-ko@0.3.2',
+    '@dungsil/dsh-plugin-locale-ko@1.0.0',
+    '@fixture/new@0.1.0',
+    '@fixture/other@2.7.4',
     '@fixture/other@2.8.0',
+    'v0.3.1',
   ])
+  assert.equal(run('git', ['status', '--porcelain']), '')
+  assert.equal(run('git', ['rev-parse', 'HEAD']), run('git', ['rev-parse', 'origin/main']))
 })
