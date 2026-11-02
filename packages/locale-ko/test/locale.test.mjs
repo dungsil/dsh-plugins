@@ -396,7 +396,7 @@ await test('IME Enter replays once after commit and respects cancellation and pl
     assert.equal(replays.length, 0)
   })
 
-  await t.test('disposing cancels pending send; reload installs only one listener set', async () => {
+  await t.test('disposing cancels pending send; in-place replacement sends Enter only once', async () => {
     reset()
     commit()
     await fiber.dispose()
@@ -405,7 +405,7 @@ await test('IME Enter replays once after commit and respects cancellation and pl
     commit()
     settle()
     assert.equal(replays.length, 0)
-    fiber = ctx.plugin(client)
+    fiber = ctx.plugin(loadClient(imeSource, browser).exports)
     await fiber.await()
     commit()
     settle()

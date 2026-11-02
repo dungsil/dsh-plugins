@@ -16,11 +16,13 @@ const names = [
   'restyling-korean',
 ]
 
-await test('DSH discovers and loads all six bundled skills, then removes them on unload', async () => {
+await test('DSH discovers all six skills and replaces their registrations on in-place reload', async (t) => {
   const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
   await ctx.plugin(SkillRegistry)
   const fork = ctx.plugin(plugin)
   await fork
+  const contents = new Map()
   try {
     const catalog = await ctx.skills.list()
     assert.deepEqual(
@@ -40,6 +42,7 @@ await test('DSH discovers and loads all six bundled skills, then removes them on
       assert.equal(skill.resourceBase.kind, 'directory')
       const raw = await readFile(resolve(skill.resourceBase.path, 'SKILL.md'), 'utf8')
       assert.equal(skill.content, raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, '').trim())
+      contents.set(name, skill.content)
       assert.ok(skill.description.length > 0)
       const rendered = renderSkillContent(skill)
       assert.ok(rendered.includes(skill.resourceBase.path))
@@ -52,6 +55,22 @@ await test('DSH discovers and loads all six bundled skills, then removes them on
   }
   assert.deepEqual(await ctx.skills.list(), [])
   assert.equal(await ctx.skills.get('polishing-korean'), undefined)
+
+  // DSH loads a new module instance after disposing the installed version.
+  const replacement = await import('../dist/index.js?in-place-update')
+  const reloaded = ctx.plugin(replacement)
+  await reloaded
+  assert.deepEqual(
+    (await ctx.skills.list()).map((skill) => skill.name),
+    names
+  )
+  for (const name of names) {
+    const skill = await ctx.skills.get(name)
+    assert.equal(skill.provider, 'dungsil-yoonmoon')
+    assert.equal(skill.content, contents.get(name))
+  }
+  await reloaded.dispose()
+  assert.deepEqual(await ctx.skills.list(), [])
 })
 
 await test('bundled instructions do not shadow a higher-priority custom skill', async () => {

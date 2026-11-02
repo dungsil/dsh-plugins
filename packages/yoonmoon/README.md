@@ -2,7 +2,6 @@
 
 [yoonmoon](https://github.com/amondnet/yoonmoon)의 한국어 글다듬기 스킬 6개를 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)에 제공하는 플러그인
 
-
 ## 원본 및 라이선스
 
 MIT 라이선스에 따라 배포됩니다.
