@@ -9,6 +9,7 @@ export interface SecretRequest {
   label: string
   reason: string
   sessionId: string
+  callId: string
   configured: boolean
 }
 

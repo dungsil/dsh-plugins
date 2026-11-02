@@ -11,10 +11,11 @@ export default defineConfig([
     dts: false,
   },
   {
-    entry: ['src/client.ts'],
+    entry: ['src/client.tsx'],
     format: 'cjs',
     platform: 'browser',
     inputOptions: { platform: 'browser' },
+    deps: { neverBundle: ['react', 'react/jsx-runtime'] },
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),
     dts: false,
