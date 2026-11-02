@@ -91,6 +91,17 @@ await test('built plugin translates, falls back, unloads and reloads through rea
     locale.setLocale('ko')
     assert.equal(locale.bind('settings')('title'), '설정')
     assert.equal(locale.bind('pluginManager')('extensionsTitle'), '실험적 플러그인')
+    const t = locale.bind('pluginManager')
+    assert.equal(t('versionsAvailable', { version: '0.4.0' }), '0.4.0 버전으로 업데이트 가능')
+    assert.equal(
+      t('updateDescription', { from: '0.3.1', to: '0.4.0' }),
+      '0.3.1 버전을 0.4.0 버전으로 교체하며, 플러그인이 잠시 중지될 수 있습니다. 설치에 실패하면 0.3.1 버전을 유지하거나 다시 설치합니다.'
+    )
+    assert.equal(t('updateStepInstalling', { version: '0.4.0', registry: 'npm' }), 'npm에서 0.4.0 버전 설치')
+    assert.equal(
+      t('updateRestoredDetail', { from: '0.3.1', to: '0.4.0' }),
+      '0.4.0 버전을 설치하지 못해 0.3.1 버전을 다시 설치했습니다.'
+    )
     assert.equal(locale.bind('settings.pluginInventory')('search'), '플러그인 검색')
     assert.equal(
       locale.bind('conversation')('detail.output.lines', {
@@ -109,10 +120,12 @@ await test('built plugin translates, falls back, unloads and reloads through rea
       false
     )
     assert.equal(locale.bind('settings')('title'), 'Settings')
-    const reloaded = ctx.plugin(plugin.exports)
+    // An in-place update loads a new module instance after disposing the old one.
+    const reloaded = ctx.plugin(loadClient(source).exports)
     await reloaded.await()
     assert.equal(locale.getLocale().active, 'ko', 'explicit selection is restored after reload')
     assert.equal(locale.bind('settings')('title'), '설정')
+    assert.equal(t('updateDone', { version: '0.4.0' }), '0.4.0 버전으로 업데이트했습니다')
   } finally {
     await ctx.fiber.dispose()
   }
