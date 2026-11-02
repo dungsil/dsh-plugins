@@ -1,3 +1,5 @@
+# @dungsil/dsh-plugin-locale-ko
+
 ## [0.3.1](https://github.com/dungsil/dsh-plugins/compare/v0.3.0...v0.3.1) (2026-10-31)
 
 ### Bug Fixes
