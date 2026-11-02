@@ -33,6 +33,13 @@ await test('all public plugins satisfy the shared in-place update package contra
       assert.ok(manifest.files.includes('dist'), 'the replacement must include its built entry points')
       assert.equal(manifest.exports['.'], './dist/index.js')
       assert.equal(manifest.exports['./package.json'], './package.json')
+      assert.ok(manifest.files.includes('locale'), 'plugin metadata must be published')
+      assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
+      for (const language of ['en', 'ko']) {
+        const { meta } = JSON.parse(await readFile(new URL(`locale/${language}.json`, base), 'utf8'))
+        assert.ok(meta.title.trim(), `${language} title must not be blank`)
+        assert.ok(meta.description.trim(), `${language} description must not be blank`)
+      }
       const patch = parse(await readFile(new URL(patchPath, base), 'utf8'))
       const rows = patch.flatMap((operation) => operation.insert ?? [])
       assert.equal(rows.filter((row) => row.name === name).length, 1, 'the bundle must activate its own plugin once')

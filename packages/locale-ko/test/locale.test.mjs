@@ -50,38 +50,53 @@ const imeSource = await readFile(new URL(import.meta.resolve('@dungsil/dsh-plugi
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
 
-await test('bundle exposes two enabled, independently loadable and localized components', async () => {
+await test('bundle exposes three enabled, independently loadable and localized components', async () => {
   const patch = parse(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8'))
   assert.deepEqual(patch, [
     {
       insert: [
         { id: 'dungsil-locale-ko', name: manifest.name },
         { id: 'dungsil-korean-ime', name: '@dungsil/dsh-plugin-korean-ime' },
+        { id: 'dungsil-yoonmoon', name: '@dungsil/dsh-plugin-yoonmoon' },
       ],
     },
   ])
   for (const [index, row] of patch[0].insert.entries()) {
     const packageManifest = JSON.parse(await readFile(new URL(import.meta.resolve(`${row.name}/package.json`)), 'utf8'))
-    assert.equal(packageManifest.dsh.client.platform, 'web')
-    assert.equal(packageManifest.dsh.client.immediately, true)
     assert.equal(typeof (await import(row.name)).apply, 'function')
-    const client = loadClient(await readFile(new URL(import.meta.resolve(`${row.name}/client`)), 'utf8'))
-    assert.equal(client.id, row.name)
+    if (row.name !== '@dungsil/dsh-plugin-yoonmoon') {
+      assert.equal(packageManifest.dsh.client.platform, 'web')
+      assert.equal(packageManifest.dsh.client.immediately, true)
+      const client = loadClient(await readFile(new URL(import.meta.resolve(`${row.name}/client`)), 'utf8'))
+      assert.equal(client.id, row.name)
+    }
     for (const language of ['en', 'ko']) {
       const { meta } = JSON.parse(
         await readFile(new URL(import.meta.resolve(`${row.name}/locale/${language}.json`)), 'utf8')
       )
-      assert.equal(meta.title, { en: ['Korean UI', 'Korean IME'], ko: ['한국어 UI', '한국어 IME'] }[language][index])
+      assert.equal(
+        meta.title,
+        { en: ['Korean UI', 'Korean IME', 'Yoonmoon'], ko: ['한국어 UI', '한국어 IME', '윤문'] }[language][index]
+      )
       assert.ok(meta.description)
     }
   }
 })
 
-await test('installation allows DSH 0.2 updates from rc.2 without opting into the next minor', () => {
-  for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
+await test('installation allows DSH 0.2 updates from rc.5 without opting into the next minor', () => {
+  for (const version of ['0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), true, version)
   }
-  for (const version of ['0.2.0', '0.2.1-rc.1', '0.3.0-rc.1', '0.3.0', '1.0.0']) {
+  for (const version of [
+    '0.2.0',
+    '0.2.1-rc.1',
+    '0.2.1-rc.2',
+    '0.2.1-rc.3',
+    '0.2.1-rc.4',
+    '0.3.0-rc.1',
+    '0.3.0',
+    '1.0.0',
+  ]) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), false, version)
   }
 })
