@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-skill'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import { parse } from 'yaml'
 
 export const name = 'i-have-adhd'
-export const inject = ['skills']
+export const inject = ['skills', 'systemPrompt']
 
 export function apply(ctx: Context): void {
   const path = fileURLToPath(new URL('../skills/i-have-adhd/SKILL.md', import.meta.url))
@@ -17,11 +18,19 @@ export function apply(ctx: Context): void {
     description: string
     'disable-model-invocation'?: boolean
   }
+  const content = raw.slice(frontmatter[0].length).trim()
+
+  ctx.systemPrompt.section({
+    name: 'dungsil:i-have-adhd',
+    order: ctx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_SUFFIX'),
+    text: content,
+    interpolate: false,
+  })
 
   ctx.skills.register({
     name: metadata.name,
     description: metadata.description,
-    content: raw.slice(frontmatter[0].length).trim(),
+    content,
     path,
     source: 'bundled',
     invocation: {

@@ -5,5 +5,5 @@ Revision: 1ecea1993b7fce257ffbd686c070948b5e07eda6
 Source: skills/i-have-adhd/SKILL.md (copied without changes)
 License: MIT; see LICENSE for the original copyright and permission notice.
 
-The DSH adapter uses the native skill registry, inspired by upstream's
-Claude Code skill discovery and OpenCode skill/command registration.
+The DSH adapter uses automatic system-prompt injection and the native skill
+registry, inspired by upstream's OpenCode always-on and skill registration.
