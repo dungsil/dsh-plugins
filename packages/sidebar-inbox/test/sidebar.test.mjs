@@ -64,6 +64,7 @@ function setup(saved = '{}') {
     localStorage: browser.localStorage,
     Element: browser.Element,
     MutationObserver: browser.MutationObserver,
+    ResizeObserver: browser.ResizeObserver,
     queueMicrotask,
     window: {
       addEventListener: browser.addEventListener.bind(browser),
@@ -168,7 +169,7 @@ void test('settlement survives reload, but newer activity and live subagents ret
 })
 
 void test('native filter remains live; unload restores ordering and removes labels and subscriptions', async () => {
-  const app = setup('{"settled":100}')
+  const app = setup('{"settled":100,"idle":20}')
   const list = app.sessions.getSnapshot()
   app.sessions.set({
     ...list,
@@ -193,9 +194,31 @@ void test('native filter remains live; unload restores ordering and removes labe
   await app.browser.happyDOM.waitUntilComplete()
   assert.deepEqual(
     [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
-    ['Pinned', 'Inbox', 'Working', 'Settled']
+    ['Working', 'Settled']
   )
   const row = tree.querySelector('[data-row-key="session:idle"]')
+  const firstSettled = tree.querySelector('[data-row-key="session:settled"]')
+  const working = tree.querySelector('[data-row-key="session:running"]')
+  const toggle = tree.querySelector('button')
+  assert.equal(toggle.textContent, 'Settled')
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false')
+  assert.equal(app.browser.getComputedStyle(firstSettled).display, 'none')
+  assert.equal(app.browser.getComputedStyle(row.parentElement).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(working).display, 'none')
+  toggle.click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true')
+  assert.notEqual(app.browser.getComputedStyle(firstSettled).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(row.parentElement).display, 'none')
+  toggle.click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false')
+  // Resumed work must become visible even when its former Settled group was closed.
+  app.statuses.set(new Map([['settled', { running: true }]]))
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.notEqual(app.browser.getComputedStyle(firstSettled).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(firstSettled.parentElement).display, 'none')
+  assert.equal(tree.querySelector('button').getAttribute('aria-expanded'), 'false')
   app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'show' })
   assert.equal(app.view.getSnapshot().archivedFilter, 'show')
   app.browser.dispatchEvent(new app.browser.Event('pagehide'))
@@ -205,6 +228,8 @@ void test('native filter remains live; unload restores ordering and removes labe
   app.dispose()
   assert.equal(tree.querySelector('[data-row-key="session:idle"]'), row)
   assert.equal(document.querySelectorAll('[data-dsh-inbox-heading]').length, 0)
+  assert.notEqual(app.browser.getComputedStyle(firstSettled).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(row.parentElement).display, 'none')
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original, archivedFilter: 'show' })
   app.statuses.set(new Map([['idle', { running: true }]]))
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original, archivedFilter: 'show' })
