@@ -1,0 +1,82 @@
+import type { Placement, Section } from './inbox.js'
+
+/** Add labels without moving, cloning or replacing any React-owned row. */
+export function installHeadings(placements: () => ReadonlyMap<string, Placement>) {
+  const headings = new Map<HTMLElement, HTMLSpanElement>()
+  const style = document.createElement('style')
+  style.textContent = `
+    [data-dsh-inbox-heading] {
+      display: block; padding: 12px 8px 4px; font-size: 12px; line-height: 20px;
+      color: var(--dsw-alias-label-tertiary); font-weight: 500;
+    }
+  `
+  document.head.append(style)
+  let scheduled = false
+  let disposed = false
+  const refresh = () => {
+    if (scheduled || disposed) return
+    scheduled = true
+    queueMicrotask(() => {
+      scheduled = false
+      if (disposed) return
+      const wanted = new Map<HTMLElement, Section>()
+      for (const tree of document.querySelectorAll('[role="tree"]')) {
+        // Workspace trees and content-search results retain their native grouping.
+        if (tree.querySelector('[data-row-key^="workspace:"]')) continue
+        let previous: Section | undefined
+        for (const row of tree.querySelectorAll<HTMLElement>('[data-row-key^="session:"]')) {
+          const placement = placements().get(row.dataset.rowKey!.slice('session:'.length))
+          if (placement?.blank) continue
+          const section = placement?.section
+          const wrapper = row.parentElement
+          if (!section || !wrapper || wrapper.parentElement !== tree) continue
+          if (section !== previous) wanted.set(wrapper, section)
+          previous = section
+        }
+      }
+      for (const [wrapper, heading] of headings) {
+        if (!wanted.has(wrapper)) {
+          heading.remove()
+          headings.delete(wrapper)
+        }
+      }
+      for (const [wrapper, section] of wanted) {
+        let heading = headings.get(wrapper)
+        if (!heading) {
+          heading = document.createElement('span')
+          heading.dataset.dshInboxHeading = ''
+          heading.setAttribute('role', 'heading')
+          heading.setAttribute('aria-level', '2')
+          headings.set(wrapper, heading)
+        }
+        if (heading.textContent !== section) heading.textContent = section
+        if (wrapper.firstChild !== heading) wrapper.prepend(heading)
+      }
+    })
+  }
+  const observer = new MutationObserver((records) => {
+    // Conversation streaming also mutates the document. Only scan again when
+    // a native navigation tree changes, mounts, or unmounts.
+    if (
+      records.some((record) => {
+        if (record.target instanceof Element && record.target.closest('[role="tree"]')) return true
+        return [...record.addedNodes, ...record.removedNodes].some(
+          (node) => node instanceof Element && (node.matches('[role="tree"]') || node.querySelector('[role="tree"]'))
+        )
+      })
+    )
+      refresh()
+  })
+  observer.observe(document.body, { childList: true, subtree: true })
+  refresh()
+  return {
+    refresh,
+    dispose() {
+      disposed = true
+      observer.disconnect()
+      for (const heading of headings.values()) heading.remove()
+      headings.clear()
+      style.remove()
+    },
+  }
+}

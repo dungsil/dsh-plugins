@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-sidebar-inbox
+      name: '@dungsil/dsh-plugin-sidebar-inbox'
