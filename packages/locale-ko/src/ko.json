@@ -1211,6 +1211,7 @@
   },
   "pluginManager": {
     "addPlugin": "플러그인 추가",
+    "applyingChange": "{name} 변경 사항 적용 중",
     "backToList": "플러그인 목록으로",
     "backToPackage": "{name} 플러그인으로 돌아가기",
     "basicTitle": "기본 플러그인 설정",

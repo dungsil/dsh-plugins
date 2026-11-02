@@ -1211,6 +1211,7 @@
   },
   "pluginManager": {
     "addPlugin": "Add plugin",
+    "applyingChange": "Applying changes to {name}",
     "backToList": "Back to plugins",
     "backToPackage": "Back to {name}",
     "basicTitle": "Built-in plugin settings",
