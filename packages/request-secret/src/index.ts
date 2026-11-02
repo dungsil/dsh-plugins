@@ -191,6 +191,7 @@ export function apply(ctx: Context) {
               label: args.label,
               reason: args.reason,
               sessionId: exec.agent!.session.id,
+              callId: exec.callId,
               configured,
             },
             finish,
