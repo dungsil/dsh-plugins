@@ -1,3 +1,5 @@
 - insert:
     - id: dungsil-locale-ko
       name: '@dungsil/dsh-plugin-locale-ko'
+    - id: dungsil-korean-ime
+      name: '@dungsil/dsh-plugin-korean-ime'

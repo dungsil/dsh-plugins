@@ -169,5 +169,5 @@ export function installIMEEnter(ctx: Context) {
       document.removeEventListener('compositionend', onCompositionEnd, true)
       cancel()
     }
-  }, 'locale-ko: IME Enter send')
+  }, 'korean-ime: IME Enter send')
 }

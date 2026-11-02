@@ -52,7 +52,14 @@ await test('commit-driven releases preserve independent history, versions, tags 
     ['new', '@fixture/new', '0.0.0'],
   ]) {
     mkdirSync(join(cwd, 'packages', name), { recursive: true })
-    write(`packages/${name}/package.json`, JSON.stringify({ name: packageName, version }))
+    write(
+      `packages/${name}/package.json`,
+      JSON.stringify({
+        name: packageName,
+        version,
+        ...(name === 'locale-ko' ? { dependencies: { '@fixture/new': 'workspace:^' } } : {}),
+      })
+    )
   }
   const history = '# @dungsil/dsh-plugin-locale-ko\n\n## 0.3.1\n\nPrevious release.\n'
   write('packages/locale-ko/CHANGELOG.md', history)
@@ -77,6 +84,12 @@ await test('commit-driven releases preserve independent history, versions, tags 
   assert.equal(notes('locale-ko'), history)
   assert.equal(run('git', ['rev-parse', 'HEAD']), head)
 
+  // Release the component before packing its consuming bundle.
+  assert.equal((await publishLocally('new')).version, '0.1.0')
+  assert.equal(manifest('new').version, '0.1.0')
+  assert.match(notes('new'), /first feature/)
+  assert.doesNotMatch(notes('new'), /locale correction|0\.3\.1/)
+
   assert.equal((await publishLocally('locale-ko')).version, '0.3.2')
   assert.equal(manifest('locale-ko').version, '0.3.2')
   assert.match(notes('locale-ko'), /locale correction/)
@@ -84,13 +97,12 @@ await test('commit-driven releases preserve independent history, versions, tags 
   assert.ok(notes('locale-ko').endsWith(history.slice(history.indexOf('## '))))
   const localeNotes = notes('locale-ko')
   const archive = join(cwd, 'release/dungsil-dsh-plugin-locale-ko/dungsil-dsh-plugin-locale-ko-0.3.2.tgz')
-  assert.equal(JSON.parse(run('tar', ['-xOf', archive, 'package/package.json'])).version, '0.3.2')
+  const packed = JSON.parse(run('tar', ['-xOf', archive, 'package/package.json']))
+  assert.equal(packed.version, '0.3.2')
+  assert.deepEqual(packed.dependencies, { '@fixture/new': '^0.1.0' })
+  assert.deepEqual(manifest('locale-ko').dependencies, { '@fixture/new': 'workspace:^' })
   assert.equal(run('tar', ['-xOf', archive, 'package/CHANGELOG.md']), localeNotes)
 
-  assert.equal((await publishLocally('new')).version, '0.1.0')
-  assert.equal(manifest('new').version, '0.1.0')
-  assert.match(notes('new'), /first feature/)
-  assert.doesNotMatch(notes('new'), /locale correction|0\.3\.1/)
   assert.equal((await publishLocally('other')).version, undefined)
   assert.equal(manifest('other').version, '2.7.4')
   assert.equal((await publishLocally('locale-ko')).version, undefined)

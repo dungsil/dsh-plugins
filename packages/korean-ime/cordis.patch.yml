@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-korean-ime
+      name: '@dungsil/dsh-plugin-korean-ime'
