@@ -20,11 +20,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm --filter @dungsil/dsh-plugin-locale-ko pack --pack-destination "$RUNNER_TEMP/packages"
-      # Rehearse packaging even when the checked-in version is already published.
-      - run: npm publish ./packages/locale-ko --dry-run --force
+      - name: Rehearse packaging all public packages
+        run: |
+          pnpm -r list --depth -1 --json | jq -r '.[] | select(.private != true) | .path' |
+          while IFS= read -r directory; do
+            pnpm --dir "$directory" pack --pack-destination "$RUNNER_TEMP/packages"
+            # Rehearse publishing even when this version is already published.
+            npm publish "$directory" --dry-run --force
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: locale-ko-package
+          name: plugin-packages
           path: ${{ runner.temp }}/packages/*.tgz
           if-no-files-found: error
