@@ -270,6 +270,42 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
+  packages/request-secret:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.5
+        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@deepseek-ai/dsh-agent':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(cbd9b78489f743dd32cfe135059e56db)
+      '@deepseek-ai/dsh-client-connection':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
+      '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.1-rc.3
+        version: 0.2.1-rc.3(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-credentials':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-credentials-local':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-atomic-write@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-credentials@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-home-paths@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-launch-environment@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(47e11ee6492a70a2f2353a0c993abe69)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+
   packages/sidebar-inbox:
     devDependencies:
       '@deepseek-ai/cordis':
@@ -616,6 +652,15 @@ packages:
     peerDependenciesMeta:
       '@deepseek-ai/dsh-hmr':
         optional: true
+
+  '@deepseek-ai/dsh-credentials-local@0.2.1-rc.5':
+    resolution: {integrity: sha512-RHhO5J4WZgCQt7w7l0tCcYUoleAJKUsyWglUDPNWO7hjBAIlboJq8qXepZkluenk18+iMOEqjNEj9zSh2rLXZA==}
+    peerDependencies:
+      '@deepseek-ai/cordis': ~4.0.5
+      '@deepseek-ai/dsh-atomic-write': 0.2.1-rc.5
+      '@deepseek-ai/dsh-credentials': 0.2.1-rc.5
+      '@deepseek-ai/dsh-home-paths': 0.2.1-rc.5
+      '@deepseek-ai/dsh-launch-environment': 0.2.1-rc.5
 
   '@deepseek-ai/dsh-credentials@0.2.1-rc.5':
     resolution: {integrity: sha512-acO5+ytVNCqiej/5QI2Xy36gjiOrsf2X59rllNbVfA+IpanLeVBMsBQaSB+bKpgU3r4MVwvrz5EvcJuk4FeONw==}
@@ -3070,6 +3115,17 @@ snapshots:
       '@deepseek-ai/dsh-app-boot': 0.2.1-rc.5(@deepseek-ai/cordis-plugin-group@1.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-home-paths@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-launch-environment@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-atomic-write': 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
       js-yaml: 4.3.2
+      yaml: 2.9.1
+
+  '@deepseek-ai/dsh-credentials-local@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-atomic-write@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-credentials@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-home-paths@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-launch-environment@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@deepseek-ai/dsh-atomic-write': 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-credentials': 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-home-paths': 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-launch-environment': 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/schemastery': 3.18.5
+      chokidar: 5.0.0
       yaml: 2.9.1
 
   '@deepseek-ai/dsh-credentials@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)':

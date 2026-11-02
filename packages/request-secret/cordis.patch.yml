@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-request-secret
+      name: '@dungsil/dsh-plugin-request-secret'
