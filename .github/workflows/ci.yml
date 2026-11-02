@@ -21,10 +21,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm --filter @dungsil/dsh-plugin-locale-ko pack --pack-destination "$RUNNER_TEMP/packages"
+      - run: pnpm --filter @dungsil/dsh-plugin-i-have-adhd pack --pack-destination "$RUNNER_TEMP/packages"
       # Rehearse packaging even when the checked-in version is already published.
       - run: npm publish ./packages/locale-ko --dry-run --force
+      - run: npm publish ./packages/i-have-adhd --dry-run --force
       - uses: actions/upload-artifact@v4
         with:
-          name: locale-ko-package
+          name: dsh-plugin-packages
           path: ${{ runner.temp }}/packages/*.tgz
           if-no-files-found: error
