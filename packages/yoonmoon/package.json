@@ -1,0 +1,54 @@
+{
+  "name": "@dungsil/dsh-plugin-yoonmoon",
+  "version": "0.1.0",
+  "description": "Korean writing skills for DeepSeek Harness, adapted from amondnet/yoonmoon.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/yoonmoon"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "cordis.patch.yml",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-skill": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.5"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
