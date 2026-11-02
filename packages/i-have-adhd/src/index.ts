@@ -1,41 +1,27 @@
-import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-skill'
+import * as SkillFilesystem from '@deepseek-ai/dsh-skill-filesystem'
 import type {} from '@deepseek-ai/dsh-system-prompt'
-import { parse } from 'yaml'
 
 export const name = 'i-have-adhd'
 export const inject = ['skills', 'systemPrompt']
 
-export function apply(ctx: Context): void {
-  const path = fileURLToPath(new URL('../skills/i-have-adhd/SKILL.md', import.meta.url))
-  const raw = readFileSync(path, 'utf8')
-  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(raw)
-  if (!frontmatter) throw new Error(`i-have-adhd: missing frontmatter in ${path}`)
-  const metadata = parse(frontmatter[1]) as {
-    name: string
-    description: string
-    'disable-model-invocation'?: boolean
-  }
-  const content = raw.slice(frontmatter[0].length).trim()
+export async function apply(ctx: Context): Promise<void> {
+  await ctx.plugin(SkillFilesystem, {
+    providerName: 'dungsil-i-have-adhd',
+    includeDefaultRoots: false,
+    bundledSkillDir: fileURLToPath(new URL('../skills/', import.meta.url)),
+    watch: false,
+  })
+
+  const skill = await ctx.skills.get(name)
+  if (!skill) throw new Error('i-have-adhd: DSH could not load the bundled skill')
 
   ctx.systemPrompt.section({
     name: 'dungsil:i-have-adhd',
     order: ctx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_SUFFIX'),
-    text: content,
+    text: skill.content,
     interpolate: false,
-  })
-
-  ctx.skills.register({
-    name: metadata.name,
-    description: metadata.description,
-    content,
-    path,
-    source: 'bundled',
-    invocation: {
-      modelInvocable: metadata['disable-model-invocation'] !== true,
-      userInvocable: true,
-    },
   })
 }
