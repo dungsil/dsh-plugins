@@ -37,16 +37,10 @@ await test('public packages keep independent versions, changelogs and tags acros
   const history = readFileSync(join(root, 'packages/locale-ko/CHANGELOG.md'), 'utf8')
   writeFileSync(join(cwd, 'packages/locale-ko/CHANGELOG.md'), history)
   run('git', ['init', '--initial-branch=main'])
+  run('git', ['config', 'user.name', 'Release Test'])
+  run('git', ['config', 'user.email', 'release@example.com'])
   run('git', ['add', '.'])
-  run('git', [
-    '-c',
-    'user.name=Release Test',
-    '-c',
-    'user.email=release@example.com',
-    'commit',
-    '-m',
-    'Initial packages',
-  ])
+  run('git', ['commit', '-m', 'Initial packages'])
 
   writeFileSync(
     join(cwd, '.changeset/locale-fix.md'),
