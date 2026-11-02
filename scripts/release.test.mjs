@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import release from 'release-it'
-import { releaseOptions } from './release.mjs'
+import { releaseOptions, releaseWorkspace } from './release.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 
@@ -45,7 +45,8 @@ await test('commit-driven releases preserve independent history, versions, tags 
   write('package.json', JSON.stringify({ name: 'release-fixture', private: true }))
   write('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
   write('.gitignore', 'node_modules/\nrelease/\n')
-  symlinkSync(join(root, 'node_modules'), join(cwd, 'node_modules'), 'dir')
+  mkdirSync(join(cwd, 'node_modules/.bin'), { recursive: true })
+  symlinkSync(join(root, 'node_modules/.bin/oxfmt'), join(cwd, 'node_modules/.bin/oxfmt'))
   for (const [name, packageName, version] of [
     ['locale-ko', '@dungsil/dsh-plugin-locale-ko', '0.3.1'],
     ['other', '@fixture/other', '2.7.4'],
@@ -84,13 +85,15 @@ await test('commit-driven releases preserve independent history, versions, tags 
   assert.equal(notes('locale-ko'), history)
   assert.equal(run('git', ['rev-parse', 'HEAD']), head)
 
-  // Release the component before packing its consuming bundle.
-  assert.equal((await publishLocally('new')).version, '0.1.0')
+  // Workspace discovery lists locale-ko before new. The production release loop
+  // must bump the dependency first so the bundle's archive gets the new range.
+  process.chdir(cwd)
+  await releaseWorkspace({ npm: { publish: false }, github: { release: false } })
+  assert.equal(process.cwd(), cwd)
   assert.equal(manifest('new').version, '0.1.0')
   assert.match(notes('new'), /first feature/)
   assert.doesNotMatch(notes('new'), /locale correction|0\.3\.1/)
 
-  assert.equal((await publishLocally('locale-ko')).version, '0.3.2')
   assert.equal(manifest('locale-ko').version, '0.3.2')
   assert.match(notes('locale-ko'), /locale correction/)
   assert.doesNotMatch(notes('locale-ko'), /first feature|root-only change/)

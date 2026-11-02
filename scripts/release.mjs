@@ -56,17 +56,39 @@ export function releaseOptions({ dryRun = false } = {}) {
   }
 }
 
-if (import.meta.main) {
-  const { values } = parseArgs({ options: { 'dry-run': { type: 'boolean', default: false } } })
+export async function releaseWorkspace({ dryRun = false, ...options } = {}) {
   const root = process.cwd()
-  const packages = JSON.parse(execFileSync('pnpm', ['-r', 'list', '--depth', '-1', '--json'], { encoding: 'utf8' }))
+  // Unlike `pnpm list`, recursive exec honors dependency order. Serial output
+  // keeps that order intact before release-it bumps and packs each package.
+  const packages = execFileSync(
+    'pnpm',
+    [
+      '-r',
+      '--sort',
+      '--workspace-concurrency=1',
+      '--reporter=silent',
+      'exec',
+      'node',
+      '-p',
+      'JSON.stringify({ path: process.cwd(), private: require("./package.json").private })',
+    ],
+    { encoding: 'utf8' }
+  )
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
   try {
     // Each release commits its own manifest and changelog before the next starts.
     for (const pkg of packages.filter((pkg) => !pkg.private)) {
       process.chdir(pkg.path)
-      await release(releaseOptions({ dryRun: values['dry-run'] }))
+      await release({ ...releaseOptions({ dryRun }), ...options })
     }
   } finally {
     process.chdir(root)
   }
+}
+
+if (import.meta.main) {
+  const { values } = parseArgs({ options: { 'dry-run': { type: 'boolean', default: false } } })
+  await releaseWorkspace({ dryRun: values['dry-run'] })
 }
