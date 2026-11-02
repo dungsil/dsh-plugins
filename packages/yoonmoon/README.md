@@ -51,4 +51,4 @@ dsh plugin --profile web remove @dungsil/dsh-plugin-yoonmoon
 
 원본 [리비전 `c888531`](https://github.com/amondnet/yoonmoon/commit/c88853106c8fa8448447136f5aa3fc8bb9650303)의 6개 스킬과 참고 자료를 포함합니다. 스킬 이름·형제 디렉터리 경로·하네스 호출 지침만 DSH에 맞게 조정했으며, 교정 규칙은 유지합니다. MIT 라이선스와 원저작자·제3자 고지는 `LICENSE` 및 `NOTICE`에 보존했습니다. 실행 시 다운로드하거나 자동 업데이트하지 않습니다.
 
-기존 저장소 릴리스는 `locale-ko` 전용이므로 이 패키지를 자동 게시하지 않습니다. 별도 게시 전에는 위 tarball 설치 방식을 사용합니다.
+패키지 버전과 변경 이력은 저장소의 Changesets 기반 릴리스 절차로 독립적으로 관리합니다. 이 PR은 릴리스 워크플로를 실행하거나 npm에 게시하지 않습니다. 게시 전에는 위 tarball 설치 방식을 사용합니다.
