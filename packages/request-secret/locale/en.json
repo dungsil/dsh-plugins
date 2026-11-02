@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Private secret input",
+    "description": "Request credentials through a private form, returning only their reference to the agent."
+  }
+}
