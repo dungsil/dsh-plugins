@@ -23,6 +23,9 @@ export function releaseOptions({ dryRun = false } = {}) {
     },
     npm: {
       publish: !dryRun,
+      // pnpm rewrites workspace dependencies to published version ranges.
+      publishPackageManager: 'pnpm',
+      publishArgs: ['--no-git-checks'],
       // npm whoami cannot authenticate with the workflow's OIDC identity.
       skipChecks: true,
     },

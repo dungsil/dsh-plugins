@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { Window } from 'happy-dom'
 import semver from 'semver'
+import { parse } from 'yaml'
 import ko from '../src/ko.json' with { type: 'json' }
 import manifest from '../package.json' with { type: 'json' }
 
@@ -45,8 +46,36 @@ function loadClient(source, browser = new Window()) {
 }
 
 const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
+const imeSource = await readFile(new URL(import.meta.resolve('@dungsil/dsh-plugin-korean-ime/client')), 'utf8')
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
+
+await test('bundle exposes two enabled, independently loadable and localized components', async () => {
+  const patch = parse(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8'))
+  assert.deepEqual(patch, [
+    {
+      insert: [
+        { id: 'dungsil-locale-ko', name: manifest.name },
+        { id: 'dungsil-korean-ime', name: '@dungsil/dsh-plugin-korean-ime' },
+      ],
+    },
+  ])
+  for (const [index, row] of patch[0].insert.entries()) {
+    const packageManifest = JSON.parse(await readFile(new URL(import.meta.resolve(`${row.name}/package.json`)), 'utf8'))
+    assert.equal(packageManifest.dsh.client.platform, 'web')
+    assert.equal(packageManifest.dsh.client.immediately, true)
+    assert.equal(typeof (await import(row.name)).apply, 'function')
+    const client = loadClient(await readFile(new URL(import.meta.resolve(`${row.name}/client`)), 'utf8'))
+    assert.equal(client.id, row.name)
+    for (const language of ['en', 'ko']) {
+      const { meta } = JSON.parse(
+        await readFile(new URL(import.meta.resolve(`${row.name}/locale/${language}.json`)), 'utf8')
+      )
+      assert.equal(meta.title, { en: ['Korean UI', 'Korean IME'], ko: ['한국어 UI', '한국어 IME'] }[language][index])
+      assert.ok(meta.description)
+    }
+  }
+})
 
 await test('installation allows DSH 0.2 updates from rc.2 without opting into the next minor', () => {
   for (const version of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
@@ -196,9 +225,9 @@ await test('IME Enter replays once after commit and respects cancellation and pl
   const browser = new Window()
   const { document, KeyboardEvent, CompositionEvent } = browser
   const { LocaleRuntime } = loadClient(upstreamSource).exports
-  const client = loadClient(source, browser).exports
+  const client = loadClient(imeSource, browser).exports
   const ctx = new Context()
-  ctx.provide('locale', new LocaleRuntime(ctx))
+  // IME activation must not need even the host's locale service.
   let fiber = ctx.plugin(client)
   await fiber.await()
   t.after(async () => {
@@ -368,5 +397,56 @@ await test('IME Enter replays once after commit and respects cancellation and pl
     commit()
     settle()
     assert.equal(replays.length, 1)
+  })
+
+  await t.test('translation and IME can be toggled independently without duplicate Enter handling', async () => {
+    const locale = new LocaleRuntime(ctx)
+    ctx.provide('locale', locale)
+    locale.register('settings', 'en', { title: 'Settings' })
+    const translation = loadClient(source, browser).exports
+    let languageFiber = ctx.plugin(translation)
+    await languageFiber.await()
+    locale.setLocale('ko')
+    reset()
+    commit()
+    settle()
+    assert.equal(replays.length, 1, 'both enabled must not install duplicate handlers')
+    assert.equal(locale.bind('settings')('title'), '설정')
+
+    reset()
+    commit()
+    await fiber.dispose()
+    settle()
+    assert.equal(replays.length, 0, 'disabling IME cancels an in-flight send')
+    commit()
+    settle()
+    assert.equal(replays.length, 0, 'translation alone must not replay Enter')
+    assert.equal(locale.bind('settings')('title'), '설정')
+
+    fiber = ctx.plugin(client)
+    await fiber.await()
+    await languageFiber.dispose()
+    assert.equal(locale.bind('settings')('title'), 'Settings')
+    reset()
+    commit()
+    settle()
+    assert.equal(replays.length, 1, 'IME remains active with translation disabled')
+
+    languageFiber = ctx.plugin(translation)
+    await languageFiber.await()
+    assert.equal(locale.getLocale().active, 'ko', 'the language preference survives toggling')
+    assert.equal(locale.bind('settings')('title'), '설정')
+    reset()
+    commit()
+    settle()
+    assert.equal(replays.length, 1)
+
+    await languageFiber.dispose()
+    await fiber.dispose()
+    reset()
+    commit()
+    settle()
+    assert.equal(replays.length, 0, 'both disabled restore the host behavior')
+    assert.equal(locale.bind('settings')('title'), 'Settings')
   })
 })

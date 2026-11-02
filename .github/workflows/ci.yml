@@ -26,7 +26,7 @@ jobs:
           while IFS= read -r directory; do
             pnpm --dir "$directory" pack --pack-destination "$RUNNER_TEMP/packages"
             # Rehearse publishing even when this version is already published.
-            npm publish "$directory" --dry-run --force
+            pnpm --dir "$directory" publish --dry-run --no-git-checks --force
           done
       - uses: actions/upload-artifact@v4
         with:

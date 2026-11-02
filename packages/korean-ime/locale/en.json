@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Korean IME",
+    "description": "Sends the message when Enter commits an IME composition in the conversation input. Works independently of the UI language."
+  }
+}

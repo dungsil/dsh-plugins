@@ -1,0 +1,48 @@
+{
+  "name": "@dungsil/dsh-plugin-korean-ime",
+  "version": "0.0.0",
+  "description": "Korean IME Enter handling for DeepSeek Harness.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/korean-ime"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.2",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

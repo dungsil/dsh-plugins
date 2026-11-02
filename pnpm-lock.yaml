@@ -221,7 +221,23 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
+  packages/korean-ime:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.5
+        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+
   packages/locale-ko:
+    dependencies:
+      '@dungsil/dsh-plugin-korean-ime':
+        specifier: workspace:^
+        version: link:../korean-ime
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5
@@ -241,6 +257,9 @@ importers:
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/yoonmoon:
     dependencies:

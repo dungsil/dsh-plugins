@@ -29,13 +29,17 @@
     "test": "node --test test/*.test.mjs",
     "prepack": "pnpm build"
   },
+  "dependencies": {
+    "@dungsil/dsh-plugin-korean-ime": "workspace:^"
+  },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.3",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "happy-dom": "21.0.4",
     "semver": "7.8.5",
-    "tsdown": "0.23.4"
+    "tsdown": "0.23.4",
+    "yaml": "2.9.0"
   },
   "engines": {
     "dsh": "^0.2.1-rc.2",
