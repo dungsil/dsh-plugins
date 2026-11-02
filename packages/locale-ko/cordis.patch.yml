@@ -3,3 +3,5 @@
       name: '@dungsil/dsh-plugin-locale-ko'
     - id: dungsil-korean-ime
       name: '@dungsil/dsh-plugin-korean-ime'
+    - id: dungsil-yoonmoon
+      name: '@dungsil/dsh-plugin-yoonmoon'

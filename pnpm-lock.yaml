@@ -244,6 +244,9 @@ importers:
       '@dungsil/dsh-plugin-korean-ime':
         specifier: workspace:^
         version: link:../korean-ime
+      '@dungsil/dsh-plugin-yoonmoon':
+        specifier: workspace:^
+        version: link:../yoonmoon
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5

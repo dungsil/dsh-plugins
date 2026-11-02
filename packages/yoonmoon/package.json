@@ -10,6 +10,7 @@
   },
   "files": [
     "dist",
+    "locale",
     "skills",
     "cordis.patch.yml",
     "LICENSE",
@@ -18,7 +19,8 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "publishConfig": {
     "access": "public"
