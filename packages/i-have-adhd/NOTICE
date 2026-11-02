@@ -1,0 +1,10 @@
+This package adapts i-have-adhd by Ayoub Ghriss for DeepSeek Harness.
+
+Upstream: https://github.com/ayghri/i-have-adhd
+Revision: 1ecea1993b7fce257ffbd686c070948b5e07eda6
+Source: skills/i-have-adhd/SKILL.md (copied without changes)
+License: MIT; see LICENSE for the original copyright and permission notice.
+
+The DSH adapter delegates skill loading to DSH's filesystem skill provider
+and automatically injects the loaded rules into the system prompt, inspired
+by upstream's OpenCode always-on and skill registration.

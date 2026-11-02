@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["pnpm-lock.yaml", "**/dist/**", ".dsh-dev/**", ".amp/**"],
+  "ignorePatterns": ["pnpm-lock.yaml", "**/dist/**", ".dsh-dev/**", ".amp/**", "packages/i-have-adhd/skills/**"],
   "semi": false,
   "singleQuote": true,
   "trailingComma": "es5"
