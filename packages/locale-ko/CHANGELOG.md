@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.5.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.5.0...%40dungsil%2Fdsh-plugin-locale-ko%400.5.1) (2026-11-02)
+
+### Bug Fixes
+
+- **release:** 의존 패키지를 먼저 릴리스한다 ([#21](https://github.com/dungsil/dsh-plugins/issues/21)) ([7fc2834](https://github.com/dungsil/dsh-plugins/commit/7fc28345ed16bb645b3e32e54602f811887b1ca2))
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.4.0...%40dungsil%2Fdsh-plugin-locale-ko%400.5.0) (2026-11-02)
 
 ### Features
