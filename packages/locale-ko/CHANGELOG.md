@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/v0.3.1...%40dungsil%2Fdsh-plugin-locale-ko%400.4.0) (2026-11-02)
+
+### Features
+
+- **locale-ko:** trajectory 탭 번역 추가 ([1fec1ea](https://github.com/dungsil/dsh-plugins/commit/1fec1eadb5cea4425f6401a515fc91aec4f48c8d))
+- **locale-ko:** 기타 누락된 항목 추가 ([e70e503](https://github.com/dungsil/dsh-plugins/commit/e70e503c53768e6165e0098c00fcac0b0c597352))
+- **locale-ko:** 누락된 플러그인 항목 번역 추가 ([381ebc1](https://github.com/dungsil/dsh-plugins/commit/381ebc1fcdaeb556468024e1707d9577baa93d03))
+- **locale-ko:** 플러그인 in-place 업데이트 화면 번역 ([#11](https://github.com/dungsil/dsh-plugins/issues/11)) ([668da14](https://github.com/dungsil/dsh-plugins/commit/668da142451cb67806cfd001627e4508b7f76617))
+- **locale-ko:** 한국어 IME를 독립 컴포넌트로 분리한다 ([#16](https://github.com/dungsil/dsh-plugins/issues/16)) ([102bf00](https://github.com/dungsil/dsh-plugins/commit/102bf00c7737ef168eaa30826eb247c5ad466ae8))
+
 ## [0.3.1](https://github.com/dungsil/dsh-plugins/compare/v0.3.0...v0.3.1) (2026-10-31)
 
 ### Bug Fixes
