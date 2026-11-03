@@ -14,6 +14,7 @@ const copy = {
   en: {
     title: 'Private secret input',
     value: 'Secret value',
+    privacy: 'Your secret is not shown to the agent.',
     replace: 'Saving replaces the existing credential.',
     save: 'Save credential',
     saving: 'Saving…',
@@ -31,6 +32,7 @@ const copy = {
   ko: {
     title: '비밀값 입력',
     value: '비밀값',
+    privacy: '에이전트에게 비밀값을 보여주지 않습니다.',
     replace: '저장하면 기존 비밀값을 대체합니다.',
     save: '비밀값 저장',
     saving: '저장 중…',
@@ -50,6 +52,7 @@ const styles = `
 .dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 6px 0; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 10px; color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: 13px/1.45 var(--dsw-font-family, system-ui); overflow-wrap: anywhere; }
 .dsh-secret-card h3 { margin: 0; font-size: 14px; }
 .dsh-secret-card p { margin: 4px 0; }
+.dsh-secret-card small { display: block; margin-top: 6px; font-size: 12px; color: var(--dsw-alias-label-secondary, #666); }
 .dsh-secret-card input { box-sizing: border-box; flex: 1 1 140px; min-width: 0; height: 36px; padding: 6px 10px; border: 1px solid var(--dsw-alias-border-l4, #8888); border-radius: 7px; font: inherit; color: inherit; background: var(--dsw-alias-bg-layer-1, #f5f5f5); }
 .dsh-secret-card input:focus-visible, .dsh-secret-card button:focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
 .dsh-secret-card footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 8px; }
@@ -140,6 +143,7 @@ function SecretForm({
           ref={input}
           id={`secret-${request.id}`}
           aria-label={text.value}
+          aria-describedby={`secret-privacy-${request.id}`}
           placeholder={text.value}
           type="password"
           autoComplete="off"
@@ -168,6 +172,7 @@ function SecretForm({
           {busy ? text.saving : text.save}
         </button>
       </footer>
+      <small id={`secret-privacy-${request.id}`}>{text.privacy}</small>
       {error && <p role="alert">{text.error}</p>}
     </form>
   )
