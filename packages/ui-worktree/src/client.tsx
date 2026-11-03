@@ -9,7 +9,7 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { copy, requestText, type Action } from './requests.js'
 import { styles } from './styles.js'
 
-export const name = 'dungsil-worktree'
+export const name = 'dungsil-ui-worktree'
 export const inject = ['slots', 'locale', 'sessions']
 
 type Props = PropsRuntime<'conversation.input.left'>
@@ -217,7 +217,7 @@ export function apply(ctx: Context) {
   }
 
   ctx.slots.inject('conversation.input.left', () =>
-    ctx.slots.register({ name: 'conversation.input.left', id: 'dungsil-worktree', order: -100 }, (props) => (
+    ctx.slots.register({ name: 'conversation.input.left', id: 'dungsil-ui-worktree', order: -100 }, (props) => (
       <Picker key={props.sessionId} {...props} />
     ))
   )
@@ -226,5 +226,5 @@ export function apply(ctx: Context) {
     style.textContent = styles
     document.head.append(style)
     return () => style.remove()
-  }, 'worktree: composer styles')
+  }, 'ui-worktree: composer styles')
 }

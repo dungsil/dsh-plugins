@@ -378,7 +378,7 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
-  packages/worktree:
+  packages/ui-worktree:
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5

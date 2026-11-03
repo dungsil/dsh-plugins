@@ -1,12 +1,12 @@
 {
-  "name": "@dungsil/dsh-plugin-worktree",
+  "name": "@dungsil/dsh-plugin-ui-worktree",
   "version": "0.1.0",
   "description": "Request Git worktree creation or reuse through existing tools from the DeepSeek Harness composer.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dungsil/dsh-plugins.git",
-    "directory": "packages/worktree"
+    "directory": "packages/ui-worktree"
   },
   "files": [
     "dist",

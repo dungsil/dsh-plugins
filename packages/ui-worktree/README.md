@@ -1,4 +1,4 @@
-# @dungsil/dsh-plugin-worktree
+# @dungsil/dsh-plugin-ui-worktree
 
 DSH 입력창의 권한 선택 옆에 **Worktree** 버튼을 추가합니다. Git 처리를 직접 구현하지 않는 **UI 전용 플러그인**입니다. 선택한 작업을 현재 세션의 모델에게 별도 메시지로 요청하며, 작성 중인 메시지·파일 참조·첨부는 그대로 유지합니다.
 
@@ -23,18 +23,18 @@ DSH 입력창의 권한 선택 옆에 **Worktree** 버튼을 추가합니다. Gi
 DSH 지원 범위는 `^0.2.1-rc.5`입니다. npm 배포 전에는 저장소에서 패키지를 생성해 설치합니다.
 
 ```bash
-pnpm --filter @dungsil/dsh-plugin-worktree pack --pack-destination ../../release
-dsh plugin --profile web add ./release/dungsil-dsh-plugin-worktree-0.1.0.tgz
+pnpm --filter @dungsil/dsh-plugin-ui-worktree pack --pack-destination ../../release
+dsh plugin --profile web add ./release/dungsil-dsh-plugin-ui-worktree-0.1.0.tgz
 ```
 
-플러그인 관리 화면에서 **Composer Worktree / 입력창 Worktree**를 활성화합니다. 공식 Git worktrees 플러그인의 활성화 상태는 이 플러그인이 변경하지 않습니다.
+플러그인 관리 화면에서 **Git Worktree UI**를 활성화합니다. 공식 Git worktrees 플러그인의 활성화 상태는 이 플러그인이 변경하지 않습니다.
 
 ## 검증
 
 ```bash
-pnpm --filter @dungsil/dsh-plugin-worktree build
-pnpm --filter @dungsil/dsh-plugin-worktree typecheck
-pnpm --filter @dungsil/dsh-plugin-worktree test
+pnpm --filter @dungsil/dsh-plugin-ui-worktree build
+pnpm --filter @dungsil/dsh-plugin-ui-worktree typecheck
+pnpm --filter @dungsil/dsh-plugin-ui-worktree test
 ```
 
 테스트는 실제 UI 컴포넌트를 통해 생성·목록·재사용 요청의 내용, 중복 전송 방지, 전송 오류 표시, 세션 전환 격리, 언어 전환과 비활성화 조건을 확인합니다.
