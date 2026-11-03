@@ -1,4 +1,4 @@
-# @dungsil/dsh-plugin-request-secret
+# @dungsil/dsh-plugin-tool-secret-request
 
 DSH 에이전트가 `request_secret`을 호출하면 해당 도구 호출 위치에 비밀번호 입력 카드를 표시합니다. 팝업 없이 메시지 안에서 입력하며, 저장·거절·만료 후에는 처리 상태가 카드에 남습니다. 완료 후 DSH가 도구 기록을 접으면 해당 기록을 펼쳐 상태를 확인할 수 있습니다. 사용자가 저장한 값은 대화 기록을 거치지 않고 DSH 비밀값 저장소로 전달되며, 모델에는 참조 이름과 처리 상태만 반환됩니다.
 
@@ -7,7 +7,7 @@ DSH 에이전트가 `request_secret`을 호출하면 해당 도구 호출 위치
 DSH `0.2.1-rc.5` 이상의 웹 프로필에 설치합니다.
 
 ```sh
-dsh plugin --profile web add @dungsil/dsh-plugin-request-secret
+dsh plugin --profile web add @dungsil/dsh-plugin-tool-secret-request
 ```
 
 DSH를 재시작하고 웹 UI를 연 상태에서 에이전트에 필요한 비밀값 입력을 요청합니다. 한국어 UI에서는 한국어 입력창을, 그 외 언어에서는 영어 입력창을 표시합니다. 한국어 UI 플러그인과는 별도로 설치합니다.
@@ -43,7 +43,7 @@ DSH의 일반 `ask_user_question`은 응답을 모델에 반환하므로 사용�
 ## 검증
 
 ```sh
-pnpm --filter @dungsil/dsh-plugin-request-secret test
+pnpm --filter @dungsil/dsh-plugin-tool-secret-request test
 ```
 
 실제 DSH 도구 런타임과 파일 기반 저장소를 사용해 값 보존, 결과 비노출, 파일 권한, 거절·취소·시간 초과, 권한 검사, 중복 저장 방지, 오류 정제를 검증합니다. 브라우저 번들은 React DOM 테스트로 세션·호출 격리, 입력 마스킹, 이동·저장·실패 시 값 제거, 거절과 완료 상태 재표시를 확인합니다.

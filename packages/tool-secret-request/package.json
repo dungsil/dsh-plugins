@@ -1,12 +1,12 @@
 {
-  "name": "@dungsil/dsh-plugin-request-secret",
+  "name": "@dungsil/dsh-plugin-tool-secret-request",
   "version": "0.1.0",
   "description": "Private credential input for DeepSeek Harness without returning secret values to the model.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dungsil/dsh-plugins.git",
-    "directory": "packages/request-secret"
+    "directory": "packages/tool-secret-request"
   },
   "files": [
     "dist",

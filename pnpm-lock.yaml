@@ -270,7 +270,58 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
-  packages/request-secret:
+  packages/sidebar-inbox:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.5
+        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(d2aa013641999ae9a8a8490ab6d2f694)
+      '@deepseek-ai/dsh-api-workspace-controller':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(6bbe7941758f6407400458631a80b5fa)
+      '@deepseek-ai/dsh-client-store':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-session':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-sidebar':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-workspace':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-session':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@types/react':
+        specifier: 18.3.18
+        version: 18.3.18
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+
+  packages/tool-secret-request:
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5
@@ -320,57 +371,6 @@ importers:
       react-dom:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
-      tsdown:
-        specifier: 0.23.4
-        version: 0.23.4(typescript@7.0.2)
-
-  packages/sidebar-inbox:
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: 4.0.5
-        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
-      '@deepseek-ai/dsh-api-session-controller':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(d2aa013641999ae9a8a8490ab6d2f694)
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(6bbe7941758f6407400458631a80b5fa)
-      '@deepseek-ai/dsh-client-store':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-primitives':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-renderer':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-session':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-sidebar':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-slots':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-workspace':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-session':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
-      '@dungsil/dsh-tsconfig':
-        specifier: workspace:*
-        version: link:../../tools/tsconfig
-      '@types/react':
-        specifier: 18.3.18
-        version: 18.3.18
-      happy-dom:
-        specifier: 21.0.4
-        version: 21.0.4
-      react:
-        specifier: 18.3.1
-        version: 18.3.1
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
