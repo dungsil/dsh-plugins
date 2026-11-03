@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-i-have-adhd
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-i-have-adhd%400.2.0...%40dungsil%2Fdsh-plugin-i-have-adhd%400.3.0) (2026-11-03)
+
+### Features
+
+- **market:** 플러그인 마켓 인덱스를 추가한다 ([#30](https://github.com/dungsil/dsh-plugins/issues/30)) ([79163df](https://github.com/dungsil/dsh-plugins/commit/79163dfd7d47da7fb78e7454138360b6076967e7))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-i-have-adhd%400.1.0...%40dungsil%2Fdsh-plugin-i-have-adhd%400.2.0) (2026-11-02)
 
 ### Features
