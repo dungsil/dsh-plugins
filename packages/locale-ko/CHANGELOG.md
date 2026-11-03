@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.5.1...%40dungsil%2Fdsh-plugin-locale-ko%400.6.0) (2026-11-03)
+
+### Features
+
+- **market:** 플러그인 마켓 인덱스를 추가한다 ([#30](https://github.com/dungsil/dsh-plugins/issues/30)) ([79163df](https://github.com/dungsil/dsh-plugins/commit/79163dfd7d47da7fb78e7454138360b6076967e7))
+
 ## [0.5.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.5.0...%40dungsil%2Fdsh-plugin-locale-ko%400.5.1) (2026-11-02)
 
 ### Bug Fixes
