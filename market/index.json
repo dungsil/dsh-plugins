@@ -356,17 +356,13 @@
       },
       "versions": [
         {
-          "version": "0.0.0-stage",
-          "publishTimestamp": 1793689820,
+          "version": "0.1.0",
+          "publishTimestamp": 1793690081,
           "source": {
             "type": "npm"
-          }
-        },
-        {
-          "version": "0.0.0-bootstrap",
-          "publishTimestamp": 1793689876,
-          "source": {
-            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
           }
         }
       ]

@@ -76,5 +76,24 @@
         "@deepseek-ai/dsh-client-ui-settings"
       ]
     }
+  },
+  "market": {
+    "order": 7,
+    "title": {
+      "en": "Task Models",
+      "ko": "상황별 모델"
+    },
+    "description": {
+      "en": "Choose a session title model without changing the conversation model.",
+      "ko": "대화 모델을 바꾸지 않고 세션 제목 생성에 사용할 모델을 지정합니다."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "models",
+      "settings",
+      "sessions",
+      "titles"
+    ]
   }
 }
