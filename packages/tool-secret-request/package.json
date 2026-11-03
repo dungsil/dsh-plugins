@@ -73,5 +73,24 @@
         "@deepseek-ai/dsh-client-ui-tool"
       ]
     }
+  },
+  "market": {
+    "order": 6,
+    "title": {
+      "en": "Secret input",
+      "ko": "비밀값 입력"
+    },
+    "description": {
+      "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
+      "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다."
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "secret",
+      "credentials",
+      "approval",
+      "tool"
+    ]
   }
 }

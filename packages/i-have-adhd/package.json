@@ -53,5 +53,26 @@
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "market": {
+    "order": 4,
+    "title": {
+      "en": "ADHD-friendly responses",
+      "ko": "ADHD 친화 응답"
+    },
+    "description": {
+      "en": "Turns on ADHD-friendly response formatting: one action first, short steps, and no preamble.",
+      "ko": "행동을 먼저 제시하고 단계를 짧게 유지하는 ADHD 친화 응답 형식을 켭니다."
+    },
+    "category": "skills",
+    "labels": [
+      "accessibility"
+    ],
+    "keywords": [
+      "adhd",
+      "accessibility",
+      "responses",
+      "skills"
+    ]
   }
 }

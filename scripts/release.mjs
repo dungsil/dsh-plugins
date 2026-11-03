@@ -53,6 +53,8 @@ export function releaseOptions({ dryRun = false } = {}) {
         'pnpm exec oxfmt --write package.json CHANGELOG.md',
         `pnpm pack --pack-destination ${destination}`,
       ],
+      // npm has published by this point; stage the refreshed root index in this release commit.
+      'before:git:release': ['pnpm --dir ../.. market:index', 'git add ../../market/index.json'],
     },
   }
 }

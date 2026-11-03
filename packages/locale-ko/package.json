@@ -57,5 +57,26 @@
         "@deepseek-ai/dsh-client-locale"
       ]
     }
+  },
+  "market": {
+    "order": 1,
+    "title": {
+      "en": "Korean UI",
+      "ko": "한국어 UI"
+    },
+    "description": {
+      "en": "Korean interface strings for DeepSeek Harness, including the plugin pages and the Korean IME and writing skills.",
+      "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다."
+    },
+    "category": "ui",
+    "labels": [
+      "korean"
+    ],
+    "keywords": [
+      "locale",
+      "i18n",
+      "korean",
+      "ui"
+    ]
   }
 }

@@ -52,5 +52,26 @@
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "market": {
+    "order": 3,
+    "title": {
+      "en": "Yoonmoon",
+      "ko": "윤문"
+    },
+    "description": {
+      "en": "Six Korean writing skills for proofreading, translation cleanup, AI-style removal, and style conversion.",
+      "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다."
+    },
+    "category": "skills",
+    "labels": [
+      "korean"
+    ],
+    "keywords": [
+      "korean",
+      "writing",
+      "proofreading",
+      "style"
+    ]
   }
 }
