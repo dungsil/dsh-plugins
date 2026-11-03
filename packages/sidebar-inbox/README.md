@@ -2,6 +2,10 @@
 
 DSH의 기존 사이드바 모양을 유지하면서, 프로젝트별 목록을 T3 Code Nightly처럼 상태별 목록으로 배치합니다.
 
+<img src="./assets/sidebar-preview.webp" alt="Sidebar Inbox 적용 예시: 상단의 고정·확인할 세션과 하단 Working 목록, 왼쪽은 Archived 접힘, 오른쪽은 펼침 상태" width="560" />
+
+DSH `0.2.2-alpha.2`의 영어 UI에서 예시 세션으로 촬영한 화면입니다. 왼쪽은 Archived가 접힌 기본 상태이고, 오른쪽은 펼친 상태입니다.
+
 ## 배치 규칙
 
 | 영역     | 포함되는 세션                                                                         |
