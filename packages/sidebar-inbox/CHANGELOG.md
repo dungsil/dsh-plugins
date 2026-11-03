@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-sidebar-inbox
 
+## [2.0.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-sidebar-inbox%401.0.0...%40dungsil%2Fdsh-plugin-sidebar-inbox%402.0.0) (2026-11-03)
+
+### ⚠ BREAKING CHANGES
+
+- **sidebar-inbox:** 상태별 정렬을 보기 옵션의 에이전트 활동 정렬로 옮긴다 ([#38](https://github.com/dungsil/dsh-plugins/issues/38))
+
+### Features
+
+- **sidebar-inbox:** 상태별 정렬을 보기 옵션의 에이전트 활동 정렬로 옮긴다 ([#38](https://github.com/dungsil/dsh-plugins/issues/38)) ([ce9932b](https://github.com/dungsil/dsh-plugins/commit/ce9932bcbf4ec4ef15718f004bd44e11b37d1176))
+
 ## [1.0.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-sidebar-inbox%400.1.0...%40dungsil%2Fdsh-plugin-sidebar-inbox%401.0.0) (2026-11-03)
 
 ### ⚠ BREAKING CHANGES
