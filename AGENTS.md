@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+## Versioning Policy
+
+- 0.x 버전에서는 breaking change가 있어도 메이저 버전을 올리지 않고 마이너 버전을 올립니다.
+- 일반 기능 추가는 마이너 버전, 버그 수정은 패치 버전을 올립니다.
+- 1.x 이상에서는 breaking change가 있으면 메이저 버전을 올립니다.
+
 ## Commit Message Convention
 
 <!-- Adapted from https://www.conventionalcommits.org/en/v1.0.0/ (Conventional Commits contributors, CC BY 3.0: https://creativecommons.org/licenses/by/3.0/). Korean project-specific rules were added. -->
