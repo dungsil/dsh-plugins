@@ -6,6 +6,9 @@ export interface HeadingLabels {
   archived: string
 }
 
+/** Sections rendered as sticky footers, each heading folding its own rows. */
+type FooterSection = Extract<Section, 'Working' | 'Archived'>
+
 /**
  * Add labels without moving, cloning or replacing any React-owned row.
  * @param placements - current section placement per session id.
@@ -21,10 +24,11 @@ export function installHeadings(
   const headings = new Map<HTMLElement, HTMLSpanElement>()
   const trees = new Set<HTMLElement>()
   const wrappers = new Set<HTMLElement>()
-  let archivedOpen = false
+  /** Each footer opens independently; a reload resets to these defaults. */
+  const open: Record<FooterSection, boolean> = { Working: true, Archived: false }
   const style = document.createElement('style')
   style.textContent = `
-    [data-dsh-inbox-tree] { display: flex; flex-direction: column; padding-bottom: 0; }
+    [data-dsh-inbox-tree] { display: flex; flex-direction: column; padding-bottom: 0; interpolate-size: allow-keywords; }
     [data-dsh-inbox-tree] > * { flex: none; }
     [data-dsh-inbox-tree] ~ span { display: none; }
     [data-dsh-inbox-footer] {
@@ -32,8 +36,23 @@ export function installHeadings(
       bottom: var(--dsh-inbox-bottom, 0px);
     }
     [data-dsh-inbox-first] { margin-top: auto !important; }
-    [data-dsh-inbox-hidden] { display: none !important; }
-    [data-dsh-inbox-collapsed] > :not([data-dsh-inbox-heading]) { display: none !important; }
+    /* Closed rows keep their box at zero height, so a heading press animates in
+       both directions without moving or cloning React-owned rows. */
+    [data-dsh-inbox-footer] > [data-row-key] {
+      overflow: hidden;
+      transition: height 180ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 140ms ease-out, visibility 0s;
+    }
+    [data-dsh-inbox-closed] > [data-row-key] {
+      height: 0; opacity: 0; visibility: hidden;
+      transition: height 160ms cubic-bezier(0.4, 0, 1, 1), opacity 120ms ease-in, visibility 0s 160ms;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      [data-dsh-inbox-footer] > [data-row-key],
+      [data-dsh-inbox-closed] > [data-row-key] { transition: none; }
+    }
+    /* Collapsed wrappers must not add list margins: their rows already have no
+       height, and the leftover row gaps alone can overflow the list. */
+    [data-dsh-inbox-tree] > [data-dsh-inbox-closed]:not([data-dsh-inbox-first]) { margin-top: 0; }
     [data-dsh-inbox-heading] {
       display: block; padding: 12px 8px 4px; font-size: 12px; line-height: 20px;
       color: var(--dsw-alias-label-tertiary); font-weight: 500;
@@ -49,8 +68,7 @@ export function installHeadings(
   const clearWrapper = (wrapper: HTMLElement) => {
     delete wrapper.dataset.dshInboxFooter
     delete wrapper.dataset.dshInboxFirst
-    delete wrapper.dataset.dshInboxHidden
-    delete wrapper.dataset.dshInboxCollapsed
+    delete wrapper.dataset.dshInboxClosed
     wrapper.style.removeProperty('--dsh-inbox-bottom')
   }
   const positionFooters = () => {
@@ -59,7 +77,9 @@ export function installHeadings(
       const footers = [...tree.querySelectorAll<HTMLElement>('[data-dsh-inbox-footer]')]
       for (const wrapper of footers.reverse()) {
         wrapper.style.setProperty('--dsh-inbox-bottom', `${bottom}px`)
-        if (!wrapper.hasAttribute('data-dsh-inbox-hidden')) bottom += wrapper.offsetHeight + 2
+        // A row inside a closing section shrinks through this measurement.
+        const height = wrapper.offsetHeight
+        if (height > 0) bottom += height + 2
       }
     }
   }
@@ -72,7 +92,7 @@ export function installHeadings(
     queueMicrotask(() => {
       scheduled = false
       if (disposed) return
-      const wanted = new Map<HTMLElement, Section>()
+      const wanted = new Map<HTMLElement, FooterSection>()
       const foldable = archivedCollapsible()
       resize.disconnect()
       for (const tree of trees) delete tree.dataset.dshInboxTree
@@ -82,7 +102,7 @@ export function installHeadings(
       for (const tree of document.querySelectorAll<HTMLElement>('[role="tree"]')) {
         // Workspace trees and content-search results retain their native grouping.
         if (tree.querySelector('[data-row-key^="workspace:"]')) continue
-        let previous: Section | undefined
+        let previous: FooterSection | undefined
         let firstFooter = true
         for (const row of tree.querySelectorAll<HTMLElement>('[data-row-key^="session:"]')) {
           const placement = placements().get(row.dataset.rowKey!.slice('session:'.length))
@@ -100,10 +120,7 @@ export function installHeadings(
           if (firstFooter) wrapper.dataset.dshInboxFirst = ''
           firstFooter = false
           if (section !== previous) wanted.set(wrapper, section)
-          if (section === 'Archived' && !archivedOpen) {
-            if (section !== previous) wrapper.dataset.dshInboxCollapsed = ''
-            else wrapper.dataset.dshInboxHidden = ''
-          }
+          if (!open[section]) wrapper.dataset.dshInboxClosed = ''
           previous = section
           resize.observe(wrapper)
         }
@@ -124,28 +141,30 @@ export function installHeadings(
           heading.setAttribute('aria-level', '2')
           headings.set(wrapper, heading)
         }
-        const text = section === 'Archived' ? labels().archived : labels().working
-        if (section === 'Archived') {
-          let button = heading.querySelector('button')
-          if (!button) {
-            heading.textContent = ''
-            button = document.createElement('button')
-            button.type = 'button'
-            button.onclick = (event) => {
-              event.stopPropagation()
-              archivedOpen = !archivedOpen
-              refresh()
-            }
-            heading.append(button)
-          }
-          // Only write changed copy: an unconditional textContent write emits a
-          // childList mutation that would re-trigger this refresh forever.
-          if (button.textContent !== text) button.textContent = text
-          button.setAttribute('aria-label', text)
-          button.setAttribute('aria-expanded', String(archivedOpen))
-        } else if (heading.textContent !== text || heading.querySelector('button')) {
-          heading.textContent = text
+        // A wrapper can cross sections when a session resumes or is archived.
+        if (heading.dataset.dshInboxSection !== section) {
+          heading.textContent = ''
+          heading.dataset.dshInboxSection = section
         }
+        let button = heading.querySelector('button')
+        if (!button) {
+          button = document.createElement('button')
+          button.type = 'button'
+          button.onclick = (event) => {
+            event.stopPropagation()
+            const current = heading.dataset.dshInboxSection
+            if (current !== 'Working' && current !== 'Archived') return
+            open[current] = !open[current]
+            refresh()
+          }
+          heading.append(button)
+        }
+        // Only write changed copy: an unconditional textContent write emits a
+        // childList mutation that would re-trigger this refresh forever.
+        const text = section === 'Archived' ? labels().archived : labels().working
+        if (button.textContent !== text) button.textContent = text
+        button.setAttribute('aria-label', text)
+        button.setAttribute('aria-expanded', String(open[section]))
         if (wrapper.firstChild !== heading) wrapper.prepend(heading)
       }
       positionFooters()
