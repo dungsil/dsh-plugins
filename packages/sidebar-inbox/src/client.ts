@@ -1,17 +1,20 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionRowOwnerProps, WorkspaceBrowserProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createElement, useSyncExternalStore } from 'react'
 import { placeSessions, type Placement, type Settled } from './inbox.js'
 import { installHeadings } from './headings.js'
+import { en, ko, NS, type SidebarInboxKey } from './locale.js'
 
 export const name = 'dungsil-sidebar-inbox'
-export const inject = ['slots', 'sessions', 'workspaces', 'uiSession']
+export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
 
 const FLAT_ORDER = '__flat_session_order__'
 const STORAGE_KEY = 'dungsil.sidebar-inbox.v1'
@@ -36,8 +39,22 @@ function readSettled(): Settled {
   }
 }
 
+/** Keys of the menu copy this plugin owns. */
+type SettleMenuKey = Extract<SidebarInboxKey, `menu.${string}`>
+
+type SettleMenuProps = {
+  sessionId: SessionRowOwnerProps['sessionId']
+  useMenuOpenState: () => readonly [boolean, (open: boolean) => void]
+  t: Translate<SettleMenuKey>
+}
+
 /** Keep native React rows, search, menus, selection and keyboard order intact. */
 export function apply(ctx: Context) {
+  // This plugin owns its dictionaries, so the labels follow the UI language on
+  // their own: Korean needs no separate language pack to be installed.
+  ctx.effect(() => ctx.locale.register(NS, 'en', en), 'sidebar-inbox: English copy')
+  ctx.effect(() => ctx.locale.register(NS, 'ko', ko), 'sidebar-inbox: Korean copy')
+  const translate = ctx.locale.bind(NS)
   let settled = readSettled()
   let placements = new Map<string, Placement>()
   const listeners = new Set<() => void>()
@@ -103,18 +120,16 @@ export function apply(ctx: Context) {
     refreshHeadings()
   }
 
-  function SettleMenu({
-    sessionId,
-    useMenuOpenState,
-  }: {
-    sessionId: SessionRowOwnerProps['sessionId']
-    useMenuOpenState: () => readonly [boolean, (open: boolean) => void]
-  }) {
+  function SettleMenu({ sessionId, useMenuOpenState, t }: SettleMenuProps) {
     const state = useSyncExternalStore(subscribe, getSnapshot).get(sessionId)
     const [, close] = useMenuOpenState()
     if (!state) return null
     return createElement(MenuItemButton, {
-      children: state.settled ? 'Unsettle' : state.section === 'Pinned' ? 'Unpin to settle' : 'Settle',
+      children: state.settled
+        ? t('menu.unsettle')
+        : state.section === 'Pinned'
+          ? t('menu.unpinToSettle')
+          : t('menu.settle'),
       disabled: !state.canSettle,
       onSelect: () => {
         // Recheck live facts: activity can start while the menu is open.
@@ -167,14 +182,22 @@ export function apply(ctx: Context) {
     }
     window.addEventListener('pagehide', onPageHide)
     window.addEventListener('pageshow', onPageShow)
-    const headings = installHeadings(() => placements)
+    const headings = installHeadings(
+      () => placements,
+      () => ({ working: translate('heading.working'), settled: translate('heading.settled') })
+    )
     refreshHeadings = headings.refresh
     const disposers = [
-      ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'dungsil-settle', order: 50 }, SettleMenu),
+      ctx.slots.register(
+        { name: 'sidebar.workspaces.session.menu.item', id: 'dungsil-settle', order: 50, locale: NS },
+        SettleMenu
+      ),
       ctx.sessions.list.subscribe(sync),
       ctx.workspaces.list.subscribe(sync),
       ctx.uiSession.sessionStatus.subscribe(sync),
       view.subscribe(sync),
+      // Relabel mounted headings and the settled toggle when the UI language changes.
+      ctx.locale.subscribe(() => refreshHeadings()),
     ]
     reconcile()
     return () => {

@@ -23,6 +23,34 @@ function observable(initial) {
   }
 }
 
+/** Minimal stand-in for the DSH locale service: dictionaries, lookup chain and live switches. */
+function localeService() {
+  const dicts = new Map()
+  const listeners = new Set()
+  let active = 'en'
+  const dictOf = (namespace) => dicts.get(`${namespace}:${active}`) ?? {}
+  return {
+    dicts,
+    get active() {
+      return active
+    },
+    getSnapshot: () => ({ active, locales: [], revision: 0 }),
+    subscribe(fn) {
+      listeners.add(fn)
+      return () => listeners.delete(fn)
+    },
+    register(namespace, locale, dict) {
+      dicts.set(`${namespace}:${locale}`, dict)
+      return () => dicts.delete(`${namespace}:${locale}`)
+    },
+    bind: (namespace) => (key) => dictOf(namespace)[key] ?? key,
+    setActive(locale) {
+      active = locale
+      for (const fn of listeners) fn()
+    },
+  }
+}
+
 function setup(saved = '{}') {
   const browser = new Window()
   browser.localStorage.setItem('dungsil.sidebar-inbox.v1', saved)
@@ -56,7 +84,9 @@ function setup(saved = '{}') {
   }
   const view = observable(original)
   view.store = view
+  const locale = localeService()
   let menu
+  let menuOptions
   let dispose
   let plugin
   runInNewContext(source, {
@@ -85,6 +115,11 @@ function setup(saved = '{}') {
     },
   })
   plugin.apply({
+    effect(fn) {
+      const disposer = fn()
+      return () => disposer?.()
+    },
+    locale,
     sessions: { list: sessions },
     workspaces: { list: workspaces },
     uiSession: { sessionStatus: statuses },
@@ -93,7 +128,8 @@ function setup(saved = '{}') {
         dispose = fn()
       },
       entries: () => [{ options: { priority: 0 }, store: { create: () => view } }],
-      register(_options, component) {
+      register(options, component) {
+        menuOptions = options
         menu = component
         return () => {}
       },
@@ -106,9 +142,16 @@ function setup(saved = '{}') {
     workspaces,
     view,
     original,
+    locale,
+    menuOptions: () => menuOptions,
     dispose: () => dispose(),
     order: () => Array.from(view.getSnapshot().sessionOrderByAccount[flatKey]),
-    menu: (id) => menu({ sessionId: id, useMenuOpenState: () => [true, () => {}] }),
+    menu: (id) =>
+      menu({
+        sessionId: id,
+        useMenuOpenState: () => [true, () => {}],
+        t: locale.bind('dungsil-sidebar-inbox'),
+      }),
   }
 }
 
@@ -168,6 +211,36 @@ void test('settlement survives reload, but newer activity and live subagents ret
   assert.equal(app.order()[1], 'settled')
 })
 
+void test('Korean copy ships with the plugin and follows the active UI language', (t) => {
+  const app = setup('{"settled":100}')
+  t.after(app.dispose)
+  const en = app.locale.dicts.get('dungsil-sidebar-inbox:en')
+  const ko = app.locale.dicts.get('dungsil-sidebar-inbox:ko')
+  assert.deepEqual(Object.keys(en).sort(), [
+    'heading.settled',
+    'heading.working',
+    'menu.settle',
+    'menu.unpinToSettle',
+    'menu.unsettle',
+  ])
+  assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort())
+  assert.equal(ko['heading.working'], '작업 중')
+  assert.equal(ko['heading.settled'], '정리됨')
+  assert.equal(ko['menu.settle'], '정리')
+  assert.equal(ko['menu.unsettle'], '정리 취소')
+  assert.equal(ko['menu.unpinToSettle'], '고정을 풀고 정리')
+  // The menu entry declares this plugin's namespace, so the framework supplies `t`.
+  assert.equal(app.menuOptions().locale, 'dungsil-sidebar-inbox')
+  assert.equal(app.menu('idle').children, 'Settle')
+  assert.equal(app.menu('idle').disabled, false)
+  assert.equal(app.menu('settled').children, 'Unsettle')
+  assert.equal(app.menu('pinned').children, 'Unpin to settle')
+  app.locale.setActive('ko')
+  assert.equal(app.menu('idle').children, '정리')
+  assert.equal(app.menu('settled').children, '정리 취소')
+  assert.equal(app.menu('pinned').children, '고정을 풀고 정리')
+})
+
 void test('native filter remains live; unload restores ordering and removes labels and subscriptions', async () => {
   const app = setup('{"settled":100,"idle":20}')
   const list = app.sessions.getSnapshot()
@@ -205,6 +278,20 @@ void test('native filter remains live; unload restores ordering and removes labe
   assert.equal(app.browser.getComputedStyle(firstSettled).display, 'none')
   assert.equal(app.browser.getComputedStyle(row.parentElement).display, 'none')
   assert.notEqual(app.browser.getComputedStyle(working).display, 'none')
+  // Heading copy follows a live UI language switch without remounting the tree.
+  app.locale.setActive('ko')
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.deepEqual(
+    [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
+    ['작업 중', '정리됨']
+  )
+  assert.equal(toggle.textContent, '정리됨')
+  app.locale.setActive('en')
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.deepEqual(
+    [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
+    ['Working', 'Settled']
+  )
   toggle.click()
   await app.browser.happyDOM.waitUntilComplete()
   assert.equal(toggle.getAttribute('aria-expanded'), 'true')
