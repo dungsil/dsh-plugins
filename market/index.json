@@ -340,60 +340,6 @@
       ]
     },
     {
-      "name": "@dungsil/dsh-plugin-sidebar-inbox",
-      "title": {
-        "en": "Sidebar Inbox",
-        "ko": "사이드바 수신함"
-      },
-      "description": {
-        "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
-        "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다."
-      },
-      "repository": {
-        "url": "https://github.com/dungsil/dsh-plugins",
-        "directory": "packages/sidebar-inbox"
-      },
-      "author": "dungsil",
-      "metadata": {
-        "category": "ui",
-        "keywords": ["sidebar", "sessions", "inbox", "archived"],
-        "labels": [],
-        "sortKeys": {}
-      },
-      "versions": [
-        {
-          "version": "2.0.0",
-          "publishTimestamp": 1793699891,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "1.0.0",
-          "publishTimestamp": 1793693936,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.1.0",
-          "publishTimestamp": 1793687767,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        }
-      ]
-    },
-    {
       "name": "@dungsil/dsh-plugin-tool-secret-request",
       "title": {
         "en": "Secret input",
