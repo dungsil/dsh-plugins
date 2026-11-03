@@ -1,0 +1,375 @@
+{
+  "format": 1,
+  "title": {
+    "en": "DUNGSIL's DSH Plugins",
+    "ko": "DUNGSIL의 DSH 플러그인"
+  },
+  "description": {
+    "en": "Korean-focused DeepSeek Harness plugins: Korean UI, writing skills, sidebar inbox, and secret input.",
+    "ko": "한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다."
+  },
+  "metadata": {
+    "categories": {
+      "ui": {
+        "title": {
+          "en": "Interface",
+          "ko": "인터페이스"
+        }
+      },
+      "skills": {
+        "title": {
+          "en": "Skills",
+          "ko": "스킬"
+        }
+      },
+      "tools": {
+        "title": {
+          "en": "Tools",
+          "ko": "도구"
+        }
+      }
+    },
+    "labels": {
+      "korean": {
+        "title": {
+          "en": "Korean",
+          "ko": "한국어"
+        }
+      },
+      "accessibility": {
+        "title": {
+          "en": "Accessibility",
+          "ko": "접근성"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "@dungsil/dsh-plugin-locale-ko",
+      "title": {
+        "en": "Korean UI",
+        "ko": "한국어 UI"
+      },
+      "description": {
+        "en": "Korean interface strings for DeepSeek Harness, including the plugin pages and the Korean IME and writing skills.",
+        "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/locale-ko"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["locale", "i18n", "korean", "ui"],
+        "labels": ["korean"],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.5.1",
+          "publishTimestamp": 1793594888,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1793594257,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1793593497,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.3.1",
+          "publishTimestamp": 1793452735,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793343892,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1793285019,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793284419,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793284258,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-korean-ime",
+      "title": {
+        "en": "Korean IME",
+        "ko": "한국어 IME"
+      },
+      "description": {
+        "en": "Sends the message when Enter commits a Korean IME composition, without changing other key behavior.",
+        "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/korean-ime"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["ime", "korean", "enter", "input"],
+        "labels": ["korean"],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793593588,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793589609,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793589554,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-yoonmoon",
+      "title": {
+        "en": "Yoonmoon",
+        "ko": "윤문"
+      },
+      "description": {
+        "en": "Six Korean writing skills for proofreading, translation cleanup, AI-style removal, and style conversion.",
+        "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/yoonmoon"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "skills",
+        "keywords": ["korean", "writing", "proofreading", "style"],
+        "labels": ["korean"],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793594338,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793588518,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793588462,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-i-have-adhd",
+      "title": {
+        "en": "ADHD-friendly responses",
+        "ko": "ADHD 친화 응답"
+      },
+      "description": {
+        "en": "Turns on ADHD-friendly response formatting: one action first, short steps, and no preamble.",
+        "ko": "행동을 먼저 제시하고 단계를 짧게 유지하는 ADHD 친화 응답 형식을 켭니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/i-have-adhd"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "skills",
+        "keywords": ["adhd", "accessibility", "responses", "skills"],
+        "labels": ["accessibility"],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793594250,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793588457,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793588400,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-sidebar-inbox",
+      "title": {
+        "en": "Sidebar Inbox",
+        "ko": "사이드바 수신함"
+      },
+      "description": {
+        "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
+        "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/sidebar-inbox"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["sidebar", "sessions", "inbox", "archived"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793687767,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-tool-secret-request",
+      "title": {
+        "en": "Secret input",
+        "ko": "비밀값 입력"
+      },
+      "description": {
+        "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
+        "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/tool-secret-request"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["secret", "credentials", "approval", "tool"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793689820,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.0.0-bootstrap",
+          "publishTimestamp": 1793689876,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    }
+  ]
+}
