@@ -1,0 +1,91 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+import { profileFixture, titleConfig } from './profile.mjs'
+
+for (const strategy of ['first-prompt', 'all-prompts']) {
+  await test(`${strategy}: saves, reloads and resets the title route without changing conversation config`, async (t) => {
+    const h = await profileFixture(strategy, { provider: 'conversation', model: 'title-small' })
+    t.after(h.close)
+    const initial = (await h.rpc('describe')).value
+    assert.equal(initial.target.id, 'custom-title-entry')
+    assert.deepEqual(initial.target.route, { provider: 'conversation', model: 'title-small' })
+    const route = { provider: 'auxiliary', model: 'title-small' }
+    const saved = await h.rpc('save', { ...initial.target, route })
+    assert.equal(saved.ok, true)
+    assert.deepEqual(saved.value.route, route)
+    assert.equal(h.adapter.requests.length, 0, 'saving must not send a paid generation request')
+    assert.match(await readFile(h.profile.patchPath, 'utf8'), /provider: auxiliary/u)
+    const config = () =>
+      h.ctx.configEditor.entries().find((entry) => entry.options.id === 'custom-title-entry').options.config
+    assert.deepEqual(config(), { ...titleConfig, ...route })
+    const session = await h.generate('overridden')
+    assert.deepEqual(h.ctx.sessionTitle.get(session).source.model, route)
+    const events = session.snapshotEvents()
+    const logged = events.findLast((event) => event.type === 'session/title-llm-request')
+    assert.deepEqual(logged.data.route, route)
+    assert.equal(h.adapter.requests.at(-1).provider, 'auxiliary')
+    assert.equal(h.adapter.requests.at(-1).model, 'title-small')
+    assert.equal(h.adapter.requests.at(-1).maxTokens, 256)
+    assert.deepEqual(events.find((event) => event.type === 'request/header').data.header.config, {
+      provider: 'conversation',
+      model: 'chat-large',
+    })
+
+    // An old browser cannot overwrite a later selection, even after the provider remounts.
+    assert.equal((await h.rpc('save', { ...initial.target, route: null })).error.code, 'conflict')
+    await h.restart()
+    const restored = (await h.rpc('describe')).value.target
+    assert.deepEqual(restored.route, route)
+    assert.equal((await h.rpc('save', { ...restored, route: null })).ok, true)
+    assert.deepEqual(config(), titleConfig, 'reset must also remove a route inherited from the bundle')
+    const inherited = await h.generate('inherited')
+    assert.deepEqual(h.ctx.sessionTitle.get(inherited).source.model, { provider: 'conversation', model: 'chat-large' })
+    assert.equal(h.ctx.sessionTitle.get(inherited).title, '모델 설정 구현')
+    await h.restart()
+    assert.equal((await h.rpc('describe')).value.target.route, null)
+  })
+}
+
+await test('refuses unauthorized, invalid, unavailable and stale writes without losing existing config', async (t) => {
+  const h = await profileFixture()
+  t.after(h.close)
+  const target = (await h.rpc('describe')).value.target
+  for (const endpoint of ['describe', 'save']) {
+    assert.equal(
+      (await h.rpc(endpoint, target, { principal: { kind: 'anonymous' }, interactions: 'deny' })).status,
+      403
+    )
+  }
+  for (const route of [undefined, {}, { provider: 'auxiliary' }, { provider: '', model: 'title-small' }]) {
+    assert.equal((await h.rpc('save', { ...target, route })).error.code, 'invalid')
+  }
+  assert.equal(
+    (await h.rpc('save', { ...target, route: { provider: 'missing', model: 'title-small' } })).error.code,
+    'model_unavailable'
+  )
+  assert.equal(
+    (await h.rpc('save', { ...target, route: { provider: 'auxiliary', model: 'missing' } })).error.code,
+    'model_unavailable'
+  )
+  assert.equal((await h.rpc('describe')).value.target.revision, target.revision)
+
+  const results = await Promise.all([
+    h.rpc('save', { ...target, route: { provider: 'auxiliary', model: 'title-small' } }),
+    h.rpc('save', { ...target, route: { provider: 'conversation', model: 'title-small' } }),
+  ])
+  assert.equal(results.filter((result) => result.ok).length, 1)
+  assert.equal(results.find((result) => !result.ok).error.code, 'conflict')
+
+  t.mock.method(h.adapter, 'listModels', async () => {
+    throw new Error('catalog offline')
+  })
+  const unavailableCatalog = (await h.rpc('describe')).value
+  assert.equal(unavailableCatalog.catalogError, true)
+  assert.ok(unavailableCatalog.providers.every((provider) => provider.models.length === 0))
+  assert.equal((await h.rpc('save', { ...unavailableCatalog.target, route: null })).ok, true)
+  const entry = h.ctx.configEditor.entries().find((item) => item.options.id === target.id)
+  await entry.fiber.dispose()
+  assert.equal((await h.rpc('describe')).value.target, null)
+  assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'unavailable')
+})
