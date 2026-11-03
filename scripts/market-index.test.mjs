@@ -10,6 +10,7 @@ import {
   buildMarketIndex,
   generateRegistryDocuments,
   normalizeRepository,
+  recordRelease,
 } from './market-index.mjs'
 
 const root = new URL('../', import.meta.url)
@@ -180,6 +181,50 @@ await test('buildMarketIndex maps market metadata and npm registry versions to f
 
   // Identical inputs serialize to identical text, so `--check` has no drift.
   assert.equal(JSON.stringify(fixtureBuild().index), JSON.stringify(index))
+})
+
+await test('recordRelease adds only the confirmed version and preserves history through registry reconciliation', () => {
+  const { index } = fixtureBuild()
+  const before = structuredClone(index)
+  const manifest = { ...alpha, version: '0.3.0', engines: { dsh: '^0.2.1-rc.5' } }
+  const packages = [manifest, beta, unpublished]
+  const publishTimestamp = timestamp('2026-03-01T12:34:56.000Z')
+  const updated = recordRelease({ index, packages, packageName: alpha.name, publishTimestamp })
+  const plugin = updated.plugins.find((entry) => entry.name === alpha.name)
+  const published = {
+    version: '0.3.0',
+    publishTimestamp,
+    source: { type: 'npm' },
+    engines: { dsh: '^0.2.1-rc.5' },
+  }
+  assert.deepEqual(plugin.versions, [before.plugins[1].versions[0], published, ...before.plugins[1].versions.slice(1)])
+  assert.deepEqual(updated.plugins[0], before.plugins[0])
+  assert.deepEqual(index, before)
+  assert.doesNotThrow(() => parseMarketIndex(updated, INDEX_URL))
+  assert.deepEqual(
+    recordRelease({ index: updated, packages, packageName: alpha.name, publishTimestamp: publishTimestamp + 60 }),
+    updated
+  )
+
+  const propagated = new Map(registryDocuments)
+  propagated.set(alpha.name, {
+    versions: { ...alphaDocument.versions, '0.3.0': manifest },
+    time: { ...alphaDocument.time, '0.3.0': '2026-03-01T12:35:00.000Z' },
+  })
+  assert.deepEqual(buildMarketIndex({ packages, registryDocuments: propagated, previousIndex: updated }), updated)
+
+  // A package absent from the old index is added only when it is the release target.
+  const first = { ...unpublished, version: '0.1.0', market: market({ order: 0 }) }
+  const initial = recordRelease({
+    index: updated,
+    packages: [manifest, beta, first],
+    packageName: first.name,
+    publishTimestamp,
+  })
+  assert.equal(initial.plugins[0].name, first.name)
+  assert.deepEqual(initial.plugins[0].versions, [{ version: '0.1.0', publishTimestamp, source: { type: 'npm' } }])
+  assert.deepEqual(initial.plugins.slice(1), updated.plugins)
+  assert.doesNotThrow(() => parseMarketIndex(initial, INDEX_URL))
 })
 
 await test('buildMarketIndex skips private packages and 404 registry entries', () => {

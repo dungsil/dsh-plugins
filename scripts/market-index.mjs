@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -139,10 +139,30 @@ function versionRecords(name, document) {
     }
   })
   // Format 1 requires descending SemVer precedence; the same value serializes the same file.
-  return records.sort((left, right) => {
-    const precedence = semver.rcompare(left.version, right.version)
-    return precedence !== 0 ? precedence : left.version < right.version ? -1 : 1
-  })
+  return records.sort(compareVersions)
+}
+
+function compareVersions(left, right) {
+  const precedence = semver.rcompare(left.version, right.version)
+  return precedence !== 0 ? precedence : left.version < right.version ? -1 : 1
+}
+
+function marketPlugin(manifest, market = marketMetadata(manifest)) {
+  const repository = normalizeRepository(manifest.repository)
+  return {
+    name: manifest.name,
+    ...(market.title === undefined ? {} : { title: market.title }),
+    ...(market.description === undefined ? {} : { description: market.description }),
+    ...(manifest.homepage === undefined ? {} : { homepage: manifest.homepage }),
+    ...(repository === undefined ? {} : { repository }),
+    author: AUTHOR,
+    metadata: {
+      ...(market.category === undefined ? {} : { category: market.category }),
+      keywords: market.keywords,
+      labels: market.labels,
+      sortKeys: {},
+    },
+  }
 }
 
 function compareEntries(left, right) {
@@ -157,8 +177,15 @@ function compareEntries(left, right) {
 /**
  * Build a format-1 market index from local package manifests and npm registry documents.
  * Packages missing from `registryDocuments` are unpublished (404) and are skipped with a warning.
+ * Preserve recorded release timestamps when npm later reports a different publication time.
  */
-export function buildMarketIndex({ packages, registryDocuments, indexUrl = INDEX_URL, onWarning = () => {} }) {
+export function buildMarketIndex({
+  packages,
+  registryDocuments,
+  previousIndex,
+  indexUrl = INDEX_URL,
+  onWarning = () => {},
+}) {
   if (!URL.canParse(indexUrl)) throw new Error(`Index URL ${JSON.stringify(indexUrl)} must be an absolute URL`)
   const entries = []
   for (const manifest of packages) {
@@ -176,25 +203,15 @@ export function buildMarketIndex({ packages, registryDocuments, indexUrl = INDEX
       onWarning(`${name} has no published versions; it is omitted from the market index`)
       continue
     }
-    const repository = normalizeRepository(manifest.repository)
+    const previous = previousIndex?.plugins.find((entry) => entry.name === name)
+    for (const version of versions) {
+      const recorded = previous?.versions.find((entry) => entry.version === version.version)
+      if (recorded) version.publishTimestamp = recorded.publishTimestamp
+    }
     entries.push({
       name,
       order: market.order,
-      plugin: {
-        name,
-        ...(market.title === undefined ? {} : { title: market.title }),
-        ...(market.description === undefined ? {} : { description: market.description }),
-        ...(manifest.homepage === undefined ? {} : { homepage: manifest.homepage }),
-        ...(repository === undefined ? {} : { repository }),
-        author: AUTHOR,
-        metadata: {
-          ...(market.category === undefined ? {} : { category: market.category }),
-          keywords: market.keywords,
-          labels: market.labels,
-          sortKeys: {},
-        },
-        versions,
-      },
+      plugin: { ...marketPlugin(manifest, market), versions },
     })
   }
   entries.sort(compareEntries)
@@ -204,6 +221,37 @@ export function buildMarketIndex({ packages, registryDocuments, indexUrl = INDEX
     description: INDEX_DESCRIPTION,
     metadata: { categories: CATEGORIES, labels: LABELS },
     plugins: entries.map((entry) => entry.plugin),
+  }
+}
+
+/** Record a successfully published package without querying npm or changing other version histories. */
+export function recordRelease({ index, packages, packageName, publishTimestamp = Math.floor(Date.now() / 1000) }) {
+  const manifest = packages.find((pkg) => !pkg.private && pkg.name === packageName)
+  if (!manifest) throw new Error(`Unknown public package: ${packageName}`)
+  const versions = index.plugins.find((plugin) => plugin.name === packageName)?.versions ?? []
+  const published = versions.find((entry) => entry.version === manifest.version) ?? {
+    version: manifest.version,
+    publishTimestamp,
+    source: { type: 'npm' },
+    ...(manifest.engines?.dsh === undefined ? {} : { engines: { dsh: manifest.engines.dsh } }),
+  }
+  const plugins = [
+    ...index.plugins.filter((plugin) => plugin.name !== packageName),
+    {
+      ...marketPlugin(manifest),
+      versions: [...versions.filter((entry) => entry.version !== manifest.version), published].sort(compareVersions),
+    },
+  ]
+  return {
+    ...index,
+    plugins: plugins
+      .map((plugin) => ({
+        name: plugin.name,
+        order: packages.find((pkg) => pkg.name === plugin.name)?.market?.order,
+        plugin,
+      }))
+      .sort(compareEntries)
+      .map((entry) => entry.plugin),
   }
 }
 
@@ -278,19 +326,22 @@ export async function generateRegistryDocuments({
   return documents
 }
 
-async function generateIndex() {
+async function generateIndex(releasePackage) {
   const packages = readLocalPackages()
   const warnings = []
-  const registryDocuments = await generateRegistryDocuments({
-    packages,
-    onWarning: (message) => warnings.push(message),
-  })
-  const index = buildMarketIndex({
-    packages,
-    registryDocuments,
-    indexUrl: INDEX_URL,
-    onWarning: (message) => warnings.push(message),
-  })
+  const previousIndex = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : undefined
+  const index = releasePackage
+    ? recordRelease({ index: previousIndex, packages, packageName: releasePackage })
+    : buildMarketIndex({
+        packages,
+        registryDocuments: await generateRegistryDocuments({
+          packages,
+          onWarning: (message) => warnings.push(message),
+        }),
+        previousIndex,
+        indexUrl: INDEX_URL,
+        onWarning: (message) => warnings.push(message),
+      })
   for (const warning of warnings) console.warn(`warning: ${warning}`)
   try {
     parseMarketIndex(index, INDEX_URL)
@@ -341,9 +392,11 @@ function driftMessage(committed, expected) {
 }
 
 if (import.meta.main) {
-  const { values } = parseArgs({ options: { check: { type: 'boolean', default: false } } })
+  const { values } = parseArgs({
+    options: { check: { type: 'boolean', default: false }, release: { type: 'string' } },
+  })
   try {
-    const index = await generateIndex()
+    const index = await generateIndex(values.release)
     if (values.check) {
       const expected = formatIndex(index)
       let committed
