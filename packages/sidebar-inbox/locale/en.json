@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Sidebar Inbox",
-    "description": "Orders native sidebar sessions by Inbox, Working and Archived. Sessions archived in DSH fold into the bottom of the all-conversations view."
+    "description": "Adds an Agent activity sort to the native view options. While selected in the single list, sessions are ordered by Inbox, Working and Archived; sessions archived in DSH fold into the bottom of the all-conversations view."
   }
 }

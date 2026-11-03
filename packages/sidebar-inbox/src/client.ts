@@ -8,19 +8,50 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { WorkspaceBrowserProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { placeSessions, type Placement } from './inbox.js'
 import { installHeadings } from './headings.js'
+import { installSortOption } from './menu.js'
 import { en, ko, NS } from './locale.js'
 
 export const name = 'dungsil-sidebar-inbox'
 export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
 
+/** Native flat-list account key from ui-workspace. */
 const FLAT_ORDER = '__flat_session_order__'
+/**
+ * Plugin-owned sort mode persisted through the shared view store. Native
+ * projections treat every non-'updated' value like 'manual', so the saved flat
+ * order is what the sidebar renders while this mode is selected.
+ */
+const AGENT_ACTIVITY = 'agent-activity'
+/** Remembers the native sort to restore when the plugin mode is released. */
+const PREVIOUS_SORT_KEY = 'dungsil.sidebar-inbox.sort.v1'
 
 type View = Parameters<Parameters<WorkspaceBrowserProps['useStore']>[0]>[0]
-type Ordering = Pick<View, 'groupBy' | 'orderBy' | 'sessionOrderByAccount'>
+type NativeSort = Extract<View['orderBy'], 'manual' | 'updated'>
 interface ViewInstance {
   getSnapshot(): View
   subscribe(listener: () => void): () => void
   store: { set(view: View): void }
+}
+
+function isAgentActivity(orderBy: View['orderBy']): boolean {
+  return String(orderBy) === AGENT_ACTIVITY
+}
+
+/** The native sort the plugin mode replaced, so opting out returns to it. */
+function readPreviousSort(): NativeSort {
+  try {
+    return localStorage.getItem(PREVIOUS_SORT_KEY) === 'updated' ? 'updated' : 'manual'
+  } catch {
+    return 'manual'
+  }
+}
+
+function writePreviousSort(mode: NativeSort) {
+  try {
+    localStorage.setItem(PREVIOUS_SORT_KEY, mode)
+  } catch {
+    // A denied store only loses the remembered mode; the opt-out still works.
+  }
 }
 
 /** Keep native React rows, search, menus, selection and keyboard order intact. */
@@ -32,9 +63,12 @@ export function apply(ctx: Context) {
   const translate = ctx.locale.bind(NS)
   let placements = new Map<string, Placement>()
   let view: ViewInstance | undefined
-  let original: Ordering | undefined
   let refreshHeadings = () => {}
+  let refreshSortOption = () => {}
 
+  const isActive = () => view !== undefined && isAgentActivity(view.getSnapshot().orderBy)
+  /** The agent-activity order only fits the hierarchy-free single list. */
+  const isFlat = () => view !== undefined && view.getSnapshot().groupBy === 'flat'
   const reconcile = () => {
     const list = ctx.sessions.list.getSnapshot()
     const workspace = ctx.workspaces.list.getSnapshot()
@@ -48,33 +82,43 @@ export function apply(ctx: Context) {
       placements.size !== result.placements.size ||
       [...result.placements].some(([id, value]) => {
         const previous = placements.get(id)
-        return previous === undefined || previous.section !== value.section || previous.blank !== value.blank
+        return previous?.section !== value.section || previous.blank !== value.blank
       })
     if (changed) placements = result.placements
-    if (view && list.phase === 'ready' && workspace.phase === 'ready') {
+    // Only the selected plugin mode writes an order, and only for the flat list;
+    // native group, sort and filter choices are otherwise left exactly as the
+    // user set them.
+    if (view !== undefined && list.phase === 'ready' && workspace.phase === 'ready' && isActive() && isFlat()) {
       const current = view.getSnapshot()
       const previous = current.sessionOrderByAccount[FLAT_ORDER] ?? []
-      if (
-        current.groupBy !== 'flat' ||
-        current.orderBy !== 'manual' ||
-        previous.length !== result.order.length ||
-        previous.some((id, index) => id !== result.order[index])
-      ) {
+      if (previous.length !== result.order.length || previous.some((id, index) => id !== result.order[index])) {
         view.store.set({
           ...current,
-          groupBy: 'flat',
-          orderBy: 'manual',
           sessionOrderByAccount: { ...current.sessionOrderByAccount, [FLAT_ORDER]: result.order },
         })
       }
     }
     refreshHeadings()
+    refreshSortOption()
+  }
+
+  const toggleSort = () => {
+    if (view === undefined || !isFlat()) return
+    const current = view.getSnapshot()
+    if (isAgentActivity(current.orderBy)) {
+      view.store.set({ ...current, orderBy: readPreviousSort() })
+      return
+    }
+    if (current.orderBy === 'manual' || current.orderBy === 'updated') writePreviousSort(current.orderBy)
+    // The native store persists this value; native projections read it as manual.
+    view.store.set({ ...current, orderBy: AGENT_ACTIVITY as View['orderBy'] })
   }
 
   // This declaration is owned by ui-workspace, so both loading orders and HMR
   // are covered. The v0.2.1 browser explicitly shares one create() instance.
   // DSH already archives sessions from its own row menu, so this plugin adds no
-  // menu item and only reads that state.
+  // session menu item and only reads that state; the injection is the lifecycle
+  // anchor that exposes the shared view store.
   ctx.slots.inject('sidebar.workspaces.session.menu.item', () => {
     const entry =
       ctx.slots
@@ -84,56 +128,53 @@ export function apply(ctx: Context) {
     if (!entry?.store || typeof entry.store === 'function')
       throw new Error('Sidebar Inbox requires the DSH 0.2.1 workspace view store')
     view = entry.store.create() as unknown as ViewInstance
-    const current = view.getSnapshot()
-    original = {
-      groupBy: current.groupBy,
-      orderBy: current.orderBy,
-      sessionOrderByAccount: current.sessionOrderByAccount,
-    }
-    const restore = () => {
-      if (view && original) view.store.set({ ...view.getSnapshot(), ...original })
-    }
-    // Restore the persisted native preference before reload. Suspend subscriptions
-    // first, otherwise they would immediately reapply inbox ordering.
-    let leaving = false
-    const sync = () => {
-      if (!leaving) reconcile()
-    }
-    const onPageHide = () => {
-      leaving = true
-      restore()
-    }
-    const onPageShow = () => {
-      leaving = false
-      reconcile()
-    }
-    window.addEventListener('pagehide', onPageHide)
-    window.addEventListener('pageshow', onPageShow)
     const headings = installHeadings(
       () => placements,
       () => ({ working: translate('heading.working'), archived: translate('heading.archived') }),
-      () => (view?.getSnapshot().archivedFilter ?? 'default') === 'show'
+      () => (view?.getSnapshot().archivedFilter ?? 'default') === 'show',
+      isActive
     )
-    refreshHeadings = headings.refresh
+    refreshHeadings = () => headings.refresh()
+    const sortOption = installSortOption({
+      label: () => translate('sort.agentActivity'),
+      isActive,
+      isEnabled: isFlat,
+      onToggle: toggleSort,
+    })
+    refreshSortOption = () => sortOption.refresh()
+    const sync = () => {
+      // Switching the native group by away from the single list releases the
+      // plugin mode: the state order has no meaning inside Workspace groups.
+      if (view !== undefined && isActive() && !isFlat()) {
+        view.store.set({ ...view.getSnapshot(), orderBy: readPreviousSort() })
+      }
+      reconcile()
+    }
     const disposers = [
       ctx.sessions.list.subscribe(sync),
       ctx.workspaces.list.subscribe(sync),
       ctx.uiSession.sessionStatus.subscribe(sync),
       view.subscribe(sync),
-      // Relabel mounted headings and the archived toggle when the UI language changes.
-      ctx.locale.subscribe(() => refreshHeadings()),
+      // Relabel mounted headings and the sort row when the UI language changes.
+      ctx.locale.subscribe(() => {
+        refreshHeadings()
+        refreshSortOption()
+      }),
     ]
-    reconcile()
+    sync()
     return () => {
       for (const dispose of disposers.reverse()) dispose()
-      window.removeEventListener('pagehide', onPageHide)
-      window.removeEventListener('pageshow', onPageShow)
       headings.dispose()
+      sortOption.dispose()
       refreshHeadings = () => {}
-      // Restore ordering only; keep pin/archive/filter changes made while enabled.
-      restore()
+      refreshSortOption = () => {}
+      // Leaving the plugin releases its own sort mode; native group, sort,
+      // filter and pin/archive choices stay as the user left them.
+      if (isActive()) {
+        const current = view!.getSnapshot()
+        view!.store.set({ ...current, orderBy: readPreviousSort() })
+      }
       view = undefined
-      original = undefined
     }
   })
 }
