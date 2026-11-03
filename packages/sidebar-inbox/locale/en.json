@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Sidebar Inbox",
-    "description": "Orders native sidebar sessions by Inbox, Working and Settled. Settle sessions from their existing menu; new activity brings them back."
+    "description": "Orders native sidebar sessions by Inbox, Working and Archived. Sessions archived in DSH fold into the bottom of the all-conversations view."
   }
 }

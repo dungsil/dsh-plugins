@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "사이드바 수신함",
-    "description": "기존 사이드바의 세션을 Inbox, Working, Settled 순서로 배치합니다. 세션 메뉴에서 정리할 수 있으며, 새 활동이 생기면 다시 돌아옵니다."
+    "description": "기존 사이드바의 세션을 Inbox, Working, Archived 순서로 배치합니다. DSH에서 보관한 세션은 '모든 대화' 필터의 하단에 접힌 채로 표시됩니다."
   }
 }

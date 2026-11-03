@@ -1,25 +1,28 @@
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 
-export type Section = 'Pinned' | 'Inbox' | 'Working' | 'Settled'
-export type Settled = Record<string, number>
+/** Sections render top to bottom; only Working and Archived get labels. */
+export type Section = 'Pinned' | 'Inbox' | 'Working' | 'Archived'
+
 export interface Placement {
   section: Section
-  canSettle: boolean
-  settled: boolean
   blank: boolean
 }
 
-/** Settlement is explicit, not synonymous with completion or viewing a reply. */
+/**
+ * Archive is DSH's own explicit state, not a synonym for completion or viewing a
+ * reply, so this projection only reads it: an archived session keeps the Archived
+ * slot until the user unarchives it in the native menu.
+ */
 export function placeSessions(
   list: SessionListState,
   statuses: SessionStatusSnapshot,
   pinned: readonly string[],
-  settled: Settled
-): { order: string[]; placements: Map<string, Placement>; settled: Settled } {
+  archived: readonly string[]
+): { order: string[]; placements: Map<string, Placement> } {
   const pins = new Set(pinned)
+  const archives = new Set(archived)
   const placements = new Map<string, Placement>()
-  const next = { ...settled }
   for (const id of list.ids) {
     const row = list.byId[id]
     const status = statuses.get(id)
@@ -28,24 +31,28 @@ export function placeSessions(
     const running =
       (status?.running ?? row.running) ||
       children.some((child) => statuses.get(child.id)?.running ?? list.byId[child.id]?.running)
-    // A running edge clears the marker even if the host timestamp has not advanced yet.
-    if (running || pending || (next[id] !== undefined && row.updatedAt > next[id])) delete next[id]
-    const isSettled = next[id] !== undefined
-    placements.set(id, {
-      section: pins.has(id) ? 'Pinned' : pending ? 'Inbox' : running ? 'Working' : isSettled ? 'Settled' : 'Inbox',
-      canSettle: !row.blank && !running && !pending && (!pins.has(id) || isSettled),
-      settled: isSettled,
-      blank: row.blank,
-    })
+    // Archive wins over the pin set and live status: DSH never leads with archived
+    // rows and does not open them, so they stay at the bottom until restored.
+    const section: Section = archives.has(id)
+      ? 'Archived'
+      : pins.has(id)
+        ? 'Pinned'
+        : pending
+          ? 'Inbox'
+          : running
+            ? 'Working'
+            : 'Inbox'
+    placements.set(id, { section, blank: row.blank })
   }
-  const rank: Record<Section, number> = { Pinned: 0, Inbox: 1, Working: 2, Settled: 3 }
+  const rank: Record<Section, number> = { Pinned: 0, Inbox: 1, Working: 2, Archived: 3 }
   const order = list.ids
     .filter((id) => {
       const row = list.byId[id]
       return row.origin !== 'subagent' && (!row.blank || (row.retainedBy.mainView ?? 0) > 0)
     })
     .sort((a, b) => {
-      // Preserve the host's selected blank and pin conventions; no pin/archive writes.
+      // Preserve host conventions for the selected blank and pinned rows; only the
+      // section placement and recency inside a section are ours.
       const left = list.byId[a]
       const right = list.byId[b]
       return (
@@ -55,5 +62,5 @@ export function placeSessions(
         a.localeCompare(b)
       )
     })
-  return { order, placements, settled: next }
+  return { order, placements }
 }

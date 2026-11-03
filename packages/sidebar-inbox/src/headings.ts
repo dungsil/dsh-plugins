@@ -3,15 +3,25 @@ import type { Placement, Section } from './inbox.js'
 /** Section copy resolved at render time so a language switch relabels live DOM. */
 export interface HeadingLabels {
   working: string
-  settled: string
+  archived: string
 }
 
-/** Add labels without moving, cloning or replacing any React-owned row. */
-export function installHeadings(placements: () => ReadonlyMap<string, Placement>, labels: () => HeadingLabels) {
+/**
+ * Add labels without moving, cloning or replacing any React-owned row.
+ * @param placements - current section placement per session id.
+ * @param labels - section copy for the current UI language.
+ * @param archivedCollapsible - whether archived rows are mixed into this list and
+ * should fold into the bottom, i.e. the archived-inclusive view is selected.
+ */
+export function installHeadings(
+  placements: () => ReadonlyMap<string, Placement>,
+  labels: () => HeadingLabels,
+  archivedCollapsible: () => boolean
+) {
   const headings = new Map<HTMLElement, HTMLSpanElement>()
   const trees = new Set<HTMLElement>()
   const wrappers = new Set<HTMLElement>()
-  let settledOpen = false
+  let archivedOpen = false
   const style = document.createElement('style')
   style.textContent = `
     [data-dsh-inbox-tree] { display: flex; flex-direction: column; padding-bottom: 0; }
@@ -63,6 +73,7 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
       scheduled = false
       if (disposed) return
       const wanted = new Map<HTMLElement, Section>()
+      const foldable = archivedCollapsible()
       resize.disconnect()
       for (const tree of trees) delete tree.dataset.dshInboxTree
       trees.clear()
@@ -79,7 +90,9 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
           const section = placement?.section
           const wrapper = row.parentElement
           if (!section || !wrapper || wrapper.parentElement !== tree) continue
-          if (section !== 'Working' && section !== 'Settled') continue
+          // Archived rows join the sticky bottom only in the mixed view. The
+          // archived-only view is the whole list, so folding it would hide everything.
+          if (section !== 'Working' && !(section === 'Archived' && foldable)) continue
           trees.add(tree)
           tree.dataset.dshInboxTree = ''
           wrappers.add(wrapper)
@@ -87,7 +100,7 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
           if (firstFooter) wrapper.dataset.dshInboxFirst = ''
           firstFooter = false
           if (section !== previous) wanted.set(wrapper, section)
-          if (section === 'Settled' && !settledOpen) {
+          if (section === 'Archived' && !archivedOpen) {
             if (section !== previous) wrapper.dataset.dshInboxCollapsed = ''
             else wrapper.dataset.dshInboxHidden = ''
           }
@@ -111,8 +124,8 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
           heading.setAttribute('aria-level', '2')
           headings.set(wrapper, heading)
         }
-        const text = section === 'Settled' ? labels().settled : labels().working
-        if (section === 'Settled') {
+        const text = section === 'Archived' ? labels().archived : labels().working
+        if (section === 'Archived') {
           let button = heading.querySelector('button')
           if (!button) {
             heading.textContent = ''
@@ -120,7 +133,7 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
             button.type = 'button'
             button.onclick = (event) => {
               event.stopPropagation()
-              settledOpen = !settledOpen
+              archivedOpen = !archivedOpen
               refresh()
             }
             heading.append(button)
@@ -129,7 +142,7 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
           // childList mutation that would re-trigger this refresh forever.
           if (button.textContent !== text) button.textContent = text
           button.setAttribute('aria-label', text)
-          button.setAttribute('aria-expanded', String(settledOpen))
+          button.setAttribute('aria-expanded', String(archivedOpen))
         } else if (heading.textContent !== text || heading.querySelector('button')) {
           heading.textContent = text
         }
