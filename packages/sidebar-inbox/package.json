@@ -64,5 +64,24 @@
         "@deepseek-ai/dsh-client-ui-session"
       ]
     }
+  },
+  "market": {
+    "order": 5,
+    "title": {
+      "en": "Sidebar Inbox",
+      "ko": "사이드바 수신함"
+    },
+    "description": {
+      "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
+      "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "sidebar",
+      "sessions",
+      "inbox",
+      "archived"
+    ]
   }
 }
