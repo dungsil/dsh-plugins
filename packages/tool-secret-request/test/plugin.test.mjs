@@ -262,9 +262,11 @@ await test('inline card isolates sessions and calls, clears private input and re
   assert.equal(container.querySelector('script'), null)
   assert.equal(container.querySelector('h3').textContent, '<script>no HTML</script>')
   assert.equal(container.querySelector('p').textContent, args.reason)
-  assert.equal(container.textContent, `<script>no HTML</script>${args.reason}거절비밀값 저장`)
+  const privacy = '에이전트에게 비밀값을 보여주지 않습니다.'
+  assert.equal(container.textContent, `<script>no HTML</script>${args.reason}거절비밀값 저장${privacy}`)
   let input = container.querySelector('input')
   assert.equal(input.type, 'password')
+  assert.equal(document.getElementById(input.getAttribute('aria-describedby')).textContent, privacy)
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
   const enter = async () => {
     await act(async () => {
