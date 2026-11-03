@@ -137,15 +137,21 @@ await test('commit-driven releases preserve independent history, versions, tags 
   assert.equal(notes('locale-ko'), localeNotes)
   write('packages/locale-ko/index.js', '// breaking API\n')
   commit('refactor(locale-ko)!: incompatible locale API')
-  assert.equal((await publishLocally('locale-ko')).version, '1.0.0')
+  assert.equal((await publishLocally('locale-ko')).version, '0.4.0')
+  assert.match(notes('locale-ko'), /BREAKING CHANGES/)
+  assert.match(notes('locale-ko'), /incompatible locale API/)
   assert.equal(manifest('other').version, '2.8.0')
   assert.equal((await publishLocally('locale-ko')).version, undefined)
+  write('packages/other/index.js', '// breaking stable API\n')
+  commit('refactor(other): incompatible stable API\n\nBREAKING CHANGE: remove the old stable API')
+  assert.equal((await publishLocally('other')).version, '3.0.0')
   assert.deepEqual(run('git', ['tag', '--list']).trim().split('\n'), [
     '@dungsil/dsh-plugin-locale-ko@0.3.2',
-    '@dungsil/dsh-plugin-locale-ko@1.0.0',
+    '@dungsil/dsh-plugin-locale-ko@0.4.0',
     '@fixture/new@0.1.0',
     '@fixture/other@2.7.4',
     '@fixture/other@2.8.0',
+    '@fixture/other@3.0.0',
     'v0.3.1',
   ])
   assert.equal(run('git', ['status', '--porcelain']), '')
@@ -171,17 +177,18 @@ await test('commit-driven releases preserve independent history, versions, tags 
     github: { release: false },
   })
   assert.equal(manifest('initial').version, '0.1.0')
-  assert.equal(manifest('other').version, '2.8.0')
+  assert.equal(manifest('other').version, '3.0.0')
   assert.match(notes('initial'), /0\.1\.0/)
   assert.equal(run('git', ['tag', '--list', '@fixture/initial@*']).trim(), '@fixture/initial@0.1.0')
-  assert.equal(run('git', ['tag', '--list', '@fixture/other@2.9.0']), '')
+  assert.equal(run('git', ['tag', '--list', '@fixture/other@3.1.0']), '')
   assert.equal(process.cwd(), cwd)
 
   for (const tag of [
     '@fixture/new@0.1.0',
     '@dungsil/dsh-plugin-locale-ko@0.3.2',
     '@fixture/other@2.8.0',
-    '@dungsil/dsh-plugin-locale-ko@1.0.0',
+    '@dungsil/dsh-plugin-locale-ko@0.4.0',
+    '@fixture/other@3.0.0',
     '@fixture/initial@0.1.0',
   ]) {
     const separator = tag.lastIndexOf('@')
@@ -197,7 +204,7 @@ await test('commit-driven releases preserve independent history, versions, tags 
     index.plugins
       .find((plugin) => plugin.name === '@dungsil/dsh-plugin-locale-ko')
       .versions.map((entry) => entry.version),
-    ['1.0.0', '0.3.2']
+    ['0.4.0', '0.3.2']
   )
   assert.equal(run('git', ['status', '--porcelain']), '')
   assert.equal(run('git', ['rev-parse', 'HEAD']), run('git', ['rev-parse', 'origin/main']))

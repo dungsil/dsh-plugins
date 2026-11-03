@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
+import conventionalCommits from 'conventional-changelog-conventionalcommits'
 import release from 'release-it'
 import semver from 'semver'
 
 export function releaseOptions({ dryRun = false } = {}) {
-  const { name } = JSON.parse(readFileSync('package.json', 'utf8'))
+  const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
   const tags = execFileSync('git', ['tag', '--merged', 'HEAD', '--list', `${name}@*`], { encoding: 'utf8' })
   // Only locale-ko was published under the old repository-wide v* tags.
   const prefix = name === '@dungsil/dsh-plugin-locale-ko' && !tags.trim() ? 'v' : `${name}@`
@@ -38,6 +39,12 @@ export function releaseOptions({ dryRun = false } = {}) {
     plugins: {
       '@release-it/conventional-changelog': {
         preset: { name: 'conventionalcommits' },
+        whatBump(commits) {
+          const bump = conventionalCommits().whatBump(commits)
+          // Keep feature and fix bumps unchanged; only cap breaking changes in 0.x.
+          if (bump?.level === 0 && semver.major(version) === 0) bump.level = 1
+          return bump
+        },
         infile: 'CHANGELOG.md',
         header: `# ${name}`,
         tagOpts: { prefix },
