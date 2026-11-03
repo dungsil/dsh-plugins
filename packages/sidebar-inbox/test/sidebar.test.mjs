@@ -165,7 +165,7 @@ function setup(archivedFilter = 'default') {
     paint,
     row,
     headingTexts: () => [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
-    toggle: () => tree.querySelector('[data-dsh-inbox-heading] button'),
+    toggles: () => [...tree.querySelectorAll('[data-dsh-inbox-heading] button')],
   }
 }
 
@@ -207,21 +207,34 @@ void test('archived sessions trail the list even when pinned or running', (t) =>
   assert.deepEqual(app.order(), ['pinned', 'approval', 'idle', 'archived', 'running'])
 })
 
-void test('the all-conversations view folds archived rows into a collapsed bottom label', async (t) => {
+void test('both section titles fold their rows and archived starts folded', async (t) => {
   const app = setup('show')
   t.after(app.dispose)
   await app.paint()
   assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
-  const toggle = app.toggle()
-  assert.equal(toggle.textContent, 'Archived')
-  assert.equal(toggle.getAttribute('aria-expanded'), 'false')
-  assert.equal(app.browser.getComputedStyle(app.row('archived')).display, 'none')
-  assert.notEqual(app.browser.getComputedStyle(app.row('running')).display, 'none')
+  const [workingToggle, archivedToggle] = app.toggles()
+  assert.equal(workingToggle.textContent, 'Working')
+  assert.equal(workingToggle.getAttribute('aria-expanded'), 'true')
+  assert.equal(archivedToggle.textContent, 'Archived')
+  assert.equal(archivedToggle.getAttribute('aria-expanded'), 'false')
+  assert.equal(app.browser.getComputedStyle(app.row('archived')).visibility, 'hidden')
+  assert.notEqual(app.browser.getComputedStyle(app.row('running')).visibility, 'hidden')
 
-  toggle.click()
+  // Working folds on its own title and leaves Archived folded as well.
+  workingToggle.click()
   await app.browser.happyDOM.waitUntilComplete()
-  assert.equal(toggle.getAttribute('aria-expanded'), 'true')
-  assert.notEqual(app.browser.getComputedStyle(app.row('archived')).display, 'none')
+  assert.equal(workingToggle.getAttribute('aria-expanded'), 'false')
+  assert.equal(app.browser.getComputedStyle(app.row('running')).visibility, 'hidden')
+  assert.equal(archivedToggle.getAttribute('aria-expanded'), 'false')
+  workingToggle.click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(workingToggle.getAttribute('aria-expanded'), 'true')
+  assert.notEqual(app.browser.getComputedStyle(app.row('running')).visibility, 'hidden')
+
+  archivedToggle.click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(archivedToggle.getAttribute('aria-expanded'), 'true')
+  assert.notEqual(app.browser.getComputedStyle(app.row('archived')).visibility, 'hidden')
 
   // The dictionaries ship with the plugin; a live language switch relabels mounted headings.
   const keys = ['heading.archived', 'heading.working']
@@ -230,8 +243,10 @@ void test('the all-conversations view folds archived rows into a collapsed botto
   app.locale.setActive('ko')
   await app.browser.happyDOM.waitUntilComplete()
   assert.deepEqual(app.headingTexts(), ['작업 중', '보관됨'])
-  assert.equal(app.toggle().textContent, '보관됨')
-  assert.equal(app.toggle().getAttribute('aria-expanded'), 'true')
+  assert.deepEqual(
+    app.toggles().map((node) => node.textContent),
+    ['작업 중', '보관됨']
+  )
   app.locale.setActive('en')
   await app.browser.happyDOM.waitUntilComplete()
   assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
@@ -246,7 +261,7 @@ void test('the all-conversations view folds archived rows into a collapsed botto
   app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'only' })
   await app.paint()
   assert.deepEqual(app.headingTexts(), [])
-  assert.notEqual(app.browser.getComputedStyle(app.row('archived')).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(app.row('archived')).visibility, 'hidden')
 
   // Unarchiving in the native menu returns the row to the ordinary list at once.
   app.workspaces.set({ ...app.workspaces.getSnapshot(), archivedSessionIds: [] })
@@ -267,7 +282,7 @@ void test('retained blanks lead, native filter changes stay live and unload rest
   await app.paint()
   assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
   const archivedRow = app.row('archived')
-  assert.equal(app.browser.getComputedStyle(archivedRow).display, 'none')
+  assert.equal(app.browser.getComputedStyle(archivedRow).visibility, 'hidden')
 
   // The archived filter is native view state; this plugin reads it and never writes it.
   app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'only' })
@@ -283,8 +298,8 @@ void test('retained blanks lead, native filter changes stay live and unload rest
   app.dispose()
   assert.equal(app.tree.querySelector('[data-row-key="session:archived"]'), archivedRow)
   assert.equal(app.browser.document.querySelectorAll('[data-dsh-inbox-heading]').length, 0)
-  assert.notEqual(app.browser.getComputedStyle(archivedRow).display, 'none')
-  assert.notEqual(app.browser.getComputedStyle(archivedRow.parentElement).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(archivedRow).visibility, 'hidden')
+  assert.equal(archivedRow.parentElement.dataset.dshInboxClosed, undefined)
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original, archivedFilter: 'show' })
   app.statuses.set(new Map([['idle', { running: true }]]))
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original, archivedFilter: 'show' })
