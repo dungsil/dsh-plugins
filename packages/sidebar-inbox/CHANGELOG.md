@@ -1,5 +1,17 @@
 # @dungsil/dsh-plugin-sidebar-inbox
 
+## [1.0.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-sidebar-inbox%400.1.0...%40dungsil%2Fdsh-plugin-sidebar-inbox%401.0.0) (2026-11-03)
+
+### ⚠ BREAKING CHANGES
+
+- **sidebar-inbox:** 정리(Settle) 기능을 DSH 보관(Archived) 영역으로 대체한다 ([#27](https://github.com/dungsil/dsh-plugins/issues/27))
+
+### Features
+
+- **market:** 플러그인 마켓 인덱스를 추가한다 ([#30](https://github.com/dungsil/dsh-plugins/issues/30)) ([79163df](https://github.com/dungsil/dsh-plugins/commit/79163dfd7d47da7fb78e7454138360b6076967e7))
+- **sidebar-inbox:** 목록 제목으로 작업과 보관 영역을 접고 펼친다 ([#33](https://github.com/dungsil/dsh-plugins/issues/33)) ([5bbbe37](https://github.com/dungsil/dsh-plugins/commit/5bbbe37713cea654e4d3c7d80691916db902e93c))
+- **sidebar-inbox:** 정리(Settle) 기능을 DSH 보관(Archived) 영역으로 대체한다 ([#27](https://github.com/dungsil/dsh-plugins/issues/27)) ([f346894](https://github.com/dungsil/dsh-plugins/commit/f3468945c257ff372cd2f27b625cb95b1d145bf5))
+
 ## 0.1.0 (2026-11-03)
 
 ### Features

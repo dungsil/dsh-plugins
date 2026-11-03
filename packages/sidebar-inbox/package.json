@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-sidebar-inbox",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "State-based Inbox, Working and Archived sidebar ordering for DeepSeek Harness.",
   "repository": {
     "type": "git",
