@@ -7,12 +7,14 @@
     "typecheck": "turbo run typecheck",
     "test": "node --test scripts/*.test.mjs && turbo run test",
     "release": "node scripts/release.mjs",
+    "market:index": "node scripts/market-index.mjs",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-plugin-market-index": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@release-it/conventional-changelog": "12.0.2",
     "@types/node": "26.6.5",
