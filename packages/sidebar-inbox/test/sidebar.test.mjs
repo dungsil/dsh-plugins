@@ -51,13 +51,12 @@ function localeService() {
   }
 }
 
-function setup(saved = '{}') {
+function setup(archivedFilter = 'default') {
   const browser = new Window()
-  browser.localStorage.setItem('dungsil.sidebar-inbox.v1', saved)
   const rows = [
     { id: 'idle', updatedAt: 20 },
     { id: 'running', updatedAt: 50, running: true },
-    { id: 'settled', updatedAt: 100 },
+    { id: 'archived', updatedAt: 100 },
     { id: 'approval', updatedAt: 30, running: true },
     { id: 'pinned', updatedAt: 1 },
     { id: 'child', updatedAt: 99, origin: 'subagent' },
@@ -75,23 +74,24 @@ function setup(saved = '{}') {
       ['idle', { running: false, completionUnread: true }],
     ])
   )
-  const workspaces = observable({ phase: 'ready', pinnedSessionIds: ['pinned'], archivedSessionIds: [] })
+  const workspaces = observable({
+    phase: 'ready',
+    pinnedSessionIds: ['pinned'],
+    archivedSessionIds: ['archived'],
+  })
   const original = {
     groupBy: 'workspace',
     orderBy: 'updated',
     sessionOrderByAccount: { old: ['idle'] },
-    archivedFilter: 'default',
+    archivedFilter,
   }
   const view = observable(original)
   view.store = view
   const locale = localeService()
-  let menu
-  let menuOptions
   let dispose
   let plugin
   runInNewContext(source, {
     document: browser.document,
-    localStorage: browser.localStorage,
     Element: browser.Element,
     MutationObserver: browser.MutationObserver,
     ResizeObserver: browser.ResizeObserver,
@@ -101,19 +101,17 @@ function setup(saved = '{}') {
       removeEventListener: browser.removeEventListener.bind(browser),
       __ModuleLoader__: {
         load({ factory }) {
+          // No runtime imports: the plugin contributes DOM labels, not components.
           plugin = factory((name) => {
-            if (name === 'react')
-              return {
-                createElement: (_component, props) => props,
-                useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
-              }
-            if (name === '@deepseek-ai/dsh-client-ui-primitives') return { MenuItemButton: () => {} }
             throw new Error(`Unexpected import: ${name}`)
           })
         },
       },
     },
   })
+  const tree = browser.document.createElement('div')
+  tree.setAttribute('role', 'tree')
+  browser.document.body.append(tree)
   plugin.apply({
     effect(fn) {
       const disposer = fn()
@@ -128,13 +126,31 @@ function setup(saved = '{}') {
         dispose = fn()
       },
       entries: () => [{ options: { priority: 0 }, store: { create: () => view } }],
-      register(options, component) {
-        menuOptions = options
-        menu = component
-        return () => {}
+      register() {
+        // DSH's own row menu archives sessions; a second menu item would duplicate it.
+        throw new Error('Sidebar Inbox must not contribute a session menu item')
       },
     },
   })
+  const order = () => Array.from(view.getSnapshot().sessionOrderByAccount[flatKey] ?? [])
+  const row = (id) => tree.querySelector(`[data-row-key="session:${id}"]`)
+  const paint = async () => {
+    const filter = view.getSnapshot().archivedFilter ?? 'default'
+    const archived = new Set(workspaces.getSnapshot().archivedSessionIds)
+    const ids = order().filter((id) =>
+      filter === 'show' ? true : filter === 'only' ? archived.has(id) : !archived.has(id)
+    )
+    while (tree.firstChild) tree.firstChild.remove()
+    for (const id of ids) {
+      const wrapper = browser.document.createElement('span')
+      const session = browser.document.createElement('div')
+      session.dataset.rowKey = `session:${id}`
+      session.setAttribute('role', 'treeitem')
+      wrapper.append(session)
+      tree.append(wrapper)
+    }
+    await browser.happyDOM.waitUntilComplete()
+  }
   return {
     browser,
     sessions,
@@ -143,180 +159,132 @@ function setup(saved = '{}') {
     view,
     original,
     locale,
-    menuOptions: () => menuOptions,
+    tree,
     dispose: () => dispose(),
-    order: () => Array.from(view.getSnapshot().sessionOrderByAccount[flatKey]),
-    menu: (id) =>
-      menu({
-        sessionId: id,
-        useMenuOpenState: () => [true, () => {}],
-        t: locale.bind('dungsil-sidebar-inbox'),
-      }),
+    order,
+    paint,
+    row,
+    headingTexts: () => [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
+    toggle: () => tree.querySelector('[data-dsh-inbox-heading] button'),
   }
 }
 
-void test('native list follows activity, explicit settlement and resumed work without archiving', async (t) => {
-  const app = setup('{"settled":100}')
+void test('archived sessions trail the list even when pinned or running', (t) => {
+  const app = setup()
   t.after(app.dispose)
-  assert.deepEqual(app.order(), ['pinned', 'approval', 'idle', 'running', 'settled'])
-  assert.equal(app.menu('running').disabled, true)
-  assert.equal(app.menu('approval').disabled, true)
-  assert.equal(app.menu('pinned').children, 'Unpin to settle')
-  assert.equal(app.menu('pinned').disabled, true)
-
-  app.menu('idle').onSelect()
-  assert.equal(app.menu('idle').children, 'Unsettle')
-  assert.deepEqual(app.order(), ['pinned', 'approval', 'running', 'settled', 'idle'])
-  assert.deepEqual(app.workspaces.getSnapshot().archivedSessionIds, [])
-
-  // Running resumes before the durable updatedAt changes. Settlement must clear now.
-  app.statuses.set(new Map([['idle', { running: true }]]))
-  assert.equal(app.menu('idle').children, 'Settle')
-  assert.equal(app.menu('idle').disabled, true)
-  app.statuses.set(new Map([['idle', { running: false, completionUnread: true }]]))
-  assert.deepEqual(app.order(), ['pinned', 'idle', 'running', 'approval', 'settled'])
-  // Reading the completion does not settle it.
-  app.statuses.set(new Map([['idle', { running: false, completionUnread: false }]]))
-  assert.equal(app.menu('idle').children, 'Settle')
-  const staleMenu = app.menu('idle')
-  app.statuses.set(new Map([['idle', { running: true }]]))
-  staleMenu.onSelect()
-  assert.equal(app.menu('idle').children, 'Settle')
-
-  // A request needs attention even if the model is still marked running.
-  app.statuses.set(new Map([['settled', { running: true, pendingInteraction: { kind: 'question' } }]]))
-  assert.equal(app.order()[1], 'settled')
-  assert.equal(app.menu('settled').disabled, true)
-})
-
-void test('settlement survives reload, but newer activity and live subagents return sessions', (t) => {
-  const app = setup('{"settled":100,"idle":19}')
-  t.after(app.dispose)
-  assert.equal(app.menu('settled').children, 'Unsettle')
-  assert.equal(app.menu('idle').children, 'Settle')
-  app.menu('settled').onSelect()
-  assert.equal(app.menu('settled').children, 'Settle')
-  assert.equal(app.order()[1], 'settled')
-  app.menu('settled').onSelect()
-  const before = app.sessions.getSnapshot()
-  app.sessions.set({
-    ...before,
-    projectionsBySession: { settled: { values: { subagentCatalog: [{ id: 'child' }] } } },
-  })
-  app.statuses.set(new Map([['child', { running: true }]]))
-  assert.equal(app.menu('settled').disabled, true)
-  assert.equal(app.menu('settled').children, 'Settle')
+  assert.deepEqual(app.order(), ['pinned', 'approval', 'idle', 'running', 'archived'])
   assert.ok(!app.order().includes('child'))
-  app.statuses.set(new Map([['child', { running: false }]]))
-  assert.equal(app.order()[1], 'settled')
-})
 
-void test('Korean copy ships with the plugin and follows the active UI language', (t) => {
-  const app = setup('{"settled":100}')
-  t.after(app.dispose)
-  const en = app.locale.dicts.get('dungsil-sidebar-inbox:en')
-  const ko = app.locale.dicts.get('dungsil-sidebar-inbox:ko')
-  assert.deepEqual(Object.keys(en).sort(), [
-    'heading.settled',
-    'heading.working',
-    'menu.settle',
-    'menu.unpinToSettle',
-    'menu.unsettle',
-  ])
-  assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort())
-  assert.equal(ko['heading.working'], '작업 중')
-  assert.equal(ko['heading.settled'], '정리됨')
-  assert.equal(ko['menu.settle'], '정리')
-  assert.equal(ko['menu.unsettle'], '정리 취소')
-  assert.equal(ko['menu.unpinToSettle'], '고정을 풀고 정리')
-  // The menu entry declares this plugin's namespace, so the framework supplies `t`.
-  assert.equal(app.menuOptions().locale, 'dungsil-sidebar-inbox')
-  assert.equal(app.menu('idle').children, 'Settle')
-  assert.equal(app.menu('idle').disabled, false)
-  assert.equal(app.menu('settled').children, 'Unsettle')
-  assert.equal(app.menu('pinned').children, 'Unpin to settle')
-  app.locale.setActive('ko')
-  assert.equal(app.menu('idle').children, '정리')
-  assert.equal(app.menu('settled').children, '정리 취소')
-  assert.equal(app.menu('pinned').children, '고정을 풀고 정리')
-})
+  // Archive membership is DSH's own state. A pinned or running session joins the
+  // bottom group as soon as the workspace reports it archived.
+  app.workspaces.set({
+    ...app.workspaces.getSnapshot(),
+    pinnedSessionIds: ['pinned', 'archived'],
+    archivedSessionIds: ['archived', 'running'],
+  })
+  assert.deepEqual(app.order(), ['pinned', 'approval', 'idle', 'archived', 'running'])
 
-void test('native filter remains live; unload restores ordering and removes labels and subscriptions', async () => {
-  const app = setup('{"settled":100,"idle":20}')
+  // Newer activity does not restore an archived session; only unarchiving does.
   const list = app.sessions.getSnapshot()
   app.sessions.set({
     ...list,
-    byId: {
-      ...list.byId,
-      'unused-blank': { ...list.byId['unused-blank'], retainedBy: { mainView: 1 } },
-    },
+    byId: { ...list.byId, archived: { ...list.byId.archived, updatedAt: 999 } },
   })
-  assert.equal(app.order()[0], 'unused-blank')
-  const document = app.browser.document
-  const tree = document.createElement('div')
-  tree.setAttribute('role', 'tree')
-  for (const id of app.order()) {
-    const wrapper = document.createElement('span')
-    const row = document.createElement('div')
-    row.dataset.rowKey = `session:${id}`
-    row.setAttribute('role', 'treeitem')
-    wrapper.append(row)
-    tree.append(wrapper)
-  }
-  document.body.append(tree)
-  await app.browser.happyDOM.waitUntilComplete()
-  assert.deepEqual(
-    [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
-    ['Working', 'Settled']
+  assert.deepEqual(app.order(), ['pinned', 'approval', 'idle', 'archived', 'running'])
+
+  // A running subagent or an unread completion never pulls the row out of Archived.
+  app.sessions.set({
+    ...app.sessions.getSnapshot(),
+    projectionsBySession: { archived: { values: { subagentCatalog: [{ id: 'child' }] } } },
+  })
+  app.statuses.set(
+    new Map([
+      ['approval', { running: true, pendingInteraction: { kind: 'approval' } }],
+      ['idle', { running: false, completionUnread: false }],
+      ['child', { running: true }],
+    ])
   )
-  const row = tree.querySelector('[data-row-key="session:idle"]')
-  const firstSettled = tree.querySelector('[data-row-key="session:settled"]')
-  const working = tree.querySelector('[data-row-key="session:running"]')
-  const toggle = tree.querySelector('button')
-  assert.equal(toggle.textContent, 'Settled')
+  assert.deepEqual(app.order(), ['pinned', 'approval', 'idle', 'archived', 'running'])
+})
+
+void test('the all-conversations view folds archived rows into a collapsed bottom label', async (t) => {
+  const app = setup('show')
+  t.after(app.dispose)
+  await app.paint()
+  assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
+  const toggle = app.toggle()
+  assert.equal(toggle.textContent, 'Archived')
   assert.equal(toggle.getAttribute('aria-expanded'), 'false')
-  assert.equal(app.browser.getComputedStyle(firstSettled).display, 'none')
-  assert.equal(app.browser.getComputedStyle(row.parentElement).display, 'none')
-  assert.notEqual(app.browser.getComputedStyle(working).display, 'none')
-  // Heading copy follows a live UI language switch without remounting the tree.
-  app.locale.setActive('ko')
-  await app.browser.happyDOM.waitUntilComplete()
-  assert.deepEqual(
-    [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
-    ['작업 중', '정리됨']
-  )
-  assert.equal(toggle.textContent, '정리됨')
-  app.locale.setActive('en')
-  await app.browser.happyDOM.waitUntilComplete()
-  assert.deepEqual(
-    [...tree.querySelectorAll('[role=heading]')].map((node) => node.textContent),
-    ['Working', 'Settled']
-  )
+  assert.equal(app.browser.getComputedStyle(app.row('archived')).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(app.row('running')).display, 'none')
+
   toggle.click()
   await app.browser.happyDOM.waitUntilComplete()
   assert.equal(toggle.getAttribute('aria-expanded'), 'true')
-  assert.notEqual(app.browser.getComputedStyle(firstSettled).display, 'none')
-  assert.notEqual(app.browser.getComputedStyle(row.parentElement).display, 'none')
-  toggle.click()
+  assert.notEqual(app.browser.getComputedStyle(app.row('archived')).display, 'none')
+
+  // The dictionaries ship with the plugin; a live language switch relabels mounted headings.
+  const keys = ['heading.archived', 'heading.working']
+  assert.deepEqual(Object.keys(app.locale.dicts.get('dungsil-sidebar-inbox:en')).sort(), keys)
+  assert.deepEqual(Object.keys(app.locale.dicts.get('dungsil-sidebar-inbox:ko')).sort(), keys)
+  app.locale.setActive('ko')
   await app.browser.happyDOM.waitUntilComplete()
-  assert.equal(toggle.getAttribute('aria-expanded'), 'false')
-  // Resumed work must become visible even when its former Settled group was closed.
-  app.statuses.set(new Map([['settled', { running: true }]]))
+  assert.deepEqual(app.headingTexts(), ['작업 중', '보관됨'])
+  assert.equal(app.toggle().textContent, '보관됨')
+  assert.equal(app.toggle().getAttribute('aria-expanded'), 'true')
+  app.locale.setActive('en')
   await app.browser.happyDOM.waitUntilComplete()
-  assert.notEqual(app.browser.getComputedStyle(firstSettled).display, 'none')
-  assert.notEqual(app.browser.getComputedStyle(firstSettled.parentElement).display, 'none')
-  assert.equal(tree.querySelector('button').getAttribute('aria-expanded'), 'false')
+  assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
+
+  // The default filter hides archived rows in the host, so no label is added.
+  app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'default' })
+  await app.paint()
+  assert.equal(app.row('archived'), null)
+  assert.deepEqual(app.headingTexts(), ['Working'])
+
+  // The archived-only view is the whole list; folding it would hide everything.
+  app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'only' })
+  await app.paint()
+  assert.deepEqual(app.headingTexts(), [])
+  assert.notEqual(app.browser.getComputedStyle(app.row('archived')).display, 'none')
+
+  // Unarchiving in the native menu returns the row to the ordinary list at once.
+  app.workspaces.set({ ...app.workspaces.getSnapshot(), archivedSessionIds: [] })
   app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'show' })
+  await app.paint()
+  assert.equal(app.row('archived').parentElement.dataset.dshInboxFooter, undefined)
+  assert.deepEqual(app.headingTexts(), ['Working'])
+})
+
+void test('retained blanks lead, native filter changes stay live and unload restores the view', async () => {
+  const app = setup('show')
+  const list = app.sessions.getSnapshot()
+  app.sessions.set({
+    ...list,
+    byId: { ...list.byId, 'unused-blank': { ...list.byId['unused-blank'], retainedBy: { mainView: 1 } } },
+  })
+  assert.equal(app.order()[0], 'unused-blank')
+  await app.paint()
+  assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
+  const archivedRow = app.row('archived')
+  assert.equal(app.browser.getComputedStyle(archivedRow).display, 'none')
+
+  // The archived filter is native view state; this plugin reads it and never writes it.
+  app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'only' })
+  await app.browser.happyDOM.waitUntilComplete()
+  app.view.set({ ...app.view.getSnapshot(), archivedFilter: 'show' })
+  await app.browser.happyDOM.waitUntilComplete()
   assert.equal(app.view.getSnapshot().archivedFilter, 'show')
+
   app.browser.dispatchEvent(new app.browser.Event('pagehide'))
   assert.equal(app.view.getSnapshot().groupBy, 'workspace')
   app.browser.dispatchEvent(new app.browser.Event('pageshow'))
   assert.equal(app.view.getSnapshot().groupBy, 'flat')
   app.dispose()
-  assert.equal(tree.querySelector('[data-row-key="session:idle"]'), row)
-  assert.equal(document.querySelectorAll('[data-dsh-inbox-heading]').length, 0)
-  assert.notEqual(app.browser.getComputedStyle(firstSettled).display, 'none')
-  assert.notEqual(app.browser.getComputedStyle(row.parentElement).display, 'none')
+  assert.equal(app.tree.querySelector('[data-row-key="session:archived"]'), archivedRow)
+  assert.equal(app.browser.document.querySelectorAll('[data-dsh-inbox-heading]').length, 0)
+  assert.notEqual(app.browser.getComputedStyle(archivedRow).display, 'none')
+  assert.notEqual(app.browser.getComputedStyle(archivedRow.parentElement).display, 'none')
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original, archivedFilter: 'show' })
   app.statuses.set(new Map([['idle', { running: true }]]))
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original, archivedFilter: 'show' })

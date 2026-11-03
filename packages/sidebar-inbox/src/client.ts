@@ -5,19 +5,15 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionRowOwnerProps, WorkspaceBrowserProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
-import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
-import { createElement, useSyncExternalStore } from 'react'
-import { placeSessions, type Placement, type Settled } from './inbox.js'
+import type { WorkspaceBrowserProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
+import { placeSessions, type Placement } from './inbox.js'
 import { installHeadings } from './headings.js'
-import { en, ko, NS, type SidebarInboxKey } from './locale.js'
+import { en, ko, NS } from './locale.js'
 
 export const name = 'dungsil-sidebar-inbox'
 export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
 
 const FLAT_ORDER = '__flat_session_order__'
-const STORAGE_KEY = 'dungsil.sidebar-inbox.v1'
 
 type View = Parameters<Parameters<WorkspaceBrowserProps['useStore']>[0]>[0]
 type Ordering = Pick<View, 'groupBy' | 'orderBy' | 'sessionOrderByAccount'>
@@ -27,27 +23,6 @@ interface ViewInstance {
   store: { set(view: View): void }
 }
 
-function readSettled(): Settled {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
-    return Object.fromEntries(
-      Object.entries(value).filter(([, time]) => typeof time === 'number' && Number.isFinite(time))
-    )
-  } catch {
-    return {}
-  }
-}
-
-/** Keys of the menu copy this plugin owns. */
-type SettleMenuKey = Extract<SidebarInboxKey, `menu.${string}`>
-
-type SettleMenuProps = {
-  sessionId: SessionRowOwnerProps['sessionId']
-  useMenuOpenState: () => readonly [boolean, (open: boolean) => void]
-  t: Translate<SettleMenuKey>
-}
-
 /** Keep native React rows, search, menus, selection and keyboard order intact. */
 export function apply(ctx: Context) {
   // This plugin owns its dictionaries, so the labels follow the UI language on
@@ -55,51 +30,27 @@ export function apply(ctx: Context) {
   ctx.effect(() => ctx.locale.register(NS, 'en', en), 'sidebar-inbox: English copy')
   ctx.effect(() => ctx.locale.register(NS, 'ko', ko), 'sidebar-inbox: Korean copy')
   const translate = ctx.locale.bind(NS)
-  let settled = readSettled()
   let placements = new Map<string, Placement>()
-  const listeners = new Set<() => void>()
-  const subscribe = (listener: () => void) => {
-    listeners.add(listener)
-    return () => {
-      listeners.delete(listener)
-    }
-  }
-  const getSnapshot = () => placements
   let view: ViewInstance | undefined
   let original: Ordering | undefined
   let refreshHeadings = () => {}
 
-  const save = (next: Settled) => {
-    if (JSON.stringify(next) === JSON.stringify(settled)) return
-    // Persist before claiming success: a denied/quota-full store must not silently lose a settlement.
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    settled = next
-  }
   const reconcile = () => {
     const list = ctx.sessions.list.getSnapshot()
     const workspace = ctx.workspaces.list.getSnapshot()
     const result = placeSessions(
       list,
       ctx.uiSession.sessionStatus.getSnapshot(),
-      workspace.pinnedSessionIds.filter((id) => !workspace.archivedSessionIds.includes(id)),
-      settled
+      workspace.pinnedSessionIds,
+      workspace.archivedSessionIds
     )
-    save(result.settled)
     const changed =
       placements.size !== result.placements.size ||
       [...result.placements].some(([id, value]) => {
         const previous = placements.get(id)
-        return (
-          previous?.section !== value.section ||
-          previous.canSettle !== value.canSettle ||
-          previous.settled !== value.settled ||
-          previous.blank !== value.blank
-        )
+        return previous === undefined || previous.section !== value.section || previous.blank !== value.blank
       })
-    if (changed) {
-      placements = result.placements
-      for (const listener of listeners) listener()
-    }
+    if (changed) placements = result.placements
     if (view && list.phase === 'ready' && workspace.phase === 'ready') {
       const current = view.getSnapshot()
       const previous = current.sessionOrderByAccount[FLAT_ORDER] ?? []
@@ -120,34 +71,10 @@ export function apply(ctx: Context) {
     refreshHeadings()
   }
 
-  function SettleMenu({ sessionId, useMenuOpenState, t }: SettleMenuProps) {
-    const state = useSyncExternalStore(subscribe, getSnapshot).get(sessionId)
-    const [, close] = useMenuOpenState()
-    if (!state) return null
-    return createElement(MenuItemButton, {
-      children: state.settled
-        ? t('menu.unsettle')
-        : state.section === 'Pinned'
-          ? t('menu.unpinToSettle')
-          : t('menu.settle'),
-      disabled: !state.canSettle,
-      onSelect: () => {
-        // Recheck live facts: activity can start while the menu is open.
-        reconcile()
-        const latest = placements.get(sessionId)
-        if (!latest?.canSettle) return
-        const next = { ...settled }
-        if (latest.settled) delete next[sessionId]
-        else next[sessionId] = ctx.sessions.list.getSnapshot().byId[sessionId].updatedAt
-        save(next)
-        close(false)
-        reconcile()
-      },
-    })
-  }
-
   // This declaration is owned by ui-workspace, so both loading orders and HMR
   // are covered. The v0.2.1 browser explicitly shares one create() instance.
+  // DSH already archives sessions from its own row menu, so this plugin adds no
+  // menu item and only reads that state.
   ctx.slots.inject('sidebar.workspaces.session.menu.item', () => {
     const entry =
       ctx.slots
@@ -166,8 +93,8 @@ export function apply(ctx: Context) {
     const restore = () => {
       if (view && original) view.store.set({ ...view.getSnapshot(), ...original })
     }
-    // Restore the persisted native preference before reload; settlement has its own key.
-    // Suspend subscriptions first, otherwise they would immediately reapply inbox ordering.
+    // Restore the persisted native preference before reload. Suspend subscriptions
+    // first, otherwise they would immediately reapply inbox ordering.
     let leaving = false
     const sync = () => {
       if (!leaving) reconcile()
@@ -184,19 +111,16 @@ export function apply(ctx: Context) {
     window.addEventListener('pageshow', onPageShow)
     const headings = installHeadings(
       () => placements,
-      () => ({ working: translate('heading.working'), settled: translate('heading.settled') })
+      () => ({ working: translate('heading.working'), archived: translate('heading.archived') }),
+      () => (view?.getSnapshot().archivedFilter ?? 'default') === 'show'
     )
     refreshHeadings = headings.refresh
     const disposers = [
-      ctx.slots.register(
-        { name: 'sidebar.workspaces.session.menu.item', id: 'dungsil-settle', order: 50, locale: NS },
-        SettleMenu
-      ),
       ctx.sessions.list.subscribe(sync),
       ctx.workspaces.list.subscribe(sync),
       ctx.uiSession.sessionStatus.subscribe(sync),
       view.subscribe(sync),
-      // Relabel mounted headings and the settled toggle when the UI language changes.
+      // Relabel mounted headings and the archived toggle when the UI language changes.
       ctx.locale.subscribe(() => refreshHeadings()),
     ]
     reconcile()
