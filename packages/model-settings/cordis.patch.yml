@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-model-settings
+      name: '@dungsil/dsh-plugin-model-settings'
