@@ -1,5 +1,4 @@
 import { defineConfig } from 'tsdown'
-import manifest from './package.json' with { type: 'json' }
 
 export default defineConfig([
   {
@@ -11,15 +10,11 @@ export default defineConfig([
     dts: false,
   },
   {
-    entry: ['src/client.tsx'],
-    format: 'cjs',
-    platform: 'browser',
-    inputOptions: { platform: 'browser' },
-    deps: { neverBundle: ['react', 'react/jsx-runtime'] },
+    entry: ['src/protocol.ts'],
+    format: 'esm',
+    platform: 'neutral',
     target: 'es2023',
-    outExtensions: () => ({ js: '.js' }),
-    dts: false,
-    banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(manifest.name)}, factory(require) { const module = { exports: {} }; const exports = module.exports;`,
-    footer: 'return module.exports; } });',
+    fixedExtension: false,
+    dts: true,
   },
 ])

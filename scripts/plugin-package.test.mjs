@@ -53,3 +53,24 @@ await test('all public plugins satisfy the shared in-place update package contra
     })
   }
 })
+
+await test('task model API works without a client and the UI bundle activates its API dependency', async () => {
+  const apiName = '@dungsil/dsh-plugin-model-settings'
+  const uiName = '@dungsil/dsh-plugin-ui-model-settings'
+  const api = packages.get(apiName)
+  const ui = packages.get(uiName)
+  assert.equal(api.manifest.dsh.client, undefined)
+  assert.equal(api.manifest.exports['./client'], undefined)
+  assert.equal(api.manifest.dependencies?.[uiName], undefined)
+  assert.equal(ui.manifest.exports['./client'], './dist/client.js')
+  assert.equal(ui.manifest.dsh.client.platform, 'web')
+  assert.ok(ui.manifest.dependencies[apiName])
+  const patch = parse(await readFile(new URL(ui.manifest.dsh.bundle.patch, ui.base), 'utf8'))
+  assert.deepEqual(
+    patch.flatMap((operation) => operation.insert ?? []).map(({ id, name }) => ({ id, name })),
+    [
+      { id: 'dungsil-ui-model-settings', name: uiName },
+      { id: 'dungsil-model-settings', name: apiName },
+    ]
+  )
+})

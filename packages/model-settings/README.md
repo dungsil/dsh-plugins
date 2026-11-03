@@ -1,18 +1,25 @@
 # @dungsil/dsh-plugin-model-settings
 
-DSH 설정에 **상황별 모델** 페이지를 추가합니다. 초기 버전에서는 **세션 제목**을 생성할 모델을 지정할 수 있습니다.
+DSH의 **세션 제목** 생성 모델을 관리하는 기능 플러그인입니다. 소유자 전용 API와 설정 저장을 제공하며, 웹 UI는 포함하지 않습니다.
 
 ## 사용 방법
 
-1. DSH의 플러그인 설치 화면에서 `@dungsil/dsh-plugin-model-settings`를 설치합니다.
-2. **설정 → 상황별 모델 → 세션 제목**에서 제공자와 모델을 선택합니다.
-3. **저장**을 누릅니다. 별도 모델 지정을 해제하려면 **대화 모델 따르기**를 선택하고 저장합니다.
+설정 화면을 사용하려면 [`@dungsil/dsh-plugin-ui-model-settings`](../ui-model-settings)를 설치합니다. UI 플러그인이 이 기능 플러그인을 함께 설치·활성화합니다. API만 필요하다면 `@dungsil/dsh-plugin-model-settings`만 설치할 수 있습니다.
 
-등록된 제공자의 모델 목록을 표시하며, 선택한 모델은 다음 제목 생성부터 사용합니다. 이 설정은 활성 프로필 전체에 적용되며, 기존 제목이나 대화 모델은 바꾸지 않습니다. 제목 생성용 모델 호출에는 해당 제공자의 요금이 적용될 수 있습니다.
+기존 통합 버전에서 업데이트한 뒤에도 설정 화면을 사용하려면 UI 플러그인을 추가로 설치해야 합니다. 이미 저장한 모델 설정은 유지됩니다. 기존 `./client` export는 UI 패키지로 이동했습니다.
+
+## API
+
+DSH connection RPC의 `/api` 채널에서 다음 메서드를 제공합니다. 채널·메서드 접두사와 요청에 사용하는 타입은 `@dungsil/dsh-plugin-model-settings/protocol`에서 가져올 수 있습니다.
+
+- `dungsil-model-settings/describe`: 활성 제목 생성기의 `id`, `revision`, `route`와 제공자별 모델 목록을 반환합니다.
+- `dungsil-model-settings/save`: `{ id, revision, route }`를 전달합니다. `route`는 `{ provider, model }`이며, `null`이면 대화 모델을 따르도록 별도 모델 지정을 해제합니다. 오래된 `revision`으로 저장하면 `conflict` 오류를 반환합니다.
+
+선택한 모델은 다음 제목 생성부터 사용합니다. 이 설정은 활성 프로필 전체에 적용되며, 기존 제목이나 대화 모델은 바꾸지 않습니다. 제목 생성용 모델 호출에는 해당 제공자의 요금이 적용될 수 있습니다.
 
 ## 동작과 호환성
 
-- DSH `0.2.1-rc.5` 이상 `0.3.0` 미만을 지원합니다. DSH의 `configEditor`, `llm`, `connection` 서비스와 웹 설정 UI가 필요합니다.
+- DSH `0.2.1-rc.5` 이상 `0.3.0` 미만을 지원합니다. DSH의 `configEditor`, `llm`, `connection` 서비스가 필요하며 웹 설정 UI는 필요하지 않습니다.
 - 활성 상태인 `@deepseek-ai/dsh-session-title-first-prompt-llm` 또는 `@deepseek-ai/dsh-session-title-all-prompts-llm`의 `provider`·`model` 설정을 편집합니다. 사용자 지정 entry ID도 지원합니다.
 - DSH의 설정 편집 API가 프로필 패치에 값을 저장하고 제목 생성기를 다시 로드합니다. 제목 생성 방식, 길이·토큰 제한, 타임아웃은 유지합니다. 변경 시 진행 중인 제목 생성은 DSH의 수명주기에 따라 취소될 수 있습니다.
 - **대화 모델 따르기**는 두 필드를 제거하여 DSH가 기록한 대화 요청의 모델을 사용하게 합니다. 별도 설정 파일이나 LLM 요청 가로채기는 사용하지 않습니다.

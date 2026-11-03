@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { Window } from 'happy-dom'
-import { profileFixture } from './profile.mjs'
+import { profileFixture } from '../../model-settings/test/profile.mjs'
 
 await test('settings UI saves exact provider/model pairs, resets, reports conflicts and recovers from load failures', async (t) => {
   const window = new Window()
@@ -23,9 +23,14 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   const { createElement, act } = await import('react')
   const { createRoot } = await import('react-dom/client')
   let client
+  const require = createRequire(import.meta.url)
   window.__ModuleLoader__ = {
-    load: ({ factory }) => {
-      client = factory(createRequire(import.meta.url))
+    load: ({ id, factory }) => {
+      assert.equal(id, '@dungsil/dsh-plugin-ui-model-settings')
+      client = factory((specifier) => {
+        assert.ok(['react', 'react/jsx-runtime'].includes(specifier), `Unexpected host dependency: ${specifier}`)
+        return require(specifier)
+      })
     },
   }
   runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
