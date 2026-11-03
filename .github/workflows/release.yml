@@ -2,6 +2,15 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      package:
+        description: '배포할 패키지 이름 (비우면 전체 자동 릴리스)'
+        type: string
+        required: false
+      version:
+        description: '정확한 배포 버전 (package 지정 시에만 사용)'
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -33,6 +42,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
       # release-it attaches tarballs to drafts before publishing immutable releases.
-      - run: pnpm release
+      - run: pnpm release --package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PACKAGE: ${{ inputs.package }}
+          RELEASE_VERSION: ${{ inputs.version }}
