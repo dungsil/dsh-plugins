@@ -366,6 +366,37 @@
           }
         }
       ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-model-settings",
+      "title": {
+        "en": "Task Models",
+        "ko": "상황별 모델"
+      },
+      "description": {
+        "en": "Choose a session title model without changing the conversation model.",
+        "ko": "대화 모델을 바꾸지 않고 세션 제목 생성에 사용할 모델을 지정합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/model-settings"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["models", "settings", "sessions", "titles"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793692623,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
     }
   ]
 }
