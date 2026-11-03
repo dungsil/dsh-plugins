@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { channel, endpointPrefix, maxSecretLength, type SecretRequest, type SecretStatus } from './protocol.js'
 
@@ -13,10 +14,7 @@ const copy = {
   en: {
     title: 'Private secret input',
     value: 'Secret value',
-    privacy: 'Saved in the host-wide DSH credential store, not in chat. Only the reference and status reach the agent.',
-    access:
-      'Stored until removed. Processes running as your OS user can read it. Not exported to shell environment variables.',
-    replace: 'This reference already exists. Saving replaces its value for all DSH consumers.',
+    replace: 'Saving replaces the existing credential.',
     save: 'Save credential',
     saving: 'Saving…',
     decline: 'Decline',
@@ -33,9 +31,7 @@ const copy = {
   ko: {
     title: '비밀값 입력',
     value: '비밀값',
-    privacy: '채팅 대신 호스트 공용 DSH 저장소에 저장합니다. 에이전트에는 참조 이름과 처리 상태만 전달합니다.',
-    access: '직접 삭제할 때까지 보관합니다. 같은 OS 계정의 프로세스가 읽을 수 있으며, 셸 환경변수에는 넣지 않습니다.',
-    replace: '이미 등록된 참조입니다. 저장하면 이 참조를 사용하는 모든 DSH 기능에 새 값이 적용됩니다.',
+    replace: '저장하면 기존 비밀값을 대체합니다.',
     save: '비밀값 저장',
     saving: '저장 중…',
     decline: '거절',
@@ -52,11 +48,8 @@ const copy = {
 
 const styles = `
 .dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 6px 0; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 10px; color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: 13px/1.45 var(--dsw-font-family, system-ui); overflow-wrap: anywhere; }
-.dsh-secret-card header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .dsh-secret-card h3 { margin: 0; font-size: 14px; }
 .dsh-secret-card p { margin: 4px 0; }
-.dsh-secret-card small { display: block; font-size: 12px; opacity: .75; }
-.dsh-secret-card code { font-size: 12px; opacity: .75; }
 .dsh-secret-card input { box-sizing: border-box; flex: 1 1 140px; min-width: 0; height: 36px; padding: 6px 10px; border: 1px solid var(--dsw-alias-border-l4, #8888); border-radius: 7px; font: inherit; color: inherit; background: var(--dsw-alias-bg-layer-1, #f5f5f5); }
 .dsh-secret-card input:focus-visible, .dsh-secret-card button:focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
 .dsh-secret-card footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 8px; }
@@ -141,8 +134,6 @@ function SecretForm({
       onKeyPress={(event) => event.stopPropagation()}
       onPaste={(event) => event.stopPropagation()}
     >
-      <small>{text.privacy}</small>
-      <small>{text.access}</small>
       {request.configured && <p>{text.replace}</p>}
       <footer>
         <input
@@ -222,10 +213,7 @@ export function apply(ctx: Context) {
     }
     return (
       <section className="dsh-secret-card" aria-label={text.title}>
-        <header>
-          <h3>{request?.label ?? props.block.args.text('label') ?? text.title}</h3>
-          <code>{request?.ref ?? props.block.args.text('ref')}</code>
-        </header>
+        <h3>{request?.label ?? props.block.args.text('label') ?? props.block.args.text('ref') ?? text.title}</h3>
         <p>{request?.reason ?? props.block.args.text('reason')}</p>
         {status ? (
           <p role="status">{status}</p>

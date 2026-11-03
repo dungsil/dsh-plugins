@@ -122,11 +122,16 @@ export function apply(ctx: Context) {
           description:
             'DSH credential reference, e.g. STRIPE_API_KEY. Letters, digits and underscores; cannot start with a digit.',
         },
-        label: { type: 'string', required: true, description: 'Short title identifying the requested credential.' },
+        label: {
+          type: 'string',
+          required: true,
+          description: 'Card title: the environment-style key name or a short description of the key.',
+        },
         reason: {
           type: 'string',
           required: true,
-          description: 'Why the credential is needed and which DSH consumer will use it.',
+          description:
+            'One short sentence explaining why this key is needed by the DSH consumer. Omit input instructions and storage details.',
         },
         timeout_ms: { type: 'integer', description: 'Wait from 1000 to 600000 milliseconds; default 600000.' },
       },

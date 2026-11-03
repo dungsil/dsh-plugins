@@ -35,6 +35,7 @@
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.3",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-tool": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",

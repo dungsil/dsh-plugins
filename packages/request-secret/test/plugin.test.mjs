@@ -261,6 +261,8 @@ await test('inline card isolates sessions and calls, clears private input and re
   assert.equal(document.querySelector('dialog'), null)
   assert.equal(container.querySelector('script'), null)
   assert.equal(container.querySelector('h3').textContent, '<script>no HTML</script>')
+  assert.equal(container.querySelector('p').textContent, args.reason)
+  assert.equal(container.textContent, `<script>no HTML</script>${args.reason}거절비밀값 저장`)
   let input = container.querySelector('input')
   assert.equal(input.type, 'password')
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
