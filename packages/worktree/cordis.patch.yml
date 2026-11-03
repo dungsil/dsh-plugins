@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-worktree
+      name: '@dungsil/dsh-plugin-worktree'
