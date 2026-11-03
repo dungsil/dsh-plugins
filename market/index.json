@@ -332,6 +332,44 @@
           }
         }
       ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-tool-secret-request",
+      "title": {
+        "en": "Secret input",
+        "ko": "비밀값 입력"
+      },
+      "description": {
+        "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
+        "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/tool-secret-request"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["secret", "credentials", "approval", "tool"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793689820,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.0.0-bootstrap",
+          "publishTimestamp": 1793689876,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
     }
   ]
 }
