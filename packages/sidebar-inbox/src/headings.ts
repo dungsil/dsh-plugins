@@ -15,11 +15,15 @@ type FooterSection = Extract<Section, 'Working' | 'Archived'>
  * @param labels - section copy for the current UI language.
  * @param archivedCollapsible - whether archived rows are mixed into this list and
  * should fold into the bottom, i.e. the archived-inclusive view is selected.
+ * @param active - whether the plugin's sort mode owns the row order; an inactive
+ * mode strips every injected label and footer style so the native list is left
+ * exactly as its own view options render it.
  */
 export function installHeadings(
   placements: () => ReadonlyMap<string, Placement>,
   labels: () => HeadingLabels,
-  archivedCollapsible: () => boolean
+  archivedCollapsible: () => boolean,
+  active: () => boolean = () => true
 ) {
   const headings = new Map<HTMLElement, HTMLSpanElement>()
   const trees = new Set<HTMLElement>()
@@ -99,6 +103,14 @@ export function installHeadings(
       trees.clear()
       for (const wrapper of wrappers) clearWrapper(wrapper)
       wrappers.clear()
+      if (!active()) {
+        // The native list owns the order: no footer styles, no headings.
+        for (const [wrapper, heading] of headings) {
+          heading.remove()
+          headings.delete(wrapper)
+        }
+        return
+      }
       for (const tree of document.querySelectorAll<HTMLElement>('[role="tree"]')) {
         // Workspace trees and content-search results retain their native grouping.
         if (tree.querySelector('[data-row-key^="workspace:"]')) continue
