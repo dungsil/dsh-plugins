@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import release from 'release-it'
+import semver from 'semver'
 
 export function releaseOptions({ dryRun = false } = {}) {
   const { name } = JSON.parse(readFileSync('package.json', 'utf8'))
@@ -56,7 +57,10 @@ export function releaseOptions({ dryRun = false } = {}) {
   }
 }
 
-export async function releaseWorkspace({ dryRun = false, ...options } = {}) {
+export async function releaseWorkspace({ dryRun = false, packageName, version, ...options } = {}) {
+  if (version && (!packageName || semver.valid(version) !== version)) {
+    throw new Error('An exact version requires a package name and a valid semantic version')
+  }
   const root = process.cwd()
   // Unlike `pnpm list`, recursive exec honors dependency order. Serial output
   // keeps that order intact before release-it bumps and packs each package.
@@ -70,18 +74,26 @@ export async function releaseWorkspace({ dryRun = false, ...options } = {}) {
       'exec',
       'node',
       '-p',
-      'JSON.stringify({ path: process.cwd(), private: require("./package.json").private })',
+      'JSON.stringify({ path: process.cwd(), ...require("./package.json") })',
     ],
     { encoding: 'utf8' }
   )
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line))
+  const selected = packages.filter((pkg) => !pkg.private && (!packageName || pkg.name === packageName))
+  if (packageName && selected.length === 0) throw new Error(`Unknown public package: ${packageName}`)
   try {
     // Each release commits its own manifest and changelog before the next starts.
-    for (const pkg of packages.filter((pkg) => !pkg.private)) {
+    for (const pkg of selected) {
       process.chdir(pkg.path)
-      await release({ ...releaseOptions({ dryRun }), ...options })
+      const settings = releaseOptions({ dryRun })
+      await release({
+        ...settings,
+        ...(version ? { increment: version } : {}),
+        ...options,
+        npm: { ...settings.npm, ...options.npm, ...(version ? { allowSameVersion: true } : {}) },
+      })
     }
   } finally {
     process.chdir(root)
@@ -89,6 +101,12 @@ export async function releaseWorkspace({ dryRun = false, ...options } = {}) {
 }
 
 if (import.meta.main) {
-  const { values } = parseArgs({ options: { 'dry-run': { type: 'boolean', default: false } } })
-  await releaseWorkspace({ dryRun: values['dry-run'] })
+  const { values } = parseArgs({
+    options: {
+      'dry-run': { type: 'boolean', default: false },
+      package: { type: 'string' },
+      version: { type: 'string' },
+    },
+  })
+  await releaseWorkspace({ dryRun: values['dry-run'], packageName: values.package, version: values.version })
 }

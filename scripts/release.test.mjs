@@ -129,4 +129,27 @@ await test('commit-driven releases preserve independent history, versions, tags 
   ])
   assert.equal(run('git', ['status', '--porcelain']), '')
   assert.equal(run('git', ['rev-parse', 'HEAD']), run('git', ['rev-parse', 'origin/main']))
+
+  // A first OIDC release can use the already-verified manifest version without
+  // bumping it or publishing unrelated packages that have pending features.
+  mkdirSync(join(cwd, 'packages', 'initial'))
+  write('packages/initial/package.json', JSON.stringify({ name: '@fixture/initial', version: '0.1.0' }))
+  write('packages/other/index.js', '// another pending feature\n')
+  commit('feat: initial package and unrelated work')
+  process.chdir(cwd)
+  await assert.rejects(releaseWorkspace({ version: '0.1.0' }), /requires a package name/)
+  await assert.rejects(releaseWorkspace({ packageName: '@fixture/initial', version: 'latest' }), /semantic version/)
+  await assert.rejects(releaseWorkspace({ packageName: '@fixture/missing' }), /Unknown public package/)
+  await releaseWorkspace({
+    packageName: '@fixture/initial',
+    version: '0.1.0',
+    npm: { publish: false },
+    github: { release: false },
+  })
+  assert.equal(manifest('initial').version, '0.1.0')
+  assert.equal(manifest('other').version, '2.8.0')
+  assert.match(notes('initial'), /0\.1\.0/)
+  assert.equal(run('git', ['tag', '--list', '@fixture/initial@*']).trim(), '@fixture/initial@0.1.0')
+  assert.equal(run('git', ['tag', '--list', '@fixture/other@2.9.0']), '')
+  assert.equal(process.cwd(), cwd)
 })
