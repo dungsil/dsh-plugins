@@ -47,14 +47,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_PACKAGE: ${{ inputs.package }}
           RELEASE_VERSION: ${{ inputs.version }}
-      # The published versions are what the index lists, so refresh it after publishing.
-      - name: Refresh market index
-        run: |
-          pnpm market:index
-          if git diff --quiet -- market/index.json; then
-            echo "Market index unchanged."
-            exit 0
-          fi
-          git add market/index.json
-          git commit -m 'chore(market): 마켓 인덱스를 갱신한다 [skip ci]'
-          git push

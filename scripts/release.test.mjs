@@ -42,7 +42,24 @@ await test('commit-driven releases preserve independent history, versions, tags 
   run('git', ['config', 'user.name', 'Release Test'])
   run('git', ['config', 'user.email', 'release@example.com'])
   run('git', ['remote', 'add', 'origin', join(directory, 'remote.git')])
-  write('package.json', JSON.stringify({ name: 'release-fixture', private: true }))
+  write(
+    'package.json',
+    JSON.stringify({ name: 'release-fixture', private: true, scripts: { 'market:index': 'node market-index.mjs' } })
+  )
+  // Keep registry access out of this fixture; exercise the generated root file's
+  // inclusion in each real release commit, tag and push.
+  write(
+    'market-index.mjs',
+    `import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+const versions = Object.fromEntries(readdirSync('packages').map((directory) => {
+  const { name, version } = JSON.parse(readFileSync('packages/' + directory + '/package.json', 'utf8'))
+  return [name, version]
+}))
+writeFileSync('market/index.json', JSON.stringify(versions))
+`
+  )
+  mkdirSync(join(cwd, 'market'))
+  write('market/index.json', '{}')
   write('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
   write('.gitignore', 'node_modules/\nrelease/\n')
   mkdirSync(join(cwd, 'node_modules/.bin'), { recursive: true })
@@ -84,6 +101,7 @@ await test('commit-driven releases preserve independent history, versions, tags 
   assert.equal(manifest('locale-ko').version, '0.3.1')
   assert.equal(notes('locale-ko'), history)
   assert.equal(run('git', ['rev-parse', 'HEAD']), head)
+  assert.equal(readFileSync(join(cwd, 'market/index.json'), 'utf8'), '{}')
 
   // Workspace discovery lists locale-ko before new. The production release loop
   // must bump the dependency first so the bundle's archive gets the new range.
@@ -152,4 +170,19 @@ await test('commit-driven releases preserve independent history, versions, tags 
   assert.equal(run('git', ['tag', '--list', '@fixture/initial@*']).trim(), '@fixture/initial@0.1.0')
   assert.equal(run('git', ['tag', '--list', '@fixture/other@2.9.0']), '')
   assert.equal(process.cwd(), cwd)
+
+  for (const tag of [
+    '@fixture/new@0.1.0',
+    '@dungsil/dsh-plugin-locale-ko@0.3.2',
+    '@fixture/other@2.8.0',
+    '@dungsil/dsh-plugin-locale-ko@1.0.0',
+    '@fixture/initial@0.1.0',
+  ]) {
+    const separator = tag.lastIndexOf('@')
+    const index = JSON.parse(run('git', ['show', `${tag}:market/index.json`]))
+    assert.equal(index[tag.slice(0, separator)], tag.slice(separator + 1), tag)
+    assert.ok(run('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', tag]).includes('market/index.json'), tag)
+  }
+  assert.equal(run('git', ['status', '--porcelain']), '')
+  assert.equal(run('git', ['rev-parse', 'HEAD']), run('git', ['rev-parse', 'origin/main']))
 })
