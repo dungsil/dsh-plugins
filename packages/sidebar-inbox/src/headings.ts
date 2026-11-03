@@ -1,7 +1,13 @@
 import type { Placement, Section } from './inbox.js'
 
+/** Section copy resolved at render time so a language switch relabels live DOM. */
+export interface HeadingLabels {
+  working: string
+  settled: string
+}
+
 /** Add labels without moving, cloning or replacing any React-owned row. */
-export function installHeadings(placements: () => ReadonlyMap<string, Placement>) {
+export function installHeadings(placements: () => ReadonlyMap<string, Placement>, labels: () => HeadingLabels) {
   const headings = new Map<HTMLElement, HTMLSpanElement>()
   const trees = new Set<HTMLElement>()
   const wrappers = new Set<HTMLElement>()
@@ -105,14 +111,13 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
           heading.setAttribute('aria-level', '2')
           headings.set(wrapper, heading)
         }
+        const text = section === 'Settled' ? labels().settled : labels().working
         if (section === 'Settled') {
           let button = heading.querySelector('button')
           if (!button) {
             heading.textContent = ''
             button = document.createElement('button')
             button.type = 'button'
-            button.textContent = section
-            button.setAttribute('aria-label', section)
             button.onclick = (event) => {
               event.stopPropagation()
               settledOpen = !settledOpen
@@ -120,8 +125,14 @@ export function installHeadings(placements: () => ReadonlyMap<string, Placement>
             }
             heading.append(button)
           }
+          // Only write changed copy: an unconditional textContent write emits a
+          // childList mutation that would re-trigger this refresh forever.
+          if (button.textContent !== text) button.textContent = text
+          button.setAttribute('aria-label', text)
           button.setAttribute('aria-expanded', String(settledOpen))
-        } else if (heading.textContent !== section || heading.querySelector('button')) heading.textContent = section
+        } else if (heading.textContent !== text || heading.querySelector('button')) {
+          heading.textContent = text
+        }
         if (wrapper.firstChild !== heading) wrapper.prepend(heading)
       }
       positionFooters()
