@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Git Worktree UI",
+    "description": "입력창의 권한 선택 옆에서 기존 도구를 통한 Git worktree 생성·재사용을 모델에 요청합니다."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-worktree",
+  "version": "0.1.0",
+  "description": "Request Git worktree creation or reuse through existing tools from the DeepSeek Harness composer.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-worktree"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@types/react": "18.3.31",
+    "happy-dom": "21.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session"
+      ]
+    }
+  },
+  "market": {
+    "order": 8,
+    "title": {
+      "en": "Git Worktree UI",
+      "ko": "Git Worktree UI"
+    },
+    "description": {
+      "en": "Ask the model to create or reuse a Git worktree using existing tools, next to the composer permission selector.",
+      "ko": "입력창의 권한 선택 옆에서 기존 도구를 통한 Git worktree 생성·재사용을 모델에 요청합니다."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "git",
+      "worktree",
+      "composer"
+    ]
+  }
+}
