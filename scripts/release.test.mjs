@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import release from 'release-it'
+import { buildMarketIndex } from './market-index.mjs'
 import { releaseOptions, releaseWorkspace } from './release.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
@@ -44,26 +45,26 @@ await test('commit-driven releases preserve independent history, versions, tags 
   run('git', ['remote', 'add', 'origin', join(directory, 'remote.git')])
   write(
     'package.json',
-    JSON.stringify({ name: 'release-fixture', private: true, scripts: { 'market:index': 'node market-index.mjs' } })
+    JSON.stringify({
+      name: 'release-fixture',
+      private: true,
+      scripts: { 'market:index': 'node --import ./deny-fetch.mjs scripts/market-index.mjs' },
+    })
   )
-  // Keep registry access out of this fixture; exercise the generated root file's
-  // inclusion in each real release commit, tag and push.
-  write(
-    'market-index.mjs',
-    `import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
-const versions = Object.fromEntries(readdirSync('packages').map((directory) => {
-  const { name, version } = JSON.parse(readFileSync('packages/' + directory + '/package.json', 'utf8'))
-  return [name, version]
-}))
-writeFileSync('market/index.json', JSON.stringify(versions))
-`
-  )
+  // Exercise the real generator offline, not a replacement that hides registry propagation bugs.
+  mkdirSync(join(cwd, 'scripts'))
+  write('scripts/market-index.mjs', readFileSync(join(root, 'scripts/market-index.mjs'), 'utf8'))
+  write('deny-fetch.mjs', 'globalThis.fetch = async () => { throw new Error("Release indexing must not query npm") }\n')
   mkdirSync(join(cwd, 'market'))
-  write('market/index.json', '{}')
+  const emptyIndex = JSON.stringify(buildMarketIndex({ packages: [], registryDocuments: {} }))
+  write('market/index.json', emptyIndex)
   write('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
   write('.gitignore', 'node_modules/\nrelease/\n')
   mkdirSync(join(cwd, 'node_modules/.bin'), { recursive: true })
-  symlinkSync(join(root, 'node_modules/.bin/oxfmt'), join(cwd, 'node_modules/.bin/oxfmt'))
+  mkdirSync(join(cwd, 'node_modules/@deepseek-ai'), { recursive: true })
+  for (const dependency of ['.bin/oxfmt', 'semver', '@deepseek-ai/dsh-plugin-market-index']) {
+    symlinkSync(join(root, 'node_modules', dependency), join(cwd, 'node_modules', dependency))
+  }
   for (const [name, packageName, version] of [
     ['locale-ko', '@dungsil/dsh-plugin-locale-ko', '0.3.1'],
     ['other', '@fixture/other', '2.7.4'],
@@ -75,6 +76,8 @@ writeFileSync('market/index.json', JSON.stringify(versions))
       JSON.stringify({
         name: packageName,
         version,
+        market: { title: packageName },
+        engines: { dsh: '^0.2.1-rc.5' },
         ...(name === 'locale-ko' ? { dependencies: { '@fixture/new': 'workspace:^' } } : {}),
       })
     )
@@ -101,7 +104,7 @@ writeFileSync('market/index.json', JSON.stringify(versions))
   assert.equal(manifest('locale-ko').version, '0.3.1')
   assert.equal(notes('locale-ko'), history)
   assert.equal(run('git', ['rev-parse', 'HEAD']), head)
-  assert.equal(readFileSync(join(cwd, 'market/index.json'), 'utf8'), '{}')
+  assert.equal(readFileSync(join(cwd, 'market/index.json'), 'utf8'), emptyIndex)
 
   // Workspace discovery lists locale-ko before new. The production release loop
   // must bump the dependency first so the bundle's archive gets the new range.
@@ -151,7 +154,10 @@ writeFileSync('market/index.json', JSON.stringify(versions))
   // A first OIDC release can use the already-verified manifest version without
   // bumping it or publishing unrelated packages that have pending features.
   mkdirSync(join(cwd, 'packages', 'initial'))
-  write('packages/initial/package.json', JSON.stringify({ name: '@fixture/initial', version: '0.1.0' }))
+  write(
+    'packages/initial/package.json',
+    JSON.stringify({ name: '@fixture/initial', version: '0.1.0', market: { title: 'Initial' } })
+  )
   write('packages/other/index.js', '// another pending feature\n')
   commit('feat: initial package and unrelated work')
   process.chdir(cwd)
@@ -180,9 +186,19 @@ writeFileSync('market/index.json', JSON.stringify(versions))
   ]) {
     const separator = tag.lastIndexOf('@')
     const index = JSON.parse(run('git', ['show', `${tag}:market/index.json`]))
-    assert.equal(index[tag.slice(0, separator)], tag.slice(separator + 1), tag)
+    const plugin = index.plugins.find((entry) => entry.name === tag.slice(0, separator))
+    assert.equal(plugin.versions[0].version, tag.slice(separator + 1), tag)
+    assert.deepEqual(plugin.versions[0].source, { type: 'npm' })
+    if (plugin.name !== '@fixture/initial') assert.deepEqual(plugin.versions[0].engines, { dsh: '^0.2.1-rc.5' })
     assert.ok(run('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', tag]).includes('market/index.json'), tag)
   }
+  const index = JSON.parse(readFileSync(join(cwd, 'market/index.json'), 'utf8'))
+  assert.deepEqual(
+    index.plugins
+      .find((plugin) => plugin.name === '@dungsil/dsh-plugin-locale-ko')
+      .versions.map((entry) => entry.version),
+    ['1.0.0', '0.3.2']
+  )
   assert.equal(run('git', ['status', '--porcelain']), '')
   assert.equal(run('git', ['rev-parse', 'HEAD']), run('git', ['rev-parse', 'origin/main']))
 })
