@@ -1,0 +1,4 @@
+- insert:
+    - id: dungsil-turn-rail-left
+      name: '@dungsil/dsh-plugin-ui-turn-rail-left'
+      config: {}
