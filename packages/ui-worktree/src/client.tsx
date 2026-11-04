@@ -164,7 +164,7 @@ export function apply(ctx: Context) {
             className="dsh-worktree-select"
             value="current"
             disabled={disabled}
-            aria-label={text.title}
+            aria-label={view ? `${text.title}: ${branch}` : text.title}
             aria-describedby={status}
             aria-busy={loading || busy}
             title={view ? branch : text.title}
@@ -226,7 +226,17 @@ export function apply(ctx: Context) {
           <header>
             <h2 id={title}>{text.createTitle}</h2>
             <button type="button" aria-label={text.close} disabled={busy} onClick={() => dialog.current?.close()}>
-              ×
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden="true"
+              >
+                <path d="m4 4 8 8m0-8-8 8" />
+              </svg>
             </button>
           </header>
           <form

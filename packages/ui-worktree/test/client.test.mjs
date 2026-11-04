@@ -166,6 +166,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await render()
     assert.equal(select().disabled, true)
     assert.equal(select().getAttribute('aria-busy'), 'true')
+    assert.equal(select().getAttribute('aria-label'), 'Git worktree')
+    assert.equal(document.querySelector('.dsh-worktree-branch').getAttribute('aria-hidden'), 'true')
     assert.match(document.querySelector('[role=status]').textContent, /불러오는 중/)
     assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-a' })
     const initial = calls.at(-1)
@@ -176,6 +178,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(select().disabled, false)
     assert.equal(select().options[0].textContent, 'main')
     assert.equal(select().title, 'main')
+    assert.equal(select().getAttribute('aria-label'), 'Git worktree: main')
     assert.deepEqual(
       Array.from(select().options, (option) => option.value),
       ['current', 'create', 'path:/repo/worktrees/path with space', 'path:/repo/detached']
@@ -223,6 +226,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(field().value, '')
     assert.equal(document.activeElement, select(), 'return focus after success refresh finishes')
     assert.equal(select().options[0].textContent, 'feature/한글-"quote"')
+    assert.equal(select().getAttribute('aria-label'), 'Git worktree: feature/한글-"quote"')
     await choose(`path:${switched.cwd}`)
     const change = calls.at(-1)
     assert.equal(change.endpoint, 'switch')
