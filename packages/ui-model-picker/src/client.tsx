@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -16,6 +16,8 @@ import {
   IconCheckOutlineRegular,
   IconDataOutlineRegular,
   MenuSurface,
+  focusWithoutRing,
+  useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { styles } from './styles.js'
 
@@ -79,6 +81,7 @@ export function apply(ctx: Context) {
     )
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
+    const [exiting, setExiting] = useState(false)
     const [draft, setDraft] = useState(0)
     const [failed, setFailed] = useState(false)
     const trigger = useRef<HTMLButtonElement | null>(null)
@@ -112,15 +115,36 @@ export function apply(ctx: Context) {
     }, [directory])
 
     const close = () => {
-      setPanel(null)
-      trigger.current?.focus()
+      setExiting(true)
+      if (trigger.current) focusWithoutRing(trigger.current)
     }
 
-    useEffect(() => {
+    useDismissOnOutsidePointer(anchor, panel !== null && !exiting, () => setExiting(true), popup)
+
+    useLayoutEffect(() => {
+      if (!exiting || !popup.current) return
+      const element = popup.current
+      element.inert = true
+      let cancelled = false
+      // Keep the material (and the host's macOS backing) mounted until the
+      // shared fade finishes. Reduced motion produces no pending animations.
+      const animations = element.getAnimations({ subtree: true }).filter((animation) => {
+        const name = (animation as CSSAnimation).animationName
+        // Host CSS modules scope the shared keyframe name.
+        return name?.includes('dsh-context-menu-out') || name === 'dsh-codex-menu-out'
+      })
+      void Promise.all(animations.map((animation) => animation.finished.catch(() => {}))).then(() => {
+        if (!cancelled) setPanel(null)
+      })
+      return () => {
+        cancelled = true
+        element.inert = false
+      }
+    }, [exiting])
+
+    useLayoutEffect(() => {
       if (!panel || !popup.current || !anchor.current) return
       const element = popup.current
-      element.setAttribute('popover', 'auto')
-      element.showPopover()
       const position = () => {
         const box = anchor.current!.getBoundingClientRect()
         element.style.left = `${Math.max(8, Math.min(box.right - element.offsetWidth, window.innerWidth - element.offsetWidth - 8))}px`
@@ -130,13 +154,9 @@ export function apply(ctx: Context) {
       position()
       const observer = new ResizeObserver(position)
       observer.observe(element)
-      const toggle = (event: Event) => {
-        if ((event as ToggleEvent).newState === 'closed') setPanel(null)
-      }
       const scroll = (event: Event) => {
         if (!element.contains(event.target as Node)) close()
       }
-      element.addEventListener('toggle', toggle)
       window.addEventListener('resize', close)
       window.addEventListener('scroll', scroll, true)
       const keydown = (event: KeyboardEvent) => {
@@ -170,18 +190,16 @@ export function apply(ctx: Context) {
         window.removeEventListener('resize', close)
         window.removeEventListener('scroll', scroll, true)
         element.removeEventListener('keydown', keydown)
-        element.removeEventListener('toggle', toggle)
-        element.hidePopover()
       }
     }, [panel])
 
     useEffect(() => {
-      if (locked) setPanel(null)
+      if (locked) setExiting(true)
     }, [locked])
     // /model and other clients share this selection. Never apply an old slider
     // draft to a newly projected route or effort.
     useEffect(() => {
-      setPanel(null)
+      setExiting(true)
     }, [current?.provider, current?.model, current?.reasoningEffort])
 
     const select = async (selection: ModelSelection) => {
@@ -201,9 +219,14 @@ export function apply(ctx: Context) {
     }
     const show = (button: HTMLButtonElement) => {
       trigger.current = button
+      if (panel && !exiting) {
+        close()
+        return
+      }
+      setExiting(false)
       setDraft(Math.max(0, effortIndex))
       setFailed(false)
-      setPanel(panel ? null : 'effort')
+      setPanel('effort')
       void directory.load().catch(() => {})
     }
     const selectEffort = (index: number) => {
@@ -226,8 +249,8 @@ export function apply(ctx: Context) {
             aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
-            aria-expanded={panel !== null}
-            aria-controls={panel ? id : undefined}
+            aria-expanded={panel !== null && !exiting}
+            aria-controls={panel && !exiting ? id : undefined}
             onClick={(event) => show(event.currentTarget)}
           >
             <IconDataOutlineRegular className="dsh-codex-trigger-icon" size={16} />
@@ -242,6 +265,9 @@ export function apply(ctx: Context) {
               id={id}
               ref={popup}
               role="dialog"
+              aria-hidden={exiting || undefined}
+              data-picker-phase={exiting ? 'dismiss' : 'enter'}
+              {...{ phase: exiting ? 'dismiss' : 'enter' }}
               aria-label={panel === 'model' ? text.model : text.effort}
               className="dsh-codex-popover"
             >

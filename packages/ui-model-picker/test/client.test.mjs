@@ -21,16 +21,12 @@ await test('composer shares host model selection, preserves exact routes and use
   }
   for (const [key, value] of Object.entries(globals))
     Object.defineProperty(globalThis, key, { configurable: true, value })
-  // happy-dom has no top-layer layout. Browser validation covers positioning
-  // and native light dismissal; the DOM test exercises the actual host directory.
-  window.HTMLElement.prototype.showPopover = function () {}
-  window.HTMLElement.prototype.hidePopover = function () {}
   const { createElement, forwardRef, act } = await import('react')
   const { createRoot } = await import('react-dom/client')
   const require = createRequire(import.meta.url)
   const modules = new Map()
   // Keep host visuals at the module boundary; browser validation loads the real
-  // primitives and their CSS, including MenuSurface's forwarded popover ref.
+  // primitives and their CSS, including dismissal and automatic focus handling.
   const icon = (props) => createElement('svg', { ...props, 'aria-hidden': true })
   const primitives = {
     IconChevronDownOutlineRegular: icon,
@@ -39,6 +35,8 @@ await test('composer shares host model selection, preserves exact routes and use
     IconCheckOutlineRegular: icon,
     IconDataOutlineRegular: icon,
     MenuSurface: forwardRef((props, ref) => createElement('div', { ...props, ref })),
+    focusWithoutRing: (element) => element.focus(),
+    useDismissOnOutsidePointer: () => {},
   }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) =>
@@ -298,6 +296,30 @@ await test('composer shares host model selection, preserves exact routes and use
   )
   assert.equal(find('[role=dialog]'), null)
   assert.equal(window.document.activeElement, find('.dsh-codex-trigger'))
+
+  await t.test('dismissal finishes its fade without closing a menu that reopened meanwhile', async () => {
+    let finish
+    window.HTMLElement.prototype.getAnimations = () => [
+      { animationName: '_dsh-context-menu-out_host_1', finished: new Promise((resolve) => (finish = resolve)) },
+    ]
+    try {
+      await click('.dsh-codex-trigger')
+      await click('.dsh-codex-trigger')
+      assert.ok(find('[role=dialog]'), 'the material remains mounted for the exit fade')
+      assert.equal(find('[role=dialog]').inert, true, 'a fading menu cannot accept stale selections')
+      assert.equal(find('.dsh-codex-trigger').getAttribute('aria-expanded'), 'false')
+      await click('.dsh-codex-trigger')
+      await act(async () => finish())
+      assert.ok(find('[role=dialog]'), 'finishing the cancelled exit must not remove the reopened menu')
+      assert.equal(find('[role=dialog]').inert, false)
+      assert.equal(find('.dsh-codex-trigger').getAttribute('aria-expanded'), 'true')
+      await click('.dsh-codex-trigger')
+      await act(async () => finish())
+      assert.equal(find('[role=dialog]'), null, 'the menu unmounts once its own exit finishes')
+    } finally {
+      delete window.HTMLElement.prototype.getAnimations
+    }
+  })
 
   // The same single trigger flow works when the host collapses its text.
   await click('.dsh-codex-trigger')
