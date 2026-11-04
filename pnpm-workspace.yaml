@@ -4,6 +4,11 @@ packages:
   - packages/*
   - tools/*
 
+overrides:
+  'basic-ftp@<6.2.5': 6.2.5
+  'undici@>=8.0.0 <8.12.2': 8.12.3
+  'zod@>=4.0.0 <4.6.6': 4.6.7
+
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
