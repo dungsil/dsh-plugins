@@ -77,7 +77,7 @@ const copy = {
   },
 }
 
-const languageKey = (language: string) => language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en'
+const languageKey = (language: string) => (language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en')
 export const settingsLabel = (language: string) => copy[languageKey(language)].nav
 
 const validDirectory = (value: string) => value.trim().length > 0 && value.length <= 4096 && !/[\0\r\n]/.test(value)
