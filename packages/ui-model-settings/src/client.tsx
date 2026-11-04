@@ -24,7 +24,6 @@ const copy = {
     model: 'Model',
     inherit: 'Use conversation model',
     effort: 'Reasoning effort',
-    effortShort: 'Effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
     effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the title generator’s existing behavior.',
@@ -51,7 +50,6 @@ const copy = {
     model: '모델',
     inherit: '대화 모델 따르기',
     effort: '추론 수준',
-    effortShort: '추론',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
     effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 제목 생성기의 기존 동작을 유지합니다.',
@@ -314,7 +312,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                 />
                 <Picker
                   label={`${text.title} ${text.effort}`}
-                  value={`${text.effortShort} · ${effortLabel}`}
+                  value={effortLabel}
                   title={
                     !selected
                       ? text.effortHint

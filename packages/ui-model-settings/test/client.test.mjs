@@ -179,7 +179,7 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   await select(pair)
   assert.equal(
     container.querySelector(effortSelector).textContent,
-    '추론 · Thorough',
+    'Thorough',
     'reselecting the same model must keep its effort'
   )
   await click('button[type=submit]')
@@ -189,7 +189,7 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
   await click(refreshSelector)
   await waitFor(() => !container.querySelector(refreshSelector).disabled)
-  assert.equal(container.querySelector(effortSelector).textContent, '추론 · Thorough')
+  assert.equal(container.querySelector(effortSelector).textContent, 'Thorough')
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
   await select('', effortSelector)
   assert.equal(container.querySelector('button[type=submit]').disabled, false, 'effort-only changes must be saveable')
@@ -199,7 +199,7 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
 
   await select('thorough', effortSelector)
   await select(JSON.stringify(['auxiliary', 'chat-large']))
-  assert.equal(container.querySelector(effortSelector).textContent, '추론 · 자동')
+  assert.equal(container.querySelector(effortSelector).textContent, '자동')
   assert.equal(container.querySelector(effortSelector).disabled, true)
   assert.ok(
     container
