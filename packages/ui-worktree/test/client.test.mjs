@@ -51,6 +51,14 @@ await test('built composer uses direct worktree RPC without touching prompts or 
               item.icon,
               item.label
             )
+          ),
+          props.children,
+          props.footer?.map((item) =>
+            createElement(
+              'button',
+              { key: item.id, type: 'button', 'data-menu-id': item.id, onClick: () => props.onSelect(item.id) },
+              item.label
+            )
           )
         )
     )
@@ -192,14 +200,11 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.ok(item, `host Menu must expose item ${id}`)
     await act(async () => item.click())
   }
-  const refresh = async () =>
-    act(async () => {
-      if (dialog().open) document.querySelector('form footer button[type=button]').click()
-      else if (document.querySelector('.dsh-worktree-error-trigger')) {
-        document.querySelector('.dsh-worktree-error-trigger').click()
-        document.querySelector('[data-worktree-retry]').click()
-      } else window.dispatchEvent(new window.Event('focus'))
-    })
+  const refresh = async () => {
+    if (dialog().open) await act(async () => document.querySelector('form footer button[type=button]').click())
+    else if (menuProps.footer?.some((item) => item.id === 'retry')) await choose('retry')
+    else await act(async () => window.dispatchEvent(new window.Event('focus')))
+  }
   const focus = async () =>
     act(async () => {
       window.dispatchEvent(new window.Event('focus'))
@@ -406,8 +411,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(calls.at(-1), created)
     await fail(calls.at(-1), 'operation_failed')
     assert.equal(dialog().open, false)
-    assert.ok(document.querySelector('.dsh-worktree-error-trigger'))
-    assert.equal(trigger().disabled, true, 'failed success-refresh must require explicit recovery')
+    assert.equal(menuProps.footer[0].id, 'retry')
+    assert.equal(trigger().disabled, false, 'failed success-refresh must keep the recovery menu accessible')
     await refresh()
     await resolve(calls.at(-1), created)
     await choose('path:/repo')
@@ -455,9 +460,10 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   await t.test('initial errors, empty lists, locale, idle restrictions, and dismissal remain accessible', async () => {
     await render('session-empty')
     await fail(calls.at(-1), 'forbidden')
-    assert.equal(trigger().disabled, true)
+    assert.equal(trigger().disabled, false)
     assert.equal(document.querySelector('.dsh-worktree-refresh'), null)
-    assert.equal(document.querySelector('[data-worktree-retry]').disabled, false)
+    await openMenu()
+    assert.equal(document.querySelector('[data-menu-id=retry]').disabled, false)
     await refresh()
     await resolve(calls.at(-1), { cwd: '/not-git', worktrees: [] })
     assert.match(document.querySelector('[role=status]').textContent, /Git worktree가 없습니다/)
@@ -588,32 +594,44 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     sidebar.remove()
   })
 
-  await t.test('lookup errors use a compact details control without exposing raw server text', async () => {
-    await act(async () => {
-      language = 'ko'
-      for (const listener of locale.listeners) listener()
-    })
-    await render('session-error-details')
-    await fail(calls.at(-1), 'busy')
-    assert.ok(!document.querySelector('.dsh-worktree-error'), 'long errors must not appear in the composer toolbar')
-    const details = document.querySelector('.dsh-worktree-error-trigger')
-    assert.ok(details)
-    assert.equal(details.textContent, '조회 실패')
-    assert.equal(details.getAttribute('aria-haspopup'), 'dialog')
-    await act(async () => details.click())
-    const errorDialog = document.querySelector('.dsh-worktree-error-dialog')
-    assert.equal(errorDialog.open, true)
-    assert.match(errorDialog.textContent, /busy/)
-    assert.match(errorDialog.textContent, /작업/)
-    assert.doesNotMatch(errorDialog.textContent, /Server detail/)
-    await act(async () => errorDialog.querySelector('button[data-worktree-retry]').click())
-    assert.equal(calls.at(-1).endpoint, 'describe')
-    await resolve(calls.at(-1), original)
-    assert.equal(errorDialog.open, false)
-    assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
-    assert.equal(branchName(), 'main')
-    assert.equal(document.activeElement, trigger())
-  })
+  await t.test(
+    'lookup errors and recovery stay inside the existing Menu without exposing raw server text',
+    async () => {
+      await act(async () => {
+        language = 'ko'
+        for (const listener of locale.listeners) listener()
+      })
+      await render('session-error-details')
+      await fail(calls.at(-1), 'busy')
+      assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+      assert.equal(document.querySelectorAll('.dsh-worktree-controls button').length, 1)
+      assert.equal(document.querySelectorAll('dialog').length, 1, 'only the create dialog remains')
+      assert.equal(document.querySelector('.dsh-worktree-menu-error'), null, 'closed Menu hides error details')
+      await openMenu()
+      const details = document.querySelector('[data-unit-menu-items] [role=alert]')
+      assert.ok(details)
+      assert.match(details.textContent, /조회 실패/)
+      assert.match(details.textContent, /busy/)
+      assert.match(details.textContent, /작업/)
+      assert.doesNotMatch(details.textContent, /Server detail/)
+      assert.deepEqual(menuProps.items, [], 'stale worktrees must not remain selectable')
+      const before = calls.length
+      await act(async () => menuProps.onSelect('create'))
+      await act(async () => menuProps.onSelect('path:/repo'))
+      assert.equal(calls.length, before, 'stale mutation callbacks must not bypass recovery')
+      assert.equal(dialog().open, false)
+      await refresh()
+      assert.equal(calls.at(-1).endpoint, 'describe')
+      assert.equal(menuProps.open, false)
+      assert.equal(trigger().disabled, true)
+      await fail(calls.at(-1), 'forbidden')
+      assert.equal(trigger().disabled, false, 'a failed retry must allow reopening the Menu')
+      await refresh()
+      await resolve(calls.at(-1), original)
+      assert.equal(menuProps.footer, undefined)
+      assert.equal(branchName(), 'main')
+    }
+  )
 
   await t.test(
     'client and transport failures expose safe codes without raw details and remain recoverable',
@@ -626,7 +644,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
         connection.rpc.call = undefined
         await render('session-no-rpc')
         assert.equal(logs.at(-1)[1].code, 'client_unavailable')
-        assert.match(document.querySelector('.dsh-worktree-error-dialog').textContent, /client_unavailable/)
+        await openMenu()
+        assert.match(document.querySelector('.dsh-worktree-menu-error').textContent, /client_unavailable/)
         connection.rpc.call = originalCall
         await refresh()
         await resolve(calls.at(-1), original)
@@ -637,15 +656,12 @@ await test('built composer uses direct worktree RPC without touching prompts or 
           await refresh()
           await act(async () => calls.at(-1).reject(failure))
           assert.equal(logs.at(-1)[1].code, expectedCode)
-          const details = document.querySelector('.dsh-worktree-error-trigger')
-          await act(async () => details.click())
-          const errorDialog = document.querySelector('.dsh-worktree-error-dialog')
-          assert.equal(errorDialog.open, true)
-          assert.match(errorDialog.textContent, new RegExp(expectedCode))
-          assert.doesNotMatch(errorDialog.textContent, /private credential detail/)
-          await act(async () => errorDialog.querySelector('header button').click())
-          assert.equal(errorDialog.open, false)
-          assert.equal(document.activeElement, details)
+          await openMenu()
+          const details = document.querySelector('.dsh-worktree-menu-error')
+          assert.match(details.textContent, new RegExp(expectedCode))
+          assert.doesNotMatch(details.textContent, /private credential detail/)
+          await act(async () => menuProps.onClose())
+          assert.equal(document.querySelector('.dsh-worktree-menu-error'), null)
           await focus()
           const failed = calls.at(-1)
           await focus()

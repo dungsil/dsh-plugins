@@ -47,13 +47,10 @@ export function apply(ctx: Context) {
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
     const dialog = useRef<HTMLDialogElement>(null)
-    const errorDialog = useRef<HTMLDialogElement>(null)
-    const errorTrigger = useRef<HTMLButtonElement>(null)
     const title = useId()
-    const errorTitle = useId()
-    const errorDescription = useId()
     const field = useId()
     const status = useId()
+    const menuDisabled = unavailable || loading || busy
     const disabled = unavailable || loading || busy || !!error || !view
     const errorLabel = error?.uncertain ? text.mutationError : text.lookupError
 
@@ -118,8 +115,8 @@ export function apply(ctx: Context) {
     }, [])
 
     useEffect(() => {
-      if (disabled) setOpen(false)
-    }, [disabled])
+      if (menuDisabled) setOpen(false)
+    }, [menuDisabled])
 
     const show = () => {
       const element = dialog.current
@@ -170,15 +167,6 @@ export function apply(ctx: Context) {
       if (!busy && changed && !dialog.current?.open) trigger.current?.focus()
     }, [busy, changed])
 
-    useEffect(() => {
-      if (!error && errorDialog.current?.open) errorDialog.current.close()
-    }, [error])
-
-    const restoreErrorFocus = () => {
-      const button = errorTrigger.current ?? trigger.current
-      button?.focus()
-    }
-
     const current = currentWorktree(view)
     useEffect(() => {
       // Git lists the main checkout first. Only linked worktrees need a sidebar hint.
@@ -211,17 +199,27 @@ export function apply(ctx: Context) {
             side="top"
             portal
             selectedId={current ? `path:${current.path}` : undefined}
-            items={[
-              { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
-              ...(view?.worktrees.map((item) => ({
-                id: `path:${item.path}`,
-                label: item.branch ?? text.detached,
-                icon: <IconBranchOutlineRegular />,
-              })) ?? []),
-            ]}
+            items={
+              error
+                ? []
+                : [
+                    { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
+                    ...(view?.worktrees.map((item) => ({
+                      id: `path:${item.path}`,
+                      label: item.branch ?? text.detached,
+                      icon: <IconBranchOutlineRegular />,
+                    })) ?? []),
+                  ]
+            }
+            footer={error ? [{ id: 'retry', label: text.refresh }] : undefined}
             onClose={() => setOpen(false)}
             onSelect={(id) => {
               setOpen(false)
+              if (menuDisabled || pending.current) return
+              if (id === 'retry' && error) {
+                void load(true)
+                return
+              }
               if (disabled || pending.current) return
               if (id === 'create') show()
               else if (id.startsWith('path:') && id !== `path:${current?.path}`) void change('switch', id.slice(5))
@@ -231,7 +229,7 @@ export function apply(ctx: Context) {
                 ref={trigger}
                 type="button"
                 className="dsh-worktree-trigger"
-                disabled={disabled}
+                disabled={menuDisabled}
                 aria-label={view ? `${text.title}: ${branch}` : text.title}
                 aria-haspopup="menu"
                 aria-expanded={open}
@@ -255,19 +253,23 @@ export function apply(ctx: Context) {
                 </span>
               </button>
             }
-          />
-          {error && (
-            <button
-              ref={errorTrigger}
-              type="button"
-              className="dsh-worktree-error-trigger"
-              aria-haspopup="dialog"
-              aria-label={`${errorLabel}: ${text.errorTitle}`}
-              onClick={() => errorDialog.current?.showModal()}
-            >
-              {errorLabel}
-            </button>
-          )}
+          >
+            {error && (
+              <div className="dsh-worktree-menu-error" role="alert">
+                <strong>{errorLabel}</strong>
+                <p>{error.uncertain ? text.error : text.readError}</p>
+                <p>{text.reasons[error.code]}</p>
+                <dl>
+                  <dt>{text.errorOperation}</dt>
+                  <dd>{text.operations[error.operation]}</dd>
+                  <dt>{text.errorCode}</dt>
+                  <dd>
+                    <code>{error.code}</code>
+                  </dd>
+                </dl>
+              </div>
+            )}
+          </Menu>
         </div>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
@@ -336,39 +338,6 @@ export function apply(ctx: Context) {
               </button>
             </footer>
           </form>
-        </dialog>
-        <dialog
-          ref={errorDialog}
-          className="dsh-worktree-dialog dsh-worktree-error-dialog"
-          aria-labelledby={errorTitle}
-          aria-describedby={errorDescription}
-          onClose={restoreErrorFocus}
-        >
-          <header>
-            <h2 id={errorTitle}>{text.errorTitle}</h2>
-            <button type="button" aria-label={text.close} onClick={() => errorDialog.current?.close()}>
-              <IconCloseOutlineRegular aria-hidden="true" />
-            </button>
-          </header>
-          <p id={errorDescription}>{error?.uncertain ? text.error : text.readError}</p>
-          {error && (
-            <>
-              <p>{text.reasons[error.code]}</p>
-              <dl>
-                <dt>{text.errorOperation}</dt>
-                <dd>{text.operations[error.operation]}</dd>
-                <dt>{text.errorCode}</dt>
-                <dd>
-                  <code>{error.code}</code>
-                </dd>
-              </dl>
-            </>
-          )}
-          <footer>
-            <button type="button" data-worktree-retry disabled={loading || busy} onClick={() => void load(true)}>
-              {loading ? text.loading : text.refresh}
-            </button>
-          </footer>
         </dialog>
       </div>
     )

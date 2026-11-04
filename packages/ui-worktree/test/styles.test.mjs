@@ -47,7 +47,7 @@ await test('host Menu trigger follows composer permission sizing without a fixed
   assert.match(styles, /\.dsh-worktree-trigger:focus-visible[^}]*var\(--dsw-focus-ring-color/)
   const controls = declarations('.dsh-worktree-controls')
   assert.ok(controls.includes('display: inline-flex'))
-  assert.ok(controls.includes('flex-wrap: nowrap'), 'picker and error details must remain on the same row')
+  assert.ok(controls.includes('flex-wrap: nowrap'), 'picker must remain on the same row')
   assert.ok(declarations('.dsh-worktree-picker').includes('max-width: 100%'))
   assert.doesNotMatch(styles, /\.dsh-worktree-refresh|calc\(100% - 28px\)/)
   assert.doesNotMatch(styles, /\.dsh-worktree-select|\.dsh-worktree-branch|appearance:\s*none/)
@@ -69,18 +69,13 @@ await test('compact trigger hides only its branch name and animates the open che
   assert.doesNotMatch(styles, /\banimation:/)
 })
 
-await test('error details stay outside the toolbar flow with a compact keyboard-focusable trigger', () => {
-  assert.doesNotMatch(styles, /\.dsh-worktree-error\s*\{/)
-  const trigger = declarations('.dsh-worktree-error-trigger')
-  for (const declaration of ['min-height: 28px', 'white-space: nowrap', 'text-decoration: underline']) {
-    assert.ok(trigger.includes(declaration), declaration)
-  }
-  assert.match(styles, /\.dsh-worktree-error-trigger:focus-visible[^}]*var\(--dsw-focus-ring-color/)
-  const dialog = declarations('.dsh-worktree-dialog.dsh-worktree-error-dialog')
-  assert.ok(dialog.includes('inset: 0'))
-  assert.ok(dialog.includes('margin: auto'))
-  assert.ok(declarations('.dsh-worktree-error-dialog dl').includes('minmax(0, 1fr)'))
-  assert.ok(declarations('.dsh-worktree-error-dialog dd').includes('overflow-wrap: anywhere'))
+await test('error content wraps inside the host menu without a separate trigger or dialog', () => {
+  assert.doesNotMatch(styles, /\.dsh-worktree-error-(?:trigger|dialog)/)
+  const error = declarations('.dsh-worktree-menu-error')
+  assert.ok(error.includes('max-width: calc(100vw - 32px)'))
+  assert.ok(error.includes('white-space: normal'))
+  assert.ok(error.includes('overflow-wrap: anywhere'))
+  assert.ok(declarations('.dsh-worktree-menu-error dl').includes('minmax(0, 1fr)'))
 })
 
 await test('hover and dialog surfaces retain host theme tokens without local menu styling', () => {

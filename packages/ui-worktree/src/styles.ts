@@ -18,14 +18,13 @@ export const styles = `
   .dsh-worktree-chevron { transition: transform .12s; }
 }
 @media (hover: hover) {
-  .dsh-worktree-trigger:hover:not(:disabled), .dsh-worktree-error-trigger:hover, .dsh-worktree-dialog button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+  .dsh-worktree-trigger:hover:not(:disabled), .dsh-worktree-dialog button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 }
-.dsh-worktree-error-trigger { flex: 0 0 auto; min-height: 28px; padding: 2px 6px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 20px; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.dsh-worktree-error-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
-.dsh-worktree-dialog.dsh-worktree-error-dialog { inset: 0; margin: auto; }
-.dsh-worktree-error-dialog dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; }
-.dsh-worktree-error-dialog dt { color: var(--dsw-alias-label-secondary); }
-.dsh-worktree-error-dialog dd { margin: 0; overflow-wrap: anywhere; }
+.dsh-worktree-menu-error { box-sizing: border-box; width: 300px; max-width: calc(100vw - 32px); padding: 8px 12px; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
+.dsh-worktree-menu-error strong { color: var(--dsw-alias-state-error-primary); }
+.dsh-worktree-menu-error p { margin: 8px 0; }
+.dsh-worktree-menu-error dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 8px 0 0; }
+.dsh-worktree-menu-error dd { margin: 0; }
 .dsh-worktree-dialog { box-sizing: border-box; position: fixed; margin: 0; width: 360px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid transparent; border-radius: var(--dsw-radius-lg); background: var(--dsw-specific-menu); backdrop-filter: var(--dsw-menu-backdrop-filter); color: var(--dsw-alias-label-primary); --dsw-elevation-stroke-color: var(--dsw-alias-border-l1); box-shadow: var(--dsw-elevation-prominent); font: inherit; font-size: 13px; font-weight: 400; line-height: 1.55; }
 .dsh-worktree-dialog::backdrop { background: transparent; }
 .dsh-worktree-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
