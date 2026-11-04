@@ -839,7 +839,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.deepEqual(saving.payload, { revision: 'initial', settings: { ...defaults.settings, remote: true } })
     assert.match(document.querySelector('[role=status]').textContent, /저장 중/)
     await resolve(saving, saveResult(saving, 'remote-1'))
-    assert.match(document.querySelector('[role=status]').textContent, /저장했습니다/)
+    assert.equal(document.querySelector('[role=status]'), null)
 
     await chooseNaming('dsh')
     saving = calls.at(-1)
@@ -897,7 +897,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.equal(prefix().value, 'task-')
       await resolve(queued, saveResult(queued, 'rapid-2'))
       assert.equal(document.querySelector('section').getAttribute('aria-busy'), 'false')
-      assert.match(document.querySelector('[role=status]').textContent, /저장했습니다/)
+      assert.equal(document.querySelector('[role=status]'), null)
       const count = calls.length
       await editSettings(directory(), directory().value)
       await submit()
@@ -936,7 +936,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(saving, saveResult(saving, 'valid-in-flight'))
     assert.equal(calls.length, count, 'a queued invalid value must not reach the server')
     assert.equal(directory().value, '')
-    assert.equal(document.querySelector('[role=status]').textContent, '')
+    assert.equal(document.querySelector('[role=status]'), null)
     await editSettings(directory(), '/valid-again')
     saving = calls.at(-1)
     assert.equal(saving.payload.revision, 'valid-in-flight')
@@ -964,7 +964,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.equal(directory().value, '.agents/worktrees')
       assert.equal(remoteSwitch().disabled, false)
       assert.ok(document.querySelector('[role=alert]'), 'reconciliation must not hide the failed save')
-      assert.match(document.querySelector('[role=status]').textContent, /다시 불러왔습니다/)
+      assert.equal(document.querySelector('[role=status]'), null)
       assert.equal(calls.at(-1), reload, 'queued edits from a failed write must not retry automatically')
     }
     await editSettings(directory(), '/uncertain')
@@ -988,9 +988,9 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       for (const listener of locale.listeners) listener()
     })
     assert.equal(settingsOptions.label(), 'Worktrees')
-    assert.match(document.querySelector('section').textContent, /locally fetched remote reference/)
+    assert.equal(remoteSwitch().getAttribute('aria-label'), 'Use tracked remote branch')
     assertNoSettingsButtons()
-    assert.match(document.querySelector('[id$="-naming-hint"]').textContent, /automatically generated from your prompt/)
+    assert.equal(document.querySelector('[id$="-naming-hint"]'), null)
   })
 
   await t.test('settings ignores stale reads, writes and recovery reads after unmount', async () => {
@@ -1019,7 +1019,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(calls.at(-1), defaults)
     await resolve(staleRecovery, { ...defaults, settings: { ...defaults.settings, directory: '/stale' } })
     assert.equal(directory().value, '.agents/worktrees')
-    assert.equal(document.querySelector('[role=status]').textContent, '')
+    assert.equal(document.querySelector('[role=status]'), null)
     await renderSettings('initial-failure')
     await fail(calls.at(-1), 'forbidden')
     assert.ok(document.querySelector('[role=alert]'))
@@ -1052,27 +1052,13 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true')
   })
 
-  await t.test('settings labels, validation and status use English, Korean and Chinese', async () => {
+  await t.test('settings keeps localized labels and validation without helper or success copy', async () => {
     const before = calls.length
-    for (const [active, nav, label, invalid, saved, namingHint] of [
-      [
-        'en',
-        'Worktrees',
-        'Worktree pool directory',
-        /custom prefix cannot be empty/,
-        /Settings saved/,
-        /automatically generated from your prompt/,
-      ],
-      [
-        'ko',
-        '워크트리',
-        '워크트리 풀 디렉터리',
-        /접두사는 비워 둘 수 없습니다/,
-        /설정을 저장했습니다/,
-        /프롬프트.*자동 생성/,
-      ],
-      ['zh', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/, /提示.*自动生成|自动生成.*提示/],
-      ['zh-CN', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/, /提示.*自动生成|自动生成.*提示/],
+    for (const [active, nav, label, invalid] of [
+      ['en', 'Worktrees', 'Worktree pool directory', /custom prefix cannot be empty/],
+      ['ko', '워크트리', '워크트리 풀 디렉터리', /접두사는 비워 둘 수 없습니다/],
+      ['zh', '工作树', '工作树池目录', /自定义前缀不能为空/],
+      ['zh-CN', '工作树', '工作树池目录', /自定义前缀不能为空/],
     ]) {
       await act(async () => {
         language = active
@@ -1081,11 +1067,16 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.equal(settingsOptions.label(), nav)
       assert.equal(document.querySelector('section').getAttribute('aria-label'), nav)
       assert.equal(document.querySelector(`label[for="${directory().id}"]`).textContent, label)
-      assert.match(document.querySelector('[id$="-naming-hint"]').textContent, namingHint)
+      assert.equal(document.querySelector('section p'), null)
+      assert.equal(directory().getAttribute('aria-describedby'), null)
+      assert.equal(document.querySelector('.dsh-worktree-settings-selector').getAttribute('aria-describedby'), null)
       await chooseNaming('custom')
-      assert.match(document.querySelector('[role=alert]').textContent, invalid)
+      const error = document.querySelector('[role=alert]')
+      assert.match(error.textContent, invalid)
+      assert.equal(prefix().getAttribute('aria-describedby'), error.id)
+      assert.equal(document.querySelectorAll('section p').length, 1)
       await chooseNaming('semantic')
-      assert.match(document.querySelector('[role=status]').textContent, saved)
+      assert.equal(document.querySelector('section p'), null)
       assertNoSettingsButtons()
     }
     assert.equal(calls.length, before, 'locale changes and invalid drafts must not write settings')
@@ -1256,6 +1247,8 @@ await test('worktree settings dictionaries contain the same nonempty keys for al
     assert.deepEqual(Object.keys(dictionaries[language]).sort(), Object.keys(dictionaries.en).sort())
   }
   for (const dictionary of Object.values(dictionaries)) {
+    for (const key of ['directoryHint', 'remoteHint', 'namingHint', 'prefixHint', 'saved', 'resynced'])
+      assert.equal(Object.hasOwn(dictionary, key), false, `${key} must be removed`)
     assert.ok(Object.values(dictionary).every((value) => typeof value === 'string' && value.trim().length > 0))
   }
 })

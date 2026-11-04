@@ -26,6 +26,8 @@ await test('English, Korean and Chinese settings copies have complete, nonempty 
   const keys = Object.keys(translations.en).sort()
   for (const language of ['en', 'ko', 'zh']) {
     assert.deepEqual(Object.keys(translations[language]).sort(), keys, `${language} translation keys`)
+    for (const key of ['description', 'hint', 'worktreeHint', 'saved', 'resynced'])
+      assert.equal(Object.hasOwn(translations[language], key), false, `${language}.${key} must be removed`)
     for (const key of keys) {
       assert.equal(typeof translations[language][key], 'string', `${language}.${key}`)
       assert.ok(translations[language][key].trim(), `${language}.${key} must not be empty`)
@@ -156,7 +158,10 @@ async function settingsUI(t, { worktree = false, strict = false, rpc, initialRou
         const call = { endpoint, payload: structuredClone(payload), signal }
         calls.push(call)
         const next = () => h.rpc(endpoint, payload)
-        return intercept ? intercept(call, next) : next()
+        return Promise.resolve(intercept ? intercept(call, next) : next()).then((result) => {
+          call.result = result
+          return result
+        })
       },
     },
   })
@@ -218,8 +223,24 @@ async function settingsUI(t, { worktree = false, strict = false, rpc, initialRou
   }
   const ready = () =>
     waitFor(() => container.querySelector(modelFields) && !container.querySelector(modelFields).disabled)
-  const saved = () =>
-    waitFor(() => container.textContent.includes('저장했습니다') && !container.querySelector(modelFields).disabled)
+  const saved = async () => {
+    await waitFor(
+      () =>
+        calls.findLast(({ endpoint }) => endpoint === 'save')?.result?.ok === true &&
+        container.querySelector('section').getAttribute('aria-busy') === 'false' &&
+        !container.querySelector(modelFields).disabled
+    )
+    assert.equal(
+      container.querySelector('.dsh-model-settings-field [role=alert]'),
+      null,
+      'a confirmed save clears row errors'
+    )
+    assert.equal(
+      container.querySelector('.dsh-model-settings-field [role=status]'),
+      null,
+      'a confirmed save needs no row success notice'
+    )
+  }
   await mount()
   return {
     h,
@@ -246,14 +267,15 @@ for (const worktree of [false, true]) {
   await test(`selection saves immediately and resets inheritance with worktree ${worktree ? 'enabled' : 'absent'}`, async (t) => {
     const ui = await settingsUI(t, { worktree })
     await ui.ready()
-    const { container, window, h, calls } = ui
+    const { container, h, calls } = ui
     assert.equal(calls.length, 1, 'opening settings automatically reads the view')
     assert.equal(calls[0].endpoint, 'describe')
     assert.equal(container.querySelectorAll(modelFields).length, worktree ? 2 : 1)
     assert.equal(container.textContent.includes('워크트리 브랜치 이름'), worktree)
     assert.equal(container.querySelector('form, footer, button[type=submit]'), null)
     const selectElement = container.querySelector(modelFields)
-    assert.equal(window.document.getElementById(selectElement.getAttribute('aria-describedby')).tagName, 'P')
+    assert.equal(container.querySelector('[aria-describedby]'), null, 'removed helpers leave no ARIA references')
+    assert.equal(container.querySelector('p'), null, 'loaded settings show labels without explanatory prose')
     assert.ok(selectElement.getAttribute('aria-label').startsWith('세션 제목 모델:'))
     assert.equal(selectElement.dataset.value, '')
     await ui.select('')
@@ -286,7 +308,7 @@ for (const worktree of [false, true]) {
     await ui.setLocale('en')
     assert.ok(container.querySelector(modelFields).getAttribute('aria-label').startsWith('Session title Model:'))
     assert.equal(ui.registration.label(), 'Models by task')
-    assert.equal(container.textContent.includes('Changes are saved automatically.'), true)
+    assert.equal(container.querySelector('p'), null, 'successful saves do not add introductory or success copy')
     assert.equal(container.textContent.includes('Reload settings'), false)
     assert.equal(container.querySelector('footer, button[type=submit]'), null)
   })
@@ -313,6 +335,8 @@ await test('model and reasoning pickers react to English, Korean and Chinese loc
     assert.ok(ui.container.querySelector(titleField).getAttribute('aria-label').startsWith(title))
     assert.ok(ui.container.querySelector(titleEffortField).getAttribute('aria-label').startsWith(effort))
     assert.equal((await ui.menuItems(titleEffortField))[0].label, automatic)
+    assert.equal(ui.container.querySelector('p'), null, `${language} has no introductory, helper or success prose`)
+    assert.equal(ui.container.querySelector('[aria-describedby]'), null, `${language} has no dangling descriptions`)
   }
 })
 
@@ -357,6 +381,11 @@ for (const task of ['target', 'worktree']) {
     assert.deepEqual(models.find((model) => model.id === 'chat-large').efforts, [])
     assert.ok(effort())
     assert.equal(effort().disabled, true, 'inheriting the conversation model cannot set an explicit effort')
+    assert.equal(
+      effort().getAttribute('title'),
+      '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 기존 동작을 유지합니다.',
+      'the disabled effort picker retains its availability explanation'
+    )
     assert.equal(writes().length, 0)
     await ui.select(pair, field)
     await ui.saved()
@@ -406,6 +435,7 @@ for (const task of ['target', 'worktree']) {
     assert.equal(writes().at(-1).payload.reasoningEffort, null)
     assert.equal(effort().dataset.value, '')
     assert.equal(effort().disabled, true, 'models without reasoning support cannot choose an effort')
+    assert.equal(effort().getAttribute('title'), '이 모델은 추론 수준 설정을 제공하지 않습니다.')
     await ui.select(pair, field)
     await ui.saved()
     await ui.select('quick', effortField)
@@ -602,17 +632,24 @@ await test('a conflict automatically reads the latest values without retrying th
   await ui.ready()
   assert.equal(ui.container.querySelector(modelFields).dataset.value, otherPair)
   assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('다른 곳'), true)
-  assert.equal(ui.container.textContent.includes('저장된 설정을 다시 불러왔습니다'), true)
+  assert.equal(ui.container.querySelector('[role=status]'), null, 'completed recovery adds no resynced notice')
   assert.equal(ui.container.textContent.includes('확인하는 중'), false)
   assert.deepEqual(
     ui.calls.map(({ endpoint }) => endpoint),
     ['describe', 'save', 'describe']
   )
   assert.deepEqual((await ui.h.rpc('describe')).value.target.route, latest.route)
-  await ui.setLocale('en')
-  assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('Settings changed elsewhere.'), true)
+  for (const [language, conflict] of [
+    ['en', 'Settings changed elsewhere.'],
+    ['zh-CN', '设置已在其他位置更改。'],
+    ['ko', '다른 곳에서 설정을 변경했습니다.'],
+  ]) {
+    await ui.setLocale(language)
+    assert.equal(ui.container.querySelector('[role=alert]').textContent.includes(conflict), true)
+    assert.equal(ui.container.querySelector('[role=status]'), null, `${language} has no resynced success notice`)
+    assert.equal(ui.container.querySelector('[aria-describedby]'), null)
+  }
   assert.equal(ui.container.textContent.includes('Reload settings'), false)
-  await ui.setLocale('ko')
   await ui.select('')
   await ui.saved()
   assert.equal(ui.calls[3].payload.revision, latest.revision, 'the next user change uses the synchronized revision')
