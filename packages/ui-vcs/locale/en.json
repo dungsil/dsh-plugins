@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Version Control",
+    "description": "Git actions above the composer: push on the default branch, create or update a PR on other branches or worktrees, or commit only."
+  }
+}
