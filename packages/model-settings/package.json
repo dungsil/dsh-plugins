@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-model-settings",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Owner-only task model configuration API for DeepSeek Harness, starting with session titles.",
   "license": "MIT",
   "repository": {

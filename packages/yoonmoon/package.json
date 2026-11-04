@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-yoonmoon",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Korean writing skills for DeepSeek Harness, adapted from amondnet/yoonmoon.",
   "license": "MIT",
   "repository": {

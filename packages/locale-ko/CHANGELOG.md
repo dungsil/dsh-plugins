@@ -1,5 +1,12 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.7.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.6.0...%40dungsil%2Fdsh-plugin-locale-ko%400.7.0) (2026-11-04)
+
+### Features
+
+- **locale-ko:** 한국어 UI에 Jetendard 웹폰트를 기본 적용한다 ([#46](https://github.com/dungsil/dsh-plugins/issues/46)) ([55e0d78](https://github.com/dungsil/dsh-plugins/commit/55e0d78e722ced9507273ca97ca97c6cadf8b899))
+- **locale:** 플러그인에 중국어 메타데이터를 추가한다 ([#49](https://github.com/dungsil/dsh-plugins/issues/49)) ([7876f45](https://github.com/dungsil/dsh-plugins/commit/7876f45448bb47d43a0f6cf8e16c7b29a6a1ecfb))
+
 ## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.5.1...%40dungsil%2Fdsh-plugin-locale-ko%400.6.0) (2026-11-03)
 
 ### Features
