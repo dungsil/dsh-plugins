@@ -2,6 +2,12 @@
 
 패키지 이름을 `@dungsil/dsh-plugin-sidebar-inbox`에서 변경하고 `0.1.0`부터 다시 배포합니다. 아래 `2.0.0` 이하 기록은 사용 중단 대상인 이전 패키지의 이력입니다.
 
+## 0.1.0 (2026-11-04)
+
+### Features
+
+- **ui-sidebar-inbox:** 사이드바 패키지 이름을 변경하고 0.1.0으로 전환한다 ([#40](https://github.com/dungsil/dsh-plugins/issues/40)) ([246965f](https://github.com/dungsil/dsh-plugins/commit/246965f92ceb17b67252e2cb29fdd37e437b0366))
+
 ## [2.0.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-sidebar-inbox%401.0.0...%40dungsil%2Fdsh-plugin-sidebar-inbox%402.0.0) (2026-11-03)
 
 ### ⚠ BREAKING CHANGES
