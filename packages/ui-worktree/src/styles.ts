@@ -44,4 +44,27 @@ export const styles = `
 .dsh-worktree-dialog button:disabled { opacity: .45; cursor: not-allowed; }
 .dsh-worktree-dialog button:focus-visible, .dsh-worktree-dialog input:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dsh-worktree-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.dsh-worktree-settings { width: 100%; color: var(--dsw-alias-label-primary); font: inherit; }
+.dsh-worktree-settings fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.dsh-worktree-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-worktree-settings-row:last-child { border-bottom: 0; }
+.dsh-worktree-settings-text { flex: 1; min-width: 0; }
+.dsh-worktree-settings label, .dsh-worktree-settings-title { display: block; font-size: 14px; font-weight: 400; line-height: 20px; }
+.dsh-worktree-settings-text p { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.dsh-worktree-settings-input { box-sizing: border-box; width: 220px; max-width: 100%; flex: 0 1 220px; min-width: 0; }
+.dsh-worktree-settings-selector { display: inline-flex; align-items: center; gap: 12px; max-width: 220px; height: 36px; padding: 0 14px; border: 0; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-primary); font: inherit; font-size: 14px; line-height: 22px; cursor: pointer; }
+.dsh-worktree-settings-selector span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-worktree-settings-selector svg { flex: none; }
+.dsh-worktree-settings-selector:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dsh-worktree-settings-selector:disabled { opacity: .5; cursor: default; }
+.dsh-worktree-settings-selector:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.dsh-worktree-settings [role=status], .dsh-worktree-settings [role=alert] { margin: 12px 0; font-size: 12px; line-height: 18px; }
+.dsh-worktree-settings [role=status]:empty { margin: 0; }
+.dsh-worktree-settings footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.dsh-worktree-settings [role=alert] { color: var(--dsw-alias-state-error-primary); }
+@media (max-width: 600px) {
+  .dsh-worktree-settings-row { flex-wrap: wrap; gap: 12px; }
+  .dsh-worktree-settings-text { flex-basis: 160px; }
+  .dsh-worktree-settings-input { flex-grow: 1; }
+}
 `

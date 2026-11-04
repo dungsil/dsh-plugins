@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Menu,
@@ -17,6 +18,7 @@ import {
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
+import { settingsLabel, WorktreeSettingsSection } from './settings.js'
 import { styles } from './styles.js'
 import { installSidebarLabel } from './sidebar.js'
 
@@ -389,6 +391,18 @@ export function apply(ctx: Context) {
     ctx.slots.register({ name: 'conversation.input.left', id: 'dungsil-ui-worktree', order: -100 }, (props) => (
       <Picker key={props.sessionId} {...props} />
     ))
+  )
+  ctx.slots.inject('settings.section', () =>
+    ctx.slots.register(
+      {
+        name: 'settings.section',
+        id: name,
+        order: 16,
+        label: () => settingsLabel(ctx.locale.getSnapshot().active),
+        inject: () => ({ ctx }),
+      },
+      WorktreeSettingsSection
+    )
   )
   ctx.effect(() => {
     const style = document.createElement('style')

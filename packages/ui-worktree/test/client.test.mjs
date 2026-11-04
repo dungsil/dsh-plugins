@@ -57,6 +57,17 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   }
   const hostPrimitives = {
     Menu: HostMenu,
+    Button: ({ variant: _variant, children, ...props }) => createElement('button', props, children),
+    Input: ({ className, ...props }) => createElement('span', { className }, createElement('input', props)),
+    Switch: ({ checked, onChange, label, disabled }) =>
+      createElement('button', {
+        type: 'button',
+        role: 'switch',
+        'aria-checked': checked,
+        'aria-label': label,
+        disabled,
+        onClick: () => onChange(!checked),
+      }),
     IconPlusOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'plus' }),
     IconRefreshOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'refresh' }),
     IconCloseOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'close' }),
@@ -83,13 +94,21 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   )
   const ctx = new Context()
   let Component
+  let SettingsComponent
+  let settingsOptions
   let language = 'ko'
   const calls = []
   let prompts = 0
   ctx.provide('slots', {
     inject: (_slot, callback) => callback(),
-    register: (_options, component) => {
-      Component = component
+    register: (options, component) => {
+      if (options.name === 'settings.section') {
+        SettingsComponent = component
+        settingsOptions = options
+      } else {
+        assert.equal(options.name, 'conversation.input.left')
+        Component = component
+      }
       return () => {}
     },
   })
@@ -117,7 +136,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       call: (channel, endpoint, payload, signal) =>
         new Promise((resolve, reject) => {
           assert.equal(channel, '/api')
-          assert.match(endpoint, /^dungsil-worktree\/(describe|create|switch)$/)
+          assert.match(endpoint, /^dungsil-worktree\/(describe|create|switch|settings|save-settings)$/)
           assert.ok(signal instanceof AbortSignal)
           calls.push({ endpoint: endpoint.split('/')[1], payload, signal, resolve, reject })
         }),
@@ -681,5 +700,199 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     }
     snapshot = ready
     await render('session-empty')
+  })
+
+  const defaults = {
+    revision: 'initial',
+    settings: { directory: '.agents/worktrees', remote: false, naming: 'semantic', prefix: '' },
+  }
+  const renderSettings = async (key = 'settings') =>
+    act(async () => {
+      root.render(createElement(SettingsComponent, { key, ...settingsOptions.inject() }))
+    })
+  const directory = () => document.querySelector('input[id$="-directory"]')
+  const prefix = () => document.querySelector('input[id$="-prefix"]')
+  const remoteSwitch = () => document.querySelector('[role=switch]')
+  const chooseNaming = async (id) => {
+    await act(async () => document.querySelector('.dsh-worktree-settings-selector').click())
+    await act(async () => document.querySelector(`[data-menu-id="${id}"]`).click())
+  }
+  const reloadSettings = async () => act(async () => document.querySelector('footer button[type=button]').click())
+  const editSettings = async (element, value) =>
+    act(async () => {
+      const prototype =
+        element.tagName === 'SELECT' ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype
+      Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value)
+      element.dispatchEvent(new window.Event(element.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }))
+    })
+
+  await t.test(
+    'settings section loads persisted values, conditionally edits prefixes and serializes saves',
+    async () => {
+      assert.equal(settingsOptions.id, 'dungsil-ui-worktree')
+      assert.equal(settingsOptions.order, 16)
+      assert.equal(typeof settingsOptions.inject().ctx.get, 'function')
+      await act(async () => {
+        language = 'en'
+        for (const listener of locale.listeners) listener()
+      })
+      assert.equal(settingsOptions.label(), 'Worktrees')
+      await act(async () => {
+        language = 'ko'
+        for (const listener of locale.listeners) listener()
+      })
+      assert.equal(settingsOptions.label(), '워크트리')
+      await renderSettings()
+      const initial = calls.at(-1)
+      assert.equal(initial.endpoint, 'settings')
+      assert.deepEqual(initial.payload, {})
+      assert.equal(document.querySelector('section').getAttribute('aria-busy'), 'true')
+      assert.match(document.querySelector('[role=status]').textContent, /불러오는 중/)
+      assert.equal(submitButton().disabled, true)
+      await reloadSettings()
+      await submit()
+      assert.equal(calls.at(-1), initial)
+      await resolve(initial, defaults)
+      assert.equal(directory().value, '.agents/worktrees')
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'false')
+      assert.equal(remoteSwitch().getAttribute('aria-label'), '추적 중인 원격 브랜치 사용')
+      assert.equal(document.querySelector('input[type=checkbox]'), null)
+      assert.equal(document.querySelector('h2'), null, 'General settings uses rows without a duplicate heading')
+      assert.equal(menuProps.selectedId, 'semantic')
+      assert.equal(prefix(), null)
+      assert.equal(submitButton().disabled, true)
+      assert.match(document.querySelector('section').textContent, /원본 저장소 루트/)
+      assert.match(document.querySelector('section').textContent, /자동으로 fetch하지 않습니다/)
+      assert.match(document.querySelector('section').textContent, /브랜치 입력을 비운 경우에만/)
+      await editSettings(directory(), '../worktrees with space')
+      await act(async () => remoteSwitch().click())
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true')
+      await chooseNaming('custom')
+      assert.ok(prefix())
+      await editSettings(prefix(), 'team/')
+      await chooseNaming('dsh')
+      assert.equal(prefix(), null)
+      await chooseNaming('custom')
+      assert.equal(prefix().value, 'team/', 'switching naming modes must preserve the custom draft')
+      const before = calls.length
+      await act(async () => {
+        for (let index = 0; index < 2; index++)
+          document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
+      })
+      assert.equal(calls.length, before + 1)
+      const saving = calls.at(-1)
+      const saved = {
+        revision: 'saved-1',
+        settings: { directory: '../worktrees with space', remote: true, naming: 'custom', prefix: 'team/' },
+      }
+      assert.equal(saving.endpoint, 'save-settings')
+      assert.deepEqual(saving.payload, { ...saved, revision: 'initial' })
+      assert.match(document.querySelector('[role=status]').textContent, /저장 중/)
+      assert.equal(document.querySelector('fieldset').disabled, true)
+      assert.equal(remoteSwitch().disabled, true)
+      await act(async () => remoteSwitch().click())
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true', 'a saving switch must not change the draft')
+      await reloadSettings()
+      await submit()
+      assert.equal(calls.at(-1), saving)
+      await resolve(saving, saved)
+      assert.match(document.querySelector('[role=status]').textContent, /저장했습니다/)
+      assert.equal(submitButton().disabled, true)
+      await renderSettings('settings-reopened')
+      assert.equal(calls.at(-1).endpoint, 'settings')
+      await resolve(calls.at(-1), saved)
+      assert.equal(directory().value, saved.settings.directory)
+      assert.equal(prefix().value, 'team/')
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true')
+      await act(async () => remoteSwitch().click())
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'false')
+      await act(async () => remoteSwitch().click())
+      await editSettings(directory(), '/absolute/worktrees')
+      await submit()
+      assert.equal(calls.at(-1).payload.revision, 'saved-1', 'later saves must use the server revision')
+      assert.equal(calls.at(-1).payload.settings.directory, '/absolute/worktrees')
+      await resolve(calls.at(-1), {
+        ...saved,
+        revision: 'saved-2',
+        settings: { ...saved.settings, directory: '/absolute/worktrees' },
+      })
+    }
+  )
+
+  await t.test('settings errors and conflicts preserve drafts and require explicit reload before retry', async () => {
+    for (const code of ['conflict', 'invalid', 'forbidden', 'operation_failed']) {
+      await editSettings(directory(), '/unsaved/draft')
+      await submit()
+      const failed = calls.at(-1)
+      await fail(failed, code)
+      assert.match(document.querySelector('[role=alert]').textContent, code === 'conflict' ? /다른 곳에서/ : /새로고침/)
+      assert.doesNotMatch(document.querySelector('[role=alert]').textContent, /Server detail/)
+      assert.equal(directory().value, '/unsaved/draft')
+      assert.equal(submitButton().disabled, true)
+      await editSettings(directory(), '/still-blocked')
+      await submit()
+      await focus()
+      assert.equal(calls.at(-1), failed, 'editing or focusing must not retry or clear the reload requirement')
+      await reloadSettings()
+      assert.equal(calls.at(-1).endpoint, 'settings')
+      await fail(calls.at(-1), 'operation_failed')
+      assert.equal(directory().value, '/still-blocked')
+      await submit()
+      assert.equal(calls.at(-1).endpoint, 'settings', 'failed reload must not unlock saving')
+      await reloadSettings()
+      await resolve(calls.at(-1), defaults)
+      assert.equal(directory().value, '.agents/worktrees')
+      assert.equal(document.querySelector('[role=alert]'), null)
+    }
+    await editSettings(directory(), '/uncertain')
+    await submit()
+    const uncertain = calls.at(-1)
+    await act(async () => uncertain.reject(new Error('Connection lost')))
+    assert.equal(submitButton().disabled, true)
+    await submit()
+    assert.equal(calls.at(-1), uncertain)
+    await reloadSettings()
+    await resolve(calls.at(-1), defaults)
+    await act(async () => {
+      language = 'en'
+      for (const listener of locale.listeners) listener()
+    })
+    assert.equal(document.querySelector('section').getAttribute('aria-label'), 'Worktrees')
+    assert.equal(settingsOptions.label(), 'Worktrees')
+    assert.match(document.querySelector('section').textContent, /locally fetched remote reference/)
+    assert.match(document.querySelector('section').textContent, /branch input is left empty/)
+  })
+
+  await t.test('settings ignores stale reads and writes after unmount even when transport ignores abort', async () => {
+    await reloadSettings()
+    const staleRead = calls.at(-1)
+    await renderSettings('new-settings')
+    assert.equal(staleRead.signal.aborted, true)
+    const current = calls.at(-1)
+    await resolve(current, defaults)
+    await resolve(staleRead, { ...defaults, settings: { ...defaults.settings, directory: '/stale' } })
+    assert.equal(directory().value, '.agents/worktrees')
+    await editSettings(directory(), '/stale-write')
+    await submit()
+    const staleWrite = calls.at(-1)
+    await renderSettings('newer-settings')
+    assert.equal(staleWrite.signal.aborted, true)
+    await resolve(calls.at(-1), defaults)
+    const count = calls.length
+    await resolve(staleWrite, { ...defaults, settings: { ...defaults.settings, directory: '/stale-write' } })
+    assert.equal(directory().value, '.agents/worktrees')
+    assert.equal(calls.length, count, 'stale success must not issue another request')
+    assert.equal(document.querySelector('[role=status]').textContent, '')
+    await renderSettings('initial-failure')
+    await fail(calls.at(-1), 'forbidden')
+    assert.ok(document.querySelector('[role=alert]'))
+    assert.equal(directory(), null)
+    assert.equal(submitButton().disabled, true)
+    assert.equal(document.querySelector('footer button[type=button]').disabled, false)
+    await reloadSettings()
+    await resolve(calls.at(-1), defaults)
+    assert.equal(directory().value, '.agents/worktrees')
+    assert.equal(prompts, 0)
+    assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
   })
 })
