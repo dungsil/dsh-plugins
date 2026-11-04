@@ -9,20 +9,27 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
+import * as PullRequests from './pull-requests-client.js'
 
 export const name = 'dungsil-ui-vcs'
-export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection']
+export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection', 'sidebarRightTabs']
 
 const instructions = {
-  commit: 'Commit only the work completed in this session. Do not push, create or update a PR, or switch branches.',
-  push: 'Commit the work completed in this session if needed, then push the current default branch. Do not create or update a PR or switch branches. If branch protection prevents the push, report the blocker without bypassing it.',
-  pr: 'Commit and push the work completed in this session if needed, then create or update a pull request. If on the default branch or detached HEAD, create a suitable feature branch rather than pushing directly to the default branch.',
+  commit: 'Commit only the work completed in this session. Do not push, create or update a PR/MR, or switch branches.',
+  push: 'Commit the work completed in this session if needed, then push the current default branch. Do not create or update a PR/MR or switch branches. If branch protection prevents the push, report the blocker without bypassing it.',
+  pr: `Commit and push the work completed in this session if needed, then create or update a pull request (PR), or a merge request (MR) on GitLab. If on the default branch or detached HEAD, create a suitable feature branch rather than pushing directly to the default branch.
+Support GitHub, GitLab (including Self-Managed and Dedicated), Gitea, and Forgejo with the same commit, push, and create-or-update review workflow.
+Determine the hosting service and target repository from the actual push remote and intended upstream/base repository, including fork workflows. Resolve HTTPS, ssh://, and SCP-style Git URLs and SSH host aliases using existing Git/SSH configuration. Preserve custom ports, instance URL prefixes, and nested GitLab namespaces; do not treat an arbitrary hostname as GitHub or assume that GitLab only runs on gitlab.com.
+Use available authenticated tools for the identified service: gh for GitHub, glab for GitLab MRs, or a compatible tea CLI or the instance's supported API for Gitea/Forgejo PRs. Inspect the installed tool's help/version before choosing commands. Target the resolved instance and repository explicitly; never fall back to a public host or change global CLI host settings.
+For self-hosted services, confirm the service and instance base URL using existing host configuration or read-only instance metadata before sending credentials. Use only credentials already scoped to that instance through the existing tools and approval flow; never print tokens, send them to another host, disable TLS verification, or change authentication settings.
+Look up existing open PRs/MRs by source repository/branch and target repository/branch, not just the branch name. Read the current title and body before updating, preserve other contributors' edits, and create a new PR/MR only if no matching one exists. Use the remote default branch or repository/session instructions for the base, not a hard-coded main/master. Apply the repository's appropriate PR/MR template and report the resulting PR/MR URL.
+If the host, credentials, CLI, or API cannot be resolved safely, report the specific blocker without guessing, switching providers, or claiming that a PR/MR was created.`,
 }
-const request = `Write any required commit message, PR title, and PR body yourself based on the actual diff and session context. Follow the repository's AGENTS.md, commit conventions, PR template, and language rules; do not ask the user to draft these messages.
-Inspect the working directory, current branch, Git status, staged and unstaged diffs, recent commits, remotes, and any existing PR before making changes. Include only changes belonging to this task; preserve unrelated edits and staged changes, and never commit secrets.
-Run the relevant checks before committing. If this task is already committed, do not create an empty or duplicate commit. Do not force-push, rewrite published history, merge the PR, or trigger a deployment.
-Only perform the selected operation. When a PR is requested, create one if none exists for this branch; otherwise read its current title and body, then update it while preserving other contributors' edits. Inspect remote state before retrying an uncertain push or PR creation to avoid duplicates.
-Use the existing tools and approval flow without weakening permissions. If Git, remote access, authentication, or required tools are unavailable, report the specific blocker rather than claiming success. Report the commit, pushed branch, PR URL, and checks actually run.`
+const request = `Write any required commit message, PR/MR title, and PR/MR body yourself based on the actual diff and session context. Follow the repository's AGENTS.md, commit conventions, PR/MR template, and language rules; do not ask the user to draft these messages.
+Inspect the working directory, current branch, Git status, staged and unstaged diffs, recent commits, remotes, and any existing PR/MR before making changes. Include only changes belonging to this task; preserve unrelated edits and staged changes, and never commit secrets.
+Run the relevant checks before committing. If this task is already committed, do not create an empty or duplicate commit. Do not force-push, rewrite published history, merge the PR/MR, or trigger a deployment.
+Only perform the selected operation. When a PR/MR is requested, create one if none exists for the selected source and target repositories/branches; otherwise read its current title and body, then update it while preserving other contributors' edits. Inspect remote state before retrying an uncertain push or PR/MR creation to avoid duplicates.
+Use the existing tools and approval flow without weakening permissions. If Git, remote access, authentication, or required tools are unavailable, report the specific blocker rather than claiming success. Report the commit, pushed branch, PR/MR URL, and checks actually run.`
 
 const copy = {
   en: {
@@ -65,6 +72,7 @@ const copy = {
 }
 
 export function apply(ctx: Context) {
+  ctx.plugin(PullRequests)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const sessions = ctx.get('sessions') as unknown as ISessions
   function Action({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
