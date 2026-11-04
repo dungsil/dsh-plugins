@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-vcs",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Version control actions for the session agent, with Git commit, push, and pull request support.",
   "license": "MIT",
   "repository": {

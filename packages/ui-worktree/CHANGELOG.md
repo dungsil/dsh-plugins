@@ -1,5 +1,20 @@
 # @dungsil/dsh-plugin-ui-worktree
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.3.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.4.0) (2026-11-04)
+
+### Features
+
+- **model-settings:** 상황별 모델에 공통 보조 모델을 추가한다 ([#79](https://github.com/dungsil/dsh-plugins/issues/79)) ([ce1503e](https://github.com/dungsil/dsh-plugins/commit/ce1503efd9cdc93e8daed8afe108b49835e15429))
+- **worktree:** 기본 선택을 설정할 수 있게 한다 ([#75](https://github.com/dungsil/dsh-plugins/issues/75)) ([895405e](https://github.com/dungsil/dsh-plugins/commit/895405e3f2be2c2c4bc0544c807caa8ffbc0b936))
+
+### Bug Fixes
+
+- **security:** 비밀값 승인과 워크트리 보안 경계를 강화한다 ([#88](https://github.com/dungsil/dsh-plugins/issues/88)) ([eb30a91](https://github.com/dungsil/dsh-plugins/commit/eb30a916b0f2be7193db7ac9141f1c196e1430a4))
+- **ui-worktree:** 준비 UI의 글꼴과 아이콘을 기존 UI에 맞춘다 ([#67](https://github.com/dungsil/dsh-plugins/issues/67)) ([65d60a2](https://github.com/dungsil/dsh-plugins/commit/65d60a2e76074e071dacb45a99d22b81c673fd11))
+- **ui-worktree:** 준비 완료 내역에 작업 상세 접기를 적용한다 ([#66](https://github.com/dungsil/dsh-plugins/issues/66)) ([2c922cd](https://github.com/dungsil/dsh-plugins/commit/2c922cd214faf53f0abc648d7963184bc151c5d2))
+- **ui:** 상황별 모델과 워크트리 설정 아이콘을 구분한다 ([#78](https://github.com/dungsil/dsh-plugins/issues/78)) ([96c80d8](https://github.com/dungsil/dsh-plugins/commit/96c80d81d24b2b6ae1bbf7222b6d7f400a0519bc))
+- **worktree:** 선택 상자 밖의 오류 라벨을 제거한다 ([#70](https://github.com/dungsil/dsh-plugins/issues/70)) ([393dd4c](https://github.com/dungsil/dsh-plugins/commit/393dd4ce49de89497770e07229141b3bb7af6a3b))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.2.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.3.0) (2026-11-04)
 
 ### Features

@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.3.0...%40dungsil%2Fdsh-plugin-model-settings%400.4.0) (2026-11-04)
+
+### Features
+
+- **model-settings:** 상황별 모델에 공통 보조 모델을 추가한다 ([#79](https://github.com/dungsil/dsh-plugins/issues/79)) ([ce1503e](https://github.com/dungsil/dsh-plugins/commit/ce1503efd9cdc93e8daed8afe108b49835e15429))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.2.0...%40dungsil%2Fdsh-plugin-model-settings%400.3.0) (2026-11-04)
 
 ### Features

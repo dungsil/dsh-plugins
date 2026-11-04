@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-picker",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Model and reasoning effort picker for the DeepSeek Harness composer.",
   "license": "MIT",
   "repository": {

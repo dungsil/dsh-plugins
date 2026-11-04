@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-tool-diff-note",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Agent-authored explanations beside historical code diffs in DSH conversations.",
   "license": "MIT",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Automatically name, create, and enter Git worktrees after sending a task, with setup progress in the conversation.",
   "license": "MIT",
   "repository": {
