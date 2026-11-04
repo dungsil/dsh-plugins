@@ -2,6 +2,13 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ChatNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  IconCheckCircleOutlineRegular,
+  IconCloseOutlineRegular,
+  IconStopFillRegular,
+  IconLoadingOutlineRegular,
+  IconClockOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { isWorktreeProgress, progressRecord, type WorktreeProgress } from './protocol.js'
 
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {
@@ -111,10 +118,20 @@ export function installProgress(ctx: Context) {
                       : 'pending'
                 const duration =
                   progress.durations[index]! + (state === 'running' ? Math.max(0, now - progress.updatedAt) : 0)
+                const Icon =
+                  state === 'completed'
+                    ? IconCheckCircleOutlineRegular
+                    : state === 'failed'
+                      ? IconCloseOutlineRegular
+                      : state === 'cancelled'
+                        ? IconStopFillRegular
+                        : state === 'running'
+                          ? IconLoadingOutlineRegular
+                          : IconClockOutlineRegular
                 return (
                   <li key={label} data-state={state} aria-current={state === 'running' ? 'step' : undefined}>
                     <span className="dsh-worktree-progress-mark" aria-hidden="true">
-                      {state === 'completed' ? '✓' : state === 'failed' ? '×' : state === 'cancelled' ? '−' : ''}
+                      <Icon size={14} />
                     </span>
                     <span>{label}</span>
                     {state !== 'pending' && (

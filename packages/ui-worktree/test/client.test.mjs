@@ -72,6 +72,10 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     IconCloseOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'close' }),
     IconBranchOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'branch' }),
     IconChevronDownOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'chevron' }),
+    IconCheckCircleOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'check-circle' }),
+    IconStopFillRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'stop' }),
+    IconLoadingOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'loading' }),
+    IconClockOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'clock' }),
   }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) => {
@@ -1140,6 +1144,10 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.equal(section().getAttribute('aria-busy'), 'true')
       assert.equal(section().querySelector('[role=status]').textContent, '워크트리 준비 중…')
       assert.deepEqual(states(), ['running', 'pending', 'pending', 'pending'])
+      assert.deepEqual(
+        steps().map((step) => step.querySelector('svg').dataset.hostIcon),
+        ['loading', 'clock', 'clock', 'clock']
+      )
       assert.deepEqual(times(), ['625ms', undefined, undefined, undefined])
       for (let index = 0; index < 4; index++) {
         await renderProgress({ ...progress, step: index })
@@ -1154,7 +1162,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
           ['625ms', '1.8s', '750ms', '575ms'][index]
         )
         for (const step of steps().slice(0, index))
-          assert.equal(step.querySelector('.dsh-worktree-progress-mark').textContent, '✓')
+          assert.equal(step.querySelector('svg').dataset.hostIcon, 'check-circle')
         assert.equal(section().querySelector('[role=alert]'), null)
         assert.ok(
           !section().textContent.includes(progress.branch),
@@ -1167,17 +1175,17 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.deepEqual(states(), ['completed', 'completed', 'completed', 'completed'])
       assert.deepEqual(times(), ['125ms', '1.3s', '250ms', '75ms'])
       assert.equal(section().querySelector('[aria-current]'), null)
-      for (const step of steps()) assert.equal(step.querySelector('.dsh-worktree-progress-mark').textContent, '✓')
+      for (const step of steps()) assert.equal(step.querySelector('svg').dataset.hostIcon, 'check-circle')
       for (const [status, title, mark] of [
-        ['failed', '워크트리 생성 실패', '×'],
-        ['cancelled', '워크트리 준비 중단', '−'],
+        ['failed', '워크트리 생성 실패', 'close'],
+        ['cancelled', '워크트리 준비 중단', 'stop'],
       ]) {
         await renderProgress({ ...progress, step: 2, status })
         assert.equal(section().getAttribute('aria-busy'), 'false')
         assert.equal(section().querySelector('[role=status]').textContent, title)
         assert.deepEqual(states(), ['completed', 'completed', status, 'pending'])
         assert.deepEqual(times(), ['125ms', '1.3s', '250ms', undefined])
-        assert.equal(steps()[2].querySelector('.dsh-worktree-progress-mark').textContent, mark)
+        assert.equal(steps()[2].querySelector('svg').dataset.hostIcon, mark)
         assert.match(
           section().querySelector('[role=alert]').textContent,
           /작업을 시작하지 않았습니다.*프롬프트를 다시 전송/
