@@ -4,7 +4,8 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { Menu, IconChevronDownOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
+import { SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
 import {
   channel,
   endpointPrefix,
@@ -103,23 +104,14 @@ const copy = {
 const localizedCopy = (language: string) =>
   copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
 
-const styles = `
+const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
-.dsh-model-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
-.dsh-model-settings-text { flex: 1; min-width: 0; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
-.dsh-model-settings-picker { min-width: 0; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
-.dsh-model-settings-selector { box-sizing: border-box; display: inline-flex; align-items: center; gap: 12px; max-width: 100%; height: 36px; padding: 0 14px; border: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; cursor: pointer; }
-.dsh-model-settings-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-model-settings-selector svg { flex: none; }
-.dsh-model-settings-selector:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
-.dsh-model-settings-selector:disabled { opacity: .5; cursor: default; }
-.dsh-model-settings-selector:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
 .dsh-model-settings [role=status] { margin: 12px 0; }
 @container (max-width: 480px) {
-  .dsh-model-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .dsh-model-settings .dsh-plugin-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
   .dsh-model-settings-controls { max-width: 100%; }
 }
 `
@@ -127,59 +119,6 @@ const styles = `
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
 type Task = 'target' | 'worktree'
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
-
-function Picker({
-  id,
-  label,
-  value,
-  title,
-  selectedId,
-  items,
-  disabled,
-  onSelect,
-}: {
-  id: string
-  label: string
-  value: string
-  title: string
-  selectedId: string
-  items: MenuEntry[]
-  disabled: boolean
-  onSelect: (id: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Menu
-      className="dsh-model-settings-picker"
-      open={open && !disabled}
-      onClose={() => setOpen(false)}
-      items={items}
-      selectedId={selectedId}
-      onSelect={(id) => {
-        setOpen(false)
-        onSelect(id)
-      }}
-      align="end"
-      portal
-      anchor={
-        <button
-          id={id}
-          type="button"
-          className="dsh-model-settings-selector"
-          aria-label={`${label}: ${title}`}
-          aria-haspopup="menu"
-          aria-expanded={open && !disabled}
-          title={title}
-          disabled={disabled}
-          onClick={() => setOpen(!open)}
-        >
-          <span className="dsh-model-settings-value">{value}</span>
-          <IconChevronDownOutlineRegular size={16} />
-        </button>
-      }
-    />
-  )
-}
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
@@ -357,21 +296,26 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const effortLabel =
           efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
         const fieldId = `${id}-${task}`
+        const modelTitle =
+          option?.label ??
+          (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
+        const effortTitle = !selected
+          ? text.effortHint
+          : efforts.length === 0
+            ? text.noEfforts
+            : effort
+              ? effortLabel
+              : automaticHint
         return (
           <div key={task} className="dsh-model-settings-field">
-            <div className="dsh-model-settings-row">
-              <div className="dsh-model-settings-text">
-                <div>{title}</div>
-              </div>
+            <SettingsRow label={<div>{title}</div>}>
               <div className="dsh-model-settings-controls">
-                <Picker
+                <SettingsPicker
+                  className="dsh-model-settings-picker"
                   id={fieldId}
-                  label={`${title} ${text.model}`}
+                  aria-label={`${title} ${text.model}: ${modelTitle}`}
                   value={modelLabel}
-                  title={
-                    option?.label ??
-                    (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
-                  }
+                  title={modelTitle}
                   selectedId={draft}
                   items={
                     missing
@@ -390,19 +334,12 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                     void save(task, value, value === draft ? effort : '')
                   }}
                 />
-                <Picker
+                <SettingsPicker
+                  className="dsh-model-settings-picker"
                   id={`${fieldId}-reasoning`}
-                  label={`${title} ${text.effort}`}
+                  aria-label={`${title} ${text.effort}: ${effortTitle}`}
                   value={effortLabel}
-                  title={
-                    !selected
-                      ? text.effortHint
-                      : efforts.length === 0
-                        ? text.noEfforts
-                        : effort
-                          ? effortLabel
-                          : automaticHint
-                  }
+                  title={effortTitle}
                   selectedId={effort}
                   items={[
                     { id: '', label: automaticHint },
@@ -417,7 +354,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   }}
                 />
               </div>
-            </div>
+            </SettingsRow>
             {busy === 'saving' && noticeTask === task && <p role="status">{text.saving}</p>}
             {notice && noticeTask === task && <p role="alert">{text[notice]}</p>}
           </div>

@@ -1,0 +1,10 @@
+{
+  "extends": "@dungsil/dsh-tsconfig",
+  "compilerOptions": {
+    "lib": ["ES2025", "DOM"],
+    "strict": true,
+    "jsx": "react-jsx",
+    "noEmit": true
+  },
+  "include": ["src/**/*.tsx"]
+}
