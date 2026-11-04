@@ -532,6 +532,45 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(branchName(), 'network-share')
   })
 
+  await t.test('sidebar hints follow the current linked worktree without replacing native controls', async () => {
+    const sidebar = document.createElement('aside')
+    sidebar.innerHTML = `
+      <div data-row-key="session:session-sidebar"><span>Current session</span><span data-actions><button>More</button></span></div>
+      <div data-row-key="session:session-other"><span>Other session</span><span data-actions><button>More</button></span></div>`
+    document.body.append(sidebar)
+    const row = sidebar.firstElementChild
+    const actions = row.lastElementChild
+    const hint = () => row.querySelector('.dsh-worktree-sidebar-name')
+    await render('session-sidebar')
+    assert.equal(hint(), null, 'do not invent a name while loading')
+    await resolve(calls.at(-1), { ...switched, cwd: `${switched.cwd}/src` })
+    assert.equal(hint().textContent, 'feature/한글')
+    assert.equal(hint().title, switched.cwd)
+    assert.equal(hint().nextElementSibling, actions, 'hint belongs immediately before the original action strip')
+    assert.equal(actions.firstElementChild.textContent, 'More')
+    assert.equal(sidebar.lastElementChild.querySelector('.dsh-worktree-sidebar-name'), null)
+    row.remove()
+    sidebar.prepend(row.cloneNode(true))
+    // Simulate a newly mounted native row rather than copying the plugin's metadata.
+    sidebar.firstElementChild.querySelector('.dsh-worktree-sidebar-name').remove()
+    await window.happyDOM.waitUntilComplete()
+    assert.equal(sidebar.querySelectorAll('.dsh-worktree-sidebar-name').length, 1)
+    await refresh()
+    await resolve(calls.at(-1), { ...original, cwd: '/repo/detached' })
+    assert.equal(sidebar.querySelector('.dsh-worktree-sidebar-name').textContent, 'detached')
+    await refresh()
+    await resolve(calls.at(-1), original)
+    assert.equal(sidebar.querySelector('.dsh-worktree-sidebar-name'), null, 'main checkout needs no hint')
+    await refresh()
+    await resolve(calls.at(-1), switched)
+    assert.equal(sidebar.querySelectorAll('.dsh-worktree-sidebar-name').length, 1)
+    await render('session-other')
+    assert.equal(sidebar.querySelector('.dsh-worktree-sidebar-name'), null, 'navigation cleans up the previous session')
+    await resolve(calls.at(-1), { cwd: '/not-git', worktrees: [] })
+    assert.equal(sidebar.querySelector('.dsh-worktree-sidebar-name'), null)
+    sidebar.remove()
+  })
+
   await t.test('lookup errors use a compact details control without exposing raw server text', async () => {
     await act(async () => {
       language = 'ko'

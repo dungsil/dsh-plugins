@@ -18,6 +18,7 @@ import { channel, currentWorktree, endpointPrefix, isWorktreeView, type Worktree
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
 import { styles } from './styles.js'
+import { installSidebarLabel } from './sidebar.js'
 
 export const name = 'dungsil-ui-worktree'
 export const inject = ['slots', 'locale', 'connection']
@@ -179,6 +180,13 @@ export function apply(ctx: Context) {
     }
 
     const current = currentWorktree(view)
+    useEffect(() => {
+      // Git lists the main checkout first. Only linked worktrees need a sidebar hint.
+      if (!current || current === view?.worktrees[0]) return
+      const name = current.branch ?? current.path.split(/[\\/]/).filter(Boolean).at(-1) ?? current.path
+      return installSidebarLabel(sessionId, name, current.path)
+    }, [sessionId, current, view])
+
     const branch = current ? (current.branch ?? text.detached) : text.unknown
     const notice = loading
       ? text.loading
