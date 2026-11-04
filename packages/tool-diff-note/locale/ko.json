@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "변경 설명",
+    "description": "소스 파일을 수정하지 않고 수정 전·후 코드 스냅샷 옆에 중요한 판단의 이유를 남깁니다."
+  },
+  "ui": {
+    "title": "변경 설명",
+    "open": "파일 열기",
+    "waiting": "변경 설명을 기록하고 있습니다…",
+    "failed": "변경 설명을 기록하지 못했습니다.",
+    "wrapLabel": "자동 줄바꿈",
+    "unwrapLabel": "자동 줄바꿈 해제",
+    "copy": "복사",
+    "copied": "복사했습니다",
+    "collapseAria": "diff 접기",
+    "expandAria": "숨겨진 {count}줄 표시",
+    "collapse": "접기",
+    "expand": "{count}줄 더 보기"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "Diff Notes",
+    "description": "Explain important decisions beside before-and-after code snapshots without editing source files."
+  },
+  "ui": {
+    "title": "Diff note",
+    "open": "Open file",
+    "waiting": "Recording change explanation…",
+    "failed": "The change explanation could not be recorded.",
+    "wrapLabel": "Wrap lines",
+    "unwrapLabel": "Disable line wrapping",
+    "copy": "Copy",
+    "copied": "Copied",
+    "collapseAria": "Collapse diff",
+    "expandAria": "Show {count} hidden lines",
+    "collapse": "Collapse",
+    "expand": "Show {count} more lines"
+  }
+}

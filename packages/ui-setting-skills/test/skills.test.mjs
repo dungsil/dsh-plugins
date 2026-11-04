@@ -4,15 +4,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
+import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
+import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
+import Skills from '@deepseek-ai/dsh-skill'
+import * as Filesystem from '@deepseek-ai/dsh-skill-filesystem'
 import * as plugin from '../dist/index.js'
 
 const method = 'dungsil-ui-setting-skills/list'
 const url = `http://localhost/api/${method}`
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 
-async function fixture(t) {
+async function fixture(t, withRegistry = false) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-skills-test-'))
   const dsh = join(home, 'dsh')
   const agents = join(home, 'agents')
@@ -22,22 +26,74 @@ async function fixture(t) {
   process.env.DSH_HOME = dsh
   process.env.DSH_AGENTS_HOME = agents
   delete process.env.DSH_BUNDLED_SKILL_DIR
-  const ctx = new Context()
+  let ctx
   t.after(async () => {
-    await ctx.fiber.dispose()
+    await ctx?.fiber.dispose()
     await rm(home, { recursive: true, force: true })
     for (const [key, value] of Object.entries(previousEnv)) {
       if (value === undefined) delete process.env[key]
       else process.env[key] = value
     }
   })
-  await ctx.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
-  await ctx.plugin(Connection)
-  const fiber = await ctx.plugin(plugin)
-  const handler = ctx.connection.createSharedFetchHandler('/api')
+  const dir = join(dsh, 'profiles', 'web')
+  initProfile(dir, ['test-bundle'])
+  const bundle = join(dir, 'node_modules', 'test-bundle')
+  await mkdir(bundle, { recursive: true })
+  await writeFile(join(home, 'package.json'), '{"name":"test-installation"}')
+  await writeFile(
+    join(bundle, 'package.json'),
+    JSON.stringify({ name: 'test-bundle', version: '1.0.0', dsh: { bundle: { patch: 'cordis.patch.yml' } } })
+  )
+  await writeFile(
+    join(bundle, 'cordis.patch.yml'),
+    JSON.stringify([
+      {
+        insert: [
+          { id: 'editor', name: 'cordis:editor' },
+          {
+            id: 'skills-settings',
+            name: '@dungsil/dsh-plugin-ui-setting-skills',
+            config: { disabled: ['not-installed'] },
+          },
+        ],
+      },
+    ])
+  )
+  await writeFile(join(dir, 'cordis.yml'), '[]\n')
+  const profile = {
+    name: 'web',
+    startedBundles: ['test-bundle'],
+    dir,
+    patchPath: join(dir, 'cordis.patch.yml'),
+    installAnchor: join(home, 'package.json'),
+    cwd: home,
+    home: dsh,
+    overlays: [],
+    telemetryDisabledEnv: undefined,
+  }
+  const start = async () => {
+    ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
+      root.provide('profileContext', profile)
+      root.provide('appReady', {
+        onReady(listener) {
+          listener()
+          return () => {}
+        },
+      })
+      root.loader.builtins.editor = ConfigEditor
+      root.loader.internal = { version: 'v2', import: async () => plugin }
+      await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
+      await root.plugin(Connection)
+      if (withRegistry) {
+        await root.plugin(Skills)
+        await root.plugin(Filesystem, { watch: false })
+      }
+    })
+  }
+  await start()
   const fetch = (body, peer = owner) =>
-    handler.fetch(
-      new Request(url, {
+    ctx.connection.createSharedFetchHandler('/api').fetch(
+      new Request(body?.method === 'dungsil-ui-setting-skills/save' ? `http://localhost/api/${body.method}` : url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -56,7 +112,20 @@ async function fixture(t) {
     dsh,
     agents,
     skill,
-    fiber,
+    profile,
+    get ctx() {
+      return ctx
+    },
+    get skills() {
+      return ctx.get('skills')
+    },
+    get fiber() {
+      return ctx.configEditor.entries().find((entry) => entry.options.id === 'skills-settings').fiber
+    },
+    restart: async () => {
+      await ctx.fiber.dispose()
+      await start()
+    },
     fetch,
     request,
     rpc: async () => (await (await fetch(request)).json()).result,
@@ -86,6 +155,7 @@ await test('discovers both user roots without a global skill registry, including
     result: {
       ok: true,
       value: {
+        disabled: ['not-installed'],
         complete: true,
         skills: [
           {
@@ -114,22 +184,92 @@ await test('discovers both user roots without a global skill registry, including
 
 await test('returns empty missing roots and rereads additions and removals on the next request', async (t) => {
   const h = await fixture(t)
-  assert.deepEqual(await h.rpc(), { ok: true, value: { complete: true, skills: [] } })
+  assert.deepEqual(await h.rpc(), { ok: true, value: { disabled: ['not-installed'], complete: true, skills: [] } })
   const path = await h.skill(h.dsh, 'planning-work', 'New entry')
   assert.deepEqual((await h.rpc()).value.skills, [
     { name: 'planning-work', description: 'New entry', source: 'user-dsh', path },
   ])
   await rm(path)
-  assert.deepEqual(await h.rpc(), { ok: true, value: { complete: true, skills: [] } })
+  assert.deepEqual(await h.rpc(), { ok: true, value: { disabled: ['not-installed'], complete: true, skills: [] } })
+})
+
+await test('persists DSH-only disabling across reloads without changing skill files, and restores lookup on re-enable', async (t) => {
+  const h = await fixture(t, true)
+  const paths = [
+    await h.skill(h.agents, 'planning-work', 'Shared entry'),
+    await h.skill(h.dsh, 'planning-work', 'DSH entry'),
+  ]
+  await h.skill(h.agents, 'reviewing-code', 'Unaffected entry')
+  const before = await Promise.all(paths.map((path) => readFile(path, 'utf8')))
+  const skills = h.skills
+  assert.ok(await skills.get('planning-work'))
+  const save = async (name, disabled) =>
+    (
+      await (
+        await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/save', payload: { name, disabled } })
+      ).json()
+    ).result
+  assert.equal((await save('planning-work', true)).ok, true)
+  assert.equal((await save('planning-work', true)).ok, true)
+  const isolated = new Context()
+  t.after(() => isolated.fiber.dispose())
+  await isolated.plugin(Skills)
+  await isolated.plugin(Filesystem, { watch: false })
+  assert.equal(await isolated.get('skills').get('planning-work'), undefined)
+  assert.deepEqual(
+    (await isolated.get('skills').list()).map((skill) => skill.name),
+    ['reviewing-code']
+  )
+  assert.deepEqual((await h.rpc()).value.disabled, ['not-installed', 'planning-work'])
+  assert.deepEqual(
+    (await skills.list()).map((skill) => skill.name),
+    ['reviewing-code']
+  )
+  assert.deepEqual(
+    (await skills.snapshot()).skills.map((skill) => skill.name),
+    ['reviewing-code']
+  )
+  assert.equal(await skills.get('planning-work'), undefined)
+  assert.ok(await skills.get('reviewing-code'))
+  assert.match(await readFile(h.profile.patchPath, 'utf8'), /disabled:\s*- not-installed\s*- planning-work/u)
+  assert.equal((await h.rpc()).value.skills.filter((skill) => skill.name === 'planning-work').length, 2)
+  await h.restart()
+  assert.equal(await h.skills.get('planning-work'), undefined)
+  assert.deepEqual((await h.rpc()).value.disabled, ['not-installed', 'planning-work'])
+  assert.equal((await save('planning-work', false)).ok, true)
+  assert.ok(await h.skills.get('planning-work'))
+  assert.deepEqual((await h.rpc()).value.disabled, ['not-installed'])
+  assert.deepEqual(await Promise.all(paths.map((path) => readFile(path, 'utf8'))), before)
+  assert.equal((await save('unknown-skill', true)).ok, false)
+  assert.equal((await save('planning-work', true)).ok, true)
+  await h.fiber.dispose()
+  assert.ok(await h.skills.get('planning-work'))
+  assert.ok(await isolated.get('skills').get('planning-work'))
 })
 
 await test('rejects non-owner requests and malformed envelopes, and removes the route on unload', async (t) => {
   const h = await fixture(t)
   for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
     assert.equal((await h.fetch(h.request, { principal, interactions: 'deny' })).status, 403)
+    assert.equal(
+      (
+        await h.fetch(
+          {
+            ...h.request,
+            method: 'dungsil-ui-setting-skills/save',
+            payload: { name: 'planning-work', disabled: true },
+          },
+          { principal, interactions: 'deny' }
+        )
+      ).status,
+      403
+    )
   }
   for (const body of ['{', {}, { ...h.request, method: 'other' }]) {
     assert.equal((await h.fetch(body)).status, 400)
+  }
+  for (const payload of [{}, { name: 'planning-work', disabled: 'true' }, null]) {
+    assert.equal((await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/save', payload })).status, 400)
   }
   await h.fiber.dispose()
   assert.equal((await h.fetch(h.request)).status, 404)
