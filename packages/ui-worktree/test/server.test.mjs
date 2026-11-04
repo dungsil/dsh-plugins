@@ -9,6 +9,7 @@ import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deep
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import Worktrees from '@deepseek-ai/dsh-experimental-worktree'
+import { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -17,7 +18,7 @@ import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 
-async function fixture(t) {
+async function fixture(t, options = {}) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-worktree-'))
   const repo = join(home, 'source')
   const other = join(home, 'existing space\n한글')
@@ -40,7 +41,7 @@ async function fixture(t) {
   await ctx.plugin(SandboxPolicy, { mode: 'danger-full-access' })
   await ctx.plugin(Worktrees)
   const harness = await mountAgentLoopTestHarness(ctx)
-  const agent = await harness.create(SessionId('worktree-ui-test'), {}, { cwd: repo })
+  const agent = await harness.create(SessionId('worktree-ui-test'), options, { cwd: repo })
   ctx.provide('sessionController', {
     resolveAgent: async (id) =>
       id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } },
@@ -99,12 +100,71 @@ await test('owner UI API lists, creates and switches real worktrees without a mo
   assert.equal((await rpc('create', { cwd: repo, name: 'fix/login-ui' })).ok, false)
   assert.equal(ctx.workingDirectory.get(agent.session), repo, 'an existing branch cannot change the checkout')
   assert.equal((await rpc('create', { cwd: repo, name: '../escape' })).ok, false)
-  const generated = await rpc('create', { cwd: repo })
-  assert.equal(generated.ok, true)
-  assert.match(generated.value.cwd, /worktree-[a-f0-9-]+$/)
+  assert.equal((await rpc('create', { cwd: repo })).ok, false, 'an empty name requires a selected model')
   const events = agent.session.snapshotEvents()
   assert.equal(events.filter((event) => event.type === 'request/header' || event.type === 'user/message').length, 0)
-  assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 4)
+  assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 3)
+})
+
+await test('only an empty name uses the selected model before real creation, without tools or a conversation turn', async (t) => {
+  const { ctx, agent, repo, git, rpc } = await fixture(t, { provider: 'fallback', model: 'fallback-model' })
+  const requests = []
+  let answer = 'fix-session-isolation'
+  let reason = { kind: 'stop' }
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream(options) {
+      requests.push(options)
+      yield { type: 'text-delta', index: 0, text: answer }
+      yield { type: 'finish', reason }
+    }
+  }
+  ctx.llm.registerAdapter(['conversation', 'fallback'], new NamingAdapter())
+  agent.session.append('turn/start', { turn: 1 })
+  agent.session.append(
+    'user/message',
+    createUserMessage({
+      content: [{ type: 'text', text: 'Fix session isolation when switching worktrees' }],
+      source: { kind: 'user' },
+    }),
+    { surfaceOp: 'append' }
+  )
+  agent.session.append('request/header', {
+    header: { config: { provider: 'conversation', model: 'selected-model' } },
+    reason: 'initial',
+  })
+  const named = await rpc('create', { cwd: repo, name: ' manual-name ' })
+  assert.equal(named.ok, true)
+  assert.equal(requests.length, 0, 'a supplied name must not incur a model request')
+  assert.equal((await rpc('switch', { cwd: named.value.cwd, path: repo })).ok, true)
+  const before = agent.session.deriveMessages()
+  const generated = await rpc('create', { cwd: repo, name: '  ' })
+  assert.equal(generated.ok, true)
+  assert.equal(generated.value.cwd, join(repo, '.agents/worktrees/fix-session-isolation'))
+  assert.equal(git('rev-parse', 'refs/heads/fix-session-isolation'), git('rev-parse', 'HEAD'))
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].provider, 'conversation')
+  assert.equal(requests[0].model, 'selected-model')
+  assert.equal(requests[0].tools, undefined)
+  assert.match(requests[0].messages[0].content[0].text, /Fix session isolation/)
+  assert.deepEqual(agent.session.deriveMessages(), before, 'naming must not append a conversation turn')
+  const cwd = generated.value.cwd
+  for (const invalid of ['not a branch', 'git worktree add /tmp/evil', '../escape', '']) {
+    answer = invalid
+    assert.equal((await rpc('create', { cwd })).ok, false)
+  }
+  answer = 'truncated-name'
+  reason = { kind: 'max-tokens' }
+  assert.equal((await rpc('create', { cwd })).ok, false)
+  assert.equal(ctx.workingDirectory.get(agent.session), cwd)
+  assert.deepEqual((await rpc('describe')).value.worktrees.map((entry) => entry.branch).sort(), [
+    'fix-session-isolation',
+    'main',
+    'manual-name',
+    null,
+  ])
 })
 
 await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {

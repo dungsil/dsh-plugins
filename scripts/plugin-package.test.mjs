@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import semver from 'semver'
 import { parse } from 'yaml'
@@ -46,10 +47,11 @@ await test('all public plugins satisfy the shared in-place update package contra
       assert.equal(new Set(rows.map((row) => row.id)).size, rows.length, 'component IDs must be unique')
       for (const row of rows) {
         assert.ok(row.id, 'components need stable IDs when DSH reconciles the replacement')
-        assert.ok(
-          packages.has(row.name) || manifest.dependencies?.[row.name],
-          `${row.name} must be a workspace package or a declared runtime dependency`
-        )
+        if (!packages.has(row.name))
+          assert.doesNotThrow(
+            () => createRequire(new URL('package.json', base)).resolve(row.name),
+            `${row.name} must be an independently loadable package`
+          )
         if (row.name !== name)
           assert.ok(manifest.dependencies?.[row.name], `${row.name} must be installed with the bundle`)
       }
@@ -75,5 +77,17 @@ await test('task model API works without a client and the UI bundle activates it
       { id: 'dungsil-ui-model-settings', name: uiName },
       { id: 'dungsil-model-settings', name: apiName },
     ]
+  )
+})
+
+await test('worktree UI bundle includes its runtime without the model tool', async () => {
+  const { base, manifest } = packages.get('@dungsil/dsh-plugin-ui-worktree')
+  const runtime = '@deepseek-ai/dsh-experimental-worktree'
+  assert.ok(manifest.dependencies[runtime])
+  const patch = parse(await readFile(new URL(manifest.dsh.bundle.patch, base), 'utf8'))
+  const rows = patch.flatMap((operation) => operation.insert ?? [])
+  assert.deepEqual(
+    rows.map(({ name }) => name),
+    [runtime, manifest.name]
   )
 })

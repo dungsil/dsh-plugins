@@ -14,7 +14,7 @@ export default defineConfig([
     entry: ['src/client.ts'],
     format: 'cjs',
     platform: 'browser',
-    inputOptions: { platform: 'browser' },
+    inputOptions: { platform: 'browser', moduleTypes: { '.woff2': 'base64' } },
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),
     dts: false,
