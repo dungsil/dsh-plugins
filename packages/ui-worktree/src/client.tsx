@@ -12,7 +12,6 @@ import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
-  IconRefreshOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
@@ -50,7 +49,6 @@ export function apply(ctx: Context) {
     const dialog = useRef<HTMLDialogElement>(null)
     const errorDialog = useRef<HTMLDialogElement>(null)
     const errorTrigger = useRef<HTMLButtonElement>(null)
-    const refreshButton = useRef<HTMLButtonElement>(null)
     const title = useId()
     const errorTitle = useId()
     const errorDescription = useId()
@@ -177,7 +175,7 @@ export function apply(ctx: Context) {
     }, [error])
 
     const restoreErrorFocus = () => {
-      const button = errorTrigger.current ?? (!disabled ? trigger.current : refreshButton.current)
+      const button = errorTrigger.current ?? trigger.current
       button?.focus()
     }
 
@@ -258,17 +256,6 @@ export function apply(ctx: Context) {
               </button>
             }
           />
-          <button
-            ref={refreshButton}
-            type="button"
-            className="dsh-worktree-refresh"
-            disabled={loading || busy}
-            onClick={() => void load(true)}
-            aria-label={text.refresh}
-            title={text.refresh}
-          >
-            <IconRefreshOutlineRegular aria-hidden="true" />
-          </button>
           {error && (
             <button
               ref={errorTrigger}

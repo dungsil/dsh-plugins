@@ -69,7 +69,6 @@ await test('built composer uses direct worktree RPC without touching prompts or 
         onClick: () => onChange(!checked),
       }),
     IconPlusOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'plus' }),
-    IconRefreshOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'refresh' }),
     IconCloseOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'close' }),
     IconBranchOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'branch' }),
     IconChevronDownOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'chevron' }),
@@ -195,7 +194,11 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   }
   const refresh = async () =>
     act(async () => {
-      document.querySelector('.dsh-worktree-refresh').click()
+      if (dialog().open) document.querySelector('form footer button[type=button]').click()
+      else if (document.querySelector('.dsh-worktree-error-trigger')) {
+        document.querySelector('.dsh-worktree-error-trigger').click()
+        document.querySelector('[data-worktree-retry]').click()
+      } else window.dispatchEvent(new window.Event('focus'))
     })
   const focus = async () =>
     act(async () => {
@@ -256,15 +259,9 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.ok(document.querySelector('.dsh-worktree-icon svg[data-host-icon=branch]'))
       assert.ok(document.querySelector('.dsh-worktree-chevron svg[data-host-icon=chevron]'))
       assert.equal(document.querySelector('.dsh-worktree-chevron').tagName, 'SPAN')
-      assert.ok(document.querySelector('.dsh-worktree-refresh > svg'), 'refresh must use an SVG icon')
-      assert.ok(
-        !document.querySelector('[data-unit-host-menu] .dsh-worktree-refresh'),
-        'refresh must remain outside Menu'
-      )
-      assert.equal(
-        trigger().closest('.dsh-worktree-controls'),
-        document.querySelector('.dsh-worktree-refresh').parentElement
-      )
+      assert.equal(document.querySelector('.dsh-worktree-refresh'), null, 'composer must not show a refresh button')
+      assert.equal(document.querySelector('[data-host-icon=refresh]'), null)
+      assert.equal(document.querySelectorAll('.dsh-worktree-controls button').length, 1)
       assert.match(document.querySelector('[role=status]').textContent, /불러오는 중/)
       assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-a' })
       const initial = calls.at(-1)
@@ -459,7 +456,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await render('session-empty')
     await fail(calls.at(-1), 'forbidden')
     assert.equal(trigger().disabled, true)
-    assert.equal(document.querySelector('.dsh-worktree-refresh').disabled, false)
+    assert.equal(document.querySelector('.dsh-worktree-refresh'), null)
+    assert.equal(document.querySelector('[data-worktree-retry]').disabled, false)
     await refresh()
     await resolve(calls.at(-1), { cwd: '/not-git', worktrees: [] })
     assert.match(document.querySelector('[role=status]').textContent, /Git worktree가 없습니다/)
