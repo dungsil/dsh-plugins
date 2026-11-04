@@ -134,7 +134,9 @@ const styles = `${settingsStyles}
 .dsh-model-settings [role=status] { margin: 12px 0; }
 @container (max-width: 480px) {
   .dsh-model-settings .dsh-plugin-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .dsh-model-settings-controls { max-width: 100%; }
+  .dsh-model-settings-controls { flex-direction: column; align-items: stretch; width: 100%; max-width: 100%; }
+  .dsh-model-settings-controls .dsh-model-settings-picker { width: 100%; max-width: 100%; }
+  .dsh-model-settings-controls .dsh-plugin-settings-selector { width: 100%; justify-content: space-between; }
 }
 `
 
