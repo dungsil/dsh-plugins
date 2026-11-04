@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { modelSettingsIconArtwork } from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
@@ -430,7 +431,7 @@ export function apply(ctx: Context) {
     installSettingsIcon(
       name,
       Object.values(copy).map((text) => text.nav),
-      '<circle cx="2.5" cy="8" r="1.75"/><path d="M4.25 8H5.5C8 8 7 3.5 10 3.5H11M5.5 8C8 8 7 12.5 10 12.5H11"/><rect x="11" y="1.75" width="3.5" height="3.5" rx=".6"/><rect x="11" y="10.75" width="3.5" height="3.5" rx=".6"/>'
+      modelSettingsIconArtwork
     )
   )
   ctx.effect(() => installStyles(styles), 'model-settings: styles')

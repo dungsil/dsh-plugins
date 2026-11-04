@@ -9,12 +9,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
+import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  Menu,
   IconBranchOutlineRegular,
   IconPlusOutlineRegular,
   IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+  worktreeSettingsIconArtwork,
+} from '@dungsil/dsh-ui/icons'
 import { installSettingsIcon } from '@dungsil/dsh-ui'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
@@ -30,13 +31,7 @@ export const inject = ['slots', 'locale', 'connection', 'uiConversation']
 type Props = PropsRuntime<'conversation.input.left'>
 
 export function apply(ctx: Context) {
-  ctx.effect(() =>
-    installSettingsIcon(
-      name,
-      ['en', 'ko', 'zh'].map(settingsLabel),
-      '<circle cx="4" cy="2.5" r="1.75"/><circle cx="4" cy="13.5" r="1.75"/><circle cx="12" cy="5.5" r="1.75"/><path d="M4 4.25V11.75M4 9H7C10 9 12 9 12 7.25"/>'
-    )
-  )
+  ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconArtwork))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   installProgress(ctx)
   function Picker({ sessionId, useSession }: Props) {

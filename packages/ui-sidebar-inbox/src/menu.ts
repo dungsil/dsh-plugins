@@ -10,6 +10,8 @@
  * injected row keeps the shipped styling without naming any hashed class.
  */
 
+import { activityIconPath, checkIconPath, createIconGlyph } from '@dungsil/dsh-ui/icons/dom'
+
 /** Localized copy and state read at render time by the injected row. */
 export interface SortOption {
   /** Row label; read on every refresh so a live language switch relabels. */
@@ -32,29 +34,6 @@ export interface SortOptionHandle {
 const MENU_SELECTOR = '[role="menu"][class*="viewOptionsMenu"]'
 /** Marker on the injected wrapper so refreshes recognize their own node. */
 const ROW_ATTRIBUTE = 'data-dsh-inbox-sort-item'
-const SVG_NS = 'http://www.w3.org/2000/svg'
-/** Stroke glyph for "agent activity": a pulse line in the shipped icon grid. */
-const ACTIVITY_PATH = 'M2.25 8.5h2.9l1.55-4.5 2.55 8 1.55-4.5h2.95'
-/** Fallback check glyph, used only when no selected native row exists to copy. */
-const CHECK_PATH = 'M2.25 8.5L5.5 11.75C5.9 12.15 6.57 12.13 6.95 11.7L13.75 4'
-
-function createGlyph(path: string): SVGSVGElement {
-  const svg = document.createElementNS(SVG_NS, 'svg')
-  svg.setAttribute('width', '16')
-  svg.setAttribute('height', '16')
-  svg.setAttribute('viewBox', '0 0 16 16')
-  svg.setAttribute('fill', 'none')
-  svg.setAttribute('xmlns', SVG_NS)
-  svg.setAttribute('aria-hidden', 'true')
-  const line = document.createElementNS(SVG_NS, 'path')
-  line.setAttribute('d', path)
-  line.setAttribute('stroke', 'currentColor')
-  line.setAttribute('stroke-width', '1')
-  line.setAttribute('stroke-linecap', 'round')
-  line.setAttribute('stroke-linejoin', 'round')
-  svg.append(line)
-  return svg
-}
 
 /** A native row wraps one `role="menuitem"` button, optionally after a group separator. */
 function isMenuRow(node: Element): node is HTMLElement {
@@ -123,7 +102,7 @@ function buildRow(
   if (iconTemplate !== undefined) {
     const icon = document.createElement('span')
     icon.className = iconTemplate.className
-    icon.append(createGlyph(ACTIVITY_PATH))
+    icon.append(createIconGlyph(activityIconPath))
     button.append(icon)
   }
   const labelTemplate = [...template.children].find(
@@ -157,7 +136,8 @@ function closeMenu() {
 
 function syncCheck(button: HTMLElement, active: boolean, check: Element | null) {
   const existing = [...button.children].find((child) => child.tagName === 'svg')
-  if (active && existing === undefined) button.append(check === null ? createGlyph(CHECK_PATH) : check.cloneNode(true))
+  if (active && existing === undefined)
+    button.append(check === null ? createIconGlyph(checkIconPath) : check.cloneNode(true))
   else if (!active && existing !== undefined) existing.remove()
   if (active) button.setAttribute('aria-current', 'true')
   else button.removeAttribute('aria-current')
