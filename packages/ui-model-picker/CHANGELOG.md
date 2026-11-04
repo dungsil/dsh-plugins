@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-model-picker
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.0...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.1) (2026-11-04)
+
+### Bug Fixes
+
+- **ui-model-picker:** 선택 상자를 DSH 공식 UI와 통일한다 ([#60](https://github.com/dungsil/dsh-plugins/issues/60)) ([c538f23](https://github.com/dungsil/dsh-plugins/commit/c538f23ac21e288fa9e097d425aeed2d19baaa40))
+
 ## 0.2.0 (2026-11-04)
 
 ### Features

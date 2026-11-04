@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.7.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.7.0...%40dungsil%2Fdsh-plugin-locale-ko%400.7.1) (2026-11-04)
+
+### Bug Fixes
+
+- **locale-ko:** 한국어 UI의 Jetendard 기본 적용을 제거한다 ([#63](https://github.com/dungsil/dsh-plugins/issues/63)) ([1d5f4e7](https://github.com/dungsil/dsh-plugins/commit/1d5f4e79c1faca86661134049d60c66fa4ab069c))
+
 ## [0.7.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.6.0...%40dungsil%2Fdsh-plugin-locale-ko%400.7.0) (2026-11-04)
 
 ### Features

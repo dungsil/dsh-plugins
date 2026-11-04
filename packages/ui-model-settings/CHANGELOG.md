@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-model-settings
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-settings%400.3.0...%40dungsil%2Fdsh-plugin-ui-model-settings%400.4.0) (2026-11-04)
+
+### Features
+
+- **settings:** 플러그인 설정을 변경 즉시 저장한다 ([cbafc1a](https://github.com/dungsil/dsh-plugins/commit/cbafc1a66823a6ea86b9dc36a8a9eb278a7c3680))
+- **ui-model-settings:** 누락된 중국어 로케일 추가 ([d587d4e](https://github.com/dungsil/dsh-plugins/commit/d587d4e6bc79753fdf8f5c75713f1d98941451a4))
+
+### Bug Fixes
+
+- **settings:** 설정 페이지의 불필요한 안내 문구를 제거한다 ([#64](https://github.com/dungsil/dsh-plugins/issues/64)) ([f3e871e](https://github.com/dungsil/dsh-plugins/commit/f3e871eccbf5021372228c10063834363acc3c2e))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-settings%400.2.1...%40dungsil%2Fdsh-plugin-ui-model-settings%400.3.0) (2026-11-04)
 
 ### Features
