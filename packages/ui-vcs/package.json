@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-vcs",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Version control actions for the session agent, with Git commit, push, and pull request support.",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,6 @@
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-store": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",

@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Automatically name, create, and enter Git worktrees after sending a task, with setup progress in the conversation.",
   "license": "MIT",
   "repository": {
@@ -39,7 +39,6 @@
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-chat": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",

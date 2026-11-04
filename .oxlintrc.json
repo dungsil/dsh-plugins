@@ -4,5 +4,23 @@
   "options": {
     "typeAware": true,
     "typeCheck": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@deepseek-ai/dsh-client-ui-primitives", "@deepseek-ai/dsh-client-ui-primitives/**"],
+                "message": "Use @dungsil/dsh-ui; expose missing primitives through tools/ui first."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

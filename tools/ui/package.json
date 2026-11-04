@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/settings.tsx",
+    ".": "./src/index.ts",
     "./client": "./src/client.ts",
     "./composer": "./src/composer.tsx",
     "./icons": "./src/icons.ts",
@@ -13,9 +13,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5"
+  },
   "devDependencies": {
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/react": "18.3.31",
     "react": "18.3.1"

@@ -1,15 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { Button, FileTypeIcon, writeClipboard } from '@dungsil/dsh-ui'
 import {
-  Button,
-  FileTypeIcon,
   IconCheckOutlineRegular,
   IconCopyOutlineRegular,
   IconRightUpOutlineRegular,
   IconWrapLinesOutlineRegular,
-  writeClipboard,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@dungsil/dsh-ui/icons'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { structuredPatch } from 'diff'

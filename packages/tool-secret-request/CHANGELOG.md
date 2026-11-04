@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-tool-secret-request
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-secret-request%400.2.0...%40dungsil%2Fdsh-plugin-tool-secret-request%400.2.1) (2026-11-04)
+
+### Bug Fixes
+
+- **security:** 비밀값 승인과 워크트리 보안 경계를 강화한다 ([#88](https://github.com/dungsil/dsh-plugins/issues/88)) ([eb30a91](https://github.com/dungsil/dsh-plugins/commit/eb30a916b0f2be7193db7ac9141f1c196e1430a4))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-secret-request%400.1.0...%40dungsil%2Fdsh-plugin-tool-secret-request%400.2.0) (2026-11-04)
 
 ### Features
