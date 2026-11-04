@@ -21,10 +21,13 @@ const copy = {
     description: 'Choose a model for each task without changing the conversation model.',
     title: 'Session title',
     hint: 'Applies to future title generation across this profile. Existing titles and conversation models stay unchanged.',
+    worktree: 'Worktree branch name',
+    worktreeHint:
+      'Used only when Git Worktree UI generates a branch name from an empty name. Does not change the conversation model.',
     inherit: 'Use conversation model',
     save: 'Save',
     saving: 'Saving…',
-    saved: 'Saved. The next title request will use this selection.',
+    saved: 'Saved. The next request for this task will use this selection.',
     refresh: 'Reload settings',
     loading: 'Loading models…',
     unavailable:
@@ -40,10 +43,13 @@ const copy = {
     description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다.',
     title: '세션 제목',
     hint: '이 프로필에서 이후 생성하는 제목에 적용합니다. 기존 제목과 대화 모델은 바뀌지 않습니다.',
+    worktree: '워크트리 브랜치 이름',
+    worktreeHint:
+      'Git Worktree UI에서 이름을 비워 브랜치 이름을 자동 생성할 때만 사용합니다. 대화 모델은 바뀌지 않습니다.',
     inherit: '대화 모델 따르기',
     save: '저장',
     saving: '저장 중…',
-    saved: '저장했습니다. 다음 제목 생성부터 적용합니다.',
+    saved: '저장했습니다. 이 작업의 다음 모델 요청부터 적용합니다.',
     refresh: '설정 새로고침',
     loading: '모델을 불러오는 중입니다…',
     unavailable:
@@ -63,6 +69,7 @@ const styles = `
 .dsh-model-settings label { display: block; margin-bottom: 8px; font-weight: 600; }
 .dsh-model-settings select { box-sizing: border-box; width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; font: inherit; }
 .dsh-model-settings small { display: block; margin: 8px 0 24px; color: var(--dsw-alias-label-secondary, #666); font-size: 13px; }
+.dsh-model-settings form { margin-bottom: 24px; }
 .dsh-model-settings footer { display: flex; gap: 8px; justify-content: flex-end; }
 .dsh-model-settings button { min-height: 36px; padding: 6px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
 .dsh-model-settings button[type=submit] { color: var(--dsw-alias-label-primary-foreground, #fff); background: var(--dsw-alias-button-primary-fill, #222); border-color: transparent; }
@@ -74,6 +81,7 @@ const styles = `
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
+type Task = 'target' | 'worktree'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
@@ -84,9 +92,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
-  const [draft, setDraft] = useState('')
+  const [drafts, setDrafts] = useState({ target: '', worktree: '' })
   const [busy, setBusy] = useState(true)
   const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable'>()
+  const [noticeTask, setNoticeTask] = useState<Task>()
   const lock = useRef(false)
   const [lifetime] = useState(() => new AbortController())
 
@@ -95,12 +104,13 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     lock.current = true
     setBusy(true)
     setNotice(undefined)
+    setNoticeTask(undefined)
     try {
       const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, lifetime.signal)
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
-      setDraft(routeKey(next.target?.route ?? null))
+      setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
     } finally {
@@ -120,22 +130,23 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         label: `${provider.name} / ${model.name}`,
       }))
     ) ?? []
-  const current = routeKey(view?.target?.route ?? null)
-  const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
-  const selected = options.find((option) => routeKey(option.route) === draft)?.route ?? null
 
-  const save = async () => {
-    if (lock.current || !view?.target || (draft && !selected)) return
+  const save = async (task: Task) => {
+    const target = view?.[task]
+    const draft = drafts[task]
+    const selected = options.find((option) => routeKey(option.route) === draft)?.route ?? null
+    if (lock.current || !target || (draft && !selected)) return
     lock.current = true
     setBusy(true)
     setNotice(undefined)
+    setNoticeTask(task)
     try {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
         {
-          id: view.target.id,
-          revision: view.target.revision,
+          id: target.id,
+          revision: target.revision,
           route: selected,
         },
         lifetime.signal
@@ -145,9 +156,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         setNotice(code === 'conflict' || code === 'model_unavailable' ? code : 'error')
         return
       }
-      const target = result.value as unknown as TitleTarget | null
-      setView({ ...view, target })
-      setDraft(routeKey(target?.route ?? null))
+      const saved = result.value as unknown as TitleTarget | null
+      setView((current) => current && { ...current, [task]: saved })
+      setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
       setNotice('saved')
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
@@ -163,29 +174,37 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       <p>{text.description}</p>
       {!view && busy && <p role="status">{text.loading}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void save()
-        }}
-      >
-        {view?.target && (
-          <>
-            <label htmlFor={id}>{text.title}</label>
+      {(['target', 'worktree'] as const).map((task) => {
+        const target = view?.[task]
+        if (!target) return null
+        const draft = drafts[task]
+        const current = routeKey(target.route)
+        const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
+        const invalid = !!draft && !options.some((option) => routeKey(option.route) === draft)
+        const fieldId = `${id}-${task}`
+        return (
+          <form
+            key={task}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void save(task)
+            }}
+          >
+            <label htmlFor={fieldId}>{task === 'target' ? text.title : text.worktree}</label>
             <select
-              id={id}
+              id={fieldId}
               value={draft}
               disabled={busy}
-              aria-describedby={`${id}-hint`}
+              aria-describedby={`${fieldId}-hint`}
               onChange={(event) => {
-                setDraft(event.target.value)
+                setDrafts({ ...drafts, [task]: event.target.value })
                 setNotice(undefined)
               }}
             >
               <option value="">{text.inherit}</option>
               {missing && (
                 <option value={current} disabled>
-                  {text.missing}: {view.target.route!.provider} / {view.target.route!.model}
+                  {text.missing}: {target.route!.provider} / {target.route!.model}
                 </option>
               )}
               {options.map((option) => (
@@ -194,28 +213,29 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                 </option>
               ))}
             </select>
-            <small id={`${id}-hint`}>{text.hint}</small>
-            {view.catalogError && <p role="alert">{text.catalog}</p>}
-          </>
-        )}
-        {notice && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
-        <footer>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              void load()
-            }}
-          >
-            {text.refresh}
-          </button>
-          {view?.target && (
-            <button type="submit" disabled={busy || draft === current || (!!draft && !selected)}>
-              {busy ? text.saving : text.save}
-            </button>
-          )}
-        </footer>
-      </form>
+            <small id={`${fieldId}-hint`}>{task === 'target' ? text.hint : text.worktreeHint}</small>
+            {notice && noticeTask === task && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
+            <footer>
+              <button type="submit" disabled={busy || draft === current || invalid}>
+                {busy ? text.saving : text.save}
+              </button>
+            </footer>
+          </form>
+        )
+      })}
+      {view?.catalogError && <p role="alert">{text.catalog}</p>}
+      {notice && (!view || !noticeTask) && <p role="alert">{text[notice]}</p>}
+      <footer>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            void load()
+          }}
+        >
+          {text.refresh}
+        </button>
+      </footer>
     </section>
   )
 }

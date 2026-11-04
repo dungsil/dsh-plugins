@@ -16,14 +16,19 @@ const titlePlugins = new Set([
 ])
 
 export function apply(ctx: Context) {
-  const targetEntry = () => {
+  const targetEntry = (task: 'title' | 'worktree') => {
     const entries = ctx.configEditor
       .entries()
-      .filter((entry) => titlePlugins.has(entry.options.name) && entry.fiber?.state === 2)
+      .filter(
+        (entry) =>
+          (task === 'title'
+            ? titlePlugins.has(entry.options.name)
+            : entry.options.name === '@dungsil/dsh-plugin-ui-worktree') && entry.fiber?.state === 2
+      )
     return entries.length === 1 ? entries[0] : undefined
   }
-  const snapshot = (): TitleTarget | null => {
-    const entry = targetEntry()
+  const snapshot = (task: 'title' | 'worktree'): TitleTarget | null => {
+    const entry = targetEntry(task)
     if (!entry) return null
     const config = entry.fiber!.config as { provider?: string; model?: string }
     return {
@@ -53,7 +58,7 @@ export function apply(ctx: Context) {
           }
         })
       )
-      return { ok: true, value: { target: snapshot(), providers, catalogError } }
+      return { ok: true, value: { target: snapshot('title'), worktree: snapshot('worktree'), providers, catalogError } }
     }
     if (!payload || typeof payload !== 'object') return failure('invalid')
     const input = payload as { id?: unknown; revision?: unknown; route?: unknown }
@@ -78,12 +83,13 @@ export function apply(ctx: Context) {
         return failure('model_unavailable')
       }
     }
-    const entry = targetEntry()
+    const task = snapshot('worktree')?.id === input.id ? 'worktree' : 'title'
+    const entry = targetEntry(task)
     if (!entry) return failure('unavailable')
     try {
       signal.throwIfAborted()
       await ctx.configEditor.edit(entry, (current) => {
-        const latest = snapshot()
+        const latest = snapshot(task)
         if (!latest || latest.id !== input.id || latest.revision !== input.revision) throw new Error('conflict')
         const next = { ...current }
         if (route) Object.assign(next, route)
@@ -93,7 +99,7 @@ export function apply(ctx: Context) {
         }
         return next
       })
-      return { ok: true, value: snapshot() }
+      return { ok: true, value: snapshot(task) }
     } catch (error) {
       return failure(error instanceof Error && error.message === 'conflict' ? 'conflict' : 'save_failed')
     }

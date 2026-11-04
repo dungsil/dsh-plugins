@@ -19,7 +19,7 @@ import * as plugin from '../dist/index.js'
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
-async function fixture(t, options = {}) {
+async function fixture(t, options = {}, config = {}) {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-worktree-')))
   const repo = join(home, 'source')
   const other = join(home, process.platform === 'win32' ? 'existing space 한글' : 'existing space\n한글')
@@ -47,7 +47,7 @@ async function fixture(t, options = {}) {
     resolveAgent: async (id) =>
       id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } },
   })
-  await ctx.plugin(plugin)
+  const fiber = await ctx.plugin(plugin, config)
   const handler = ctx.connection.createSharedFetchHandler('/api')
   const rpc = async (endpoint, payload = {}, peer = owner) => {
     const method = `dungsil-worktree/${endpoint}`
@@ -67,7 +67,7 @@ async function fixture(t, options = {}) {
     if (response.status !== 200) return { status: response.status }
     return (await response.json()).result
   }
-  return { ctx, agent, repo, other, git, rpc }
+  return { ctx, agent, repo, other, git, rpc, fiber }
 }
 
 await test('owner UI API lists, creates and switches real worktrees without a model or consuming source files', async (t) => {
@@ -216,4 +216,40 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
     (await rpc('describe')).value.worktrees.some((entry) => entry.branch === 'read-only'),
     false
   )
+})
+
+await test('uses the configured naming model, then follows the conversation again after reset', async (t) => {
+  const route = { provider: 'naming', model: 'small' }
+  const { ctx, agent, repo, rpc, fiber } = await fixture(t, { provider: 'fallback', model: 'large' }, route)
+  const requests = []
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream(options) {
+      requests.push(options)
+      yield { type: 'text-delta', index: 0, text: `branch-${requests.length}` }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['naming', 'conversation', 'fallback'], new NamingAdapter())
+  agent.session.append('request/header', {
+    header: { config: { provider: 'conversation', model: 'selected' } },
+    reason: 'initial',
+  })
+  const named = await rpc('create', { cwd: repo, name: 'manual' })
+  assert.equal(named.ok, true)
+  assert.equal(requests.length, 0)
+  const generated = await rpc('create', { cwd: named.value.cwd })
+  assert.equal(generated.ok, true)
+  assert.equal(requests[0].provider, 'naming')
+  assert.equal(requests[0].model, 'small')
+  assert.equal(requests[0].tools, undefined)
+  assert.deepEqual(agent.session.requestHeader().config, { provider: 'conversation', model: 'selected' })
+  await fiber.dispose()
+  await ctx.plugin(plugin, {})
+  const inherited = await rpc('create', { cwd: generated.value.cwd })
+  assert.equal(inherited.ok, true)
+  assert.equal(requests[1].provider, 'conversation')
+  assert.equal(requests[1].model, 'selected')
 })

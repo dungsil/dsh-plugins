@@ -8,7 +8,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { Window } from 'happy-dom'
 import { profileFixture } from '../../model-settings/test/profile.mjs'
 
-await test('settings UI saves exact provider/model pairs, resets, reports conflicts and recovers from load failures', async (t) => {
+async function settingsUI(t, worktree) {
   const window = new Window()
   const previous = Object.getOwnPropertyDescriptors(globalThis)
   const globals = {
@@ -38,7 +38,7 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
     document: window.document,
     AbortController,
   })
-  const h = await profileFixture()
+  const h = await profileFixture('first-prompt', {}, worktree ? {} : undefined)
   const ctx = new Context()
   const container = window.document.createElement('main')
   window.document.body.append(container)
@@ -100,9 +100,9 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
       container.querySelector(selector).click()
     })
   }
-  const select = async (value) => {
+  const select = async (value, selector = 'select') => {
     await act(async () => {
-      const element = container.querySelector('select')
+      const element = container.querySelector(selector)
       element.value = value
       element.dispatchEvent(new window.Event('change', { bubbles: true }))
     })
@@ -115,6 +115,8 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   offline = false
   await click('button[type=button]')
   await waitFor(() => container.querySelector('select'))
+  assert.equal(container.querySelectorAll('select').length, worktree ? 2 : 1)
+  assert.equal(container.textContent.includes('워크트리 브랜치 이름'), worktree)
   const selectElement = container.querySelector('select')
   assert.equal(window.document.getElementById(selectElement.getAttribute('aria-describedby')).tagName, 'SMALL')
   assert.equal(container.querySelector('label').htmlFor, selectElement.id)
@@ -139,10 +141,43 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=status]'))
   assert.equal((await h.rpc('describe')).value.target.route, null)
+  if (worktree) {
+    const field = 'select[id$="-worktree"]'
+    const submit = 'form:has(select[id$="-worktree"]) button[type=submit]'
+    const titleDraft = JSON.stringify(['conversation', 'title-small'])
+    await select(titleDraft)
+    await select(pair, field)
+    await click(submit)
+    await waitFor(() => container.querySelector('[role=status]'))
+    assert.deepEqual((await h.rpc('describe')).value.worktree.route, { provider: 'auxiliary', model: 'title-small' })
+    assert.equal((await h.rpc('describe')).value.target.route, null)
+    assert.equal(container.querySelector('select').value, titleDraft, 'saving worktree must preserve the title draft')
+    await click('button[type=button]')
+    await waitFor(() => !container.querySelector('button[type=button]').disabled)
+    assert.equal(container.querySelector(field).value, pair)
+    await select('', field)
+    await click(submit)
+    await waitFor(() => container.querySelector('[role=status]'))
+    assert.equal((await h.rpc('describe')).value.worktree.route, null)
+    const titleEntry = h.ctx.configEditor.entries().find((entry) => entry.options.id === 'custom-title-entry')
+    await titleEntry.fiber.dispose()
+    await click('button[type=button]')
+    await waitFor(() => container.querySelectorAll('select').length === 1)
+    assert.equal(container.querySelector('select').id.endsWith('-worktree'), true)
+    await select(pair, field)
+    await click(submit)
+    await waitFor(() => container.textContent.includes('저장했습니다'))
+    assert.deepEqual((await h.rpc('describe')).value.worktree.route, { provider: 'auxiliary', model: 'title-small' })
+  }
   await act(async () => {
     locale = { active: 'en' }
     for (const listener of listeners) listener()
   })
-  assert.equal(container.querySelector('label').textContent, 'Session title')
+  assert.equal(container.querySelector('label').textContent, worktree ? 'Worktree branch name' : 'Session title')
   assert.equal(registration.label(), 'Models by task')
-})
+}
+
+for (const worktree of [false, true]) {
+  await test(`settings UI saves, resets and recovers with worktree ${worktree ? 'enabled' : 'absent'}`, (t) =>
+    settingsUI(t, worktree))
+}
