@@ -7,7 +7,8 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 
-const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
+const source =
+  process.env.DSH_SIDEBAR_CLIENT_SOURCE ?? (await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'))
 const flatKey = '__flat_session_order__'
 const agentActivity = 'agent-activity'
 const previousSortKey = 'dungsil.sidebar-inbox.sort.v1'
@@ -203,6 +204,7 @@ function setup(options = {}) {
     document: browser.document,
     localStorage: browser.localStorage,
     Element: browser.Element,
+    Event: browser.Event,
     MutationObserver: browser.MutationObserver,
     ResizeObserver: class extends browser.ResizeObserver {
       constructor(callback) {
@@ -211,7 +213,11 @@ function setup(options = {}) {
       }
     },
     queueMicrotask,
+    getComputedStyle: browser.getComputedStyle.bind(browser),
+    setTimeout,
+    clearTimeout,
     window: {
+      matchMedia: () => ({ matches: options.reducedMotion === true }),
       addEventListener: browser.addEventListener.bind(browser),
       removeEventListener: browser.removeEventListener.bind(browser),
       __ModuleLoader__: {
@@ -491,43 +497,170 @@ void test('the all-conversations view folds archived rows into a collapsed botto
   assert.equal(app.view.getSnapshot().archivedFilter, 'show')
 })
 
-void test('oversized footer sections scroll normally and dock again when they fit', async (t) => {
+void test('Working and Archived share one scrollport capped at half the list viewport', async (t) => {
   const app = setup({ view: { orderBy: agentActivity, archivedFilter: 'show' } })
   t.after(app.dispose)
   await app.paint()
-  let viewport = 106
+  let viewport = 400
   Object.defineProperty(app.tree, 'clientHeight', { get: () => viewport })
-  // happy-dom has no layout: supply native 32px rows and 36px headings.
+  const pane = app.tree.shadowRoot.querySelector('[data-dsh-inbox-pane]')
+  const main = app.tree.shadowRoot.querySelector('.main')
   const footers = [app.row('running').parentElement, app.row('archived').parentElement]
+  app.resize()
+  assert.equal(pane.style.maxBlockSize, '200px')
+  assert.equal(app.browser.getComputedStyle(pane).overflow, 'auto')
+  assert.equal(app.browser.getComputedStyle(main).overflow, 'auto')
+  assert.equal(app.browser.getComputedStyle(pane).overscrollBehavior, 'contain')
   for (const wrapper of footers) {
-    Object.defineProperty(wrapper, 'offsetHeight', {
-      get: () => 36 + (app.browser.getComputedStyle(wrapper.lastElementChild).visibility === 'hidden' ? 0 : 32),
-    })
+    assert.equal(wrapper.parentElement, app.tree, 'slot projection preserves the native React parent')
+    assert.equal(wrapper.slot, 'dsh-inbox-footer')
+    assert.ok(
+      pane.querySelector('slot').assignedElements().includes(wrapper),
+      'both footer wrappers use the named slot'
+    )
   }
-  const positions = () => footers.map((wrapper) => app.browser.getComputedStyle(wrapper).position)
-  app.resize()
-  assert.deepEqual(positions(), ['sticky', 'sticky'], 'an exact fit still docks')
-  viewport -= 1
-  app.resize()
-  assert.deepEqual(positions(), ['static', 'static'], 'even one overflowing pixel must remain scrollable')
+  assert.ok(
+    main.querySelector('slot').assignedElements().includes(app.row('idle').parentElement),
+    'Inbox uses the main slot'
+  )
+  let portalUpdates = 0
+  const onScroll = () => {
+    portalUpdates += 1
+  }
+  app.browser.addEventListener('scroll', onScroll, true)
+  t.after(() => app.browser.removeEventListener('scroll', onScroll, true))
+  main.dispatchEvent(new app.browser.Event('scroll'))
+  pane.dispatchEvent(new app.browser.Event('scroll'))
+  assert.equal(portalUpdates, 2, 'native hovercard position listeners receive both pane scrolls')
 
-  viewport = 138
   app.toggles()[1].click()
   await app.browser.happyDOM.waitUntilComplete()
-  assert.deepEqual(positions(), ['sticky', 'sticky'], 'both expanded sections fit exactly')
-  viewport -= 1
+  assert.equal(app.tree.shadowRoot.querySelector('[data-dsh-inbox-pane]'), pane, 'toggles preserve the scrollport')
+  assert.equal(pane.style.maxBlockSize, '200px', 'both expanded sections share the same cap')
+  viewport = 101
   app.resize()
-  assert.deepEqual(positions(), ['static', 'static'], 'the combined footer height determines overflow')
+  assert.equal(pane.style.maxBlockSize, '50.5px', 'resizing cannot round above half the viewport')
   app.toggles()[0].click()
   await app.browser.happyDOM.waitUntilComplete()
-  assert.deepEqual(positions(), ['sticky', 'sticky'], 'folding restores docking without resizing the sidebar')
+  assert.equal(pane.style.maxBlockSize, '50.5px', 'folding does not change the cap')
 
-  viewport = 60
-  app.resize()
-  assert.deepEqual(positions(), ['static', 'static'])
   app.view.set({ ...app.view.getSnapshot(), orderBy: 'updated' })
   await app.browser.happyDOM.waitUntilComplete()
-  assert.equal(app.tree.hasAttribute('data-dsh-inbox-overflow'), false, 'opting out restores the native tree')
+  assert.equal(app.tree.hasAttribute('data-dsh-inbox-tree'), false)
+  assert.equal(app.tree.shadowRoot.children.length, 1)
+  assert.equal(app.tree.shadowRoot.firstElementChild.tagName, 'SLOT')
+  for (const wrapper of footers) assert.equal(wrapper.hasAttribute('slot'), false)
+  app.view.set({ ...app.view.getSnapshot(), orderBy: agentActivity })
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(app.tree.shadowRoot.querySelector('[data-dsh-inbox-pane]').style.maxBlockSize, '50.5px')
+})
+
+void test('section transitions use slower reversible heights and synchronized visibility', async (t) => {
+  const app = setup({ view: { orderBy: agentActivity, archivedFilter: 'show' } })
+  t.after(app.dispose)
+  await app.paint()
+  const transition = (id) => app.browser.getComputedStyle(app.row(id)).transition
+  assert.match(transition('running'), /height 320ms/)
+  assert.match(transition('archived'), /height 260ms/)
+  assert.match(transition('archived'), /visibility 0s 260ms/)
+  app.toggles()[1].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.match(transition('archived'), /height 480ms/)
+})
+
+void test('large archives animate the capped visible height rather than filling it immediately', async (t) => {
+  const app = setup({ view: { orderBy: agentActivity, archivedFilter: 'show' } })
+  t.after(app.dispose)
+  await app.paint()
+  Object.defineProperty(app.tree, 'clientHeight', { value: 400 })
+  const pane = app.tree.shadowRoot.querySelector('.footer')
+  let visibleHeight = 104
+  pane.getBoundingClientRect = () => ({ height: visibleHeight })
+  Object.defineProperty(app.row('running'), 'scrollHeight', { value: 32 })
+  Object.defineProperty(app.row('archived'), 'scrollHeight', { value: 2000 })
+  for (const heading of app.tree.querySelectorAll('[data-dsh-inbox-heading]')) {
+    Object.defineProperty(heading, 'offsetHeight', { value: 36 })
+  }
+  app.toggles()[1].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(pane.style.height, '200px')
+  assert.equal(pane.style.transition, 'height 480ms cubic-bezier(0.4, 0, 0.2, 1)')
+  assert.match(app.browser.getComputedStyle(app.row('running')).transition, /height 320ms/)
+
+  visibleHeight = 150
+  app.toggles()[1].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(pane.style.height, '104px')
+  assert.equal(pane.style.transition, 'height 260ms cubic-bezier(0.4, 0, 0.2, 1)')
+  const end = new app.browser.Event('transitionend')
+  Object.defineProperty(end, 'propertyName', { value: 'height' })
+  pane.dispatchEvent(end)
+  assert.equal(pane.style.height, '')
+  assert.equal(pane.style.transition, '')
+  app.toggles()[0].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(pane.style.transition, '', 'Working retains its existing row-only motion')
+})
+
+void test('archive viewport motion respects reduced motion', async (t) => {
+  const app = setup({ reducedMotion: true, view: { orderBy: agentActivity, archivedFilter: 'show' } })
+  t.after(app.dispose)
+  await app.paint()
+  Object.defineProperty(app.tree, 'clientHeight', { value: 400 })
+  app.toggles()[1].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  const pane = app.tree.shadowRoot.querySelector('.footer')
+  assert.equal(pane.style.height, '')
+  assert.equal(pane.style.transition, '')
+})
+
+void test('shadow scrollports reuse the native DSH scrollbar tokens and rules', async (t) => {
+  const app = setup({ view: { orderBy: agentActivity, archivedFilter: 'show' } })
+  t.after(app.dispose)
+  await app.paint()
+  const css = app.tree.shadowRoot.querySelector('style').textContent
+  assert.match(css, /::-webkit-scrollbar \{ width: var\(--dsh-scrollbar-width\)/)
+  assert.match(css, /background: var\(--dsh-scrollbar-thumb\)/)
+  assert.match(css, /background-color: var\(--dsh-scrollbar-thumb-hover\)/)
+  assert.match(css, /border: var\(--dsh-scrollbar-thumb-border\) solid transparent/)
+  assert.match(css, /@supports not selector\(::-webkit-scrollbar\)/)
+})
+
+void test('React can reorder, replace and remove projected rows without changing parents', async (t) => {
+  const app = setup({ view: { orderBy: agentActivity, archivedFilter: 'show' } })
+  const root = createRoot(app.tree)
+  t.after(() => {
+    app.dispose()
+    root.unmount()
+  })
+  const paint = async (ids) => {
+    flushSync(() =>
+      root.render(
+        ids.map((id) =>
+          React.createElement(
+            'span',
+            { key: id },
+            React.createElement('div', { 'data-row-key': `session:${id}`, role: 'treeitem' }, id)
+          )
+        )
+      )
+    )
+    await app.browser.happyDOM.waitUntilComplete()
+  }
+  await paint(['idle', 'running', 'archived'])
+  const running = app.row('running')
+  const wrapper = running.parentElement
+  await paint(['running', 'idle', 'archived'])
+  assert.equal(app.row('running'), running)
+  assert.equal(wrapper.parentElement, app.tree)
+  assert.equal(wrapper.slot, 'dsh-inbox-footer')
+  await paint(['idle', 'archived'])
+  assert.equal(wrapper.isConnected, false)
+  assert.equal(app.row('running'), null)
+  assert.deepEqual(app.headingTexts(), ['Archived'])
+  await paint(['idle'])
+  assert.equal(app.tree.hasAttribute('data-dsh-inbox-tree'), false)
+  assert.equal(app.tree.shadowRoot.children.length, 1)
 })
 
 void test('flat list labels Working and Archived only while the mode owns the order', async (t) => {

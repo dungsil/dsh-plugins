@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
   "version": "0.2.0",
-  "description": "Create and switch Git worktrees directly from the DeepSeek Harness composer, using the model only for optional branch naming.",
+  "description": "Automatically name, create, and enter Git worktrees after sending a task, with setup progress in the conversation.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -37,6 +37,7 @@
     "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-chat": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
@@ -86,6 +87,7 @@
       "inject": [
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-chat",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-session",
         "@deepseek-ai/dsh-client-ui-settings"
@@ -100,9 +102,9 @@
       "zh": "Git 工作树界面"
     },
     "description": {
-      "en": "Select, create, and switch Git worktrees next to the composer permission selector. The model only names branches when the name is empty.",
-      "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다.",
-      "zh": "在输入框的权限选择器旁选择、创建和切换 Git 工作树。仅在名称为空时由模型生成分支名称。"
+      "en": "Select New worktree, then send a task to automatically name, create, and enter it. Follow setup progress in the conversation.",
+      "ko": "새 워크트리를 선택하고 작업을 전송하면 자동으로 이름을 정하고 생성·전환합니다. 대화에서 준비 상태를 확인합니다.",
+      "zh": "选择新工作树并发送任务，自动命名、创建并切换工作树，在对话中查看准备进度。"
     },
     "category": "ui",
     "labels": [],

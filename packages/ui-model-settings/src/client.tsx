@@ -1,10 +1,10 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { Button, Menu, IconChevronDownOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Menu, IconChevronDownOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   channel,
   endpointPrefix,
@@ -19,6 +19,8 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = {
   en: {
     nav: 'Models by task',
+    description:
+      'Choose a model for each task without changing the conversation model. Changes are saved automatically.',
     title: 'Session title',
     hint: 'Applies to future titles.',
     model: 'Model',
@@ -32,22 +34,26 @@ const copy = {
     effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the existing behavior.',
     noEfforts: 'This model does not offer reasoning effort settings.',
     missingEffort: 'Saved effort (currently unavailable)',
-    save: 'Save',
     saving: 'Saving…',
     saved: 'Saved. The next request for this task will use this selection.',
-    refresh: 'Reload settings',
     loading: 'Loading models…',
+    resyncing: 'Checking saved settings…',
+    resynced: 'Saved settings are now shown.',
+    loadError: 'Could not load settings. Close and reopen this settings section to try again.',
+    resyncError:
+      'Could not check saved settings. Changes are disabled. Close and reopen this settings section to try again.',
     unavailable:
       'No supported active title generator was found. Enable one DSH first-prompt or all-prompts title provider.',
-    catalog: 'Some model lists could not be loaded. You can still use the conversation model or reload settings.',
+    catalog: 'Some model lists could not be loaded. You can still use the conversation model.',
     missing: 'Saved model (not in current catalog)',
-    error: 'Could not confirm the change. Reload settings to check the saved value before retrying.',
-    conflict: 'Settings changed elsewhere. Reload settings before saving again.',
-    model_unavailable: 'This model is unavailable. Reload settings and choose an available model.',
+    error: 'Could not confirm the change. The change will not be retried automatically.',
+    conflict: 'Settings changed elsewhere. Your change will not be retried automatically.',
+    model_unavailable: 'This model is unavailable. Choose an available model after the settings check.',
     reasoning_unavailable: 'This reasoning effort is unavailable. Choose a supported effort or Automatic.',
   },
   ko: {
     nav: '상황별 모델',
+    description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다. 변경 사항은 자동으로 저장합니다.',
     title: '세션 제목',
     hint: '이후 생성하는 제목에 적용합니다.',
     model: '모델',
@@ -61,24 +67,61 @@ const copy = {
     effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 기존 동작을 유지합니다.',
     noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
     missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
-    save: '저장',
     saving: '저장 중…',
     saved: '저장했습니다. 이 작업의 다음 모델 요청부터 적용합니다.',
-    refresh: '설정 새로고침',
     loading: '모델을 불러오는 중입니다…',
+    resyncing: '저장된 설정을 확인하는 중입니다…',
+    resynced: '저장된 설정을 다시 불러왔습니다.',
+    loadError: '설정을 불러오지 못했습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
+    resyncError: '저장된 설정을 확인하지 못해 변경을 잠갔습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
     unavailable:
       '지원하는 제목 생성기가 활성화되어 있지 않습니다. DSH의 first-prompt 또는 all-prompts 제목 생성기를 하나 활성화하세요.',
-    catalog: '일부 모델 목록을 불러오지 못했습니다. 대화 모델을 따르거나 설정을 새로고침할 수 있습니다.',
+    catalog: '일부 모델 목록을 불러오지 못했습니다. 대화 모델은 계속 따를 수 있습니다.',
     missing: '저장된 모델 (현재 목록에 없음)',
-    error: '변경 여부를 확인하지 못했습니다. 다시 시도하기 전에 설정을 새로고침하여 저장된 값을 확인하세요.',
-    conflict: '다른 곳에서 설정을 변경했습니다. 설정을 새로고침한 뒤 다시 저장하세요.',
-    model_unavailable: '사용할 수 없는 모델입니다. 설정을 새로고침한 뒤 다른 모델을 선택하세요.',
+    error: '변경 여부를 확인하지 못했습니다. 변경 사항은 자동으로 다시 저장하지 않습니다.',
+    conflict: '다른 곳에서 설정을 변경했습니다. 선택한 값은 자동으로 다시 저장하지 않습니다.',
+    model_unavailable: '사용할 수 없는 모델입니다. 설정 확인이 끝나면 다른 모델을 선택하세요.',
     reasoning_unavailable: '사용할 수 없는 추론 수준입니다. 지원하는 수준이나 자동을 선택하세요.',
+  },
+  zh: {
+    nav: '任务模型设置',
+    description: '为各项任务选择模型，不更改对话模型。更改会自动保存。',
+    title: '会话标题',
+    hint: '适用于后续生成的标题。',
+    model: '模型',
+    worktree: '工作树分支名称',
+    worktreeHint: '在分支名称为空、需要自动生成名称时使用。',
+    inherit: '使用对话模型',
+    effort: '推理级别',
+    automatic: '自动',
+    automaticHint: '自动（支持的最低级别）',
+    worktreeAutomaticHint: '自动（模型默认值）',
+    effortHint: '指定模型后可选择推理级别。自动选项保留现有行为。',
+    noEfforts: '此模型不提供推理级别设置。',
+    missingEffort: '已保存的推理级别（当前不可用）',
+    saving: '正在保存…',
+    saved: '已保存。此任务的下一次模型请求将使用此选择。',
+    loading: '正在加载模型…',
+    resyncing: '正在检查已保存的设置…',
+    resynced: '现已显示已保存的设置。',
+    loadError: '无法加载设置。请关闭并重新打开此设置项后重试。',
+    resyncError: '无法确认已保存的设置，已禁止更改。请关闭并重新打开此设置项后重试。',
+    unavailable: '未找到已启用且受支持的标题生成器。请启用一个 DSH first-prompt 或 all-prompts 标题提供程序。',
+    catalog: '部分模型列表无法加载。仍可使用对话模型。',
+    missing: '已保存的模型（不在当前列表中）',
+    error: '无法确认更改是否生效。不会自动重新保存此更改。',
+    conflict: '设置已在其他位置更改。不会自动重新保存您选择的值。',
+    model_unavailable: '此模型不可用。请在设置检查完成后选择可用模型。',
+    reasoning_unavailable: '此推理级别不可用。请选择支持的级别或自动选项。',
   },
 }
 
+const localizedCopy = (language: string) =>
+  copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
+
 const styles = `
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings-description { color: var(--dsw-alias-label-secondary); }
 .dsh-model-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 .dsh-model-settings-text { flex: 1; min-width: 0; }
 .dsh-model-settings-hint { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
@@ -91,7 +134,6 @@ const styles = `
 .dsh-model-settings-selector:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 .dsh-model-settings-selector:disabled { opacity: .5; cursor: default; }
 .dsh-model-settings-selector:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
-.dsh-model-settings footer { display: flex; gap: 8px; justify-content: flex-end; padding-top: 16px; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
 .dsh-model-settings [role=status] { margin: 12px 0; }
 @container (max-width: 480px) {
@@ -102,8 +144,10 @@ const styles = `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
 type Task = 'target' | 'worktree'
+type Notice = 'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function Picker({
+  id,
   label,
   value,
   title,
@@ -113,6 +157,7 @@ function Picker({
   describedBy,
   onSelect,
 }: {
+  id: string
   label: string
   value: string
   title: string
@@ -138,6 +183,7 @@ function Picker({
       portal
       anchor={
         <button
+          id={id}
           type="button"
           className="dsh-model-settings-selector"
           aria-label={`${label}: ${title}`}
@@ -161,42 +207,62 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     (listener) => ctx.locale.subscribe(listener),
     () => ctx.locale.getSnapshot()
   )
-  const text = copy[locale.active.startsWith('ko') ? 'ko' : 'en']
+  const text = localizedCopy(locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
   const [drafts, setDrafts] = useState({ target: '', worktree: '' })
   const [effortDrafts, setEffortDrafts] = useState({ target: '', worktree: '' })
-  const [busy, setBusy] = useState(true)
-  const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'>()
+  const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
+  const [synchronized, setSynchronized] = useState(false)
+  const [notice, setNotice] = useState<Notice>()
   const [noticeTask, setNoticeTask] = useState<Task>()
-  const lock = useRef(false)
-  const [lifetime] = useState(() => new AbortController())
+  const [readError, setReadError] = useState<'loadError' | 'resyncError'>()
+  const lock = useRef(true)
+  const lifetime = useRef<AbortController>()
 
-  const load = async () => {
-    if (lock.current) return
-    lock.current = true
-    setBusy(true)
-    setNotice(undefined)
-    setNoticeTask(undefined)
-    try {
-      const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, lifetime.signal)
+  const read = useCallback(
+    async (controller: AbortController) => {
+      const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, controller.signal)
+      if (controller.signal.aborted || lifetime.current !== controller) return false
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
       setEffortDrafts({ target: next.target?.reasoningEffort ?? '', worktree: next.worktree?.reasoningEffort ?? '' })
       setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
-    } catch {
-      if (!lifetime.signal.aborted) setNotice('error')
-    } finally {
-      lock.current = false
-      if (!lifetime.signal.aborted) setBusy(false)
-    }
-  }
+      setSynchronized(true)
+      return true
+    },
+    [connection]
+  )
+
   useEffect(() => {
-    void load()
-    return () => lifetime.abort()
-  }, [])
+    const controller = new AbortController()
+    lifetime.current = controller
+    lock.current = true
+    setBusy('loading')
+    setSynchronized(false)
+    setNotice(undefined)
+    setNoticeTask(undefined)
+    setReadError(undefined)
+    void (async () => {
+      let loaded = false
+      try {
+        loaded = await read(controller)
+      } catch {
+        if (!controller.signal.aborted && lifetime.current === controller) setReadError('loadError')
+      } finally {
+        if (!controller.signal.aborted && lifetime.current === controller) {
+          lock.current = !loaded
+          setBusy(undefined)
+        }
+      }
+    })()
+    return () => {
+      controller.abort()
+      if (lifetime.current === controller) lifetime.current = undefined
+    }
+  }, [read])
 
   const options =
     view?.providers.flatMap((provider) =>
@@ -223,53 +289,80 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     ) ?? []),
   ]
 
-  const save = async (task: Task) => {
+  const save = async (task: Task, draft: string, effort: string) => {
+    const controller = lifetime.current
     const target = view?.[task]
-    const draft = drafts[task]
-    const effort = effortDrafts[task]
     const option = options.find((option) => routeKey(option.route) === draft)
     const selected = option?.route ?? null
     const missingEffort = effort !== '' && !option?.efforts.some((item) => item.id === effort)
-    if (lock.current || !target || (draft && !selected) || missingEffort) return
+    if (
+      lock.current ||
+      !controller ||
+      controller.signal.aborted ||
+      !target ||
+      !synchronized ||
+      (draft === routeKey(target.route) && effort === (target.reasoningEffort ?? '')) ||
+      (draft && !selected) ||
+      missingEffort
+    )
+      return
     lock.current = true
-    setBusy(true)
+    setBusy('saving')
+    setDrafts((current) => ({ ...current, [task]: draft }))
+    setEffortDrafts((current) => ({ ...current, [task]: effort }))
     setNotice(undefined)
     setNoticeTask(task)
+    setReadError(undefined)
+    const active = () => !controller.signal.aborted && lifetime.current === controller
+    let failure: Exclude<Notice, 'saved'> | undefined
     try {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
-        {
-          id: target.id,
-          revision: target.revision,
-          route: selected,
-          reasoningEffort: effort || null,
-        },
-        lifetime.signal
+        { id: target.id, revision: target.revision, route: selected, reasoningEffort: effort || null },
+        controller.signal
       )
-      if (!result.ok) {
+      if (!active()) return
+      if (result.ok) {
+        const saved = result.value as unknown as TitleTarget | null
+        setView((current) => current && { ...current, [task]: saved })
+        setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
+        setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
+        setNotice('saved')
+      } else {
         const code = result.error.code
-        setNotice(
+        failure =
           code === 'conflict' || code === 'model_unavailable' || code === 'reasoning_unavailable' ? code : 'error'
-        )
-        return
       }
-      const saved = result.value as unknown as TitleTarget | null
-      setView((current) => current && { ...current, [task]: saved })
-      setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
-      setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
-      setNotice('saved')
     } catch {
-      if (!lifetime.signal.aborted) setNotice('error')
-    } finally {
-      lock.current = false
-      if (!lifetime.signal.aborted) setBusy(false)
+      if (!active()) return
+      failure = 'error'
+    }
+    if (!active()) return
+    let confirmed = !failure
+    if (failure) {
+      setNotice(failure)
+      setSynchronized(false)
+      setBusy('resyncing')
+      try {
+        confirmed = await read(controller)
+      } catch {
+        if (active()) setReadError('resyncError')
+      }
+    }
+    if (active()) {
+      lock.current = !confirmed
+      setBusy(undefined)
     }
   }
 
   return (
-    <section className="dsh-model-settings" aria-label={text.nav}>
-      {!view && busy && <p role="status">{text.loading}</p>}
+    <section className="dsh-model-settings" aria-label={text.nav} aria-busy={!!busy}>
+      <p className="dsh-model-settings-description">{text.description}</p>
+      {busy === 'loading' && <p role="status">{text.loading}</p>}
+      {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
+      {notice && notice !== 'saved' && synchronized && !busy && <p role="status">{text.resynced}</p>}
+      {readError && <p role="alert">{text[readError]}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
       {(['target', 'worktree'] as const).map((task) => {
         const target = view?.[task]
@@ -283,21 +376,13 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const selected = option?.route ?? null
         const efforts = option?.efforts ?? []
         const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
-        const unchanged = draft === current && effort === (target.reasoningEffort ?? '')
         const automaticHint = task === 'target' ? text.automaticHint : text.worktreeAutomaticHint
         const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
         const effortLabel =
           efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
         const fieldId = `${id}-${task}`
         return (
-          <form
-            key={task}
-            aria-label={title}
-            onSubmit={(event) => {
-              event.preventDefault()
-              void save(task)
-            }}
-          >
+          <div key={task} className="dsh-model-settings-field">
             <div className="dsh-model-settings-row">
               <div className="dsh-model-settings-text">
                 <div>{title}</div>
@@ -307,6 +392,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               </div>
               <div className="dsh-model-settings-controls">
                 <Picker
+                  id={fieldId}
                   label={`${title} ${text.model}`}
                   value={modelLabel}
                   title={
@@ -326,17 +412,14 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                         ]
                       : modelItems
                   }
-                  disabled={busy}
+                  disabled={!!busy || !synchronized}
                   describedBy={`${fieldId}-hint`}
                   onSelect={(value) => {
-                    if (value !== draft) {
-                      setDrafts((current) => ({ ...current, [task]: value }))
-                      setEffortDrafts((current) => ({ ...current, [task]: '' }))
-                      setNotice(undefined)
-                    }
+                    void save(task, value, value === draft ? effort : '')
                   }}
                 />
                 <Picker
+                  id={`${fieldId}-reasoning`}
                   label={`${title} ${text.effort}`}
                   value={effortLabel}
                   title={
@@ -356,39 +439,22 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                       : []),
                     ...efforts.map((item) => ({ id: item.id, label: item.name })),
                   ]}
-                  disabled={busy || !selected || (efforts.length === 0 && !effort)}
+                  disabled={!!busy || !synchronized || !selected || (efforts.length === 0 && !effort)}
                   onSelect={(value) => {
-                    setEffortDrafts((current) => ({ ...current, [task]: value }))
-                    setNotice(undefined)
+                    void save(task, draft, value)
                   }}
                 />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={busy || unchanged || (!!draft && !selected) || missingEffort}
-                >
-                  {busy && noticeTask === task ? text.saving : text.save}
-                </Button>
               </div>
             </div>
+            {busy === 'saving' && noticeTask === task && <p role="status">{text.saving}</p>}
             {notice && noticeTask === task && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
-          </form>
+          </div>
         )
       })}
       {view?.catalogError && <p role="alert">{text.catalog}</p>}
-      {notice && (!view || !noticeTask) && <p role="alert">{text[notice]}</p>}
-      <footer>
-        <Button
-          type="button"
-          aria-label={text.refresh}
-          disabled={busy}
-          onClick={() => {
-            void load()
-          }}
-        >
-          {text.refresh}
-        </Button>
-      </footer>
+      {notice && (!noticeTask || !view?.[noticeTask]) && (
+        <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>
+      )}
     </section>
   )
 }
@@ -406,7 +472,7 @@ export function apply(ctx: Context) {
         name: 'settings.section',
         id: name,
         order: 15,
-        label: () => copy[ctx.locale.getSnapshot().active.startsWith('ko') ? 'ko' : 'en'].nav,
+        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
         inject: () => ({ ctx }),
       },
       ModelSettings

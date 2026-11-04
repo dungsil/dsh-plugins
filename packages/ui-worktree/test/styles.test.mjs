@@ -66,7 +66,8 @@ await test('compact trigger hides only its branch name and animates the open che
   assert.ok(motion, 'chevron transition must be guarded by prefers-reduced-motion: no-preference')
   assert.match(motion[1], /transition:\s*transform\s+(?:120ms|0?\.12s)(?:\s+[^;]+)?;/)
   assert.equal((styles.match(/\btransition:/g) ?? []).length, 1, 'no unguarded transitions')
-  assert.doesNotMatch(styles, /\banimation:/)
+  assert.doesNotMatch(declarations('.dsh-worktree-chevron'), /\banimation:/)
+  assert.match(styles, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.dsh-worktree-progress[^}]*animation:/)
 })
 
 await test('error details stay outside the toolbar flow with a compact keyboard-focusable trigger', () => {
@@ -97,10 +98,8 @@ await test('hover and dialog surfaces retain host theme tokens without local men
   ]) {
     assert.ok(dialog.includes(declaration), declaration)
   }
-  assert.match(styles, /\.dsh-worktree-dialog form > label/)
-  assert.match(styles, /\.dsh-worktree-dialog input\[type=text\]/)
+  assert.doesNotMatch(styles, /\.dsh-worktree-dialog form > label|\.dsh-worktree-dialog input\[type=text\]/)
   assert.match(styles, /\.dsh-worktree-dialog footer/)
-  assert.match(styles, /\.dsh-worktree-dialog \[role=alert\]/)
   assert.doesNotMatch(styles, /#[\da-f]{3,8}\b/i)
   assert.doesNotMatch(styles, /\.dsh-worktree-(?:menu|option|list)(?:\s|[.{:])/)
 })

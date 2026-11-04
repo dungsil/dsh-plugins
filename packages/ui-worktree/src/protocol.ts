@@ -1,5 +1,38 @@
 export const channel = '/api'
 export const endpointPrefix = 'dungsil-worktree/'
+export const progressRecord = 'plugin:dungsil/ui-worktree/progress'
+
+export interface WorktreeProgress {
+  id: string
+  step: number
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  updatedAt: number
+  durations: number[]
+  branch?: string
+}
+
+declare module '@deepseek-ai/dsh-session' {
+  interface PluginRecordMap {
+    'plugin:dungsil/ui-worktree/progress': WorktreeProgress
+  }
+}
+
+export function isWorktreeProgress(value: unknown): value is WorktreeProgress {
+  if (!value || typeof value !== 'object') return false
+  const progress = value as WorktreeProgress
+  return (
+    typeof progress.id === 'string' &&
+    Number.isInteger(progress.step) &&
+    progress.step >= 0 &&
+    progress.step < 4 &&
+    ['running', 'completed', 'failed', 'cancelled'].includes(progress.status) &&
+    Number.isFinite(progress.updatedAt) &&
+    Array.isArray(progress.durations) &&
+    progress.durations.length === 4 &&
+    progress.durations.every((duration) => Number.isFinite(duration) && duration >= 0) &&
+    (progress.branch === undefined || typeof progress.branch === 'string')
+  )
+}
 
 export interface WorktreeSettings {
   directory: string
@@ -16,6 +49,7 @@ export interface WorktreeSettingsView {
 export interface WorktreeView {
   cwd: string
   worktrees: { path: string; branch: string | null }[]
+  pendingCreation?: { name: string; failed: boolean }
 }
 
 function comparablePath(path: string) {
@@ -40,6 +74,10 @@ export function isWorktreeView(value: unknown): value is WorktreeView {
   const view = value as Partial<WorktreeView>
   return (
     typeof view.cwd === 'string' &&
+    (view.pendingCreation === undefined ||
+      (view.pendingCreation !== null &&
+        typeof view.pendingCreation.name === 'string' &&
+        typeof view.pendingCreation.failed === 'boolean')) &&
     Array.isArray(view.worktrees) &&
     view.worktrees.every(
       (item) => item && typeof item.path === 'string' && (item.branch === null || typeof item.branch === 'string')

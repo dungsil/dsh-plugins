@@ -212,6 +212,27 @@ await test('recordRelease adds only the confirmed version and preserves history 
     updated
   )
 
+  // npm can keep an accepted release pending validation beyond the retry window.
+  assert.deepEqual(buildMarketIndex({ packages, registryDocuments, previousIndex: updated }), updated)
+
+  // Only the recorded local release is retained, not unpublished historical versions.
+  const removed = new Map(registryDocuments)
+  removed.set(alpha.name, {
+    versions: { '0.2.0': alphaDocument.versions['0.2.0'] },
+    time: alphaDocument.time,
+  })
+  const reconciled = buildMarketIndex({ packages, registryDocuments: removed, previousIndex: updated })
+  assert.deepEqual(reconciled.plugins[1].versions, [published, before.plugins[1].versions[1]])
+
+  // Preserving the pending version must not hide metadata drift.
+  const renamed = buildMarketIndex({
+    packages: [{ ...manifest, market: market({ order: 2, title: 'Renamed' }) }, beta, unpublished],
+    registryDocuments,
+    previousIndex: updated,
+  })
+  assert.equal(renamed.plugins[1].title, 'Renamed')
+  assert.notDeepEqual(renamed, updated)
+
   const propagated = new Map(registryDocuments)
   propagated.set(alpha.name, {
     versions: { ...alphaDocument.versions, '0.3.0': manifest },
@@ -231,6 +252,13 @@ await test('recordRelease adds only the confirmed version and preserves history 
   assert.deepEqual(initial.plugins[0].versions, [{ version: '0.1.0', publishTimestamp, source: { type: 'npm' } }])
   assert.deepEqual(initial.plugins.slice(1), updated.plugins)
   assert.doesNotThrow(() => parseMarketIndex(initial, INDEX_URL))
+  for (const document of [null, { versions: { '0.0.0-stage': {} } }]) {
+    const documents = new Map(registryDocuments).set(first.name, document)
+    assert.deepEqual(
+      buildMarketIndex({ packages: [manifest, beta, first], registryDocuments: documents, previousIndex: initial }),
+      initial
+    )
+  }
 })
 
 await test('buildMarketIndex skips private packages and 404 registry entries', () => {

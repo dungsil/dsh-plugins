@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Git Worktree UI",
-    "description": "Select, create, and switch Git worktrees next to the composer permission selector. The model only names branches when the name is empty."
+    "description": "Select New worktree, then send a task to automatically name, create, and enter it. Follow setup progress in the conversation."
   }
 }

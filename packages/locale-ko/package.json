@@ -31,8 +31,8 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@dungsil/dsh-plugin-korean-ime": "workspace:^",
-    "@dungsil/dsh-plugin-yoonmoon": "workspace:^"
+    "@dungsil/dsh-plugin-korean-ime": "workspace:*",
+    "@dungsil/dsh-plugin-yoonmoon": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",

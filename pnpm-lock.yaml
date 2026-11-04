@@ -247,10 +247,10 @@ importers:
   packages/locale-ko:
     dependencies:
       '@dungsil/dsh-plugin-korean-ime':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../korean-ime
       '@dungsil/dsh-plugin-yoonmoon':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../yoonmoon
     devDependencies:
       '@deepseek-ai/cordis':
@@ -431,7 +431,7 @@ importers:
   packages/ui-model-settings:
     dependencies:
       '@dungsil/dsh-plugin-model-settings':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../model-settings
     devDependencies:
       '@deepseek-ai/cordis':
@@ -579,6 +579,9 @@ importers:
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-client-ui-chat':
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-client-ui-conversation':
@@ -910,6 +913,11 @@ packages:
 
   '@deepseek-ai/dsh-client-store@0.2.1-rc.5':
     resolution: {integrity: sha512-CDi+x1DSXVVrSNflGjDa1dovyWbcQ4Gmyz200sk2TYL69X74LyfPrAWkGA66z4v10o4VlRQxFz6hJ5YDFhoi/w==}
+    peerDependencies:
+      '@deepseek-ai/cordis': ~4.0.5
+
+  '@deepseek-ai/dsh-client-ui-chat@0.2.1-rc.5':
+    resolution: {integrity: sha512-/UzmkMvOW94RtwHNbnU36+U5syK3QBRoDYzX9n6iyb+w9PrlKjUIckGqZNZnAoEG374htpvUrrT0YPSp4BDJ+A==}
     peerDependencies:
       '@deepseek-ai/cordis': ~4.0.5
 
@@ -3693,6 +3701,11 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
       - react
+
+  '@deepseek-ai/dsh-client-ui-chat@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@deepseek-ai/schemastery': 3.18.5
 
   '@deepseek-ai/dsh-client-ui-conversation@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)':
     dependencies:
