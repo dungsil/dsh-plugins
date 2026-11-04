@@ -21,7 +21,7 @@ import * as plugin from '../dist/index.js'
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
-async function fixture(t, options = {}, settings = {}) {
+async function fixture(t, options = {}, settings = {}, taskModels) {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-worktree-')))
   const repo = join(home, 'source')
   const other = join(home, process.platform === 'win32' ? 'existing space 한글' : 'existing space\n한글')
@@ -56,6 +56,9 @@ async function fixture(t, options = {}, settings = {}) {
         insert: [
           { id: 'editor', name: 'cordis:editor' },
           { id: 'worktree-ui', name: '@dungsil/dsh-plugin-ui-worktree', config: settings },
+          ...(taskModels
+            ? [{ id: 'task-models', name: '@dungsil/dsh-plugin-model-settings', config: taskModels }]
+            : []),
         ],
       },
     ])
@@ -80,6 +83,7 @@ async function fixture(t, options = {}, settings = {}) {
     root.loader.internal = {
       version: 'v2',
       import: async (specifier) => {
+        if (specifier === '@dungsil/dsh-plugin-model-settings') return ModelSettings
         assert.equal(specifier, '@dungsil/dsh-plugin-ui-worktree')
         return plugin
       },
@@ -884,4 +888,75 @@ await test('task model and worktree settings coexist across profile reloads, rej
     model: 'selected',
     reasoningEffort: 'quick',
   })
+})
+
+await test('automatic worktree naming follows live auxiliary settings without changing conversation calls', async (t) => {
+  const route = { provider: 'auxiliary', model: 'small' }
+  const { ctx, agent, repo, rpc, requests, submit } = await fixture(
+    t,
+    {},
+    {},
+    {
+      auxiliaryModel: { ...route, reasoningEffort: 'quick' },
+    }
+  )
+  const namingRequests = []
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: { efforts: ['quick', 'thorough'].map((id) => ({ id, name: id })), defaultEffort: 'thorough' },
+      }
+    }
+    async *stream(options) {
+      namingRequests.push(options)
+      yield { type: 'text-delta', index: 0, text: `fix/task-${namingRequests.length}` }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['auxiliary', 'explicit'], new NamingAdapter())
+  const check = async (expected, effort) => {
+    assert.equal((await rpc('create', { cwd: repo })).ok, true)
+    await submit()
+    const created = (await rpc('describe')).value
+    assert.ok(created.cwd.endsWith(`task-${namingRequests.length}`))
+    assert.equal(namingRequests.at(-1).provider, expected.provider)
+    assert.equal(namingRequests.at(-1).model, expected.model)
+    assert.equal(namingRequests.at(-1).reasoningEffort, effort)
+    assert.equal((await rpc('switch', { cwd: created.cwd, path: gitPath(repo) })).ok, true)
+  }
+  const describe = async () => (await rpc('dungsil-model-settings/describe')).value
+  const save = (payload) => rpc('dungsil-model-settings/save', payload)
+  assert.equal((await describe()).worktree.useAuxiliary, true)
+  await check(route, 'quick')
+  const nextRoute = { provider: 'auxiliary', model: 'updated' }
+  assert.equal(
+    (await save({ ...(await describe()).auxiliary, route: nextRoute, reasoningEffort: 'thorough' })).ok,
+    true
+  )
+  await check(nextRoute, 'thorough')
+  const explicit = { provider: 'explicit', model: 'own' }
+  assert.equal((await save({ ...(await describe()).worktree, route: explicit, reasoningEffort: 'quick' })).ok, true)
+  await check(explicit, 'quick')
+  assert.equal(
+    (await save({ ...(await describe()).worktree, route: null, reasoningEffort: null, useAuxiliary: true })).ok,
+    true
+  )
+  await check(nextRoute, 'thorough')
+  assert.equal(
+    (await save({ ...(await describe()).worktree, route: null, reasoningEffort: null, useAuxiliary: false })).ok,
+    true
+  )
+  const auxiliaryCalls = namingRequests.length
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(namingRequests.length, auxiliaryCalls)
+  assert.ok(requests.some((request) => request.system?.startsWith('Return only a short')))
+  assert.deepEqual(
+    { provider: agent.options.provider, model: agent.options.model },
+    { provider: 'test', model: 'test-model' }
+  )
+  assert.ok(requests.every((request) => request.provider === 'test' && request.model === 'test-model'))
 })

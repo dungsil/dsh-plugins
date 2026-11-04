@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-session-title'
 import { channel, endpointPrefix, type Route, type TitleTarget } from './protocol.js'
 
 export const name = 'dungsil-model-settings'
@@ -13,12 +14,16 @@ const titlePlugins = new Set([
   '@deepseek-ai/dsh-session-title-first-prompt-llm',
   '@deepseek-ai/dsh-session-title-all-prompts-llm',
 ])
+const wrappedTitles = new WeakSet<object>()
 
-export function apply(ctx: Context) {
+export async function apply(ctx: Context) {
+  const editor = ctx.root.configEditor
   const settingsEntry = () =>
-    ctx.configEditor.entries().find((entry) => entry.options.name === '@dungsil/dsh-plugin-model-settings')
+    editor
+      .entries()
+      .find((entry) => entry.options.name === '@dungsil/dsh-plugin-model-settings' && entry.fiber?.state === 2)
   const targetEntry = (task: 'title' | 'worktree') => {
-    const entries = ctx.configEditor
+    const entries = editor
       .entries()
       .filter(
         (entry) =>
@@ -28,21 +33,37 @@ export function apply(ctx: Context) {
       )
     return entries.length === 1 ? entries[0] : undefined
   }
-  const snapshot = (task: 'title' | 'worktree'): TitleTarget | null => {
-    const entry = targetEntry(task)
+  const snapshot = (task: 'title' | 'worktree' | 'auxiliary'): TitleTarget | null => {
+    const owner = settingsEntry()
+    const entry = task === 'auxiliary' ? owner : targetEntry(task)
     if (!entry) return null
-    const config = entry.fiber!.config as { provider?: string; model?: string; reasoningEffort?: string }
-    const settings = (task === 'title' ? settingsEntry()?.options.config?.titleReasoning : undefined) as
+    const config = (task === 'auxiliary' ? (owner?.options.config?.auxiliaryModel ?? {}) : entry.fiber!.config) as {
+      provider?: string
+      model?: string
+      reasoningEffort?: string
+    }
+    const inheritance = owner?.options.config?.inheritAuxiliary as Record<string, boolean> | undefined
+    const useAuxiliary =
+      task !== 'auxiliary' && !config.provider && !config.model && (inheritance?.[entry.options.id] ?? true)
+    const settings = (task === 'title' ? owner?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
     return {
       id: entry.options.id,
       revision: createHash('sha256')
-        .update(JSON.stringify([entry.fiber!.uid, entry.options.config, settings]))
+        .update(
+          JSON.stringify([
+            task === 'auxiliary' ? entry.options.id : entry.fiber!.uid,
+            task === 'auxiliary' ? config : entry.options.config,
+            settings,
+            useAuxiliary,
+          ])
+        )
         .digest('hex'),
       route: config.provider && config.model ? { provider: config.provider, model: config.model } : null,
+      useAuxiliary,
       reasoningEffort:
-        task === 'worktree'
+        task !== 'title'
           ? config.provider && config.model
             ? (config.reasoningEffort ?? null)
             : null
@@ -54,21 +75,48 @@ export function apply(ctx: Context) {
     }
   }
 
-  // Upstream title providers always select the lowest effort. Scope this
-  // service binding to their exact fiber, and select the override BEFORE LLM
-  // validation and durable request logging, never by rewriting a stream.
+  // Scope overrides to task consumers, before validation and request logging.
   ctx.on('internal/get', (consumer, service, _error, next) => {
-    if (service !== 'llm') return next()
-    const entry = targetEntry('title')
-    if (consumer.fiber !== entry?.fiber) return next()
-    const effort = snapshot('title')?.reasoningEffort
-    if (typeof effort !== 'string') return next()
+    if (service !== 'llm' && service !== 'sessionTitle') return next()
+    const entry = editor.entries().find((entry) => entry.fiber === consumer.fiber)
+    // During initial activation the loader has not attached the fiber to its entry yet.
+    const task = titlePlugins.has(entry?.options.name ?? `@deepseek-ai/dsh-${consumer.fiber.name}`)
+      ? 'title'
+      : entry?.options.name === '@dungsil/dsh-plugin-ui-worktree' || consumer.fiber.name === 'dungsil-ui-worktree'
+        ? 'worktree'
+        : null
+    if (!task) return next()
+    if (service === 'sessionTitle') {
+      if (task !== 'title') return next()
+      const titles = next() as Context['sessionTitle']
+      const register: Context['sessionTitle']['register'] = (provider) => {
+        wrappedTitles.add(consumer.fiber)
+        consumer.effect(() => () => {
+          wrappedTitles.delete(consumer.fiber)
+        })
+        return titles.register({
+          ...provider,
+          generate(request) {
+            const auxiliary = snapshot('title')?.useAuxiliary ? snapshot('auxiliary') : null
+            // The title provider uses this route for both generation and provenance.
+            return provider.generate(auxiliary?.route ? { ...request, route: auxiliary.route } : request)
+          },
+        })
+      }
+      return new Proxy(titles, {
+        get: (target, key, receiver) => (key === 'register' ? register : Reflect.get(target, key, receiver)),
+      })
+    }
     const llm = next() as Context['llm']
-    const prepareCall: Context['llm']['prepareCall'] = (config, signal, configure) =>
-      llm.prepareCall(config, signal, (controls, model) => ({
+    const prepareCall: Context['llm']['prepareCall'] = (config, signal, configure) => {
+      const target = snapshot(task)
+      const auxiliary = target?.useAuxiliary ? snapshot('auxiliary') : null
+      const effort = auxiliary?.route ? auxiliary.reasoningEffort : target?.reasoningEffort
+      return llm.prepareCall({ ...config, ...auxiliary?.route }, signal, (controls, model) => ({
         ...(configure ? configure(controls, model) : controls),
-        reasoningEffort: ReasoningEffortId(effort),
+        ...(typeof effort === 'string' ? { reasoningEffort: ReasoningEffortId(effort) } : {}),
       }))
+    }
     return new Proxy(llm, {
       get: (target, key, receiver) => (key === 'prepareCall' ? prepareCall : Reflect.get(target, key, receiver)),
     })
@@ -106,11 +154,28 @@ export function apply(ctx: Context) {
           }
         })
       )
-      return { ok: true, value: { target: snapshot('title'), worktree: snapshot('worktree'), providers, catalogError } }
+      return {
+        ok: true,
+        value: {
+          auxiliary: snapshot('auxiliary'),
+          target: snapshot('title'),
+          worktree: snapshot('worktree'),
+          providers,
+          catalogError,
+        },
+      }
     }
     if (!payload || typeof payload !== 'object') return failure('invalid')
-    const input = payload as { id?: unknown; revision?: unknown; route?: unknown; reasoningEffort?: unknown }
+    const input = payload as {
+      id?: unknown
+      revision?: unknown
+      route?: unknown
+      reasoningEffort?: unknown
+      useAuxiliary?: unknown
+    }
     if (typeof input.id !== 'string' || typeof input.revision !== 'string') return failure('invalid')
+    if (input.useAuxiliary !== undefined && typeof input.useAuxiliary !== 'boolean') return failure('invalid')
+    const useAuxiliary = input.route === null && input.useAuxiliary === true
     const reasoningEffort = input.reasoningEffort ?? null
     if (reasoningEffort !== null && (typeof reasoningEffort !== 'string' || !reasoningEffort.trim()))
       return failure('invalid')
@@ -137,16 +202,23 @@ export function apply(ctx: Context) {
         return failure('model_unavailable')
       }
     }
-    const task = snapshot('worktree')?.id === input.id ? 'worktree' : 'title'
-    const entry = targetEntry(task)
     const owner = settingsEntry()
-    if (!entry || (task === 'title' && !owner)) return failure('unavailable')
+    const task =
+      owner?.options.id === input.id ? 'auxiliary' : snapshot('worktree')?.id === input.id ? 'worktree' : 'title'
+    const entry = task === 'auxiliary' ? owner : targetEntry(task)
+    if (!entry || (task !== 'worktree' && !owner)) return failure('unavailable')
+    if (task === 'auxiliary' && useAuxiliary) return failure('invalid')
     try {
       signal.throwIfAborted()
       await ctx.configEditor.edit(entry, (current) => {
         const latest = snapshot(task)
         if (!latest || latest.id !== input.id || latest.revision !== input.revision) throw new Error('conflict')
         const next = { ...current }
+        if (task === 'auxiliary') {
+          if (route) next.auxiliaryModel = { ...route, ...(reasoningEffort !== null ? { reasoningEffort } : {}) }
+          else delete next.auxiliaryModel
+          return next
+        }
         if (route) Object.assign(next, route)
         else {
           delete next.provider
@@ -158,11 +230,11 @@ export function apply(ctx: Context) {
         }
         return next
       })
-      if (task === 'worktree') return { ok: true, value: snapshot(task) }
+      if (task === 'auxiliary' || !owner) return { ok: true, value: snapshot(task) }
       // The upstream title config rejects additional fields. Store our
       // extension in this plugin's config, bound to the exact title route so
       // changing that route elsewhere cannot reuse an incompatible effort.
-      const updated = snapshot('title')
+      const updated = snapshot(task)
       if (
         !updated ||
         updated.id !== input.id ||
@@ -171,13 +243,20 @@ export function apply(ctx: Context) {
       )
         throw new Error('conflict')
       await ctx.configEditor.edit(owner!, (current) => {
-        if (snapshot('title')?.revision !== updated.revision) throw new Error('conflict')
+        if (snapshot(task)?.revision !== updated.revision) throw new Error('conflict')
         const next = { ...current }
-        if (route && reasoningEffort !== null) next.titleReasoning = { target: input.id, ...route, reasoningEffort }
-        else delete next.titleReasoning
+        const inheritance = { ...(current.inheritAuxiliary as Record<string, boolean> | undefined) }
+        if (!route && !useAuxiliary) inheritance[input.id as string] = false
+        else delete inheritance[input.id as string]
+        if (Object.keys(inheritance).length) next.inheritAuxiliary = inheritance
+        else delete next.inheritAuxiliary
+        if (task === 'title') {
+          if (route && reasoningEffort !== null) next.titleReasoning = { target: input.id, ...route, reasoningEffort }
+          else delete next.titleReasoning
+        }
         return next
       })
-      return { ok: true, value: snapshot('title') }
+      return { ok: true, value: snapshot(task) }
     } catch (error) {
       return failure(error instanceof Error && error.message === 'conflict' ? 'conflict' : 'save_failed')
     }
@@ -210,5 +289,13 @@ export function apply(ctx: Context) {
         }),
       `model-settings: owner-only ${endpoint}`
     )
+  }
+  // Registration can precede this plugin while the title fiber is still loading.
+  // Wait for that activation before rebinding once; later saves use live settings.
+  const titles = editor.entries().filter((entry) => titlePlugins.has(entry.options.name))
+  const title = titles.length === 1 ? titles[0]!.fiber : undefined
+  if (title) {
+    await title.await()
+    if (title.state === 2 && !wrappedTitles.has(title)) await title.restart()
   }
 }

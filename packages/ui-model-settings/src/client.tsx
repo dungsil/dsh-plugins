@@ -24,6 +24,9 @@ const copy = {
     model: 'Model',
     worktree: 'Worktree branch name',
     inherit: 'Use conversation model',
+    auxiliary: 'Auxiliary model',
+    useAuxiliary: 'Use auxiliary model',
+    auxiliaryHint: 'Uses the auxiliary model and its reasoning effort. If unset, uses the conversation model.',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
@@ -52,6 +55,9 @@ const copy = {
     model: '모델',
     worktree: '워크트리 브랜치 이름',
     inherit: '대화 모델 따르기',
+    auxiliary: '보조 모델',
+    useAuxiliary: '보조 모델 따르기',
+    auxiliaryHint: '보조 모델과 추론 수준을 따릅니다. 보조 모델을 지정하지 않으면 대화 모델을 따릅니다.',
     effort: '추론 수준',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
@@ -79,6 +85,9 @@ const copy = {
     model: '模型',
     worktree: '工作树分支名称',
     inherit: '使用对话模型',
+    auxiliary: '辅助模型',
+    useAuxiliary: '使用辅助模型',
+    auxiliaryHint: '使用辅助模型及其推理级别。未指定辅助模型时使用对话模型。',
     effort: '推理级别',
     automatic: '自动',
     automaticHint: '自动（支持的最低级别）',
@@ -117,7 +126,9 @@ const styles = `${settingsStyles}
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
-type Task = 'target' | 'worktree'
+const selectionKey = (target?: TitleTarget | null) =>
+  target?.useAuxiliary ? 'auxiliary' : routeKey(target?.route ?? null)
+type Task = 'auxiliary' | 'target' | 'worktree'
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
@@ -129,8 +140,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
-  const [drafts, setDrafts] = useState({ target: '', worktree: '' })
-  const [effortDrafts, setEffortDrafts] = useState({ target: '', worktree: '' })
+  const [drafts, setDrafts] = useState({ auxiliary: '', target: '', worktree: '' })
+  const [effortDrafts, setEffortDrafts] = useState({ auxiliary: '', target: '', worktree: '' })
   const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
   const [synchronized, setSynchronized] = useState(false)
   const [notice, setNotice] = useState<Notice>()
@@ -146,8 +157,16 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
-      setEffortDrafts({ target: next.target?.reasoningEffort ?? '', worktree: next.worktree?.reasoningEffort ?? '' })
-      setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
+      setEffortDrafts({
+        auxiliary: next.auxiliary?.reasoningEffort ?? '',
+        target: next.target?.reasoningEffort ?? '',
+        worktree: next.worktree?.reasoningEffort ?? '',
+      })
+      setDrafts({
+        auxiliary: selectionKey(next.auxiliary),
+        target: selectionKey(next.target),
+        worktree: selectionKey(next.worktree),
+      })
       setSynchronized(true)
       return true
     },
@@ -219,8 +238,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       controller.signal.aborted ||
       !target ||
       !synchronized ||
-      (draft === routeKey(target.route) && effort === (target.reasoningEffort ?? '')) ||
-      (draft && !selected) ||
+      (draft === selectionKey(target) && effort === (target.reasoningEffort ?? '')) ||
+      (draft && draft !== 'auxiliary' && !selected) ||
       missingEffort
     )
       return
@@ -237,14 +256,20 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
-        { id: target.id, revision: target.revision, route: selected, reasoningEffort: effort || null },
+        {
+          id: target.id,
+          revision: target.revision,
+          route: selected,
+          reasoningEffort: effort || null,
+          useAuxiliary: draft === 'auxiliary',
+        },
         controller.signal
       )
       if (!active()) return
       if (result.ok) {
         const saved = result.value as unknown as TitleTarget | null
         setView((current) => current && { ...current, [task]: saved })
-        setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
+        setDrafts((current) => ({ ...current, [task]: selectionKey(saved) }))
         setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
       } else {
         const code = result.error.code
@@ -279,10 +304,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
       {readError && <p role="alert">{text[readError]}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
-      {(['target', 'worktree'] as const).map((task) => {
+      {(['auxiliary', 'target', 'worktree'] as const).map((task) => {
         const target = view?.[task]
         if (!target) return null
-        const title = task === 'target' ? text.title : text.worktree
+        const title = task === 'auxiliary' ? text.auxiliary : task === 'target' ? text.title : text.worktree
         const draft = drafts[task]
         const effort = effortDrafts[task]
         const current = routeKey(target.route)
@@ -292,20 +317,24 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const efforts = option?.efforts ?? []
         const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
         const automaticHint = task === 'target' ? text.automaticHint : text.worktreeAutomaticHint
-        const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
+        const modelLabel =
+          draft === 'auxiliary' ? text.useAuxiliary : (option?.name ?? (draft ? text.missing : text.inherit))
         const effortLabel =
           efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
         const fieldId = `${id}-${task}`
         const modelTitle =
-          option?.label ??
+          (draft === 'auxiliary' ? text.auxiliaryHint : option?.label) ??
           (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
-        const effortTitle = !selected
-          ? text.effortHint
-          : efforts.length === 0
-            ? text.noEfforts
-            : effort
-              ? effortLabel
-              : automaticHint
+        const effortTitle =
+          draft === 'auxiliary'
+            ? text.auxiliaryHint
+            : !selected
+              ? text.effortHint
+              : efforts.length === 0
+                ? text.noEfforts
+                : effort
+                  ? effortLabel
+                  : automaticHint
         return (
           <div key={task} className="dsh-model-settings-field">
             <SettingsRow label={<div>{title}</div>}>
@@ -317,8 +346,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   value={modelLabel}
                   title={modelTitle}
                   selectedId={draft}
-                  items={
-                    missing
+                  items={[
+                    ...(task === 'auxiliary' ? [] : [{ id: 'auxiliary', label: text.useAuxiliary }]),
+                    ...(missing
                       ? [
                           ...modelItems,
                           {
@@ -327,8 +357,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                             disabled: true,
                           },
                         ]
-                      : modelItems
-                  }
+                      : modelItems),
+                  ]}
                   disabled={!!busy || !synchronized}
                   onSelect={(value) => {
                     void save(task, value, value === draft ? effort : '')
