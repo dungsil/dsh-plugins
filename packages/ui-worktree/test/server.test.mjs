@@ -14,6 +14,7 @@ import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
@@ -96,7 +97,7 @@ async function fixture(t, options = {}, settings = {}) {
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
   const rpc = async (endpoint, payload = {}, peer = owner) => {
-    const method = `dungsil-worktree/${endpoint}`
+    const method = endpoint.includes('/') ? endpoint : `dungsil-worktree/${endpoint}`
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',
@@ -377,4 +378,96 @@ await test('configured hooks and checkout filters do not execute while creating 
   assert.equal(result.ok, true)
   assert.equal(await readFile(join(result.value.cwd, 'tracked.txt'), 'utf8'), 'original content\n')
   await assert.rejects(readFile(marker), { code: 'ENOENT' })
+})
+
+await test('task model and worktree settings coexist across profile reloads, reject stale writes and reset to the conversation model', async (t) => {
+  const initialSettings = { directory: '../naming pool', remote: true, naming: 'custom', prefix: 'team/' }
+  const { ctx, agent, repo, home, git, rpc, profile } = await fixture(
+    t,
+    { provider: 'fallback', model: 'large' },
+    initialSettings
+  )
+  const requests = []
+  let answer = 'task'
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream(options) {
+      requests.push(options)
+      yield { type: 'text-delta', index: 0, text: answer }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['naming', 'conversation', 'fallback'], new NamingAdapter())
+  await ctx.plugin(ModelSettings)
+  agent.session.append('request/header', {
+    header: { config: { provider: 'conversation', model: 'selected' } },
+    reason: 'initial',
+  })
+  git('remote', 'add', 'origin', join(home, 'not-fetched'))
+  git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'))
+  git('branch', '--set-upstream-to=origin/main', 'main')
+
+  const staleSettings = (await rpc('settings')).value
+  const initial = (await rpc('dungsil-model-settings/describe')).value
+  assert.equal(initial.target, null)
+  const route = { provider: 'naming', model: 'small' }
+  const saved = await rpc('dungsil-model-settings/save', { ...initial.worktree, route })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.route, route)
+  assert.deepEqual((await rpc('settings')).value.settings, initialSettings)
+  assert.equal((await rpc('save-settings', staleSettings)).error.code, 'conflict')
+
+  const manual = await rpc('create', { cwd: repo, name: 'manual' })
+  assert.equal(manual.ok, true)
+  assert.equal(requests.length, 0, 'saving a model and supplying a branch name must not generate text')
+  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: repo })).ok, true)
+
+  for (const [naming, generated, branch] of [
+    ['semantic', 'fix/task-1', 'fix/task-1'],
+    ['dsh', 'task-2', 'dsh/task-2'],
+    ['custom', 'task-3', 'team/task-3'],
+  ]) {
+    const view = (await rpc('settings')).value
+    const modelBeforeEdit = (await rpc('dungsil-model-settings/describe')).value.worktree
+    const settings = { ...view.settings, naming }
+    const updated = await rpc('save-settings', {
+      ...view,
+      settings: { ...settings, provider: 'conversation', model: 'selected' },
+    })
+    assert.equal(updated.ok, true)
+    assert.deepEqual(updated.value.settings, settings, 'the worktree API only reads and writes its own fields')
+    const models = (await rpc('dungsil-model-settings/describe')).value
+    assert.deepEqual(models.worktree.route, route, 'worktree edits must preserve the task model')
+    const stale = await rpc('dungsil-model-settings/save', { ...modelBeforeEdit, route: null })
+    assert.equal(stale.error?.code, 'conflict', `${naming}: ${JSON.stringify(stale)}`)
+    answer = generated
+    const created = await rpc('create', { cwd: repo })
+    assert.equal(created.ok, true)
+    assert.equal(created.value.cwd, join(home, 'naming pool', branch))
+    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+  }
+  assert.deepEqual(
+    requests.map(({ provider, model, tools }) => ({ provider, model, tools })),
+    Array.from({ length: 3 }, () => ({ ...route, tools: undefined }))
+  )
+  assert.match(await readFile(profile.patchPath, 'utf8'), /provider: naming/)
+  assert.match(await readFile(profile.patchPath, 'utf8'), /model: small/)
+
+  const beforeReset = (await rpc('settings')).value
+  const models = (await rpc('dungsil-model-settings/describe')).value
+  const reset = await rpc('dungsil-model-settings/save', { ...models.worktree, route: null })
+  assert.equal(reset.ok, true)
+  assert.equal(reset.value.route, null)
+  assert.deepEqual((await rpc('settings')).value.settings, beforeReset.settings)
+  assert.equal((await rpc('save-settings', beforeReset)).error.code, 'conflict')
+  assert.doesNotMatch(await readFile(profile.patchPath, 'utf8'), /provider:|model:/)
+  answer = 'inherited'
+  const inherited = await rpc('create', { cwd: repo })
+  assert.equal(inherited.ok, true)
+  assert.equal(inherited.value.cwd, join(home, 'naming pool/team/inherited'))
+  assert.equal(requests.at(-1).provider, 'conversation')
+  assert.equal(requests.at(-1).model, 'selected')
+  assert.deepEqual(agent.session.requestHeader().config, { provider: 'conversation', model: 'selected' })
 })

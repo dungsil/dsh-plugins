@@ -576,6 +576,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: ~3.18.5
         version: 3.18.5
+      '@dungsil/dsh-plugin-model-settings':
+        specifier: workspace:*
+        version: link:../model-settings
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig

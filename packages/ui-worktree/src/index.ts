@@ -33,6 +33,8 @@ export const Config = z.object({
   remote: z.boolean().default(false),
   naming: z.union(['semantic', 'dsh', 'custom']).default('semantic'),
   prefix: z.string().default(''),
+  provider: z.string(),
+  model: z.string(),
 })
 
 function validSettings(value: unknown): value is WorktreeSettings {
@@ -73,7 +75,12 @@ const gitEnv = Object.fromEntries(
   ].map((key) => [key, undefined])
 )
 
-export function apply(ctx: Context, config: WorktreeSettings) {
+export interface Config extends WorktreeSettings {
+  provider?: string
+  model?: string
+}
+
+export function apply(ctx: Context, config: Config) {
   if (!validSettings(config)) throw new Error('Invalid worktree settings')
   const pending = new Set<string>()
   const lifetime = new AbortController()
@@ -154,7 +161,12 @@ export function apply(ctx: Context, config: WorktreeSettings) {
       revision: createHash('sha256')
         .update(JSON.stringify(current ?? {}))
         .digest('hex'),
-      settings: { directory: '.agents/worktrees', remote: false, naming: 'semantic', prefix: '', ...current },
+      settings: {
+        directory: current?.directory ?? '.agents/worktrees',
+        remote: current?.remote ?? false,
+        naming: current?.naming ?? 'semantic',
+        prefix: current?.prefix ?? '',
+      },
     }
   }
 
@@ -255,7 +267,8 @@ export function apply(ctx: Context, config: WorktreeSettings) {
         signal.throwIfAborted()
         await ctx.configEditor.edit(entry(), (current) => {
           if (snapshot().revision !== input.revision) throw new Error('conflict')
-          return { ...current, ...(input.settings as WorktreeSettings) }
+          const { directory, remote, naming, prefix } = input.settings as WorktreeSettings
+          return { ...current, directory, remote, naming, prefix }
         })
         return { ok: true as const, value: snapshot() }
       } catch (error) {
@@ -303,7 +316,8 @@ export function apply(ctx: Context, config: WorktreeSettings) {
         if (endpoint === 'create') {
           let branch = typeof input.name === 'string' ? input.name.trim() : ''
           if (!branch) {
-            const route = agent.session.requestHeader()?.config ?? agent.options
+            const route =
+              config.provider && config.model ? config : (agent.session.requestHeader()?.config ?? agent.options)
             if (!route.provider || !route.model) throw new Error('No model selected')
             const context = agent.session
               .deriveMessages()
