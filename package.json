@@ -5,7 +5,7 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "test": "node --test scripts/*.test.mjs && turbo run test",
+    "test": "turbo run test",
     "release": "node scripts/release.mjs",
     "market:index": "node scripts/market-index.mjs",
     "lint": "oxlint .",
