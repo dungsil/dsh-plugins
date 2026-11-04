@@ -20,6 +20,7 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = {
   en: {
     nav: 'Models by task',
+    taskSettings: 'Task-specific settings',
     title: 'Session title',
     titleDescription: 'Choose the model and reasoning effort used to automatically generate session titles.',
     model: 'Model',
@@ -54,6 +55,7 @@ const copy = {
   },
   ko: {
     nav: '상황별 모델',
+    taskSettings: '작업별 설정',
     title: '세션 제목',
     titleDescription: '세션 제목을 자동으로 생성할 때 사용할 모델과 추론 수준을 설정합니다.',
     model: '모델',
@@ -86,6 +88,7 @@ const copy = {
   },
   zh: {
     nav: '任务模型设置',
+    taskSettings: '各任务设置',
     title: '会话标题',
     titleDescription: '设置自动生成会话标题时使用的模型和推理级别。',
     model: '模型',
@@ -122,6 +125,8 @@ const localizedCopy = (language: string) =>
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings [data-task=auxiliary] .dsh-plugin-settings-row { border-bottom: none; }
+.dsh-model-settings-task-heading { margin: 32px 0 0; padding-bottom: 8px; border-bottom: .5px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
@@ -344,7 +349,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   ? effortLabel
                   : automaticHint
         return (
-          <div key={task} className="dsh-model-settings-field">
+          <div key={task} className="dsh-model-settings-field" data-task={task}>
+            {(task === 'target' || (task === 'worktree' && !view?.target)) && (
+              <h3 className="dsh-model-settings-task-heading">{text.taskSettings}</h3>
+            )}
             <SettingsRow
               label={
                 <>
