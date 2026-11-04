@@ -45,7 +45,12 @@ const gitEnv = Object.fromEntries(
   ].map((key) => [key, undefined])
 )
 
-export function apply(ctx: Context) {
+export interface Config {
+  provider?: string
+  model?: string
+}
+
+export function apply(ctx: Context, config: Config = {}) {
   const pending = new Set<string>()
 
   const describe = async (agent: Agent, signal: AbortSignal): Promise<WorktreeView> => {
@@ -137,7 +142,8 @@ export function apply(ctx: Context) {
         if (endpoint === 'create') {
           let branch = typeof input.name === 'string' ? input.name.trim() : ''
           if (!branch) {
-            const route = agent.session.requestHeader()?.config ?? agent.options
+            const route =
+              config.provider && config.model ? config : (agent.session.requestHeader()?.config ?? agent.options)
             if (!route.provider || !route.model) throw new Error('No model selected')
             const context = agent.session
               .deriveMessages()
