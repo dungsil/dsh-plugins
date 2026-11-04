@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Input, Menu, Switch, IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { SettingsPicker, SettingsRow } from '@dungsil/dsh-ui'
 import { channel, endpointPrefix, type WorktreeSettings, type WorktreeSettingsView } from './protocol.js'
 
 const copy = {
@@ -83,7 +84,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
   const [draft, setDraft] = useState<WorktreeSettings>()
   const [operation, setOperation] = useState<'loading' | 'saving' | undefined>('loading')
   const [notice, setNotice] = useState<'error' | 'conflict' | 'unavailable'>()
-  const [namingOpen, setNamingOpen] = useState(false)
   const saved = useRef<WorktreeSettingsView | undefined>(undefined)
   const latest = useRef<WorktreeSettings | undefined>(undefined)
   const pending = useRef(false)
@@ -106,7 +106,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
     if (!controller || controller.signal.aborted || pending.current) return
     pending.current = true
     blocked.current = true
-    setNamingOpen(false)
     setOperation('loading')
     try {
       await read(controller)
@@ -159,7 +158,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
     } finally {
       if (!controller.signal.aborted) {
         if (blocked.current) {
-          setNamingOpen(false)
           setOperation('loading')
           try {
             await read(controller)
@@ -210,15 +208,18 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
       <form onSubmit={(event) => event.preventDefault()}>
         {draft && (
           <fieldset disabled={disabled}>
-            <div className="dsh-worktree-settings-row">
-              <div className="dsh-worktree-settings-text">
-                <label htmlFor={`${id}-directory`}>{text.directory}</label>
-                {invalidDirectory && (
-                  <p id={`${id}-directory-error`} role="alert">
-                    {text.invalidDirectory}
-                  </p>
-                )}
-              </div>
+            <SettingsRow
+              label={
+                <>
+                  <label htmlFor={`${id}-directory`}>{text.directory}</label>
+                  {invalidDirectory && (
+                    <p id={`${id}-directory-error`} role="alert">
+                      {text.invalidDirectory}
+                    </p>
+                  )}
+                </>
+              }
+            >
               <Input
                 className="dsh-worktree-settings-input"
                 id={`${id}-directory`}
@@ -232,61 +233,47 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                 aria-describedby={invalidDirectory ? `${id}-directory-error` : undefined}
                 onChange={(event) => change({ directory: event.target.value })}
               />
-            </div>
-            <div className="dsh-worktree-settings-row">
-              <div className="dsh-worktree-settings-text">
-                <div className="dsh-worktree-settings-title">{text.remote}</div>
-              </div>
+            </SettingsRow>
+            <SettingsRow label={<div className="dsh-worktree-settings-title">{text.remote}</div>}>
               <Switch
                 label={text.remote}
                 checked={draft.remote}
                 disabled={disabled}
                 onChange={(remote) => change({ remote })}
               />
-            </div>
-            <div className="dsh-worktree-settings-row">
-              <div className="dsh-worktree-settings-text">
+            </SettingsRow>
+            <SettingsRow
+              label={
                 <div id={`${id}-naming`} className="dsh-worktree-settings-title">
                   {text.naming}
                 </div>
-              </div>
-              <Menu
-                open={namingOpen}
-                align="end"
-                portal
+              }
+            >
+              <SettingsPicker
+                className="dsh-worktree-settings-picker"
+                disabled={disabled}
+                aria-labelledby={`${id}-naming`}
+                value={text[draft.naming]}
                 selectedId={draft.naming}
                 items={(['semantic', 'dsh', 'custom'] as const).map((id) => ({ id, label: text[id] }))}
-                onClose={() => setNamingOpen(false)}
                 onSelect={(naming) => {
-                  setNamingOpen(false)
-                  if (!disabled) change({ naming: naming as WorktreeSettings['naming'] })
+                  change({ naming: naming as WorktreeSettings['naming'] })
                 }}
-                anchor={
-                  <button
-                    type="button"
-                    className="dsh-worktree-settings-selector"
-                    disabled={disabled}
-                    aria-labelledby={`${id}-naming`}
-                    aria-haspopup="menu"
-                    aria-expanded={namingOpen}
-                    onClick={() => setNamingOpen((open) => !open)}
-                  >
-                    <span>{text[draft.naming]}</span>
-                    <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
-                  </button>
-                }
               />
-            </div>
+            </SettingsRow>
             {draft.naming === 'custom' && (
-              <div className="dsh-worktree-settings-row">
-                <div className="dsh-worktree-settings-text">
-                  <label htmlFor={`${id}-prefix`}>{text.prefix}</label>
-                  {invalidPrefix && (
-                    <p id={`${id}-prefix-error`} role="alert">
-                      {text.invalidPrefix}
-                    </p>
-                  )}
-                </div>
+              <SettingsRow
+                label={
+                  <>
+                    <label htmlFor={`${id}-prefix`}>{text.prefix}</label>
+                    {invalidPrefix && (
+                      <p id={`${id}-prefix-error`} role="alert">
+                        {text.invalidPrefix}
+                      </p>
+                    )}
+                  </>
+                }
+              >
                 <Input
                   className="dsh-worktree-settings-input"
                   id={`${id}-prefix`}
@@ -301,7 +288,7 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                   spellCheck={false}
                   onChange={(event) => change({ prefix: event.target.value })}
                 />
-              </div>
+              </SettingsRow>
             )}
           </fieldset>
         )}

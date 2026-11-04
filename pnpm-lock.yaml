@@ -452,6 +452,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
@@ -632,6 +635,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
@@ -662,6 +668,21 @@ importers:
         version: 0.23.4(typescript@7.0.2)
 
   tools/tsconfig: {}
+
+  tools/ui:
+    devDependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/react':
+        specifier: 18.3.31
+        version: 18.3.31
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
 
 packages:
 

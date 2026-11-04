@@ -58,6 +58,7 @@
     "@deepseek-ai/schemastery": "~3.18.5",
     "@dungsil/dsh-plugin-model-settings": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
     "react": "18.3.1",
     "tsdown": "0.23.4"
