@@ -4,6 +4,9 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { IconPluginPinwheelOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
@@ -20,8 +23,17 @@ import { localizedCopy } from './copy.js'
 export const name = 'dungsil-cli-proxy-api'
 export const inject = ['connection', 'locale', 'slots']
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    'cli-proxy-api/connection-changed'(): void
+  }
+}
+
 const styles = `${settingsStyles}
 .dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 32px max(24px, var(--dsh-frame-leading-clearance, 0px)); }
+.dsh-cli-proxy-page > .dsh-cli-proxy { max-width: 960px; margin: 0 auto; }
+.dsh-cli-proxy h1 { font-size: 24px; line-height: 32px; margin: 0 0 16px; }
 .dsh-cli-proxy h3 { margin: 24px 0 0; font: inherit; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-proxy .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-cli-proxy input, .dsh-cli-proxy .button { box-sizing: border-box; height: 36px; max-width: 100%; min-width: 0; padding: 0 14px; border: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; }
@@ -57,10 +69,11 @@ function safeAuthorizationURL(value: string) {
   }
 }
 
-function ProxySettings({ ctx }: { ctx: Context }) {
+function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean }) {
   const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const id = useId()
+  const [connectionVersion, setConnectionVersion] = useState(0)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ConnectionView>()
   const [baseURL, setBaseURL] = useState('')
@@ -113,6 +126,14 @@ function ProxySettings({ ctx }: { ctx: Context }) {
   )
 
   useEffect(() => {
+    if (settings) return
+    const dispose = ctx.on('cli-proxy-api/connection-changed', () => setConnectionVersion((version) => version + 1))
+    return () => {
+      dispose()
+    }
+  }, [ctx, settings])
+
+  useEffect(() => {
     const controller = new AbortController()
     lifetime.current = controller
     lock.current = true
@@ -122,6 +143,10 @@ function ProxySettings({ ctx }: { ctx: Context }) {
     setModels(undefined)
     setManagement(undefined)
     setSession(undefined)
+    setOAuthStatus(undefined)
+    setStrategy('')
+    setRetry('0')
+    setUncertain(false)
     setRedirectURL('')
     setAPIKey('')
     setManagementKey('')
@@ -140,7 +165,7 @@ function ProxySettings({ ctx }: { ctx: Context }) {
       controller.abort()
       if (lifetime.current === controller) lifetime.current = undefined
     }
-  }, [describe])
+  }, [describe, connectionVersion])
 
   // One lock covers reads and writes. An aborted or uncertain write is never automatically repeated.
   const run = async (work: (controller: AbortController) => Promise<void>, mutation = false) => {
@@ -194,6 +219,7 @@ function ProxySettings({ ctx }: { ctx: Context }) {
       }
       // Both success and failure require a fresh revision before any further save.
       await describe(controller)
+      ctx.emit('cli-proxy-api/connection-changed')
       setNotice(saved ? 'savedConnection' : 'error')
     })
   }
@@ -232,314 +258,334 @@ function ProxySettings({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-cli-proxy" aria-label="CLIProxyAPI" aria-busy={busy}>
+      {!settings && <h1>CLIProxyAPI</h1>}
       {busy && <p role="status">{text.busy}</p>}
       {notice && <p role={notice === 'error' ? 'alert' : 'status'}>{text[notice]}</p>}
-      <h3>{text.connection}</h3>
-      <p className="hint">{text.serverHint}</p>
-      {row(
-        <label htmlFor={`${id}-url`}>{text.baseURL}</label>,
-        <input
-          id={`${id}-url`}
-          type="url"
-          autoComplete="off"
-          spellCheck={false}
-          value={baseURL}
-          disabled={busy || !synchronized}
-          onChange={(event) => setBaseURL(event.target.value)}
-        />
-      )}
-      {row(
-        <label htmlFor={`${id}-api`}>{text.apiKey}</label>,
+      {settings ? (
         <>
-          <input
-            id={`${id}-api`}
-            type="password"
-            autoComplete="off"
-            value={apiKey}
-            disabled={busy || !synchronized}
-            placeholder={removeAPIKey ? text.removed : view?.apiKeySaved ? text.saved : text.notSaved}
-            onChange={(event) => {
-              setAPIKey(event.target.value)
-              setRemoveAPIKey(false)
-            }}
-          />
-          {button(
-            text.remove,
-            () => {
-              setAPIKey('')
-              setRemoveAPIKey(true)
-            },
-            busy || !synchronized || !view?.apiKeySaved || removeAPIKey
+          <h3>{text.connection}</h3>
+          <p className="hint">{text.serverHint}</p>
+          {row(
+            <label htmlFor={`${id}-url`}>{text.baseURL}</label>,
+            <input
+              id={`${id}-url`}
+              type="url"
+              autoComplete="off"
+              spellCheck={false}
+              value={baseURL}
+              disabled={busy || !synchronized}
+              onChange={(event) => setBaseURL(event.target.value)}
+            />
           )}
-        </>
-      )}
-      {row(
-        <label htmlFor={`${id}-management`}>{text.managementKey}</label>,
-        <>
-          <input
-            id={`${id}-management`}
-            type="password"
-            autoComplete="off"
-            value={managementKey}
-            disabled={busy || !synchronized}
-            placeholder={removeManagementKey ? text.removed : view?.managementKeySaved ? text.saved : text.notSaved}
-            onChange={(event) => {
-              setManagementKey(event.target.value)
-              setRemoveManagementKey(false)
-            }}
-          />
-          {button(
-            text.remove,
-            () => {
-              setManagementKey('')
-              setRemoveManagementKey(true)
-            },
-            busy || !synchronized || !view?.managementKeySaved || removeManagementKey
+          {row(
+            <label htmlFor={`${id}-api`}>{text.apiKey}</label>,
+            <>
+              <input
+                id={`${id}-api`}
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                disabled={busy || !synchronized}
+                placeholder={removeAPIKey ? text.removed : view?.apiKeySaved ? text.saved : text.notSaved}
+                onChange={(event) => {
+                  setAPIKey(event.target.value)
+                  setRemoveAPIKey(false)
+                }}
+              />
+              {button(
+                text.remove,
+                () => {
+                  setAPIKey('')
+                  setRemoveAPIKey(true)
+                },
+                busy || !synchronized || !view?.apiKeySaved || removeAPIKey
+              )}
+            </>
           )}
+          {row(
+            <label htmlFor={`${id}-management`}>{text.managementKey}</label>,
+            <>
+              <input
+                id={`${id}-management`}
+                type="password"
+                autoComplete="off"
+                value={managementKey}
+                disabled={busy || !synchronized}
+                placeholder={removeManagementKey ? text.removed : view?.managementKeySaved ? text.saved : text.notSaved}
+                onChange={(event) => {
+                  setManagementKey(event.target.value)
+                  setRemoveManagementKey(false)
+                }}
+              />
+              {button(
+                text.remove,
+                () => {
+                  setManagementKey('')
+                  setRemoveManagementKey(true)
+                },
+                busy || !synchronized || !view?.managementKeySaved || removeManagementKey
+              )}
+            </>
+          )}
+          <p className="hint">{text.keyHint}</p>
+          {!synchronized && !busy && <p role="alert">{text.connectionLocked}</p>}
+          {row(
+            text.connection,
+            <>
+              {button(text.save, save, busy || !synchronized || !baseURL.trim())}
+              {button(text.refresh, () => {
+                void run(async (controller) => {
+                  await describe(controller)
+                })
+              })}
+            </>
+          )}
+          {draftChanged && <p className="hint">{text.draftHint}</p>}
         </>
-      )}
-      <p className="hint">{text.keyHint}</p>
-      {!synchronized && !busy && <p role="alert">{text.connectionLocked}</p>}
-      {row(
-        text.connection,
+      ) : (
         <>
-          {button(text.save, save, busy || !synchronized || !baseURL.trim())}
+          <p className="hint">{text.connectionSettingsHint}</p>
           {button(text.refresh, () => {
             void run(async (controller) => {
               await describe(controller)
+              setSession(undefined)
+              setOAuthStatus(undefined)
+              setRedirectURL('')
             })
           })}
-        </>
-      )}
-      {draftChanged && <p className="hint">{text.draftHint}</p>}
-
-      <h3>{text.models}</h3>
-      {row(
-        text.models,
-        button(
-          text.refreshModels,
-          () => {
-            if (!connected) return
-            void run(async (controller) => {
-              setModels(undefined)
-              setModels(await call<ProxyModel[]>('models', {}, controller))
-            })
-          },
-          busy || !connected
-        )
-      )}
-      {!models ? (
-        <p className="hint">{text.unloadedModels}</p>
-      ) : models.length === 0 ? (
-        <p>{text.emptyModels}</p>
-      ) : (
-        models.map((model) => (
-          <SettingsRow key={model.id} label={model.name}>
-            <span>{model.id}</span>
-          </SettingsRow>
-        ))
-      )}
-
-      <h3>{text.accounts}</h3>
-      {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
-      {row(
-        text.accounts,
-        button(
-          text.refreshManagement,
-          () => {
-            if (!canManage) return
-            void run(async (controller) => {
-              setManagement(undefined)
-              const next = await call<ManagementView>('management', {}, controller)
-              setManagement(next)
-              setStrategy(next.strategy)
-              setRetry(String(next.requestRetry))
-              setUncertain(false)
-            })
-          },
-          busy || !canManage
-        )
-      )}
-      {!management ? (
-        <p className="hint">{text.unloadedManagement}</p>
-      ) : management.accounts.length === 0 ? (
-        <p>{text.emptyAccounts}</p>
-      ) : (
-        management.accounts.map((account, index) => (
-          <SettingsRow
-            key={`${account.authIndex}-${index}`}
-            label={
-              <>
-                {account.name}
-                <div className="hint">
-                  {account.provider} · {account.disabled ? text.disabled : text.enabled}
-                  {!account.editable && ` · ${text.readOnly}`}
-                </div>
-              </>
-            }
-          >
-            <div className="controls">
-              {button(
-                account.disabled ? text.enable : text.disable,
-                () => mutate('account', { name: account.name, disabled: !account.disabled }),
-                managementDisabled || !account.editable
-              )}
-              {button(
-                text.reset,
-                () => mutate('reset', { authIndex: account.authIndex }),
-                managementDisabled || !account.editable
-              )}
-            </div>
-          </SettingsRow>
-        ))
-      )}
-      {row(
-        text.provider,
-        <>
-          <SettingsPicker
-            aria-label={text.provider}
-            value={provider}
-            selectedId={provider}
-            items={oauthProviders.map((item) => ({ id: item, label: item }))}
-            disabled={managementDisabled || !!session}
-            onSelect={(value) => {
-              if (oauthProviders.some((item) => item === value)) setProvider(value as typeof provider)
-            }}
-          />
-          {button(
-            text.start,
-            () => {
-              if (managementDisabled || session) return
-              void run(async (controller) => {
-                const next = await call<OAuthSession>('oauth-start', { provider }, controller)
-                setSession(next)
-                setOAuthStatus('wait')
-                setRedirectURL('')
-              }, true)
-            },
-            managementDisabled || !!session
+          <h3>{text.models}</h3>
+          {row(
+            text.models,
+            button(
+              text.refreshModels,
+              () => {
+                if (!connected) return
+                void run(async (controller) => {
+                  setModels(undefined)
+                  setModels(await call<ProxyModel[]>('models', {}, controller))
+                })
+              },
+              busy || !connected
+            )
           )}
-        </>
-      )}
-      {oauthStatus && <p role={oauthStatus === 'oauthError' ? 'alert' : 'status'}>{text[oauthStatus]}</p>}
-      {session && (
-        <>
-          {oauthURL ? (
-            <p>
-              <a className="button" href={oauthURL} target="_blank" rel="noopener noreferrer">
-                {text.open}
-              </a>
-            </p>
+          {!models ? (
+            <p className="hint">{text.unloadedModels}</p>
+          ) : models.length === 0 ? (
+            <p>{text.emptyModels}</p>
           ) : (
-            <p role="alert">{text.unsafeURL}</p>
+            models.map((model) => (
+              <SettingsRow key={model.id} label={model.name}>
+                <span>{model.id}</span>
+              </SettingsRow>
+            ))
           )}
-          {session.userCode && (
-            <p>
-              {text.userCode}: <span className="oauth-code">{session.userCode}</span>
-            </p>
-          )}
+
+          <h3>{text.accounts}</h3>
+          {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
           {row(
             text.accounts,
-            <>
-              {button(
-                text.check,
-                () => {
-                  if (managementDisabled) return
-                  void run(async (controller) => {
-                    const next = await call<{ status: 'wait' | 'ok' | 'error' }>(
-                      'oauth-status',
-                      { state: session.state },
-                      controller
-                    )
-                    setOAuthStatus(next.status === 'error' ? 'oauthError' : next.status)
-                    if (next.status !== 'wait') {
-                      setSession(undefined)
-                      setRedirectURL('')
-                    }
-                  })
-                },
-                managementDisabled
-              )}
-              {button(
-                text.cancel,
-                () => {
-                  if (managementDisabled) return
-                  void run(async (controller) => {
-                    await call('oauth-cancel', { state: session.state }, controller)
-                    setSession(undefined)
-                    setRedirectURL('')
-                    setOAuthStatus(undefined)
-                    setNotice('cancelled')
-                  }, true)
-                },
-                managementDisabled
-              )}
-            </>
+            button(
+              text.refreshManagement,
+              () => {
+                if (!canManage) return
+                void run(async (controller) => {
+                  setManagement(undefined)
+                  const next = await call<ManagementView>('management', {}, controller)
+                  setManagement(next)
+                  setStrategy(next.strategy)
+                  setRetry(String(next.requestRetry))
+                  setUncertain(false)
+                })
+              },
+              busy || !canManage
+            )
+          )}
+          {!management ? (
+            <p className="hint">{text.unloadedManagement}</p>
+          ) : management.accounts.length === 0 ? (
+            <p>{text.emptyAccounts}</p>
+          ) : (
+            management.accounts.map((account, index) => (
+              <SettingsRow
+                key={`${account.authIndex}-${index}`}
+                label={
+                  <>
+                    {account.name}
+                    <div className="hint">
+                      {account.provider} · {account.disabled ? text.disabled : text.enabled}
+                      {!account.editable && ` · ${text.readOnly}`}
+                    </div>
+                  </>
+                }
+              >
+                <div className="controls">
+                  {button(
+                    account.disabled ? text.enable : text.disable,
+                    () => mutate('account', { name: account.name, disabled: !account.disabled }),
+                    managementDisabled || !account.editable
+                  )}
+                  {button(
+                    text.reset,
+                    () => mutate('reset', { authIndex: account.authIndex }),
+                    managementDisabled || !account.editable
+                  )}
+                </div>
+              </SettingsRow>
+            ))
           )}
           {row(
-            <label htmlFor={`${id}-callback`}>{text.redirectURL}</label>,
+            text.provider,
             <>
-              <input
-                id={`${id}-callback`}
-                type="password"
-                autoComplete="off"
-                value={redirectURL}
-                disabled={managementDisabled}
-                onChange={(event) => setRedirectURL(event.target.value)}
+              <SettingsPicker
+                aria-label={text.provider}
+                value={provider}
+                selectedId={provider}
+                items={oauthProviders.map((item) => ({ id: item, label: item }))}
+                disabled={managementDisabled || !!session}
+                onSelect={(value) => {
+                  if (oauthProviders.some((item) => item === value)) setProvider(value as typeof provider)
+                }}
               />
               {button(
-                text.submitCallback,
+                text.start,
                 () => {
-                  if (managementDisabled || !redirectURL.trim() || lock.current) return
-                  const payload = { state: session.state, provider: session.provider, redirectURL: redirectURL.trim() }
-                  setRedirectURL('')
+                  if (managementDisabled || session) return
                   void run(async (controller) => {
-                    await call('oauth-callback', payload, controller)
-                    setNotice('callbackSent')
+                    const next = await call<OAuthSession>('oauth-start', { provider }, controller)
+                    setSession(next)
+                    setOAuthStatus('wait')
+                    setRedirectURL('')
                   }, true)
                 },
-                managementDisabled || !redirectURL.trim()
+                managementDisabled || !!session
               )}
             </>
           )}
-          <p className="hint">{text.callbackHint}</p>
-        </>
-      )}
+          {oauthStatus && <p role={oauthStatus === 'oauthError' ? 'alert' : 'status'}>{text[oauthStatus]}</p>}
+          {session && (
+            <>
+              {oauthURL ? (
+                <p>
+                  <a className="button" href={oauthURL} target="_blank" rel="noopener noreferrer">
+                    {text.open}
+                  </a>
+                </p>
+              ) : (
+                <p role="alert">{text.unsafeURL}</p>
+              )}
+              {session.userCode && (
+                <p>
+                  {text.userCode}: <span className="oauth-code">{session.userCode}</span>
+                </p>
+              )}
+              {row(
+                text.accounts,
+                <>
+                  {button(
+                    text.check,
+                    () => {
+                      if (managementDisabled) return
+                      void run(async (controller) => {
+                        const next = await call<{ status: 'wait' | 'ok' | 'error' }>(
+                          'oauth-status',
+                          { state: session.state },
+                          controller
+                        )
+                        setOAuthStatus(next.status === 'error' ? 'oauthError' : next.status)
+                        if (next.status !== 'wait') {
+                          setSession(undefined)
+                          setRedirectURL('')
+                        }
+                      })
+                    },
+                    managementDisabled
+                  )}
+                  {button(
+                    text.cancel,
+                    () => {
+                      if (managementDisabled) return
+                      void run(async (controller) => {
+                        await call('oauth-cancel', { state: session.state }, controller)
+                        setSession(undefined)
+                        setRedirectURL('')
+                        setOAuthStatus(undefined)
+                        setNotice('cancelled')
+                      }, true)
+                    },
+                    managementDisabled
+                  )}
+                </>
+              )}
+              {row(
+                <label htmlFor={`${id}-callback`}>{text.redirectURL}</label>,
+                <>
+                  <input
+                    id={`${id}-callback`}
+                    type="password"
+                    autoComplete="off"
+                    value={redirectURL}
+                    disabled={managementDisabled}
+                    onChange={(event) => setRedirectURL(event.target.value)}
+                  />
+                  {button(
+                    text.submitCallback,
+                    () => {
+                      if (managementDisabled || !redirectURL.trim() || lock.current) return
+                      const payload = {
+                        state: session.state,
+                        provider: session.provider,
+                        redirectURL: redirectURL.trim(),
+                      }
+                      setRedirectURL('')
+                      void run(async (controller) => {
+                        await call('oauth-callback', payload, controller)
+                        setNotice('callbackSent')
+                      }, true)
+                    },
+                    managementDisabled || !redirectURL.trim()
+                  )}
+                </>
+              )}
+              <p className="hint">{text.callbackHint}</p>
+            </>
+          )}
 
-      <h3>{text.routing}</h3>
-      {row(
-        text.strategy,
-        <SettingsPicker
-          aria-label={text.strategy}
-          value={strategies.find((item) => item.id === strategy)?.label ?? text.unknownStrategy}
-          selectedId={strategy}
-          items={strategies}
-          disabled={managementDisabled || !management}
-          onSelect={setStrategy}
-        />
-      )}
-      {row(
-        <label htmlFor={`${id}-retry`}>{text.retry}</label>,
-        <input
-          id={`${id}-retry`}
-          type="number"
-          min="0"
-          step="1"
-          value={retry}
-          disabled={managementDisabled || !management}
-          onChange={(event) => setRetry(event.target.value)}
-        />
-      )}
-      <p className="hint">{text.retryHint}</p>
-      {row(
-        text.routing,
-        button(
-          text.saveRouting,
-          () => {
-            if (validStrategy && validRetry) mutate('routing', { strategy, requestRetry: Number(retry) })
-          },
-          managementDisabled || !management || !validStrategy || !validRetry
-        )
+          <h3>{text.routing}</h3>
+          {row(
+            text.strategy,
+            <SettingsPicker
+              aria-label={text.strategy}
+              value={strategies.find((item) => item.id === strategy)?.label ?? text.unknownStrategy}
+              selectedId={strategy}
+              items={strategies}
+              disabled={managementDisabled || !management}
+              onSelect={setStrategy}
+            />
+          )}
+          {row(
+            <label htmlFor={`${id}-retry`}>{text.retry}</label>,
+            <input
+              id={`${id}-retry`}
+              type="number"
+              min="0"
+              step="1"
+              value={retry}
+              disabled={managementDisabled || !management}
+              onChange={(event) => setRetry(event.target.value)}
+            />
+          )}
+          <p className="hint">{text.retryHint}</p>
+          {row(
+            text.routing,
+            button(
+              text.saveRouting,
+              () => {
+                if (validStrategy && validRetry) mutate('routing', { strategy, requestRetry: Number(retry) })
+              },
+              managementDisabled || !management || !validStrategy || !validRetry
+            )
+          )}
+        </>
       )}
     </section>
   )
@@ -556,7 +602,20 @@ export function apply(ctx: Context) {
         label: () => 'CLIProxyAPI',
         inject: () => ({ ctx }),
       },
-      ProxySettings
+      (props) => <ProxyPage {...props} settings />
+    )
+  )
+  ctx.slots.inject('main', () =>
+    ctx.slots.register({ name: 'main', key: name as MainPanelId, inject: () => ({ ctx }) }, (props) => (
+      <div className="dsh-cli-proxy-page">
+        <ProxyPage {...props} />
+      </div>
+    ))
+  )
+  ctx.slots.inject('sidebar.panellist', () =>
+    ctx.slots.register(
+      { name: 'sidebar.panellist', id: name as MainPanelId, order: 20, label: () => 'CLIProxyAPI' },
+      ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
     )
   )
 }

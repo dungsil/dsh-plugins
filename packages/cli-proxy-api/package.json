@@ -34,9 +34,11 @@
     "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.1-rc.5",
     "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
@@ -73,8 +75,10 @@
       "inject": [
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
         "@deepseek-ai/dsh-client-ui-renderer",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar"
       ]
     }
   },
@@ -86,9 +90,9 @@
       "zh": "CLIProxyAPI"
     },
     "description": {
-      "en": "Connect proxy models and manage OAuth accounts and routing in DSH settings. Requires CLIProxyAPI v8.",
-      "ko": "DSH 설정에서 프록시 모델을 연결하고 OAuth 계정과 라우팅을 관리합니다. CLIProxyAPI v8이 필요합니다.",
-      "zh": "在 DSH 设置中连接代理模型并管理 OAuth 账户和路由。需要 CLIProxyAPI v8。"
+      "en": "Connect proxy models and manage OAuth accounts and routing from the DSH sidebar. Requires CLIProxyAPI v8.",
+      "ko": "DSH 사이드바에서 프록시 모델을 연결하고 OAuth 계정과 라우팅을 관리합니다. CLIProxyAPI v8이 필요합니다.",
+      "zh": "从 DSH 侧边栏连接代理模型并管理 OAuth 账户和路由。需要 CLIProxyAPI v8。"
     },
     "category": "tools",
     "labels": [],

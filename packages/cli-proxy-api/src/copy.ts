@@ -27,6 +27,8 @@ export const copy = {
     managementHint: 'Save a management key to enable management controls.',
     draftHint: 'Save or refresh the connection before using these controls.',
     unloadedManagement: 'Refresh management to load accounts and routing.',
+    connectionSettingsHint:
+      'Configure the server URL and keys in Settings → CLIProxyAPI. Refresh to reload connection information.',
     emptyAccounts: 'No accounts available.',
     enable: 'Enable',
     disable: 'Disable',
@@ -87,6 +89,8 @@ export const copy = {
     managementHint: '관리 기능을 사용하려면 관리 키를 저장하세요.',
     draftHint: '이 기능을 사용하기 전에 연결을 저장하거나 새로고침하세요.',
     unloadedManagement: '관리 정보를 새로고침하여 계정과 라우팅을 불러오세요.',
+    connectionSettingsHint:
+      '설정 → CLIProxyAPI에서 서버 주소와 키를 설정하세요. 새로고침하면 연결 정보를 다시 불러옵니다.',
     emptyAccounts: '사용 가능한 계정이 없습니다.',
     enable: '활성화',
     disable: '비활성화',
@@ -146,6 +150,7 @@ export const copy = {
     managementHint: '请保存管理密钥以启用管理功能。',
     draftHint: '使用这些功能前请保存或刷新连接。',
     unloadedManagement: '请刷新管理信息以加载账户和路由。',
+    connectionSettingsHint: '请在设置 → CLIProxyAPI 中配置服务器地址和密钥。点击刷新重新加载连接信息。',
     emptyAccounts: '没有可用账户。',
     enable: '启用',
     disable: '禁用',
