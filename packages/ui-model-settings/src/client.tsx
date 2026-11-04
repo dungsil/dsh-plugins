@@ -19,13 +19,9 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = {
   en: {
     nav: 'Models by task',
-    description:
-      'Choose a model for each task without changing the conversation model. Changes are saved automatically.',
     title: 'Session title',
-    hint: 'Applies to future titles.',
     model: 'Model',
     worktree: 'Worktree branch name',
-    worktreeHint: 'Used when the branch name is left empty.',
     inherit: 'Use conversation model',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
@@ -35,10 +31,8 @@ const copy = {
     noEfforts: 'This model does not offer reasoning effort settings.',
     missingEffort: 'Saved effort (currently unavailable)',
     saving: 'Saving…',
-    saved: 'Saved. The next request for this task will use this selection.',
     loading: 'Loading models…',
     resyncing: 'Checking saved settings…',
-    resynced: 'Saved settings are now shown.',
     loadError: 'Could not load settings. Close and reopen this settings section to try again.',
     resyncError:
       'Could not check saved settings. Changes are disabled. Close and reopen this settings section to try again.',
@@ -53,12 +47,9 @@ const copy = {
   },
   ko: {
     nav: '상황별 모델',
-    description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다. 변경 사항은 자동으로 저장합니다.',
     title: '세션 제목',
-    hint: '이후 생성하는 제목에 적용합니다.',
     model: '모델',
     worktree: '워크트리 브랜치 이름',
-    worktreeHint: '이름을 비워 자동 생성할 때 사용합니다.',
     inherit: '대화 모델 따르기',
     effort: '추론 수준',
     automatic: '자동',
@@ -68,10 +59,8 @@ const copy = {
     noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
     missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
     saving: '저장 중…',
-    saved: '저장했습니다. 이 작업의 다음 모델 요청부터 적용합니다.',
     loading: '모델을 불러오는 중입니다…',
     resyncing: '저장된 설정을 확인하는 중입니다…',
-    resynced: '저장된 설정을 다시 불러왔습니다.',
     loadError: '설정을 불러오지 못했습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
     resyncError: '저장된 설정을 확인하지 못해 변경을 잠갔습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
     unavailable:
@@ -85,12 +74,9 @@ const copy = {
   },
   zh: {
     nav: '任务模型设置',
-    description: '为各项任务选择模型，不更改对话模型。更改会自动保存。',
     title: '会话标题',
-    hint: '适用于后续生成的标题。',
     model: '模型',
     worktree: '工作树分支名称',
-    worktreeHint: '在分支名称为空、需要自动生成名称时使用。',
     inherit: '使用对话模型',
     effort: '推理级别',
     automatic: '自动',
@@ -100,10 +86,8 @@ const copy = {
     noEfforts: '此模型不提供推理级别设置。',
     missingEffort: '已保存的推理级别（当前不可用）',
     saving: '正在保存…',
-    saved: '已保存。此任务的下一次模型请求将使用此选择。',
     loading: '正在加载模型…',
     resyncing: '正在检查已保存的设置…',
-    resynced: '现已显示已保存的设置。',
     loadError: '无法加载设置。请关闭并重新打开此设置项后重试。',
     resyncError: '无法确认已保存的设置，已禁止更改。请关闭并重新打开此设置项后重试。',
     unavailable: '未找到已启用且受支持的标题生成器。请启用一个 DSH first-prompt 或 all-prompts 标题提供程序。',
@@ -121,10 +105,8 @@ const localizedCopy = (language: string) =>
 
 const styles = `
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
-.dsh-model-settings-description { color: var(--dsw-alias-label-secondary); }
 .dsh-model-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 .dsh-model-settings-text { flex: 1; min-width: 0; }
-.dsh-model-settings-hint { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker { min-width: 0; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
@@ -144,7 +126,7 @@ const styles = `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
 type Task = 'target' | 'worktree'
-type Notice = 'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
+type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function Picker({
   id,
@@ -154,7 +136,6 @@ function Picker({
   selectedId,
   items,
   disabled,
-  describedBy,
   onSelect,
 }: {
   id: string
@@ -164,7 +145,6 @@ function Picker({
   selectedId: string
   items: MenuEntry[]
   disabled: boolean
-  describedBy?: string
   onSelect: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -187,7 +167,6 @@ function Picker({
           type="button"
           className="dsh-model-settings-selector"
           aria-label={`${label}: ${title}`}
-          aria-describedby={describedBy}
           aria-haspopup="menu"
           aria-expanded={open && !disabled}
           title={title}
@@ -314,7 +293,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     setNoticeTask(task)
     setReadError(undefined)
     const active = () => !controller.signal.aborted && lifetime.current === controller
-    let failure: Exclude<Notice, 'saved'> | undefined
+    let failure: Notice | undefined
     try {
       const result = await connection.rpc.call(
         channel,
@@ -328,7 +307,6 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         setView((current) => current && { ...current, [task]: saved })
         setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
         setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
-        setNotice('saved')
       } else {
         const code = result.error.code
         failure =
@@ -358,10 +336,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-model-settings" aria-label={text.nav} aria-busy={!!busy}>
-      <p className="dsh-model-settings-description">{text.description}</p>
       {busy === 'loading' && <p role="status">{text.loading}</p>}
       {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
-      {notice && notice !== 'saved' && synchronized && !busy && <p role="status">{text.resynced}</p>}
       {readError && <p role="alert">{text[readError]}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
       {(['target', 'worktree'] as const).map((task) => {
@@ -386,9 +362,6 @@ function ModelSettings({ ctx }: { ctx: Context }) {
             <div className="dsh-model-settings-row">
               <div className="dsh-model-settings-text">
                 <div>{title}</div>
-                <p className="dsh-model-settings-hint" id={`${fieldId}-hint`}>
-                  {task === 'target' ? text.hint : text.worktreeHint}
-                </p>
               </div>
               <div className="dsh-model-settings-controls">
                 <Picker
@@ -413,7 +386,6 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                       : modelItems
                   }
                   disabled={!!busy || !synchronized}
-                  describedBy={`${fieldId}-hint`}
                   onSelect={(value) => {
                     void save(task, value, value === draft ? effort : '')
                   }}
@@ -447,14 +419,12 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               </div>
             </div>
             {busy === 'saving' && noticeTask === task && <p role="status">{text.saving}</p>}
-            {notice && noticeTask === task && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
+            {notice && noticeTask === task && <p role="alert">{text[notice]}</p>}
           </div>
         )
       })}
       {view?.catalogError && <p role="alert">{text.catalog}</p>}
-      {notice && (!noticeTask || !view?.[noticeTask]) && (
-        <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>
-      )}
+      {notice && (!noticeTask || !view?.[noticeTask]) && <p role="alert">{text[notice]}</p>}
     </section>
   )
 }

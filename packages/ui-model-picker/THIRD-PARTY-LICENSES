@@ -1,4 +1,6 @@
 Chevron SVG artwork from @deepseek-ai/dsh-client-ui-primitives 0.2.1-rc.5
+Menu transition compatibility styles adapted from
+@deepseek-ai/dsh-client-ui-primitives 0.2.2-alpha.3 (MenuSurface.module.css)
 
 MIT License
 

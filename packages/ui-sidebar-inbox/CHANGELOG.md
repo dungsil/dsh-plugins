@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-sidebar-inbox
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.1) (2026-11-04)
+
+### Bug Fixes
+
+- **sidebar-inbox:** 하단 영역 높이와 펼침 속도 및 스크롤바를 조정한다 ([d9e48f8](https://github.com/dungsil/dsh-plugins/commit/d9e48f8a3dc0a84d913810fd9dfe7bff197fa5d1))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.1.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.0) (2026-11-04)
 
 ### Features

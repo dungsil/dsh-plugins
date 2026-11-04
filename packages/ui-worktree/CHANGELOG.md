@@ -1,5 +1,19 @@
 # @dungsil/dsh-plugin-ui-worktree
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.2.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.3.0) (2026-11-04)
+
+### Features
+
+- **settings:** 플러그인 설정을 변경 즉시 저장한다 ([cbafc1a](https://github.com/dungsil/dsh-plugins/commit/cbafc1a66823a6ea86b9dc36a8a9eb278a7c3680))
+- **ui-worktree:** 누락된 중국어 로케일 추가 ([eee7152](https://github.com/dungsil/dsh-plugins/commit/eee71520b30ea18bef0d3ff48c2a99fc2d118574))
+- **ui-worktree:** 프롬프트 전송 시 워크트리를 생성하도록 변경한다 ([#56](https://github.com/dungsil/dsh-plugins/issues/56)) ([d8d0b4c](https://github.com/dungsil/dsh-plugins/commit/d8d0b4ce6ebbd4c524ca550e529ee16e5a7611cd))
+
+### Bug Fixes
+
+- **settings:** 설정 페이지의 불필요한 안내 문구를 제거한다 ([#64](https://github.com/dungsil/dsh-plugins/issues/64)) ([f3e871e](https://github.com/dungsil/dsh-plugins/commit/f3e871eccbf5021372228c10063834363acc3c2e))
+- **ui-worktree:** 워크트리 생성 실패 해결 ([a199971](https://github.com/dungsil/dsh-plugins/commit/a199971e7fb01ff20485398e72eb87da5d0d02f5))
+- **ui-worktree:** 자동 이름 생성에 지원되는 추론 수준을 선택한다 ([fa08e0b](https://github.com/dungsil/dsh-plugins/commit/fa08e0b81f2139c6ab3ae82084a0d8308296c779))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.1.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.2.0) (2026-11-04)
 
 ### Features

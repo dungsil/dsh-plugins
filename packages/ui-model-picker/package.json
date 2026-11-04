@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-picker",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Model and reasoning effort picker for the DeepSeek Harness composer.",
   "license": "MIT",
   "repository": {
@@ -38,6 +38,7 @@
     "@deepseek-ai/dsh-client-store": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-model-selection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
@@ -48,6 +49,9 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5"
   },
   "engines": {
     "dsh": "^0.2.1-rc.5",
