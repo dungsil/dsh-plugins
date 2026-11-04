@@ -10,15 +10,7 @@ export const styles = `${composerStyles}
 .dsh-codex-trigger .dsh-plugin-composer-label, .dsh-codex-trigger .dsh-plugin-composer-detail { display: var(--dsh-composer-model-text-display, block); }
 .dsh-codex-trigger .dsh-plugin-composer-detail { flex-shrink: 1000; }
 .dsh-codex-popover { position: fixed; z-index: 1100; display: flex; flex-direction: column; inset: auto; margin: 0; box-sizing: border-box; width: 256px; max-width: calc(100vw - 32px); max-height: min(360px, calc(100dvh - 96px)); overflow: hidden; padding: 4px; border: 0; --dsw-elevation-stroke-color: var(--dsw-alias-border-l1); --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2); --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2); background: transparent; color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-elevation-prominent); font: 13px/20px var(--dsw-font-family, system-ui); }
-/* rc.5 has no MenuSurface phase API. Match the newer shared menu fades without
-   animating the container: container opacity would change its backdrop blur.
-   Old hosts forward phase to the div; newer hosts consume it for their own CSS. */
-.dsh-codex-popover[phase=enter] > * { animation: dsh-codex-menu-in 40ms ease-out; }
-.dsh-codex-popover[phase=dismiss] > * { animation: dsh-codex-menu-out 80ms ease-in both; }
-@keyframes dsh-codex-menu-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes dsh-codex-menu-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .dsh-codex-popover[data-picker-phase] > * { animation-duration: 0ms; }
   .dsh-codex-trigger .dsh-plugin-composer-chevron { transition: none; }
 }
 .dsh-codex-popover > :not([role=radiogroup]) { flex-shrink: 0; }
