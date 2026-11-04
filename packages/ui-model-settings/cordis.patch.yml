@@ -1,0 +1,5 @@
+- insert:
+    - id: dungsil-ui-model-settings
+      name: '@dungsil/dsh-plugin-ui-model-settings'
+    - id: dungsil-model-settings
+      name: '@dungsil/dsh-plugin-model-settings'
