@@ -1,0 +1,92 @@
+{
+  "name": "@dungsil/dsh-plugin-tool-diff-note",
+  "version": "0.0.0",
+  "description": "Agent-authored explanations beside historical code diffs in DSH conversations.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/tool-diff-note"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-tool": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-system-prompt": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.5"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ]
+    }
+  },
+  "market": {
+    "order": 13,
+    "title": {
+      "en": "Diff Notes",
+      "ko": "변경 설명",
+      "zh": "变更说明"
+    },
+    "description": {
+      "en": "Let the agent explain important decisions beside before-and-after code snapshots without editing source files.",
+      "ko": "소스 파일을 수정하지 않고, 수정 전·후 코드 스냅샷 옆에 에이전트가 중요한 판단의 이유를 남깁니다.",
+      "zh": "让智能体在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "diff",
+      "note",
+      "review",
+      "tool"
+    ]
+  }
+}
