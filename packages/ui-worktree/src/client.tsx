@@ -14,7 +14,7 @@ import {
   IconBranchOutlineRegular,
   IconPlusOutlineRegular,
   IconCloseOutlineRegular,
-  worktreeSettingsIconArtwork,
+  worktreeSettingsIconSvg,
 } from '@dungsil/dsh-ui/icons'
 import { installSettingsIcon } from '@dungsil/dsh-ui'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
@@ -31,7 +31,7 @@ export const inject = ['slots', 'locale', 'connection', 'uiConversation']
 type Props = PropsRuntime<'conversation.input.left'>
 
 export function apply(ctx: Context) {
-  ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconArtwork))
+  ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconSvg))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   installProgress(ctx)
   function Picker({ sessionId, useSession }: Props) {
