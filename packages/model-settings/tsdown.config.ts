@@ -1,14 +1,7 @@
-import { defineConfig } from 'tsdown'
+import { defineConfig, nodeConfig } from '@dungsil/dsh-tsdown'
 
 export default defineConfig([
-  {
-    entry: ['src/index.ts'],
-    format: 'esm',
-    platform: 'node',
-    target: 'node24',
-    fixedExtension: false,
-    dts: false,
-  },
+  nodeConfig,
   {
     entry: ['src/protocol.ts'],
     format: 'esm',

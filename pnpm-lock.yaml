@@ -237,6 +237,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
@@ -249,6 +252,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
@@ -271,6 +277,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       semver:
         specifier: 7.8.5
         version: 7.8.5
@@ -322,6 +331,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
@@ -364,6 +376,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
@@ -409,6 +424,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
@@ -452,6 +470,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       '@dungsil/dsh-ui':
         specifier: workspace:*
         version: link:../../tools/ui
@@ -506,6 +527,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       '@types/react':
         specifier: 18.3.18
         version: 18.3.18
@@ -539,6 +563,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
@@ -635,6 +662,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       '@dungsil/dsh-ui':
         specifier: workspace:*
         version: link:../../tools/ui
@@ -663,11 +693,24 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
   tools/tsconfig: {}
+
+  tools/tsdown:
+    dependencies:
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+    devDependencies:
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   tools/ui:
     devDependencies:
