@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Create and switch Git worktrees directly from the DeepSeek Harness composer, using the model only for optional branch naming.",
   "license": "MIT",
   "repository": {

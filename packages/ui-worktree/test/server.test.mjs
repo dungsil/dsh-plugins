@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -17,11 +17,12 @@ import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
+const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
 async function fixture(t, options = {}) {
-  const home = await mkdtemp(join(tmpdir(), 'dsh-worktree-'))
+  const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-worktree-')))
   const repo = join(home, 'source')
-  const other = join(home, 'existing space\n한글')
+  const other = join(home, process.platform === 'win32' ? 'existing space 한글' : 'existing space\n한글')
   const ctx = new Context()
   t.after(async () => {
     await ctx.fiber.dispose()
@@ -76,27 +77,29 @@ await test('owner UI API lists, creates and switches real worktrees without a mo
   assert.deepEqual(initial.value, {
     cwd: repo,
     worktrees: [
-      { path: repo, branch: 'main' },
-      { path: other, branch: null },
+      { path: gitPath(repo), branch: 'main' },
+      { path: gitPath(other), branch: null },
     ],
   })
+  const mainPath = initial.value.worktrees.find((entry) => entry.branch === 'main').path
+  const otherPath = initial.value.worktrees.find((entry) => entry.branch === null).path
   const created = await rpc('create', { cwd: repo, name: 'fix/login-ui' })
   assert.equal(created.ok, true)
   const path = join(repo, '.agents/worktrees/fix/login-ui')
   assert.equal(created.value.cwd, path)
-  assert.ok(created.value.worktrees.some((entry) => entry.path === path && entry.branch === 'fix/login-ui'))
+  assert.ok(created.value.worktrees.some((entry) => entry.path === gitPath(path) && entry.branch === 'fix/login-ui'))
   assert.equal(ctx.workingDirectory.get(agent.session), path)
   assert.equal(git('rev-parse', 'refs/heads/fix/login-ui'), git('rev-parse', 'HEAD'))
   assert.equal(await readFile(join(repo, 'draft.txt'), 'utf8'), 'unsaved source file')
   await assert.rejects(readFile(join(path, 'draft.txt')), { code: 'ENOENT' })
 
-  assert.equal((await rpc('switch', { cwd: repo, path: other })).error.code, 'conflict')
+  assert.equal((await rpc('switch', { cwd: repo, path: otherPath })).error.code, 'conflict')
   assert.equal((await rpc('switch', { cwd: path, path: tmpdir() })).error.code, 'invalid')
   assert.equal(ctx.workingDirectory.get(agent.session), path)
-  const switched = await rpc('switch', { cwd: path, path: other })
+  const switched = await rpc('switch', { cwd: path, path: otherPath })
   assert.equal(switched.ok, true)
   assert.equal(switched.value.cwd, other)
-  assert.equal((await rpc('switch', { cwd: other, path: repo })).ok, true)
+  assert.equal((await rpc('switch', { cwd: switched.value.cwd, path: mainPath })).ok, true)
   assert.equal((await rpc('create', { cwd: repo, name: 'fix/login-ui' })).ok, false)
   assert.equal(ctx.workingDirectory.get(agent.session), repo, 'an existing branch cannot change the checkout')
   assert.equal((await rpc('create', { cwd: repo, name: '../escape' })).ok, false)
@@ -138,7 +141,8 @@ await test('only an empty name uses the selected model before real creation, wit
   const named = await rpc('create', { cwd: repo, name: ' manual-name ' })
   assert.equal(named.ok, true)
   assert.equal(requests.length, 0, 'a supplied name must not incur a model request')
-  assert.equal((await rpc('switch', { cwd: named.value.cwd, path: repo })).ok, true)
+  const mainPath = named.value.worktrees.find((entry) => entry.branch === 'main').path
+  assert.equal((await rpc('switch', { cwd: named.value.cwd, path: mainPath })).ok, true)
   const before = agent.session.deriveMessages()
   const generated = await rpc('create', { cwd: repo, name: '  ' })
   assert.equal(generated.ok, true)
@@ -202,7 +206,8 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
   assert.equal(results.filter((result) => result.ok).length, 1)
   assert.equal(results.find((result) => !result.ok).error.code, 'busy')
   const cwd = ctx.workingDirectory.get(agent.session)
-  assert.equal((await rpc('switch', { cwd, path: repo })).ok, true)
+  const mainPath = results.find((result) => result.ok).value.worktrees.find((entry) => entry.branch === 'main').path
+  assert.equal((await rpc('switch', { cwd, path: mainPath })).ok, true)
   setSandboxMode(agent.session, 'read-only')
   assert.equal((await rpc('describe')).ok, true, 'read-only policy still permits listing')
   assert.equal((await rpc('create', { cwd: repo, name: 'read-only' })).ok, false)

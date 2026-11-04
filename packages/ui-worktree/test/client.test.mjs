@@ -112,7 +112,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       },
     }),
   })
-  ctx.provide('connection', {
+  const connection = {
     rpc: {
       call: (channel, endpoint, payload, signal) =>
         new Promise((resolve, reject) => {
@@ -122,7 +122,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
           calls.push({ endpoint: endpoint.split('/')[1], payload, signal, resolve, reject })
         }),
     },
-  })
+  }
+  ctx.provide('connection', connection)
   await ctx.plugin(plugin)
   const document = window.document
   document.body.innerHTML =
@@ -389,7 +390,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(calls.at(-1), created)
     await fail(calls.at(-1), 'operation_failed')
     assert.equal(dialog().open, false)
-    assert.ok(document.querySelector('.dsh-worktree-error'))
+    assert.ok(document.querySelector('.dsh-worktree-error-trigger'))
     assert.equal(trigger().disabled, true, 'failed success-refresh must require explicit recovery')
     await refresh()
     await resolve(calls.at(-1), created)
@@ -505,7 +506,119 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
   })
 
+  await t.test('Windows cwd separators identify the current worktree without a redundant switch', async () => {
+    const windows = {
+      cwd: 'C:\\repo\\feature\\src',
+      worktrees: [
+        { path: 'C:/repo', branch: 'main' },
+        { path: 'C:/repo/feature', branch: 'windows-feature' },
+      ],
+    }
+    await render('session-windows')
+    await resolve(calls.at(-1), windows)
+    assert.equal(branchName(), 'windows-feature')
+    assert.equal(menuProps.selectedId, 'path:C:/repo/feature')
+    const count = calls.length
+    await choose(menuProps.selectedId)
+    assert.equal(calls.length, count)
+    await refresh()
+    await resolve(calls.at(-1), { ...windows, cwd: 'c:\\repo\\' })
+    assert.equal(branchName(), 'main')
+    await refresh()
+    await resolve(calls.at(-1), {
+      cwd: '\\\\server\\share\\repo\\src',
+      worktrees: [{ path: '//server/share/repo', branch: 'network-share' }],
+    })
+    assert.equal(branchName(), 'network-share')
+  })
+
+  await t.test('lookup errors use a compact details control without exposing raw server text', async () => {
+    await act(async () => {
+      language = 'ko'
+      for (const listener of locale.listeners) listener()
+    })
+    await render('session-error-details')
+    await fail(calls.at(-1), 'busy')
+    assert.ok(!document.querySelector('.dsh-worktree-error'), 'long errors must not appear in the composer toolbar')
+    const details = document.querySelector('.dsh-worktree-error-trigger')
+    assert.ok(details)
+    assert.equal(details.textContent, '조회 실패')
+    assert.equal(details.getAttribute('aria-haspopup'), 'dialog')
+    await act(async () => details.click())
+    const errorDialog = document.querySelector('.dsh-worktree-error-dialog')
+    assert.equal(errorDialog.open, true)
+    assert.match(errorDialog.textContent, /busy/)
+    assert.match(errorDialog.textContent, /작업/)
+    assert.doesNotMatch(errorDialog.textContent, /Server detail/)
+    await act(async () => errorDialog.querySelector('button[data-worktree-retry]').click())
+    assert.equal(calls.at(-1).endpoint, 'describe')
+    await resolve(calls.at(-1), original)
+    assert.equal(errorDialog.open, false)
+    assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+    assert.equal(branchName(), 'main')
+    assert.equal(document.activeElement, trigger())
+  })
+
+  await t.test(
+    'client and transport failures expose safe codes without raw details and remain recoverable',
+    async () => {
+      const warn = console.warn
+      const logs = []
+      console.warn = (...args) => logs.push(args)
+      const originalCall = connection.rpc.call
+      try {
+        connection.rpc.call = undefined
+        await render('session-no-rpc')
+        assert.equal(logs.at(-1)[1].code, 'client_unavailable')
+        assert.match(document.querySelector('.dsh-worktree-error-dialog').textContent, /client_unavailable/)
+        connection.rpc.call = originalCall
+        await refresh()
+        await resolve(calls.at(-1), original)
+        for (const [failure, expectedCode] of [
+          [new Error('private credential detail: HTTP 401'), 'auth_required'],
+          [{ code: 'private credential detail' }, 'operation_failed'],
+        ]) {
+          await refresh()
+          await act(async () => calls.at(-1).reject(failure))
+          assert.equal(logs.at(-1)[1].code, expectedCode)
+          const details = document.querySelector('.dsh-worktree-error-trigger')
+          await act(async () => details.click())
+          const errorDialog = document.querySelector('.dsh-worktree-error-dialog')
+          assert.equal(errorDialog.open, true)
+          assert.match(errorDialog.textContent, new RegExp(expectedCode))
+          assert.doesNotMatch(errorDialog.textContent, /private credential detail/)
+          await act(async () => errorDialog.querySelector('header button').click())
+          assert.equal(errorDialog.open, false)
+          assert.equal(document.activeElement, details)
+          await focus()
+          const failed = calls.at(-1)
+          await focus()
+          assert.equal(calls.at(-1), failed)
+          await refresh()
+          await resolve(calls.at(-1), original)
+        }
+        await refresh()
+        await resolve(calls.at(-1), { cwd: '/repo', worktrees: [null] })
+        assert.equal(logs.at(-1)[1].code, 'invalid_response')
+        assert.doesNotMatch(JSON.stringify(logs), /private credential detail/)
+        assert.ok(
+          logs.every(
+            ([prefix, detail]) =>
+              prefix === '[dungsil-ui-worktree]' && Object.keys(detail).join(',') === 'operation,code'
+          )
+        )
+        await refresh()
+        await resolve(calls.at(-1), original)
+      } finally {
+        connection.rpc.call = originalCall
+        console.warn = warn
+      }
+    }
+  )
+
   await t.test('owner closes Menu on every session lock and rejects stale selections', async () => {
+    await render('session-empty')
+    await resolve(calls.at(-1), original)
     for (const state of [
       { ...ready, running: true },
       { ...ready, removed: true },
