@@ -24,10 +24,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Jetendard v0.1.0 Regular, Medium, and Bold webfonts are bundled unmodified from:
-https://github.com/kuskhan/jetendard/releases/tag/v0.1.0
-
-The fonts combine JetBrains Mono Nerd Font Mono with Pretendard Korean/CJK
-glyphs. Jetendard and upstream copyright and license notices are distributed
-in assets/fonts/*.txt. The fonts remain under their original licenses.
