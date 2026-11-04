@@ -9,10 +9,12 @@ type PackageText = Parameters<ResolveText>[0]
 
 /** Korean text for one package text map or sentence-like string, when known. */
 function koreanText(text: PackageText): string | undefined {
-  // A package that ships its own Korean text keeps it.
-  if (typeof text !== 'string') return text.ko === undefined ? korean[text.en] : undefined
-  // Bare identifiers (module names, slugs) stay verbatim.
-  return text.includes(' ') ? korean[text] : undefined
+  // Package metadata is untrusted; inherited dictionary properties are not translations.
+  const key =
+    typeof text === 'string' ? (text.includes(' ') ? text : undefined) : text.ko === undefined ? text.en : undefined
+  if (key === undefined || !Object.hasOwn(korean, key)) return undefined
+  const translation = korean[key]
+  return typeof translation === 'string' ? translation : undefined
 }
 
 /**

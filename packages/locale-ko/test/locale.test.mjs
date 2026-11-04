@@ -217,6 +217,10 @@ await test('official plugin metadata translates, keeps explicit text and unloads
     await fiber.await()
     locale.setLocale('ko')
     assert.equal(locale.resolveText(metadata), '개발자 도구')
+    for (const en of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
+      assert.equal(locale.resolveText({ en }), en)
+      assert.equal(locale.resolveText({ en, ko: '명시적 번역' }), '명시적 번역')
+    }
     assert.equal(
       locale.resolveText(description),
       '세션 원시 데이터, 그룹화된 채팅 메시지, NodeJS 백엔드를 검사하고 디버깅합니다.'
