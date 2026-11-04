@@ -412,8 +412,8 @@ export function apply(ctx: Context) {
                           </dd>
                         </dl>
                         <p>{copy.merge_hint}</p>
-                        {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
                       </details>
+                      {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
                       <section className="dsh-pr-section dsh-pr-description" aria-label={copy.body}>
                         <h3>{copy.body}</h3>
                         <MarkdownText text={item.body || copy.no_body} labels={labels} variant="compact" />
