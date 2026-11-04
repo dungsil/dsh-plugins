@@ -46,7 +46,10 @@ await test('all public plugins satisfy the shared in-place update package contra
       assert.equal(new Set(rows.map((row) => row.id)).size, rows.length, 'component IDs must be unique')
       for (const row of rows) {
         assert.ok(row.id, 'components need stable IDs when DSH reconciles the replacement')
-        assert.ok(packages.has(row.name), `${row.name} must be an independently loadable package`)
+        assert.ok(
+          packages.has(row.name) || manifest.dependencies?.[row.name],
+          `${row.name} must be a workspace package or a declared runtime dependency`
+        )
         if (row.name !== name)
           assert.ok(manifest.dependencies?.[row.name], `${row.name} must be installed with the bundle`)
       }

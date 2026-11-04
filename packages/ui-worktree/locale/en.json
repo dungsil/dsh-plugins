@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Git Worktree UI",
-    "description": "Ask the model to create or reuse a Git worktree using existing tools, next to the composer permission selector."
+    "description": "Select, create, and switch Git worktrees next to the composer permission selector, without model calls."
   }
 }
