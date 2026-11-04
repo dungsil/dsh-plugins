@@ -418,6 +418,40 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-model-settings",
+      "title": {
+        "en": "Task Models UI",
+        "ko": "상황별 모델 UI"
+      },
+      "description": {
+        "en": "Choose a session title model in settings. Includes the task model configuration API.",
+        "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-model-settings"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["models", "settings", "sessions", "titles", "ui"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793769405,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-worktree",
       "title": {
         "en": "Git Worktree UI",
