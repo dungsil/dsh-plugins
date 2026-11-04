@@ -11,6 +11,7 @@
   "files": [
     "dist",
     "locale",
+    "assets",
     "cordis.patch.yml"
   ],
   "type": "module",
@@ -70,11 +71,13 @@
     "order": 9,
     "title": {
       "en": "Codex Model Picker",
-      "ko": "Codex 모델 선택"
+      "ko": "Codex 모델 선택",
+      "zh": "Codex 模型选择器"
     },
     "description": {
       "en": "A compact Codex-style composer picker with model menus and a reasoning effort slider.",
-      "ko": "입력창에서 Codex 형식의 모델 메뉴와 추론 강도 슬라이더를 사용합니다."
+      "ko": "입력창에서 Codex 형식의 모델 메뉴와 추론 강도 슬라이더를 사용합니다.",
+      "zh": "在输入框中使用 Codex 风格的模型菜单和推理强度滑块。"
     },
     "category": "ui",
     "labels": [],

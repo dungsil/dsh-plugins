@@ -43,6 +43,20 @@ const copy = {
     retry: 'Reload models',
     busy: 'Changing…',
   },
+  zh: {
+    model: '选择模型',
+    effort: '推理强度',
+    choose: '选择推理级别',
+    default: '提供商默认值',
+    reset: '重置为默认值',
+    loading: '正在加载模型…',
+    empty: '没有可用的模型。',
+    partial: '部分提供商的模型加载失败。',
+    missing: '当前模型不可用。',
+    error: '更改失败。请确认当前选择后重试。',
+    retry: '刷新模型列表',
+    busy: '正在更改…',
+  },
 }
 
 export function apply(ctx: Context) {
@@ -55,7 +69,7 @@ export function apply(ctx: Context) {
       (fn) => ctx.locale.subscribe(fn),
       () => ctx.locale.getSnapshot().active
     )
-    const text = copy[locale.startsWith('ko') ? 'ko' : 'en']
+    const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
     const [draft, setDraft] = useState(0)
     const [failed, setFailed] = useState(false)
