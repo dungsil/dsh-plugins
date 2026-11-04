@@ -24,11 +24,48 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   const { createRoot } = await import('react-dom/client')
   let client
   const require = createRequire(import.meta.url)
+  // Only replace the host module boundary here; real Menu keyboard, portal and
+  // pointer behavior is exercised in the browser with the host implementation.
+  const primitives = {
+    Button: ({ variant: _variant, size: _size, ...props }) => createElement('button', props),
+    IconChevronDownOutlineRegular: () => createElement('svg'),
+    Menu: ({ anchor, open, items, onSelect }) =>
+      createElement(
+        'div',
+        {},
+        anchor,
+        open &&
+          createElement(
+            'div',
+            { role: 'menu' },
+            items
+              .filter((item) => !item.type)
+              .map((item) =>
+                createElement(
+                  'button',
+                  {
+                    key: item.id,
+                    type: 'button',
+                    role: 'menuitem',
+                    'data-value': item.id,
+                    disabled: item.disabled,
+                    onClick: () => onSelect(item.id),
+                  },
+                  item.label
+                )
+              )
+          )
+      ),
+  }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) => {
       assert.equal(id, '@dungsil/dsh-plugin-ui-model-settings')
       client = factory((specifier) => {
-        assert.ok(['react', 'react/jsx-runtime'].includes(specifier), `Unexpected host dependency: ${specifier}`)
+        assert.ok(
+          ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'].includes(specifier),
+          `Unexpected host dependency: ${specifier}`
+        )
+        if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return primitives
         return require(specifier)
       })
     },
@@ -100,47 +137,59 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
       container.querySelector(selector).click()
     })
   }
-  const select = async (value, selector = 'select') => {
+  const modelSelector = 'button[aria-label^="세션 제목 모델:"]'
+  const effortSelector = 'button[aria-label^="세션 제목 추론 수준:"]'
+  const refreshSelector = 'footer button[type=button]'
+  const select = async (value, selector = modelSelector) => {
+    await click(selector)
     await act(async () => {
-      const element = container.querySelector(selector)
-      element.value = value
-      element.dispatchEvent(new window.Event('change', { bubbles: true }))
+      const item = [...container.querySelectorAll('[role=menuitem]')].find((item) => item.dataset.value === value)
+      assert.ok(item, `Missing option ${value}`)
+      item.click()
     })
+    assert.equal(container.querySelector('[role=menu]'), null, 'selection closes the picker')
   }
   await act(async () => {
     root.render(createElement(Component, registration.inject()))
   })
   await waitFor(() => container.querySelector('[role=alert]'))
-  assert.equal(container.querySelector('select'), null)
+  assert.equal(container.querySelector(modelSelector), null)
   offline = false
-  await click('button[type=button]')
-  await waitFor(() => container.querySelector('select'))
-  const selectElement = container.querySelector('select')
-  assert.equal(window.document.getElementById(selectElement.getAttribute('aria-describedby')).tagName, 'SMALL')
-  assert.equal(container.querySelector('label').htmlFor, selectElement.id)
-  assert.equal(selectElement.value, '')
+  await click(refreshSelector)
+  await waitFor(() => container.querySelector(modelSelector))
+  const selectElement = container.querySelector(modelSelector)
+  assert.equal(
+    window.document.getElementById(selectElement.getAttribute('aria-describedby')).textContent,
+    '이후 생성하는 제목에 적용합니다.'
+  )
+  assert.equal(selectElement.textContent, '대화 모델 따르기')
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
   const pair = JSON.stringify(['auxiliary', 'title-small'])
-  const effortSelector = 'select[id$="-effort"]'
   assert.equal(container.querySelector(effortSelector).disabled, true)
   await select(pair)
   const effortElement = container.querySelector(effortSelector)
   assert.equal(effortElement.disabled, false)
-  assert.equal(window.document.getElementById(effortElement.getAttribute('aria-describedby')).tagName, 'SMALL')
-  assert.equal(container.querySelector(`label[for="${effortElement.id}"]`).textContent, '추론 수준')
+  await click(effortSelector)
   assert.deepEqual(
-    [...effortElement.options].map((option) => option.value),
+    [...container.querySelectorAll('[role=menuitem]')].map((item) => item.dataset.value),
     ['', 'quick', 'thorough']
   )
+  await click(effortSelector)
   await select('thorough', effortSelector)
+  await select(pair)
+  assert.equal(
+    container.querySelector(effortSelector).textContent,
+    '추론 · Thorough',
+    'reselecting the same model must keep its effort'
+  )
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=status]'))
   assert.deepEqual((await h.rpc('describe')).value.target.route, { provider: 'auxiliary', model: 'title-small' })
-  assert.equal(container.querySelector('select').value, pair)
+  assert.ok(container.querySelector(modelSelector).getAttribute('aria-label').includes('auxiliary / Title Small'))
   assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
-  await click('button[type=button]')
-  await waitFor(() => !container.querySelector('button[type=button]').disabled)
-  assert.equal(container.querySelector(effortSelector).value, 'thorough')
+  await click(refreshSelector)
+  await waitFor(() => !container.querySelector(refreshSelector).disabled)
+  assert.equal(container.querySelector(effortSelector).textContent, '추론 · Thorough')
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
   await select('', effortSelector)
   assert.equal(container.querySelector('button[type=submit]').disabled, false, 'effort-only changes must be saveable')
@@ -150,9 +199,14 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
 
   await select('thorough', effortSelector)
   await select(JSON.stringify(['auxiliary', 'chat-large']))
-  assert.equal(container.querySelector(effortSelector).value, '')
+  assert.equal(container.querySelector(effortSelector).textContent, '추론 · 자동')
   assert.equal(container.querySelector(effortSelector).disabled, true)
-  assert.ok(container.textContent.includes('이 모델은 추론 수준 설정을 제공하지 않습니다.'))
+  assert.ok(
+    container
+      .querySelector(effortSelector)
+      .getAttribute('aria-label')
+      .includes('이 모델은 추론 수준 설정을 제공하지 않습니다.')
+  )
   await select(pair)
 
   const target = (await h.rpc('describe')).value.target
@@ -161,8 +215,10 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=alert]')?.textContent.includes('다른 곳'))
   assert.deepEqual((await h.rpc('describe')).value.target.route, { provider: 'conversation', model: 'chat-large' })
-  await click('button[type=button]')
-  await waitFor(() => container.querySelector('select').value === JSON.stringify(['conversation', 'chat-large']))
+  await click(refreshSelector)
+  await waitFor(() =>
+    container.querySelector(modelSelector).getAttribute('aria-label').includes('conversation / Chat Large')
+  )
   await select('')
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=status]'))
@@ -171,6 +227,6 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
     locale = { active: 'en' }
     for (const listener of listeners) listener()
   })
-  assert.equal(container.querySelector('label').textContent, 'Session title')
+  assert.ok(container.querySelector('button[aria-label^="Session title Model:"]'))
   assert.equal(registration.label(), 'Models by task')
 })

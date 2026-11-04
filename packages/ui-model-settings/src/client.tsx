@@ -4,6 +4,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { Button, Menu, IconChevronDownOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   channel,
   endpointPrefix,
@@ -18,12 +19,14 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = {
   en: {
     nav: 'Models by task',
-    description: 'Choose a model for each task without changing the conversation model.',
     title: 'Session title',
-    hint: 'Applies to future title generation across this profile. Existing titles and conversation models stay unchanged.',
+    hint: 'Applies to future titles.',
+    model: 'Model',
     inherit: 'Use conversation model',
     effort: 'Reasoning effort',
-    automatic: 'Automatic (lowest supported effort)',
+    effortShort: 'Effort',
+    automatic: 'Automatic',
+    automaticHint: 'Automatic (lowest supported effort)',
     effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the title generator’s existing behavior.',
     noEfforts: 'This model does not offer reasoning effort settings.',
     missingEffort: 'Saved effort (currently unavailable)',
@@ -43,12 +46,14 @@ const copy = {
   },
   ko: {
     nav: '상황별 모델',
-    description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다.',
     title: '세션 제목',
-    hint: '이 프로필에서 이후 생성하는 제목에 적용합니다. 기존 제목과 대화 모델은 바뀌지 않습니다.',
+    hint: '이후 생성하는 제목에 적용합니다.',
+    model: '모델',
     inherit: '대화 모델 따르기',
     effort: '추론 수준',
-    automatic: '자동 (지원하는 최저 수준)',
+    effortShort: '추론',
+    automatic: '자동',
+    automaticHint: '자동 (지원하는 최저 수준)',
     effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 제목 생성기의 기존 동작을 유지합니다.',
     noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
     missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
@@ -69,23 +74,82 @@ const copy = {
 }
 
 const styles = `
-.dsh-model-settings { max-width: 680px; color: var(--dsw-alias-label-primary, #222); font: 14px/1.6 var(--dsw-font-family, system-ui); }
-.dsh-model-settings h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
-.dsh-model-settings p { margin: 0 0 24px; color: var(--dsw-alias-label-secondary, #666); }
-.dsh-model-settings label { display: block; margin-bottom: 8px; font-weight: 600; }
-.dsh-model-settings select { box-sizing: border-box; width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; font: inherit; }
-.dsh-model-settings small { display: block; margin: 8px 0 24px; color: var(--dsw-alias-label-secondary, #666); font-size: 13px; }
-.dsh-model-settings footer { display: flex; gap: 8px; justify-content: flex-end; }
-.dsh-model-settings button { min-height: 36px; padding: 6px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
-.dsh-model-settings button[type=submit] { color: var(--dsw-alias-label-primary-foreground, #fff); background: var(--dsw-alias-button-primary-fill, #222); border-color: transparent; }
-.dsh-model-settings button:hover:not(:disabled) { filter: brightness(.85); }
-.dsh-model-settings :disabled { opacity: .5; cursor: default; }
-.dsh-model-settings :focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
+.dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-model-settings-text { flex: 1; min-width: 0; }
+.dsh-model-settings-hint { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
+.dsh-model-settings-picker { min-width: 0; }
+.dsh-model-settings-picker:last-child { flex: none; max-width: 60%; }
+.dsh-model-settings-selector { box-sizing: border-box; display: inline-flex; align-items: center; gap: 12px; max-width: 100%; height: 36px; padding: 0 14px; border: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; cursor: pointer; }
+.dsh-model-settings-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-model-settings-selector svg { flex: none; }
+.dsh-model-settings-selector:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dsh-model-settings-selector:disabled { opacity: .5; cursor: default; }
+.dsh-model-settings-selector:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
+.dsh-model-settings footer { display: flex; gap: 8px; justify-content: flex-end; padding-top: 16px; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
 .dsh-model-settings [role=status] { margin: 12px 0; }
+@container (max-width: 480px) {
+  .dsh-model-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .dsh-model-settings-controls { max-width: 100%; }
+}
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
+
+function Picker({
+  label,
+  value,
+  title,
+  selectedId,
+  items,
+  disabled,
+  describedBy,
+  onSelect,
+}: {
+  label: string
+  value: string
+  title: string
+  selectedId: string
+  items: MenuEntry[]
+  disabled: boolean
+  describedBy?: string
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Menu
+      className="dsh-model-settings-picker"
+      open={open && !disabled}
+      onClose={() => setOpen(false)}
+      items={items}
+      selectedId={selectedId}
+      onSelect={(id) => {
+        setOpen(false)
+        onSelect(id)
+      }}
+      align="end"
+      portal
+      anchor={
+        <button
+          type="button"
+          className="dsh-model-settings-selector"
+          aria-label={`${label}: ${title}`}
+          aria-describedby={describedBy}
+          aria-haspopup="menu"
+          aria-expanded={open && !disabled}
+          title={title}
+          disabled={disabled}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="dsh-model-settings-value">{value}</span>
+          <IconChevronDownOutlineRegular size={16} />
+        </button>
+      }
+    />
+  )
+}
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
@@ -132,6 +196,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       provider.models.map((model) => ({
         route: { provider: provider.id, model: model.id },
         label: `${provider.name} / ${model.name}`,
+        name: model.name,
         efforts: model.efforts,
       }))
     ) ?? []
@@ -142,6 +207,32 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const efforts = option?.efforts ?? []
   const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
   const unchanged = draft === current && effort === (view?.target?.reasoningEffort ?? '')
+  const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
+  const effortLabel = efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
+  const modelItems: MenuEntry[] = [
+    { id: '', label: text.inherit },
+    ...(missing
+      ? [
+          {
+            id: current,
+            label: `${text.missing}: ${view!.target!.route!.provider} / ${view!.target!.route!.model}`,
+            disabled: true,
+          },
+        ]
+      : []),
+    ...(view?.providers.flatMap((provider): MenuEntry[] =>
+      provider.models.length
+        ? [
+            { type: 'separator', id: `separator:${provider.id}` },
+            { type: 'label', id: `provider:${provider.id}`, text: provider.name },
+            ...provider.models.map((model) => ({
+              id: routeKey({ provider: provider.id, model: model.id }),
+              label: model.name,
+            })),
+          ]
+        : []
+    ) ?? []),
+  ]
 
   const save = async () => {
     if (lock.current || !view?.target || (draft && !selected) || missingEffort) return
@@ -182,8 +273,6 @@ function ModelSettings({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-model-settings" aria-label={text.nav}>
-      <h2>{text.nav}</h2>
-      <p>{text.description}</p>
       {!view && busy && <p role="status">{text.loading}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
       <form
@@ -194,75 +283,86 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       >
         {view?.target && (
           <>
-            <label htmlFor={id}>{text.title}</label>
-            <select
-              id={id}
-              value={draft}
-              disabled={busy}
-              aria-describedby={`${id}-hint`}
-              onChange={(event) => {
-                setDraft(event.target.value)
-                setEffort('')
-                setNotice(undefined)
-              }}
-            >
-              <option value="">{text.inherit}</option>
-              {missing && (
-                <option value={current} disabled>
-                  {text.missing}: {view.target.route!.provider} / {view.target.route!.model}
-                </option>
-              )}
-              {options.map((option) => (
-                <option key={routeKey(option.route)} value={routeKey(option.route)}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <small id={`${id}-hint`}>{text.hint}</small>
-            <label htmlFor={`${id}-effort`}>{text.effort}</label>
-            <select
-              id={`${id}-effort`}
-              value={effort}
-              disabled={busy || !selected || (efforts.length === 0 && !effort)}
-              aria-describedby={`${id}-effort-hint`}
-              onChange={(event) => {
-                setEffort(event.target.value)
-                setNotice(undefined)
-              }}
-            >
-              <option value="">{text.automatic}</option>
-              {missingEffort && (
-                <option value={effort} disabled>
-                  {text.missingEffort}: {effort}
-                </option>
-              )}
-              {efforts.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <small id={`${id}-effort-hint`}>
-              {selected && efforts.length === 0 ? text.noEfforts : text.effortHint}
-            </small>
+            <div className="dsh-model-settings-row">
+              <div className="dsh-model-settings-text">
+                <div>{text.title}</div>
+                <p className="dsh-model-settings-hint" id={`${id}-hint`}>
+                  {text.hint}
+                </p>
+              </div>
+              <div className="dsh-model-settings-controls">
+                <Picker
+                  label={`${text.title} ${text.model}`}
+                  value={modelLabel}
+                  title={
+                    option?.label ??
+                    (draft
+                      ? `${text.missing}: ${view.target.route!.provider} / ${view.target.route!.model}`
+                      : text.inherit)
+                  }
+                  selectedId={draft}
+                  items={modelItems}
+                  disabled={busy}
+                  describedBy={`${id}-hint`}
+                  onSelect={(value) => {
+                    if (value !== draft) {
+                      setDraft(value)
+                      setEffort('')
+                      setNotice(undefined)
+                    }
+                  }}
+                />
+                <Picker
+                  label={`${text.title} ${text.effort}`}
+                  value={`${text.effortShort} · ${effortLabel}`}
+                  title={
+                    !selected
+                      ? text.effortHint
+                      : efforts.length === 0
+                        ? text.noEfforts
+                        : effort
+                          ? effortLabel
+                          : text.automaticHint
+                  }
+                  selectedId={effort}
+                  items={[
+                    { id: '', label: text.automaticHint },
+                    ...(missingEffort
+                      ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
+                      : []),
+                    ...efforts.map((item) => ({ id: item.id, label: item.name })),
+                  ]}
+                  disabled={busy || !selected || (efforts.length === 0 && !effort)}
+                  onSelect={(value) => {
+                    setEffort(value)
+                    setNotice(undefined)
+                  }}
+                />
+              </div>
+            </div>
             {view.catalogError && <p role="alert">{text.catalog}</p>}
           </>
         )}
         {notice && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
         <footer>
-          <button
+          <Button
             type="button"
+            aria-label={text.refresh}
             disabled={busy}
             onClick={() => {
               void load()
             }}
           >
             {text.refresh}
-          </button>
+          </Button>
           {view?.target && (
-            <button type="submit" disabled={busy || unchanged || (!!draft && !selected) || missingEffort}>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={busy || unchanged || (!!draft && !selected) || missingEffort}
+            >
               {busy ? text.saving : text.save}
-            </button>
+            </Button>
           )}
         </footer>
       </form>
