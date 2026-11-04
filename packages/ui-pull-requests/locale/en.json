@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "title": "Pull Requests",
+    "description": "Show the current branch's GitHub PR or GitLab MR using gh / glab."
+  },
+  "title": "PR / MR",
+  "description": "The PR or MR pushed from this session's current branch",
+  "refresh": "Refresh",
+  "loading": "Loading requests…",
+  "empty": "No PR or MR is associated with the current branch. Push this branch and create a request first.",
+  "open": "Open",
+  "draft": "Draft",
+  "closed": "Closed",
+  "merged": "Merged",
+  "hint": "Install gh (GitHub) or glab (GitLab) and sign in on the DSH host.",
+  "repository": "No Git repository or remote was found for this session.",
+  "unsupported": "Host not recognized. Set this plugin's provider to github or gitlab for a self-hosted instance.",
+  "cli_missing": "The required CLI is not installed on the DSH host.",
+  "command_failed": "Could not load requests. Check CLI authentication, repository access and the session's sandbox network policy.",
+  "invalid_response": "The CLI returned an invalid response.",
+  "unavailable": "Requests are unavailable. Reconnect and refresh."
+}

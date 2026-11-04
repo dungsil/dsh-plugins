@@ -21,3 +21,4 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-worktree](./packages/ui-worktree)                 | 입력창에서 기존 도구를 통한 worktree 생성·재사용을 모델에 요청하는 UI |   MIT    |
 | [@dungsil/dsh-plugin-ui-model-picker](./packages/ui-model-picker)         | 입력창 모델 메뉴와 추론 강도 슬라이더                                 |   MIT    |
 | [@dungsil/dsh-plugin-ui-turn-rail-left](./packages/ui-turn-rail-left)     | 공식 턴 레일을 대화 화면 왼쪽으로 옮기는 플러그인                     |   MIT    |
+| [@dungsil/dsh-plugin-ui-pull-requests](./packages/ui-pull-requests)       | gh / glab으로 오른쪽 사이드바에 현재 브랜치의 PR / MR을 표시하는 UI   |   MIT    |

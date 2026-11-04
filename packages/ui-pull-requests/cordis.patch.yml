@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-ui-pull-requests
+      name: '@dungsil/dsh-plugin-ui-pull-requests'
