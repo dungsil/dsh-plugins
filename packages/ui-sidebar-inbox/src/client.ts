@@ -22,7 +22,7 @@ const FLAT_ORDER = '__flat_session_order__'
  * order is what the sidebar renders while this mode is selected.
  */
 const AGENT_ACTIVITY = 'agent-activity'
-/** Remembers the native sort to restore when the plugin mode is released. */
+/** Remembers the native sort; its presence also marks first-use setup complete. */
 const PREVIOUS_SORT_KEY = 'dungsil.sidebar-inbox.sort.v1'
 
 type View = Parameters<Parameters<WorkspaceBrowserProps['useStore']>[0]>[0]
@@ -128,6 +128,19 @@ export function apply(ctx: Context) {
     if (!entry?.store || typeof entry.store === 'function')
       throw new Error('Sidebar Inbox requires the DSH 0.2.1 workspace view store')
     view = entry.store.create() as unknown as ViewInstance
+    // Default new installations to the supported flat-list mode once. Existing
+    // users already have a remembered sort, including those who opted out.
+    try {
+      if (localStorage.getItem(PREVIOUS_SORT_KEY) === null && !isActive()) {
+        const current = view.getSnapshot()
+        if (current.orderBy === 'manual' || current.orderBy === 'updated') {
+          localStorage.setItem(PREVIOUS_SORT_KEY, current.orderBy)
+          view.store.set({ ...current, groupBy: 'flat', orderBy: AGENT_ACTIVITY as View['orderBy'] })
+        }
+      }
+    } catch {
+      // Without persistent storage, leave the choice to the user on each load.
+    }
     const headings = installHeadings(
       () => placements,
       () => ({ working: translate('heading.working'), archived: translate('heading.archived') }),
