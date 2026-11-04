@@ -2,17 +2,21 @@ import { useEffect, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { installSettingsIcon, SettingsPicker, settingsStyles } from '@dungsil/dsh-ui'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { SettingsPicker, settingsStyles } from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
-import { copy, localizedCopy } from './copy.js'
+import { localizedCopy } from './copy.js'
 import { channel, method, type UsageView } from './protocol.js'
 
 export const name = 'dungsil-ui-usage'
 export const inject = ['connection', 'locale', 'slots']
 
 const styles = `${settingsStyles}
+.dsh-usage-page { box-sizing: border-box; height: 100%; overflow: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
+.dsh-usage-page > .dsh-usage { max-width: 960px; margin: 0 auto; }
+.dsh-usage h1 { margin: 0 0 24px; font-size: 20px; line-height: 28px; font-weight: 500; }
 .dsh-usage { container-type: inline-size; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-usage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dsh-usage-muted, .dsh-usage dt { color: var(--dsw-alias-label-secondary); font-size: 12px; }
@@ -100,6 +104,7 @@ function Usage({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-usage" aria-label={text.nav} aria-busy={busy}>
+      <h1>{text.nav}</h1>
       <div className="dsh-usage-toolbar">
         <SettingsPicker
           aria-label={text.period}
@@ -216,24 +221,34 @@ function Usage({ ctx }: { ctx: Context }) {
 }
 
 export function apply(ctx: Context) {
-  ctx.effect(() =>
-    installSettingsIcon(
-      name,
-      Object.values(copy).map((text) => text.nav),
-      '<path d="M2 13.5h12M3.5 11V7M8 11V2.5M12.5 11V5"/>'
-    )
-  )
   ctx.effect(() => installStyles(styles), 'usage: styles')
-  ctx.slots.inject('settings.section', () =>
+  ctx.slots.inject('main', () =>
     ctx.slots.register(
       {
-        name: 'settings.section',
-        id: name,
-        order: 16,
-        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
+        name: 'main',
+        key: name,
         inject: () => ({ ctx }),
       },
-      Usage
+      ({ ctx }) => (
+        <div className="dsh-usage-page">
+          <Usage ctx={ctx} />
+        </div>
+      )
+    )
+  )
+  ctx.slots.inject('sidebar.panellist', () =>
+    ctx.slots.register(
+      {
+        name: 'sidebar.panellist',
+        id: name,
+        order: 1,
+        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
+      },
+      () => (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M2 13.5h12M3.5 11V7M8 11V2.5M12.5 11V5" />
+        </svg>
+      )
     )
   )
 }

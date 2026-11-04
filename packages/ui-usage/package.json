@@ -33,9 +33,10 @@
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session-query": "0.2.1-rc.5",
@@ -67,7 +68,8 @@
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-renderer",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
       ]
     }
   },
@@ -79,9 +81,9 @@
       "zh": "用量仪表盘"
     },
     "description": {
-      "en": "View recorded session tokens, daily activity, and model usage in settings.",
-      "ko": "설정에서 세션에 기록된 토큰, 일별 추이, 모델별 사용량을 확인합니다.",
-      "zh": "在设置中查看会话记录的令牌、每日趋势和模型用量。"
+      "en": "View recorded session tokens, daily activity, and model usage from the sidebar.",
+      "ko": "사이드바에서 세션에 기록된 토큰, 일별 추이, 모델별 사용량을 확인합니다.",
+      "zh": "从侧边栏查看会话记录的令牌、每日趋势和模型用量。"
     },
     "category": "ui",
     "labels": [],
