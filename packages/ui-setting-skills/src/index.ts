@@ -1,10 +1,16 @@
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import type {} from '@deepseek-ai/dsh-experimental-client-ui-cot-translation'
+import { dshCachePath } from '@deepseek-ai/dsh-home-paths'
 import { SkillRegistry } from '@deepseek-ai/dsh-skill'
 import { FileSystemSkillProvider } from '@deepseek-ai/dsh-skill-filesystem'
 import z from '@deepseek-ai/schemastery'
-import { channel, method, saveMethod, type SkillsView } from './protocol.js'
+import { channel, method, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'configEditor']
@@ -12,6 +18,7 @@ export const Config = z.object({ disabled: z.array(z.string()).default([]) })
 
 export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
   const editor = ctx.configEditor
+  const cacheDir = dshCachePath('dungsil-ui-setting-skills', 'translations-v1')
   const entry = () => editor.entries().find((entry) => entry.options.name === '@dungsil/dsh-plugin-ui-setting-skills')
   // Read the live Loader config even from handles retained across configuration reloads.
   const disabled = (): string[] => (entry()?.options.config?.disabled as string[] | undefined) ?? config.disabled ?? []
@@ -52,7 +59,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
     'ui-setting-skills: dispose discovery'
   )
   // Exact Connection routes are owner-only, unlike shared session RPC handlers.
-  for (const endpoint of [method, saveMethod])
+  for (const endpoint of [method, saveMethod, translateMethod])
     ctx.effect(
       () =>
         ctx.connection.fetch.register({
@@ -67,6 +74,62 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
               return new Response('Invalid request', { status: 400 })
             }
             if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
+            if (endpoint === translateMethod) {
+              const payload = body.data.payload as { path?: unknown; language?: unknown }
+              if (!payload || typeof payload.path !== 'string' || typeof payload.language !== 'string') {
+                return new Response('Invalid request', { status: 400 })
+              }
+              let result
+              try {
+                const signal = AbortSignal.any([request.signal, lifetime.signal])
+                const translator = ctx.get('cotTranslation')
+                if (!translator) throw new Error('Translation unavailable')
+                const observation = await provider.list({ signal })
+                const candidates = 'candidates' in observation ? observation.candidates : observation
+                const skill = candidates.find(
+                  (skill) => skill.path === payload.path && ['user-agents', 'user-dsh'].includes(skill.source)
+                )
+                if (!skill) throw new Error('Unknown user skill')
+                const { preferences } = await translator.limits(signal)
+                const targetLanguage =
+                  preferences.targetLanguage === 'auto' ? payload.language : preferences.targetLanguage
+                const key = createHash('sha256')
+                  .update(JSON.stringify([preferences.provider, targetLanguage, skill.description]))
+                  .digest('hex')
+                const cachePath = join(cacheDir, `${key}.json`)
+                let value: string | undefined
+                try {
+                  const cached: unknown = JSON.parse(await readFile(cachePath, 'utf8'))
+                  if (typeof cached === 'string') value = cached
+                } catch {
+                  // Missing or damaged cache entries are retried through the selected provider.
+                }
+                signal.throwIfAborted()
+                if (value === undefined) {
+                  value = await translator.translate(
+                    { text: skill.description, provider: preferences.provider, targetLanguage },
+                    signal
+                  )
+                  signal.throwIfAborted()
+                  try {
+                    await writeFileAtomic(cachePath, JSON.stringify(value), { mode: 0o600, dirMode: 0o700 })
+                  } catch {
+                    ctx.logger.warn('Could not cache skill description translation')
+                  }
+                }
+                signal.throwIfAborted()
+                result = { ok: true as const, value }
+              } catch {
+                result = {
+                  ok: false as const,
+                  error: { code: 'translation_failed', message: 'Could not translate skill description.', details: {} },
+                }
+              }
+              return Response.json(
+                { type: 'server-response', rpcId: body.data.rpcId, result },
+                { headers: { 'Cache-Control': 'no-store' } }
+              )
+            }
             if (endpoint === saveMethod) {
               const payload = body.data.payload as { name?: unknown; disabled?: unknown }
               if (!payload || typeof payload.name !== 'string' || typeof payload.disabled !== 'boolean') {
@@ -115,6 +178,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
               signal.throwIfAborted()
               const skills = 'candidates' in observation ? observation.candidates : observation
               const value: SkillsView = {
+                translationAvailable: !!ctx.get('cotTranslation'),
                 disabled: disabled(),
                 complete: 'candidates' in observation ? observation.complete : true,
                 skills: skills.flatMap((skill) =>
