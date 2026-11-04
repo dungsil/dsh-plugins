@@ -25,16 +25,27 @@ await test('composer shares host model selection, preserves exact routes and use
   // and native light dismissal; the DOM test exercises the actual host directory.
   window.HTMLElement.prototype.showPopover = function () {}
   window.HTMLElement.prototype.hidePopover = function () {}
-  const { createElement, act } = await import('react')
+  const { createElement, forwardRef, act } = await import('react')
   const { createRoot } = await import('react-dom/client')
   const require = createRequire(import.meta.url)
   const modules = new Map()
+  // Keep host visuals at the module boundary; browser validation loads the real
+  // primitives and their CSS, including MenuSurface's forwarded popover ref.
+  const icon = (props) => createElement('svg', { ...props, 'aria-hidden': true })
+  const primitives = {
+    IconChevronDownOutlineRegular: icon,
+    IconChevronLeftOutlineRegular: icon,
+    IconChevronRightOutlineRegular: icon,
+    IconCheckOutlineRegular: icon,
+    IconDataOutlineRegular: icon,
+    MenuSurface: forwardRef((props, ref) => createElement('div', { ...props, ref })),
+  }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) =>
       modules.set(
         id,
         factory((specifier) => {
-          if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return {}
+          if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return primitives
           return require(specifier)
         })
       ),
@@ -214,20 +225,6 @@ await test('composer shares host model selection, preserves exact routes and use
   await render()
   assert.match(container.textContent, /Alpha Shared\s*Deep/)
   assert.equal(container.querySelectorAll('button').length, 1)
-  const assertChevron = (selector, path) => {
-    const svg = find(`${selector} svg.dsh-codex-chevron`)
-    assert.ok(svg, `${selector} uses an SVG chevron, not a font glyph`)
-    assert.equal(svg.getAttribute('width'), '14')
-    assert.equal(svg.getAttribute('height'), '14')
-    assert.equal(svg.getAttribute('viewBox'), '0 0 16 16')
-    assert.equal(svg.getAttribute('stroke-width'), '1')
-    assert.equal(svg.getAttribute('aria-hidden'), 'true')
-    assert.equal(svg.getAttribute('focusable'), 'false')
-    assert.equal(svg.querySelector('path').getAttribute('stroke'), 'currentColor')
-    assert.equal(svg.querySelector('path').getAttribute('d'), path)
-    assert.doesNotMatch(find(selector).textContent, /[⌄‹›]/u)
-  }
-  assertChevron('.dsh-codex-trigger', 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6')
   const openModels = async () => {
     await click('.dsh-codex-trigger')
     assert.ok(find('.dsh-codex-header'))
@@ -238,10 +235,9 @@ await test('composer shares host model selection, preserves exact routes and use
   await click('.dsh-codex-trigger')
   assert.equal(find('input[type=range]').getAttribute('aria-valuetext'), 'Deep')
   assert.equal(find('[role=radio]'), null)
-  assertChevron('.dsh-codex-model', 'M6 12L9.29289 8.70711C9.68342 8.31658 9.68342 7.68342 9.29289 7.29289L6 4')
+  assert.match(container.textContent, /Alpha Shared\s*Deep/, 'opening the picker keeps its selected label')
   await click('.dsh-codex-model')
-  assertChevron('.dsh-codex-back', 'M10 4L6.70711 7.29289C6.31658 7.68342 6.31658 8.31658 6.70711 8.70711L10 12')
-  assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared✓')
+  assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared')
   await click('.dsh-codex-back')
   assert.ok(find('input[type=range]'))
   await click('.dsh-codex-model')
@@ -274,7 +270,7 @@ await test('composer shares host model selection, preserves exact routes and use
   await openModels()
   await click('section[aria-label=Beta] [role=radio]')
   assert.ok(find('[role=alert]'))
-  assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared✓')
+  assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared')
   assert.deepEqual(projection.getSnapshot().next, initial)
   reject = false
   await click('section[aria-label=Beta] [role=radio]:last-child')

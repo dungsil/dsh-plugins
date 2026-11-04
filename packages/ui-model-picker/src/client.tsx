@@ -9,7 +9,14 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { Chevron } from './chevron.js'
+import {
+  IconChevronDownOutlineRegular,
+  IconChevronLeftOutlineRegular,
+  IconChevronRightOutlineRegular,
+  IconCheckOutlineRegular,
+  IconDataOutlineRegular,
+  MenuSurface,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-model-picker'
@@ -217,32 +224,21 @@ export function apply(ctx: Context) {
             className="dsh-codex-trigger"
             disabled={disabled}
             aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
+            title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
             aria-expanded={panel !== null}
             aria-controls={panel ? id : undefined}
             onClick={(event) => show(event.currentTarget)}
           >
-            <span className="dsh-codex-name">
-              {panel ? (
-                text.choose
-              ) : (
-                <>
-                  {model?.name ?? current?.model ?? text.model}
-                  {effortLabel && (
-                    <>
-                      {' '}
-                      <span className="dsh-codex-effort">{effortLabel}</span>
-                    </>
-                  )}
-                </>
-              )}
-            </span>
-            <Chevron direction="down" />
+            <IconDataOutlineRegular className="dsh-codex-trigger-icon" size={16} />
+            <span className="dsh-codex-name">{model?.name ?? current?.model ?? text.model}</span>
+            {effortLabel && <span className="dsh-codex-effort">{effortLabel}</span>}
+            <IconChevronDownOutlineRegular className="dsh-codex-chevron" />
           </button>
         </div>
         {panel &&
           createPortal(
-            <div
+            <MenuSurface
               id={id}
               ref={popup}
               role="dialog"
@@ -251,7 +247,7 @@ export function apply(ctx: Context) {
             >
               {panel === 'model' ? (
                 <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
-                  <Chevron direction="left" /> {text.effort}
+                  <IconChevronLeftOutlineRegular size={14} /> {text.effort}
                 </button>
               ) : (
                 <header className="dsh-codex-header">
@@ -264,7 +260,7 @@ export function apply(ctx: Context) {
                   >
                     <strong>{efforts[draft]?.name ?? effortLabel ?? text.default}</strong>
                     <span>
-                      {model?.name ?? current?.model ?? text.model} <Chevron direction="right" />
+                      {model?.name ?? current?.model ?? text.model} <IconChevronRightOutlineRegular size={14} />
                     </span>
                   </button>
                   <button
@@ -345,7 +341,9 @@ export function apply(ctx: Context) {
                               {option.description && <small>{option.description}</small>}
                             </span>
                             <span className="dsh-codex-check" aria-hidden="true">
-                              {provider.id === current?.provider && option.id === current?.model ? '✓' : ''}
+                              {provider.id === current?.provider && option.id === current?.model && (
+                                <IconCheckOutlineRegular size={14} />
+                              )}
                             </span>
                           </button>
                         ))}
@@ -406,7 +404,7 @@ export function apply(ctx: Context) {
                   </div>
                 )
               )}
-            </div>,
+            </MenuSurface>,
             document.body
           )}
       </>
