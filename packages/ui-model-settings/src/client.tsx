@@ -28,7 +28,8 @@ const copy = {
     effort: 'Reasoning effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
-    effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the title generator’s existing behavior.',
+    worktreeAutomaticHint: 'Automatic (model default)',
+    effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the existing behavior.',
     noEfforts: 'This model does not offer reasoning effort settings.',
     missingEffort: 'Saved effort (currently unavailable)',
     save: 'Save',
@@ -56,7 +57,8 @@ const copy = {
     effort: '추론 수준',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
-    effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 제목 생성기의 기존 동작을 유지합니다.',
+    worktreeAutomaticHint: '자동 (모델 기본값)',
+    effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 기존 동작을 유지합니다.',
     noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
     missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
     save: '저장',
@@ -164,7 +166,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
   const [drafts, setDrafts] = useState({ target: '', worktree: '' })
-  const [effort, setEffort] = useState('')
+  const [effortDrafts, setEffortDrafts] = useState({ target: '', worktree: '' })
   const [busy, setBusy] = useState(true)
   const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'>()
   const [noticeTask, setNoticeTask] = useState<Task>()
@@ -182,7 +184,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
-      setEffort(next.target?.reasoningEffort ?? '')
+      setEffortDrafts({ target: next.target?.reasoningEffort ?? '', worktree: next.worktree?.reasoningEffort ?? '' })
       setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
@@ -224,9 +226,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const save = async (task: Task) => {
     const target = view?.[task]
     const draft = drafts[task]
+    const effort = effortDrafts[task]
     const option = options.find((option) => routeKey(option.route) === draft)
     const selected = option?.route ?? null
-    const missingEffort = task === 'target' && effort !== '' && !option?.efforts.some((item) => item.id === effort)
+    const missingEffort = effort !== '' && !option?.efforts.some((item) => item.id === effort)
     if (lock.current || !target || (draft && !selected) || missingEffort) return
     lock.current = true
     setBusy(true)
@@ -240,7 +243,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
           id: target.id,
           revision: target.revision,
           route: selected,
-          reasoningEffort: task === 'target' ? effort || null : null,
+          reasoningEffort: effort || null,
         },
         lifetime.signal
       )
@@ -254,7 +257,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       const saved = result.value as unknown as TitleTarget | null
       setView((current) => current && { ...current, [task]: saved })
       setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
-      if (task === 'target') setEffort(saved?.reasoningEffort ?? '')
+      setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
       setNotice('saved')
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
@@ -273,13 +276,15 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         if (!target) return null
         const title = task === 'target' ? text.title : text.worktree
         const draft = drafts[task]
+        const effort = effortDrafts[task]
         const current = routeKey(target.route)
         const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
         const option = options.find((option) => routeKey(option.route) === draft)
         const selected = option?.route ?? null
         const efforts = option?.efforts ?? []
-        const missingEffort = task === 'target' && effort !== '' && !efforts.some((item) => item.id === effort)
-        const unchanged = draft === current && (task !== 'target' || effort === (target.reasoningEffort ?? ''))
+        const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
+        const unchanged = draft === current && effort === (target.reasoningEffort ?? '')
+        const automaticHint = task === 'target' ? text.automaticHint : text.worktreeAutomaticHint
         const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
         const effortLabel =
           efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
@@ -326,39 +331,37 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   onSelect={(value) => {
                     if (value !== draft) {
                       setDrafts((current) => ({ ...current, [task]: value }))
-                      if (task === 'target') setEffort('')
+                      setEffortDrafts((current) => ({ ...current, [task]: '' }))
                       setNotice(undefined)
                     }
                   }}
                 />
-                {task === 'target' && (
-                  <Picker
-                    label={`${title} ${text.effort}`}
-                    value={effortLabel}
-                    title={
-                      !selected
-                        ? text.effortHint
-                        : efforts.length === 0
-                          ? text.noEfforts
-                          : effort
-                            ? effortLabel
-                            : text.automaticHint
-                    }
-                    selectedId={effort}
-                    items={[
-                      { id: '', label: text.automaticHint },
-                      ...(missingEffort
-                        ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
-                        : []),
-                      ...efforts.map((item) => ({ id: item.id, label: item.name })),
-                    ]}
-                    disabled={busy || !selected || (efforts.length === 0 && !effort)}
-                    onSelect={(value) => {
-                      setEffort(value)
-                      setNotice(undefined)
-                    }}
-                  />
-                )}
+                <Picker
+                  label={`${title} ${text.effort}`}
+                  value={effortLabel}
+                  title={
+                    !selected
+                      ? text.effortHint
+                      : efforts.length === 0
+                        ? text.noEfforts
+                        : effort
+                          ? effortLabel
+                          : automaticHint
+                  }
+                  selectedId={effort}
+                  items={[
+                    { id: '', label: automaticHint },
+                    ...(missingEffort
+                      ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
+                      : []),
+                    ...efforts.map((item) => ({ id: item.id, label: item.name })),
+                  ]}
+                  disabled={busy || !selected || (efforts.length === 0 && !effort)}
+                  onSelect={(value) => {
+                    setEffortDrafts((current) => ({ ...current, [task]: value }))
+                    setNotice(undefined)
+                  }}
+                />
                 <Button
                   type="submit"
                   variant="primary"

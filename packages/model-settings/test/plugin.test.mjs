@@ -188,12 +188,13 @@ await test('worktree routes persist independently of titles, preserve other sett
   assert.deepEqual((await h.rpc('describe')).value.worktree, initial.worktree)
   const route = { provider: 'auxiliary', model: 'title-small' }
   assert.equal(
-    (await h.rpc('save', { ...initial.worktree, route, reasoningEffort: 'quick' })).error.code,
+    (await h.rpc('save', { ...initial.worktree, route, reasoningEffort: 'unsupported' })).error.code,
     'reasoning_unavailable'
   )
-  const saved = await h.rpc('save', { ...initial.worktree, route })
+  const saved = await h.rpc('save', { ...initial.worktree, route, reasoningEffort: 'quick' })
   assert.equal(saved.ok, true)
   assert.deepEqual(saved.value.route, route)
+  assert.equal(saved.value.reasoningEffort, 'quick')
   assert.equal(h.adapter.requests.length, 0)
   assert.deepEqual((await h.rpc('describe')).value.target, title.value)
   assert.equal((await h.rpc('save', { ...initial.worktree, route: null })).error.code, 'conflict')
@@ -204,7 +205,14 @@ await test('worktree routes persist independently of titles, preserve other sett
   await h.restart()
   const restored = (await h.rpc('describe')).value.worktree
   assert.deepEqual(restored.route, route)
-  assert.equal((await h.rpc('save', { ...restored, route: null })).ok, true)
+  assert.equal(restored.reasoningEffort, 'quick')
+  const automatic = await h.rpc('save', { ...restored, reasoningEffort: null })
+  assert.equal(automatic.ok, true)
+  assert.equal(automatic.value.reasoningEffort, null)
+  assert.deepEqual(automatic.value.route, route)
+  const explicit = await h.rpc('save', { ...automatic.value, reasoningEffort: 'quick' })
+  assert.equal(explicit.ok, true)
+  assert.equal((await h.rpc('save', { ...explicit.value, route: null, reasoningEffort: null })).ok, true)
   assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
   await h.generate('after-worktree-reset')
   assert.equal(h.adapter.requests.at(-1).reasoningEffort, 'thorough')

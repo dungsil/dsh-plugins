@@ -1,6 +1,6 @@
 # @dungsil/dsh-plugin-model-settings
 
-DSH의 **세션 제목** 생성 모델·추론 수준과 **Git Worktree UI의 브랜치 이름** 생성 모델을 관리하는 기능 플러그인입니다. 소유자 전용 API와 설정 저장을 제공하며, 웹 UI는 포함하지 않습니다.
+DSH의 **세션 제목**과 **Git Worktree UI의 브랜치 이름** 생성 모델·추론 수준을 관리하는 기능 플러그인입니다. 소유자 전용 API와 설정 저장을 제공하며, 웹 UI는 포함하지 않습니다.
 
 ## 사용 방법
 
@@ -12,12 +12,12 @@ DSH의 **세션 제목** 생성 모델·추론 수준과 **Git Worktree UI의 �
 
 DSH connection RPC의 `/api` 채널에서 다음 메서드를 제공합니다. 채널·메서드 접두사와 요청에 사용하는 타입은 `@dungsil/dsh-plugin-model-settings/protocol`에서 가져올 수 있습니다.
 
-- `dungsil-model-settings/describe`: 활성 제목 생성기의 `target`, 활성 Git Worktree UI의 `worktree`와 제공자별 모델 목록을 반환합니다. 각 대상은 `id`, `revision`, `route`, `reasoningEffort`를 포함하며, 활성 대상이 없거나 여러 개이면 해당 필드는 `null`입니다. 각 모델의 `efforts`에는 지원하는 추론 수준의 `id`와 `name`이 들어 있습니다. 워크트리의 `reasoningEffort`는 항상 `null`입니다.
-- `dungsil-model-settings/save`: `{ id, revision, route, reasoningEffort }`를 전달합니다. `id`로 제목 또는 워크트리 대상을 구분합니다. `route`는 `{ provider, model }`이며, `null`이면 대화 모델을 따르도록 별도 모델 지정을 해제합니다. 제목의 `reasoningEffort`는 선택한 모델이 지원하는 수준의 ID이며, 생략하거나 `null`로 전달하면 기존 최저 수준 동작을 사용합니다. 대화 모델을 따르거나 워크트리 모델을 설정할 때에는 추론 수준을 별도로 지정할 수 없습니다. 오래된 `revision`은 `conflict`, 지원하지 않는 추론 수준은 `reasoning_unavailable` 오류를 반환합니다.
+- `dungsil-model-settings/describe`: 활성 제목 생성기의 `target`, 활성 Git Worktree UI의 `worktree`와 제공자별 모델 목록을 반환합니다. 각 대상은 `id`, `revision`, `route`, `reasoningEffort`를 포함하며, 활성 대상이 없거나 여러 개이면 해당 필드는 `null`입니다. 각 모델의 `efforts`에는 지원하는 추론 수준의 `id`와 `name`이 들어 있습니다.
+- `dungsil-model-settings/save`: `{ id, revision, route, reasoningEffort }`를 전달합니다. `id`로 제목 또는 워크트리 대상을 구분합니다. `route`는 `{ provider, model }`이며, `null`이면 대화 모델을 따르도록 별도 모델 지정을 해제합니다. `reasoningEffort`는 선택한 모델이 지원하는 수준의 ID이며, 생략하거나 `null`로 전달하면 제목은 기존 최저 수준, 워크트리는 모델 기본값을 사용합니다. 대화 모델을 따를 때에는 추론 수준을 별도로 지정할 수 없습니다. 오래된 `revision`은 `conflict`, 지원하지 않는 추론 수준은 `reasoning_unavailable` 오류를 반환합니다.
 
 선택한 모델은 다음 제목 생성부터 사용합니다. 이 설정은 활성 프로필 전체에 적용되며, 기존 제목이나 대화 모델은 바꾸지 않습니다. 제목 생성용 모델 호출에는 해당 제공자의 요금이 적용될 수 있습니다.
 
-워크트리 모델은 활성 `@dungsil/dsh-plugin-ui-worktree`의 `provider`·`model` 설정에 저장합니다. 이후 브랜치 이름을 비운 생성 요청에만 사용하며, 직접 입력한 이름이나 대화 모델에는 영향을 주지 않습니다. 설정 저장 자체는 모델을 호출하지 않으며, 자동 이름 생성에는 제공자의 요금이 적용될 수 있습니다. 제목 설정과 독립적으로 저장·해제하고, 워크트리 플러그인을 설치하거나 활성화하지는 않습니다.
+워크트리 모델·추론 수준은 활성 `@dungsil/dsh-plugin-ui-worktree`의 `provider`·`model`·`reasoningEffort` 설정에 저장합니다. 이후 브랜치 이름을 비운 생성 요청에만 사용하며, 직접 입력한 이름이나 대화 모델에는 영향을 주지 않습니다. 설정 저장 자체는 모델을 호출하지 않으며, 자동 이름 생성에는 제공자의 요금이 적용될 수 있습니다. 제목 설정과 독립적으로 저장·해제하고, 워크트리 플러그인을 설치하거나 활성화하지는 않습니다.
 
 ## 동작과 호환성
 

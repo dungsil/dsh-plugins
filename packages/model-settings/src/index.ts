@@ -31,7 +31,7 @@ export function apply(ctx: Context) {
   const snapshot = (task: 'title' | 'worktree'): TitleTarget | null => {
     const entry = targetEntry(task)
     if (!entry) return null
-    const config = entry.fiber!.config as { provider?: string; model?: string }
+    const config = entry.fiber!.config as { provider?: string; model?: string; reasoningEffort?: string }
     const settings = (task === 'title' ? settingsEntry()?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
@@ -42,11 +42,15 @@ export function apply(ctx: Context) {
         .digest('hex'),
       route: config.provider && config.model ? { provider: config.provider, model: config.model } : null,
       reasoningEffort:
-        settings?.target === entry.options.id &&
-        settings.provider === config.provider &&
-        settings.model === config.model
-          ? settings.reasoningEffort
-          : null,
+        task === 'worktree'
+          ? config.provider && config.model
+            ? (config.reasoningEffort ?? null)
+            : null
+          : settings?.target === entry.options.id &&
+              settings.provider === config.provider &&
+              settings.model === config.model
+            ? settings.reasoningEffort
+            : null,
     }
   }
 
@@ -137,7 +141,6 @@ export function apply(ctx: Context) {
     const entry = targetEntry(task)
     const owner = settingsEntry()
     if (!entry || (task === 'title' && !owner)) return failure('unavailable')
-    if (task === 'worktree' && reasoningEffort !== null) return failure('reasoning_unavailable')
     try {
       signal.throwIfAborted()
       await ctx.configEditor.edit(entry, (current) => {
@@ -148,6 +151,10 @@ export function apply(ctx: Context) {
         else {
           delete next.provider
           delete next.model
+        }
+        if (task === 'worktree') {
+          if (route && reasoningEffort !== null) next.reasoningEffort = reasoningEffort
+          else delete next.reasoningEffort
         }
         return next
       })
