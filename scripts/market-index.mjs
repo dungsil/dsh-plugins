@@ -189,7 +189,7 @@ export function buildMarketIndex({
   if (!URL.canParse(indexUrl)) throw new Error(`Index URL ${JSON.stringify(indexUrl)} must be an absolute URL`)
   const entries = []
   for (const manifest of packages) {
-    if (manifest.private) continue
+    if (manifest.private || manifest.market === false) continue
     const { name } = manifest
     if (typeof name !== 'string' || name === '') throw new Error('Every package manifest must have a name')
     const market = marketMetadata(manifest)
@@ -228,6 +228,8 @@ export function buildMarketIndex({
 export function recordRelease({ index, packages, packageName, publishTimestamp = Math.floor(Date.now() / 1000) }) {
   const manifest = packages.find((pkg) => !pkg.private && pkg.name === packageName)
   if (!manifest) throw new Error(`Unknown public package: ${packageName}`)
+  if (manifest.market === false)
+    return { ...index, plugins: index.plugins.filter((plugin) => plugin.name !== packageName) }
   const versions = index.plugins.find((plugin) => plugin.name === packageName)?.versions ?? []
   const published = versions.find((entry) => entry.version === manifest.version) ?? {
     version: manifest.version,
@@ -302,7 +304,7 @@ export async function generateRegistryDocuments({
 }) {
   const documents = new Map()
   for (const manifest of packages) {
-    if (manifest.private) continue
+    if (manifest.private || manifest.market === false) continue
     const { name, version } = manifest
     const checkPublishedVersion = typeof version === 'string' && version !== ''
     let document = (await fetchDocument(name)) ?? null

@@ -63,23 +63,5 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "market": {
-    "order": 7,
-    "title": {
-      "en": "Task Models API",
-      "ko": "상황별 모델 API"
-    },
-    "description": {
-      "en": "Configure session title models through an owner-only API, without a settings UI.",
-      "ko": "설정 UI 없이 소유자 전용 API로 세션 제목 생성 모델을 관리합니다."
-    },
-    "category": "tools",
-    "labels": [],
-    "keywords": [
-      "models",
-      "settings",
-      "sessions",
-      "titles"
-    ]
-  }
+  "market": false
 }

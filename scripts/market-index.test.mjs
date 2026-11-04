@@ -251,6 +251,32 @@ await test('buildMarketIndex skips private packages and 404 registry entries', (
   assert.match(warnings[0], /@fixture\/unpublished/)
 })
 
+await test('market false excludes a public package from generation and release indexing', async () => {
+  const hidden = { ...alpha, version: '0.2.0', market: false }
+  const packages = [hidden, beta]
+  const documents = await generateRegistryDocuments({
+    packages,
+    fetchDocument: async (name) => {
+      assert.equal(name, beta.name)
+      return registryDocuments.get(name)
+    },
+  })
+  const { index, warnings } = fixtureBuild(packages)
+  assert.deepEqual(
+    index.plugins.map((plugin) => plugin.name),
+    [beta.name]
+  )
+  assert.deepEqual(warnings, [])
+  assert.deepEqual(buildMarketIndex({ packages, registryDocuments: documents }), index)
+
+  // A release must neither re-add the package nor retain an old listing.
+  assert.deepEqual(recordRelease({ index, packages, packageName: hidden.name }), index)
+  const previous = fixtureBuild([alpha, beta]).index
+  const before = structuredClone(previous)
+  assert.deepEqual(recordRelease({ index: previous, packages, packageName: hidden.name }), index)
+  assert.deepEqual(previous, before)
+})
+
 await test('generateRegistryDocuments retries a lagging publish until the local version appears', async () => {
   const lagging = {
     versions: { '0.1.0': { name: '@fixture/alpha' } },
@@ -499,6 +525,10 @@ await test('committed market index is a valid format-1 index of this workspace',
 
   assert.deepEqual(Object.keys(parsed.metadata.categories).sort(), ['skills', 'tools', 'ui'])
   assert.deepEqual(Object.keys(parsed.metadata.labels).sort(), ['accessibility', 'korean'])
+
+  assert.equal(local.get('@dungsil/dsh-plugin-model-settings').market, false)
+  assert.equal(parsedByName.has('@dungsil/dsh-plugin-model-settings'), false)
+  assert.ok(parsedByName.has('@dungsil/dsh-plugin-ui-model-settings'))
 
   const orders = parsed.plugins.map((plugin) => local.get(plugin.name).market.order)
   assert.deepEqual(

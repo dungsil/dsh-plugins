@@ -408,54 +408,10 @@
       ]
     },
     {
-      "name": "@dungsil/dsh-plugin-model-settings",
-      "title": {
-        "en": "Task Models API",
-        "ko": "상황별 모델 API"
-      },
-      "description": {
-        "en": "Configure session title models through an owner-only API, without a settings UI.",
-        "ko": "설정 UI 없이 소유자 전용 API로 세션 제목 생성 모델을 관리합니다."
-      },
-      "repository": {
-        "url": "https://github.com/dungsil/dsh-plugins",
-        "directory": "packages/model-settings"
-      },
-      "author": "dungsil",
-      "metadata": {
-        "category": "tools",
-        "keywords": ["models", "settings", "sessions", "titles"],
-        "labels": [],
-        "sortKeys": {}
-      },
-      "versions": [
-        {
-          "version": "0.2.0",
-          "publishTimestamp": 1793769052,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.1.0",
-          "publishTimestamp": 1793692796,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        }
-      ]
-    },
-    {
       "name": "@dungsil/dsh-plugin-ui-model-settings",
       "title": {
         "en": "Task Models UI",
-        "ko": "상황별 모델 UI"
+        "ko": "상황별 모델"
       },
       "description": {
         "en": "Choose a session title model in settings. Includes the task model configuration API.",
