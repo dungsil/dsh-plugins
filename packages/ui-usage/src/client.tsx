@@ -127,7 +127,7 @@ function Usage({ ctx }: { ctx: Context }) {
           portal
           anchor={
             <Button
-              variant="toolbar"
+              variant="outline"
               aria-label={text.period}
               aria-haspopup="menu"
               aria-expanded={periodOpen}
@@ -139,7 +139,7 @@ function Usage({ ctx }: { ctx: Context }) {
           }
         />
         <Button
-          variant="toolbar"
+          variant="outline"
           icon={<IconRefreshOutlineRegular />}
           disabled={busy}
           onClick={() => setRefresh((value) => value + 1)}
