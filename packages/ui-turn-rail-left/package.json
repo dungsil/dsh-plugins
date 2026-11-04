@@ -62,11 +62,13 @@
     "order": 9,
     "title": {
       "en": "Left Turn Rail",
-      "ko": "왼쪽 턴 레일"
+      "ko": "왼쪽 턴 레일",
+      "zh": "左侧轮次导航栏"
     },
     "description": {
       "en": "Move the official turn rail and its previews to the left side of Chat.",
-      "ko": "공식 턴 레일을 대화 화면 왼쪽으로 옮기고 미리보기를 오른쪽으로 펼칩니다."
+      "ko": "공식 턴 레일을 대화 화면 왼쪽으로 옮기고 미리보기를 오른쪽으로 펼칩니다.",
+      "zh": "将官方轮次导航栏移至对话界面左侧，预览向右展开。"
     },
     "category": "ui",
     "labels": [],
