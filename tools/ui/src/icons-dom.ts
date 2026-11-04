@@ -1,4 +1,4 @@
-/// <reference path="./svg.d.ts" />
+import './svg.d.ts'
 
 /** Stroke glyphs in the shipped icon grid for DOM-injected native menu rows. */
 export { default as activityIconSvg } from './icons/activity.svg'

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -74,7 +74,9 @@ export function apply(ctx: Context) {
     locked,
     directory,
   }: Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & { directory: ModelDirectory }) {
-    const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
+    const subscribe = useCallback((listener: () => void) => directory.store.subscribe(listener), [directory])
+    const getSnapshot = useCallback(() => directory.store.getSnapshot(), [directory])
+    const state = useSyncExternalStore(subscribe, getSnapshot)
     const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
