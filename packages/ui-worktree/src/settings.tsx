@@ -9,20 +9,14 @@ const copy = {
   ko: {
     nav: '워크트리',
     directory: '워크트리 풀 디렉터리',
-    directoryHint: '원본 저장소 루트 기준 상대 경로 또는 절대 경로를 입력하세요.',
     remote: '추적 중인 원격 브랜치 사용',
-    remoteHint: '로컬에 가져온 원격 참조를 사용합니다. 자동으로 fetch하지 않습니다.',
     naming: '자동 브랜치 이름 형식',
-    namingHint: '워크트리 생성 시 브랜치 입력을 비운 경우에만 적용합니다.',
     semantic: '시멘틱 (feat/… 또는 fix/…)',
     dsh: 'DSH (dsh/*)',
     custom: '사용자 지정 접두사',
     prefix: '브랜치 접두사',
-    prefixHint: '영문·숫자·하이픈·밑줄과 /를 사용하세요. 예: team/, task-',
     loading: '설정을 불러오는 중입니다…',
     saving: '저장 중…',
-    saved: '설정을 저장했습니다. 다음 워크트리 생성부터 적용합니다.',
-    resynced: '저장된 설정을 다시 불러왔습니다.',
     error: '변경 결과를 확인하지 못했습니다. 저장된 값을 확인한 뒤 다시 변경하세요.',
     conflict: '다른 곳에서 설정을 변경했습니다. 저장된 값을 확인한 뒤 다시 변경하세요.',
     unavailable: '설정을 불러오지 못했습니다. 연결을 확인한 뒤 설정 화면을 다시 여세요.',
@@ -32,20 +26,14 @@ const copy = {
   zh: {
     nav: '工作树',
     directory: '工作树池目录',
-    directoryHint: '请输入相对于源仓库根目录的路径，或绝对路径。',
     remote: '使用跟踪的远程分支',
-    remoteHint: '使用已获取到本地的远程引用，不会自动执行 fetch。',
     naming: '自动分支命名格式',
-    namingHint: '仅在创建工作树时未填写分支名称的情况下生效。',
     semantic: '语义化（feat/… 或 fix/…）',
     dsh: 'DSH（dsh/*）',
     custom: '自定义前缀',
     prefix: '分支前缀',
-    prefixHint: '可使用英文字母、数字、连字符、下划线和 /，例如 team/、task-。',
     loading: '正在加载设置…',
     saving: '正在保存…',
-    saved: '设置已保存，将在下次创建工作树时生效。',
-    resynced: '已重新加载保存的设置。',
     error: '无法确认更改结果，请检查已保存的值后再进行更改。',
     conflict: '设置已在其他位置更改，请检查已保存的值后再进行更改。',
     unavailable: '无法加载设置，请检查连接后重新打开此设置页面。',
@@ -55,20 +43,14 @@ const copy = {
   en: {
     nav: 'Worktrees',
     directory: 'Worktree pool directory',
-    directoryHint: 'Enter a path relative to the source repository root, or an absolute path.',
     remote: 'Use tracked remote branch',
-    remoteHint: 'Uses the locally fetched remote reference. Does not fetch automatically.',
     naming: 'Automatic branch naming',
-    namingHint: 'Applies only when the branch input is left empty when creating a worktree.',
     semantic: 'Semantic (feat/… or fix/…)',
     dsh: 'DSH (dsh/*)',
     custom: 'Custom prefix',
     prefix: 'Branch prefix',
-    prefixHint: 'Use letters, digits, hyphens, underscores and /. For example: team/, task-',
     loading: 'Loading settings…',
     saving: 'Saving…',
-    saved: 'Settings saved. Applies to the next worktree creation.',
-    resynced: 'The saved settings are now shown.',
     error: 'Could not confirm the change. Check the saved values before you change them again.',
     conflict: 'Settings changed elsewhere. Check the saved values before you change them again.',
     unavailable: 'Could not load settings. Check the connection and reopen this settings page.',
@@ -100,7 +82,7 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [draft, setDraft] = useState<WorktreeSettings>()
   const [operation, setOperation] = useState<'loading' | 'saving' | undefined>('loading')
-  const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'unavailable'>()
+  const [notice, setNotice] = useState<'error' | 'conflict' | 'unavailable'>()
   const [namingOpen, setNamingOpen] = useState(false)
   const saved = useRef<WorktreeSettingsView | undefined>(undefined)
   const latest = useRef<WorktreeSettings | undefined>(undefined)
@@ -170,7 +152,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
           setDraft(latest.current)
         }
       }
-      if (!blocked.current && sameSettings(latest.current, saved.current.settings)) setNotice('saved')
     } catch {
       if (controller.signal.aborted) return
       blocked.current = true
@@ -232,7 +213,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
             <div className="dsh-worktree-settings-row">
               <div className="dsh-worktree-settings-text">
                 <label htmlFor={`${id}-directory`}>{text.directory}</label>
-                <p id={`${id}-directory-hint`}>{text.directoryHint}</p>
                 {invalidDirectory && (
                   <p id={`${id}-directory-error`} role="alert">
                     {text.invalidDirectory}
@@ -249,14 +229,13 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                 autoComplete="off"
                 spellCheck={false}
                 aria-invalid={invalidDirectory || undefined}
-                aria-describedby={`${id}-directory-hint${invalidDirectory ? ` ${id}-directory-error` : ''}`}
+                aria-describedby={invalidDirectory ? `${id}-directory-error` : undefined}
                 onChange={(event) => change({ directory: event.target.value })}
               />
             </div>
             <div className="dsh-worktree-settings-row">
               <div className="dsh-worktree-settings-text">
                 <div className="dsh-worktree-settings-title">{text.remote}</div>
-                <p>{text.remoteHint}</p>
               </div>
               <Switch
                 label={text.remote}
@@ -270,7 +249,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                 <div id={`${id}-naming`} className="dsh-worktree-settings-title">
                   {text.naming}
                 </div>
-                <p id={`${id}-naming-hint`}>{text.namingHint}</p>
               </div>
               <Menu
                 open={namingOpen}
@@ -289,7 +267,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                     className="dsh-worktree-settings-selector"
                     disabled={disabled}
                     aria-labelledby={`${id}-naming`}
-                    aria-describedby={`${id}-naming-hint`}
                     aria-haspopup="menu"
                     aria-expanded={namingOpen}
                     onClick={() => setNamingOpen((open) => !open)}
@@ -304,7 +281,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
               <div className="dsh-worktree-settings-row">
                 <div className="dsh-worktree-settings-text">
                   <label htmlFor={`${id}-prefix`}>{text.prefix}</label>
-                  <p id={`${id}-prefix-hint`}>{text.prefixHint}</p>
                   {invalidPrefix && (
                     <p id={`${id}-prefix-error`} role="alert">
                       {text.invalidPrefix}
@@ -320,7 +296,7 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                   maxLength={100}
                   pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*(/[a-zA-Z0-9][a-zA-Z0-9_\-]*)*/?"
                   aria-invalid={invalidPrefix || undefined}
-                  aria-describedby={`${id}-prefix-hint${invalidPrefix ? ` ${id}-prefix-error` : ''}`}
+                  aria-describedby={invalidPrefix ? `${id}-prefix-error` : undefined}
                   autoComplete="off"
                   spellCheck={false}
                   onChange={(event) => change({ prefix: event.target.value })}
@@ -329,16 +305,8 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
             )}
           </fieldset>
         )}
-        <p role="status">
-          {operation
-            ? text[operation]
-            : notice === 'saved'
-              ? text.saved
-              : (notice === 'error' || notice === 'conflict') && !blocked.current
-                ? text.resynced
-                : ''}
-        </p>
-        {notice && notice !== 'saved' && <p role="alert">{text[notice]}</p>}
+        {operation && <p role="status">{text[operation]}</p>}
+        {notice && <p role="alert">{text[notice]}</p>}
       </form>
     </section>
   )
