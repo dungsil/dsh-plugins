@@ -2,9 +2,16 @@
 
 ## Versioning Policy
 
-- 0.x 버전에서는 breaking change가 있어도 메이저 버전을 올리지 않고 마이너 버전을 올립니다.
-- 일반 기능 추가는 마이너 버전, 버그 수정은 패치 버전을 올립니다.
-- 1.x 이상에서는 breaking change가 있으면 메이저 버전을 올립니다.
+- 버전 변경은 CI가 수행합니다. 에이전트는 버전을 수동으로 변경하지 않습니다.
+- CI는 다음 기준으로 버전을 변경합니다.
+  - 0.x 버전에서는 breaking change가 있어도 메이저 버전을 올리지 않고 마이너 버전을 올립니다.
+  - 일반 기능 추가는 마이너 버전, 버그 수정은 패치 버전을 올립니다.
+  - 1.x 이상에서는 breaking change가 있으면 메이저 버전을 올립니다.
+
+## UI Guidelines
+
+- UI는 기존 dsh와 같은 look and feel을 유지합니다.
+- 기존 dsh의 컴포넌트와 스타일을 우선 재사용하여 시각적 표현과 상호작용을 일관되게 구현합니다.
 
 ## Commit Message Convention
 
