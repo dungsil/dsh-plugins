@@ -15,6 +15,7 @@ export function apply(ctx: Context) {
       'a compatibility constraint, or an edge case. Do not annotate every edit or merely paraphrase the diff. ' +
       'Use the conversation language for the note. Supply exact before/after fragments from changes you actually made, ' +
       'with enough shared context to identify the change. Never invent code or include secrets. ' +
+      'Keep each fragment focused on one decision: the note appears after its first contiguous changed block. ' +
       'These are historical, agent-supplied snapshots, not verification of the current file. ' +
       'The tool does not read or modify files and does not replace testing or the final response.',
     interpolate: false,

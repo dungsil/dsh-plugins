@@ -6,10 +6,8 @@
   "ui": {
     "title": "Diff note",
     "open": "Open file",
-    "snapshot": "Snapshot at annotation time · Agent-supplied code; the current file may differ.",
     "waiting": "Recording change explanation…",
     "failed": "The change explanation could not be recorded.",
-    "codeLabel": "Code",
     "wrapLabel": "Wrap lines",
     "unwrapLabel": "Disable line wrapping",
     "copy": "Copy",

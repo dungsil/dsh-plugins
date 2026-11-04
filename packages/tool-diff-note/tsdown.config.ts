@@ -6,7 +6,7 @@ export default defineConfig([
   clientConfig(manifest.name, {
     entry: ['src/client.tsx'],
     deps: {
-      alwaysBundle: ['@dungsil/dsh-ui'],
+      alwaysBundle: ['@dungsil/dsh-ui', 'diff'],
       neverBundle: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'],
     },
   }),

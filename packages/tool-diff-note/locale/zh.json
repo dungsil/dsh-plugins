@@ -3,10 +3,8 @@
   "ui": {
     "title": "变更说明",
     "open": "打开文件",
-    "snapshot": "批注时的快照 · 代码由智能体提供，当前文件可能已更改。",
     "waiting": "正在记录变更说明…",
     "failed": "未能记录变更说明。",
-    "codeLabel": "代码",
     "wrapLabel": "自动换行",
     "unwrapLabel": "关闭自动换行",
     "copy": "复制",
