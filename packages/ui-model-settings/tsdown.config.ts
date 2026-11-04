@@ -10,7 +10,7 @@ export default defineConfig([
     inputOptions: { platform: 'browser' },
     deps: {
       alwaysBundle: ['@dungsil/dsh-plugin-model-settings/protocol'],
-      neverBundle: ['react', 'react/jsx-runtime'],
+      neverBundle: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'],
     },
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),

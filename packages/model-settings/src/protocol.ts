@@ -10,11 +10,16 @@ export interface TitleTarget {
   id: string
   revision: string
   route: Route | null
+  reasoningEffort: string | null
 }
 
 export interface ModelSettingsView {
   target: TitleTarget | null
   worktree?: TitleTarget | null
-  providers: { id: string; name: string; models: { id: string; name: string }[] }[]
+  providers: {
+    id: string
+    name: string
+    models: { id: string; name: string; efforts: { id: string; name: string }[] }[]
+  }[]
   catalogError: boolean
 }

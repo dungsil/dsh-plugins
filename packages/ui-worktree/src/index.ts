@@ -6,7 +6,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import type {} from '@deepseek-ai/dsh-fs'
-import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -35,6 +35,7 @@ export const Config = z.object({
   prefix: z.string().default(''),
   provider: z.string(),
   model: z.string(),
+  reasoningEffort: z.string(),
 })
 
 function validSettings(value: unknown): value is WorktreeSettings {
@@ -78,6 +79,7 @@ const gitEnv = Object.fromEntries(
 export interface Config extends WorktreeSettings {
   provider?: string
   model?: string
+  reasoningEffort?: string
 }
 
 export function apply(ctx: Context, config: Config) {
@@ -328,7 +330,15 @@ export function apply(ctx: Context, config: Config) {
               .join('\n')
               .slice(-12_000)
             const call = await ctx.llm.prepareCall(
-              { provider: route.provider, model: route.model, maxTokens: 256 },
+              {
+                provider: route.provider,
+                model: route.model,
+                maxTokens: 256,
+                reasoningEffort:
+                  config.provider && config.model && config.reasoningEffort
+                    ? ReasoningEffortId(config.reasoningEffort)
+                    : undefined,
+              },
               operationSignal
             )
             const assembler = new BlockAssembler()
