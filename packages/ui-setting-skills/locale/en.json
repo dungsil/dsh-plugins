@@ -14,6 +14,12 @@
     "incomplete": "Some skill sources could not be loaded. This list may be incomplete.",
     "use": "Use",
     "disabled": "Off",
+    "translate": "View translation",
+    "original": "View original",
+    "retry": "Retry",
+    "translating": "Translating…",
+    "translationNotice": "Expanding a skill automatically sends its description to the service selected in reasoning translation settings. Translations are cached using its target language.",
+    "translationError": "Could not translate. The original is shown. Paid services require a Session and are unavailable here.",
     "saveError": "Could not save the setting. Close and reopen this section to check the saved state before trying again."
   }
 }

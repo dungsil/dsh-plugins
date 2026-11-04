@@ -120,3 +120,5 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-workspace@0.2.2-rc.1'
   - '@deepseek-ai/schemastery@3.19.0'
   - '@deepseek-ai/dsh-client-ui-sidebar-right@0.2.2-rc.1'
+  - '@deepseek-ai/dsh-experimental-client-ui-cot-translation@0.2.2-rc.1'
+  - '@deepseek-ai/dsh-experimental-translator@0.2.2-rc.1'
