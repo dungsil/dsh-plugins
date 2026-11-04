@@ -18,6 +18,7 @@ allowBuilds:
   koffi: false
   node-pty: false
   protobufjs: false
+  simple-git-hooks: false
 
 minimumReleaseAgeExclude:
   - tsdown@0.23.4
