@@ -1,6 +1,6 @@
 # @dungsil/dsh-plugin-locale-ko
 
-![한국어 UI의 라이트 모드와 다크 모드를 대각선으로 나눈 미리보기](./assets/light-dark-preview.webp)
+![Jetendard를 적용한 실제 한국어 UI의 라이트 모드와 다크 모드를 대각선으로 합친 미리보기](./assets/light-dark-preview.webp)
 
 [Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness) 한국어 플러그인
 
@@ -21,4 +21,3 @@
 | [윤문](../yoonmoon) | 전과정 윤문, AI 글 윤문·판별, 번역투·맞춤법·문법 교정, 문체·톤 변환 |
 
 `0.5.0`은 윤문의 이전 버전(`^0.1.0`)을 설치합니다. 윤문의 이름과 설명이 표시되지 않으면 `0.5.1` 이상으로 업데이트하세요. `0.5.1`부터 메타정보가 포함된 윤문 `^0.2.0`을 함께 설치합니다.
-
