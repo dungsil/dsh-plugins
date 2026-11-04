@@ -7,10 +7,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   Menu,
   IconBranchOutlineRegular,
-  IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -234,10 +234,11 @@ export function apply(ctx: Context) {
               void change('switch', id.slice(5))
           }}
           anchor={
-            <button
+            <ComposerTrigger
               ref={trigger}
-              type="button"
               className="dsh-worktree-trigger"
+              icon={<IconBranchOutlineRegular />}
+              label={label}
               disabled={detailError ? loading || busy : disabled}
               aria-label={`${text.title}: ${label}`}
               aria-haspopup={detailError ? 'dialog' : 'menu'}
@@ -255,15 +256,7 @@ export function apply(ctx: Context) {
                   setOpen(true)
                 }
               }}
-            >
-              <span className="dsh-worktree-icon" aria-hidden="true">
-                <IconBranchOutlineRegular className="dsh-worktree-branch" />
-              </span>
-              <span className="dsh-worktree-name">{label}</span>
-              <span className="dsh-worktree-chevron" aria-hidden="true">
-                <IconChevronDownOutlineRegular />
-              </span>
-            </button>
+            />
           }
         />
         <span id={status} className="dsh-worktree-sr" role="status">

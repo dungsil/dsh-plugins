@@ -1,22 +1,18 @@
 import { settingsStyles } from '@dungsil/dsh-ui'
+import { composerStyles } from '@dungsil/dsh-ui/composer'
 
-export const styles = `${settingsStyles}
+export const styles = `${settingsStyles}${composerStyles}
 .dsh-worktree-sidebar-name { flex: 0 1 auto; min-width: 0; max-width: 88px; margin-inline: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-caption); font-size: 10px; line-height: 16px; }
 .dsh-worktree { display: inline-flex; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-worktree-picker { display: inline-flex; min-width: 0; max-width: 100%; }
-.dsh-worktree-trigger { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 220px; height: 28px; padding: 0 4px 0 8px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
-.dsh-worktree-icon, .dsh-worktree-chevron { display: inline-flex; flex: none; }
-.dsh-worktree-icon svg { width: 14px; height: 14px; }
-.dsh-worktree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-worktree-chevron { color: var(--dsw-alias-label-caption); }
-.dsh-worktree-trigger[aria-expanded=true] .dsh-worktree-chevron { transform: rotate(180deg); }
-.dsh-worktree-trigger:disabled { color: var(--dsw-alias-label-dimmed); cursor: default; }
+.dsh-worktree-trigger { display: inline-flex; max-width: 220px; font-weight: 500; }
+.dsh-worktree-trigger .dsh-plugin-composer-icon svg { width: 14px; height: 14px; }
 .dsh-worktree-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
 @container (width <= 460px) {
-  .dsh-worktree-name { display: none; }
+  .dsh-worktree-trigger .dsh-plugin-composer-label { display: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .dsh-worktree-chevron { transition: transform .12s; }
+  .dsh-worktree-trigger .dsh-plugin-composer-chevron { transition: transform .12s; }
 }
 @media (hover: hover) {
   .dsh-worktree-trigger:hover:not(:disabled), .dsh-worktree-dialog button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
