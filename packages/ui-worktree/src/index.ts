@@ -150,7 +150,15 @@ export function apply(ctx: Context, config: Config) {
                 ? ReasoningEffortId(config.reasoningEffort)
                 : undefined,
           },
-          operationSignal
+          operationSignal,
+          (controls, model) => ({
+            ...controls,
+            // Some adapters send an unsupported "none" value when no effort is set.
+            reasoningEffort:
+              controls.reasoningEffort ??
+              model.reasoning?.defaultEffort ??
+              model.reasoning?.efforts.find((effort) => effort.id !== 'off')?.id,
+          })
         )
         const assembler = new BlockAssembler()
         // A naming-only call uses the submitted prompt, never a conversation turn or tools.

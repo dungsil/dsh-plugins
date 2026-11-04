@@ -447,6 +447,129 @@ await test('automatic naming leaves room for reasoning before the branch name', 
   )
 })
 
+await test('automatic naming selects a supported non-off effort when the model has no default', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit } = await fixture(t, {
+    provider: 'reasoning',
+    model: 'no-default',
+    reasoningEffort: 'high',
+  })
+  const requests = []
+  const workRequests = []
+  class NoDefaultAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: {
+          efforts: ['off', 'low', 'medium', 'high'].map((id) => ({ id, name: id })),
+        },
+      }
+    }
+    async *stream(options) {
+      if (!options.system?.startsWith('Return only a short')) {
+        workRequests.push({ ...options, cwd: ctx.workingDirectory.get(agent.session) })
+        yield { type: 'text-delta', index: 0, text: 'Finished' }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+        return
+      }
+      requests.push(options)
+      if (!options.reasoningEffort || options.reasoningEffort === 'off') {
+        yield {
+          type: 'finish',
+          reason: {
+            kind: 'error',
+            failure: { code: 'INVALID_REQUEST', message: 'Unsupported value: reasoning.effort none' },
+          },
+        }
+        return
+      }
+      yield { type: 'text-delta', index: 0, text: 'fix/supported-reasoning' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['reasoning'], new NoDefaultAdapter())
+  const before = agent.session.deriveMessages()
+  const created = await rpc('create', { cwd: repo })
+  assert.equal(created.ok, true, JSON.stringify(created))
+  assert.equal(requests.length, 0, 'a reservation must not call the naming model')
+  assert.deepEqual(agent.session.deriveMessages(), before)
+  await submit('Fix supported reasoning for worktree names')
+  const view = (await rpc('describe')).value
+  const path = join(repo, '.agents/worktrees/fix/supported-reasoning')
+  assert.equal(view.cwd, path)
+  assert.equal(view.pendingCreation, undefined)
+  assert.equal(requests.length, 1, 'select the effort before dispatch, without a billable retry')
+  assert.equal(requests[0].reasoningEffort, 'low', 'skip off and do not inherit the conversation effort')
+  assert.equal(requests[0].tools, undefined)
+  assert.equal(git('rev-parse', 'fix/supported-reasoning'), git('rev-parse', 'HEAD'))
+  assert.equal(agent.options.reasoningEffort, 'high')
+  assert.ok(workRequests.length > 0)
+  assert.ok(workRequests.every((request) => request.cwd === path))
+  assert.ok(
+    !agent.session
+      .deriveMessages()
+      .some((message) =>
+        message.content.some((block) => block.type === 'text' && block.text === 'fix/supported-reasoning')
+      )
+  )
+})
+
+await test('naming preserves explicit efforts, model defaults and non-reasoning models', async (t) => {
+  for (const { label, configured, reasoning, expected } of [
+    {
+      label: 'explicit task effort',
+      configured: 'high',
+      reasoning: { efforts: ['off', 'low', 'high'].map((id) => ({ id, name: id })), defaultEffort: 'low' },
+      expected: 'high',
+    },
+    {
+      label: 'model default',
+      reasoning: { efforts: ['off', 'low', 'medium'].map((id) => ({ id, name: id })), defaultEffort: 'medium' },
+      expected: 'medium',
+    },
+    { label: 'non-reasoning model', expected: undefined },
+  ]) {
+    await t.test(label, async (t) => {
+      const { ctx, repo, rpc, submit } = await fixture(
+        t,
+        { provider: 'namer', model: 'small' },
+        {
+          provider: 'namer',
+          model: 'small',
+          ...(configured ? { reasoningEffort: configured } : {}),
+        }
+      )
+      const requests = []
+      class Adapter extends LlmAdapter {
+        async resolveModel(provider, model) {
+          return { provider, id: model, name: model, ...(reasoning ? { reasoning } : {}) }
+        }
+        async *stream(options) {
+          if (!options.system?.startsWith('Return only a short')) {
+            yield { type: 'text-delta', index: 0, text: 'Finished' }
+            yield { type: 'finish', reason: { kind: 'stop' } }
+            return
+          }
+          requests.push(options)
+          yield { type: 'text-delta', index: 0, text: 'chore/effort-priority' }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        }
+      }
+      ctx.llm.registerAdapter(['namer'], new Adapter())
+      const created = await rpc('create', { cwd: repo })
+      assert.equal(created.ok, true, JSON.stringify(created))
+      assert.equal(requests.length, 0)
+      await submit()
+      const view = (await rpc('describe')).value
+      assert.equal(view.cwd, join(repo, '.agents/worktrees/chore/effort-priority'))
+      assert.equal(view.pendingCreation, undefined)
+      assert.equal(requests.length, 1)
+      assert.equal(requests[0].reasoningEffort, expected)
+    })
+  }
+})
+
 await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
   for (const endpoint of ['describe', 'create', 'switch', 'settings', 'save-settings']) {
