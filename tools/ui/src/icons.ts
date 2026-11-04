@@ -16,6 +16,7 @@ export {
   IconDataOutlineRegular,
   IconCopyOutlineRegular,
   IconGaugeOutlineRegular,
+  IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
   IconPlusOutlineRegular,
   IconRefreshOutlineRegular,

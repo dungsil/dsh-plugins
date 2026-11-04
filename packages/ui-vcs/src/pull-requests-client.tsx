@@ -9,10 +9,6 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button,
   CodeBlock,
-  IconBranchOutlineRegular,
-  IconChevronDownOutlineRegular,
-  IconLinkOutlineRegular,
-  IconRefreshOutlineRegular,
   MarkdownText,
   Menu,
   Modal,
@@ -21,6 +17,12 @@ import {
   Tag,
   type StateDotState,
 } from '@dungsil/dsh-ui'
+import {
+  IconBranchOutlineRegular,
+  IconChevronDownOutlineRegular,
+  IconLinkOutlineRegular,
+  IconRefreshOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }

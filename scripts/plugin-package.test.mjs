@@ -16,7 +16,7 @@ for (const directory of await readdir(root, { withFileTypes: true })) {
 
 // DSH owns listVersions/updateBundle. Plugins supply installable bundle metadata
 // and cleanly disposable registrations, not a separate updater or opt-in flag.
-await test('all public plugins satisfy the shared in-place update package contract', async (t) => {
+await test('all public bundles satisfy the shared in-place update package contract', async (t) => {
   assert.ok(packages.size > 0)
   for (const [name, { base, manifest }] of packages) {
     await t.test(name, async () => {
@@ -31,8 +31,10 @@ await test('all public plugins satisfy the shared in-place update package contra
 
       const patchPath = manifest.dsh.bundle.patch
       assert.ok(manifest.files.includes(patchPath.replace(/^\.\//u, '')), 'the bundle patch must be published')
-      assert.ok(manifest.files.includes('dist'), 'the replacement must include its built entry points')
-      assert.equal(manifest.exports['.'], './dist/index.js')
+      if (manifest.exports['.'] !== undefined) {
+        assert.ok(manifest.files.includes('dist'), 'the replacement must include its built entry points')
+        assert.equal(manifest.exports['.'], './dist/index.js')
+      }
       assert.equal(manifest.exports['./package.json'], './package.json')
       assert.ok(manifest.files.includes('locale'), 'plugin metadata must be published')
       assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
@@ -43,8 +45,16 @@ await test('all public plugins satisfy the shared in-place update package contra
       }
       const patch = parse(await readFile(new URL(patchPath, base), 'utf8'))
       const rows = patch.flatMap((operation) => operation.insert ?? [])
-      assert.equal(rows.filter((row) => row.name === name).length, 1, 'the bundle must activate its own plugin once')
+      assert.equal(
+        rows.filter((row) => row.name === name).length,
+        manifest.exports['.'] === undefined ? 0 : 1,
+        'only runtime plugins activate themselves'
+      )
       assert.equal(new Set(rows.map((row) => row.id)).size, rows.length, 'component IDs must be unique')
+      const dependencies = new Set(Object.keys(manifest.dependencies ?? {}))
+      for (const dependency of dependencies) {
+        for (const child of Object.keys(packages.get(dependency)?.manifest.dependencies ?? {})) dependencies.add(child)
+      }
       for (const row of rows) {
         assert.ok(row.id, 'components need stable IDs when DSH reconciles the replacement')
         if (!packages.has(row.name))
@@ -52,11 +62,36 @@ await test('all public plugins satisfy the shared in-place update package contra
             () => createRequire(new URL('package.json', base)).resolve(row.name),
             `${row.name} must be an independently loadable package`
           )
-        if (row.name !== name)
-          assert.ok(manifest.dependencies?.[row.name], `${row.name} must be installed with the bundle`)
+        if (row.name !== name) assert.ok(dependencies.has(row.name), `${row.name} must be installed with the bundle`)
       }
     })
   }
+})
+
+await test('UI preset activates the seven existing bundles without its own runtime plugin', async () => {
+  const { base, manifest } = packages.get('@dungsil/dsh-preset-ui')
+  const names = [
+    '@dungsil/dsh-plugin-locale-ko',
+    '@dungsil/dsh-plugin-ui-sidebar-inbox',
+    '@dungsil/dsh-plugin-ui-model-settings',
+    '@dungsil/dsh-plugin-ui-setting-skills',
+    '@dungsil/dsh-plugin-ui-worktree',
+    '@dungsil/dsh-plugin-ui-model-picker',
+    '@dungsil/dsh-plugin-ui-turn-rail-left',
+  ]
+  assert.deepEqual(new Set(Object.keys(manifest.dependencies)), new Set(names))
+  assert.equal(manifest.exports['.'], undefined)
+  assert.equal(manifest.exports['./client'], undefined)
+  assert.equal(manifest.dsh.client, undefined)
+  assert.equal(manifest.files.includes('dist'), false)
+  const expected = []
+  for (const name of names) {
+    const bundle = packages.get(name)
+    const patch = parse(await readFile(new URL(bundle.manifest.dsh.bundle.patch, bundle.base), 'utf8'))
+    expected.push(...patch.flatMap((operation) => operation.insert ?? []))
+  }
+  const patch = parse(await readFile(new URL(manifest.dsh.bundle.patch, base), 'utf8'))
+  assert.deepEqual(patch, [{ insert: expected }])
 })
 
 await test('task model API works without a client and the UI bundle activates its API dependency', async () => {
