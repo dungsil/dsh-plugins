@@ -445,6 +445,15 @@ await test('GitLab details and mutations use explicit nested repository and SHA;
       assert.ok(args.includes(`--squash=${input.strategy === 'squash'}`))
     }
   }
+  f.dispatch((args, next) =>
+    args.some((arg) => arg.includes('/diffs?'))
+      ? [{ old_path: 'a.ts', new_path: 'b.ts', diff: '+'.repeat(120_001) }]
+      : next(args)
+  )
+  assert.equal((await f.rpc()).value.request.diffTruncated, true)
+  assert.equal((await f.action({ requestUrl, action: 'approve' })).error.code, 'action_failed')
+  assert.equal((await f.action({ requestUrl, action: 'merge', strategy: 'squash' })).ok, true)
+  f.dispatch(undefined)
   const writes = () => f.calls.filter((call) => ['approve', 'merge', 'note'].includes(call.argv[2])).length
   const count = writes()
   assert.equal((await f.action({ requestUrl, action: 'merge', strategy: 'rebase' })).error.code, 'unsupported_action')
@@ -518,13 +527,12 @@ await test('a moving GitHub or GitLab head marks the detail snapshot incomplete 
   }
 })
 
-await test('approval and merge reject drafts, truncated/absent diffs; merge rejects blocked checks, reviews and mergeability', async (t) => {
+await test('approval rejects truncated diffs; merge allows display truncation but rejects drafts, missing diffs and blocked states', async (t) => {
   const f = await fixture(t)
   f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
   for (const action of ['approve', 'merge']) {
     for (const dispatch of [
       (args, next) => (args[1] === 'view' ? { ...next(args), isDraft: true } : next(args)),
-      (args, next) => (args[1] === 'diff' ? 'x'.repeat(120_001) : next(args)),
       (args, next) => (args[1] === 'diff' ? '' : next(args)),
     ]) {
       f.dispatch(dispatch)
@@ -542,6 +550,18 @@ await test('approval and merge reject drafts, truncated/absent diffs; merge reje
     assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
   }
   assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
+  f.dispatch((args, next) => (args[1] === 'diff' ? 'x'.repeat(120_001) : next(args)))
+  assert.equal((await f.rpc()).value.request.diffTruncated, true)
+  assert.equal((await f.action({ action: 'approve' })).error.code, 'action_failed')
+  assert.equal((await f.action({ action: 'merge' })).ok, true)
+  f.dispatch((args, next) =>
+    args[1] === 'diff'
+      ? 'x'.repeat(120_001)
+      : args[1] === 'view'
+        ? { ...next(args), statusCheckRollup: [{ name: 'build', status: 'FAILURE', detailsUrl: '' }] }
+        : next(args)
+  )
+  assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
   for (const status of ['SUCCESS', 'passed', 'NEUTRAL', 'SKIPPED']) {
     f.dispatch((args, next) =>
       args[1] === 'view'

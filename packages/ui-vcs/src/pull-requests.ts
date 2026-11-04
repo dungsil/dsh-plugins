@@ -513,8 +513,9 @@ export function apply(ctx: Context, config: Config) {
       if (action) {
         if (item.url !== action.requestUrl || item.headSha !== action.headSha) throw new Error('stale_request')
         if (item.detailsError || item.state !== 'open') throw new Error('action_failed')
-        if (['approve', 'merge'].includes(action.action) && (item.draft || item.diffTruncated || !item.diff.trim()))
+        if (['approve', 'merge'].includes(action.action) && (item.draft || !item.diff.trim()))
           throw new Error('action_failed')
+        if (action.action === 'approve' && item.diffTruncated) throw new Error('action_failed')
         if (
           action.action === 'merge' &&
           (item.checks.some(

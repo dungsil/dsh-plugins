@@ -125,7 +125,7 @@ export function apply(ctx: Context) {
     const { tab } = useTabInfo()
     const running = useSession((session) => session.running)
     const [view, setView] = useState<RequestView>()
-    const [error, setError] = useState<keyof typeof en>()
+    const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState<'overview' | 'changes' | 'conversation'>('overview')
     const [body, setBody] = useState('')
@@ -154,14 +154,25 @@ export function apply(ctx: Context) {
       !pending &&
       !error &&
       !notice
-    const canMerge =
-      canReview &&
-      !item?.draft &&
-      !!item?.diff &&
-      !item?.diffTruncated &&
-      ['MERGEABLE', 'mergeable', 'can_be_merged'].includes(item?.mergeable ?? '') &&
-      ['', 'APPROVED'].includes(item?.reviewDecision ?? '') &&
-      item?.checks.every((check) => ['success', 'passed', 'neutral', 'skipped'].includes(check.status.toLowerCase()))
+    const mergeBlockedReason = (() => {
+      if (loading) return copy.loading
+      if (pending) return copy.pending
+      if (error) return copy[error]
+      if (notice) return copy[notice]
+      if (!item) return
+      if (item.state !== 'open') return copy[item.state]
+      if (!item.headSha) return copy.stale_request
+      if (item.detailsError) return copy.details_error
+      if (item.draft) return copy.draft
+      if (!item.diff.trim()) return copy.no_diff
+      if (!['MERGEABLE', 'mergeable', 'can_be_merged'].includes(item.mergeable)) return copy.merge_not_ready
+      if (!['', 'APPROVED'].includes(item.reviewDecision)) return copy.merge_review_blocked
+      if (
+        item.checks.some((check) => !['success', 'passed', 'neutral', 'skipped'].includes(check.status.toLowerCase()))
+      )
+        return copy.merge_checks_blocked
+    })()
+    const canMerge = canReview && !mergeBlockedReason
 
     const load = async () => {
       if (submitting.current) return
@@ -184,7 +195,7 @@ export function apply(ctx: Context) {
         const code = (cause as { code?: string } | null)?.code
         setError(
           code && ['repository', 'unsupported', 'cli_missing', 'command_failed', 'invalid_response'].includes(code)
-            ? (code as keyof typeof en)
+            ? (code as Exclude<keyof typeof en, 'meta'>)
             : 'unavailable'
         )
       } finally {
@@ -604,8 +615,13 @@ export function apply(ctx: Context) {
         </div>
         {item && (
           <footer className="dsh-pr-merge-footer">
+            {mergeBlockedReason && (
+              <p id={`${tabsId}-merge-reason`} role="status">
+                {mergeBlockedReason}
+              </p>
+            )}
             <Menu
-              open={strategyOpen && !pending && !loading}
+              open={strategyOpen && canMerge}
               portal
               compact
               side="top"
@@ -615,21 +631,28 @@ export function apply(ctx: Context) {
               items={strategies}
               onClose={() => setStrategyOpen(false)}
               onSelect={(id) => {
-                if (strategies.some((option) => option.id === id)) setStrategy(id as Strategy)
+                if (canMerge && strategies.some((option) => option.id === id)) setStrategy(id as Strategy)
                 setStrategyOpen(false)
               }}
               anchor={
                 <div className="dsh-pr-merge-button">
-                  <Button type="button" variant="primary" disabled={!canMerge} onClick={() => prepare('merge')}>
-                    {strategies.find((option) => option.id === strategy)?.label}
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={!canMerge}
+                    aria-describedby={mergeBlockedReason ? `${tabsId}-merge-reason` : undefined}
+                    onClick={() => prepare('merge')}
+                  >
+                    {copy.merge}
                   </Button>
                   <Button
                     type="button"
                     variant="primary"
                     aria-label={copy.strategy}
+                    aria-describedby={mergeBlockedReason ? `${tabsId}-merge-reason` : undefined}
                     aria-haspopup="menu"
-                    aria-expanded={strategyOpen && !pending && !loading}
-                    disabled={pending || loading}
+                    aria-expanded={strategyOpen && canMerge}
+                    disabled={!canMerge}
                     onClick={() => setStrategyOpen(!strategyOpen)}
                   >
                     <IconChevronDownOutlineRegular aria-hidden="true" />
