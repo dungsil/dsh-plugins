@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -18,47 +18,53 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = {
   en: {
     nav: 'Models by task',
-    description: 'Choose a model for each task without changing the conversation model.',
+    description:
+      'Choose a model for each task without changing the conversation model. Changes are saved automatically.',
     title: 'Session title',
     hint: 'Applies to future title generation across this profile. Existing titles and conversation models stay unchanged.',
     worktree: 'Worktree branch name',
     worktreeHint:
       'Used only when Git Worktree UI generates a branch name from an empty name. Does not change the conversation model.',
     inherit: 'Use conversation model',
-    save: 'Save',
     saving: 'Saving…',
     saved: 'Saved. The next request for this task will use this selection.',
-    refresh: 'Reload settings',
     loading: 'Loading models…',
+    resyncing: 'Checking saved settings…',
+    resynced: 'Saved settings are now shown.',
+    loadError: 'Could not load settings. Close and reopen this settings section to try again.',
+    resyncError:
+      'Could not check saved settings. Changes are disabled. Close and reopen this settings section to try again.',
     unavailable:
       'No supported active title generator was found. Enable one DSH first-prompt or all-prompts title provider.',
-    catalog: 'Some model lists could not be loaded. You can still use the conversation model or reload settings.',
+    catalog: 'Some model lists could not be loaded. You can still use the conversation model.',
     missing: 'Saved model (not in current catalog)',
-    error: 'Could not confirm the change. Reload settings to check the saved value before retrying.',
-    conflict: 'Settings changed elsewhere. Reload settings before saving again.',
-    model_unavailable: 'This model is unavailable. Reload settings and choose an available model.',
+    error: 'Could not confirm the change. The change will not be retried automatically.',
+    conflict: 'Settings changed elsewhere. Your change will not be retried automatically.',
+    model_unavailable: 'This model is unavailable. Choose an available model after the settings check.',
   },
   ko: {
     nav: '상황별 모델',
-    description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다.',
+    description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다. 변경 사항은 자동으로 저장합니다.',
     title: '세션 제목',
     hint: '이 프로필에서 이후 생성하는 제목에 적용합니다. 기존 제목과 대화 모델은 바뀌지 않습니다.',
     worktree: '워크트리 브랜치 이름',
     worktreeHint:
       'Git Worktree UI에서 이름을 비워 브랜치 이름을 자동 생성할 때만 사용합니다. 대화 모델은 바뀌지 않습니다.',
     inherit: '대화 모델 따르기',
-    save: '저장',
     saving: '저장 중…',
     saved: '저장했습니다. 이 작업의 다음 모델 요청부터 적용합니다.',
-    refresh: '설정 새로고침',
     loading: '모델을 불러오는 중입니다…',
+    resyncing: '저장된 설정을 확인하는 중입니다…',
+    resynced: '저장된 설정을 다시 불러왔습니다.',
+    loadError: '설정을 불러오지 못했습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
+    resyncError: '저장된 설정을 확인하지 못해 변경을 잠갔습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
     unavailable:
       '지원하는 제목 생성기가 활성화되어 있지 않습니다. DSH의 first-prompt 또는 all-prompts 제목 생성기를 하나 활성화하세요.',
-    catalog: '일부 모델 목록을 불러오지 못했습니다. 대화 모델을 따르거나 설정을 새로고침할 수 있습니다.',
+    catalog: '일부 모델 목록을 불러오지 못했습니다. 대화 모델은 계속 따를 수 있습니다.',
     missing: '저장된 모델 (현재 목록에 없음)',
-    error: '변경 여부를 확인하지 못했습니다. 다시 시도하기 전에 설정을 새로고침하여 저장된 값을 확인하세요.',
-    conflict: '다른 곳에서 설정을 변경했습니다. 설정을 새로고침한 뒤 다시 저장하세요.',
-    model_unavailable: '사용할 수 없는 모델입니다. 설정을 새로고침한 뒤 다른 모델을 선택하세요.',
+    error: '변경 여부를 확인하지 못했습니다. 변경 사항은 자동으로 다시 저장하지 않습니다.',
+    conflict: '다른 곳에서 설정을 변경했습니다. 선택한 값은 자동으로 다시 저장하지 않습니다.',
+    model_unavailable: '사용할 수 없는 모델입니다. 설정 확인이 끝나면 다른 모델을 선택하세요.',
   },
 }
 
@@ -69,11 +75,7 @@ const styles = `
 .dsh-model-settings label { display: block; margin-bottom: 8px; font-weight: 600; }
 .dsh-model-settings select { box-sizing: border-box; width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; font: inherit; }
 .dsh-model-settings small { display: block; margin: 8px 0 24px; color: var(--dsw-alias-label-secondary, #666); font-size: 13px; }
-.dsh-model-settings form { margin-bottom: 24px; }
-.dsh-model-settings footer { display: flex; gap: 8px; justify-content: flex-end; }
-.dsh-model-settings button { min-height: 36px; padding: 6px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
-.dsh-model-settings button[type=submit] { color: var(--dsw-alias-label-primary-foreground, #fff); background: var(--dsw-alias-button-primary-fill, #222); border-color: transparent; }
-.dsh-model-settings button:hover:not(:disabled) { filter: brightness(.85); }
+.dsh-model-settings-field { margin-bottom: 24px; }
 .dsh-model-settings :disabled { opacity: .5; cursor: default; }
 .dsh-model-settings :focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
@@ -82,6 +84,7 @@ const styles = `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
 type Task = 'target' | 'worktree'
+type Notice = 'saved' | 'error' | 'conflict' | 'model_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
@@ -93,35 +96,55 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
   const [drafts, setDrafts] = useState({ target: '', worktree: '' })
-  const [busy, setBusy] = useState(true)
-  const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable'>()
+  const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
+  const [synchronized, setSynchronized] = useState(false)
+  const [notice, setNotice] = useState<Notice>()
   const [noticeTask, setNoticeTask] = useState<Task>()
-  const lock = useRef(false)
-  const [lifetime] = useState(() => new AbortController())
+  const [readError, setReadError] = useState<'loadError' | 'resyncError'>()
+  const lock = useRef(true)
+  const lifetime = useRef<AbortController>()
 
-  const load = async () => {
-    if (lock.current) return
-    lock.current = true
-    setBusy(true)
-    setNotice(undefined)
-    setNoticeTask(undefined)
-    try {
-      const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, lifetime.signal)
+  const read = useCallback(
+    async (controller: AbortController) => {
+      const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, controller.signal)
+      if (controller.signal.aborted || lifetime.current !== controller) return false
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
       setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
-    } catch {
-      if (!lifetime.signal.aborted) setNotice('error')
-    } finally {
-      lock.current = false
-      if (!lifetime.signal.aborted) setBusy(false)
-    }
-  }
+      setSynchronized(true)
+      return true
+    },
+    [connection]
+  )
+
   useEffect(() => {
-    void load()
-    return () => lifetime.abort()
-  }, [])
+    const controller = new AbortController()
+    lifetime.current = controller
+    lock.current = true
+    setBusy('loading')
+    setSynchronized(false)
+    setNotice(undefined)
+    setNoticeTask(undefined)
+    setReadError(undefined)
+    void (async () => {
+      let loaded = false
+      try {
+        loaded = await read(controller)
+      } catch {
+        if (!controller.signal.aborted && lifetime.current === controller) setReadError('loadError')
+      } finally {
+        if (!controller.signal.aborted && lifetime.current === controller) {
+          lock.current = !loaded
+          setBusy(undefined)
+        }
+      }
+    })()
+    return () => {
+      controller.abort()
+      if (lifetime.current === controller) lifetime.current = undefined
+    }
+  }, [read])
 
   const options =
     view?.providers.flatMap((provider) =>
@@ -131,48 +154,75 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       }))
     ) ?? []
 
-  const save = async (task: Task) => {
+  const save = async (task: Task, draft: string) => {
+    const controller = lifetime.current
     const target = view?.[task]
-    const draft = drafts[task]
     const selected = options.find((option) => routeKey(option.route) === draft)?.route ?? null
-    if (lock.current || !target || (draft && !selected)) return
+    if (
+      lock.current ||
+      !controller ||
+      controller.signal.aborted ||
+      !target ||
+      !synchronized ||
+      draft === routeKey(target.route) ||
+      (draft && !selected)
+    )
+      return
     lock.current = true
-    setBusy(true)
+    setBusy('saving')
+    setDrafts((current) => ({ ...current, [task]: draft }))
     setNotice(undefined)
     setNoticeTask(task)
+    setReadError(undefined)
+    const active = () => !controller.signal.aborted && lifetime.current === controller
+    let failure: Exclude<Notice, 'saved'> | undefined
     try {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
-        {
-          id: target.id,
-          revision: target.revision,
-          route: selected,
-        },
-        lifetime.signal
+        { id: target.id, revision: target.revision, route: selected },
+        controller.signal
       )
-      if (!result.ok) {
+      if (!active()) return
+      if (result.ok) {
+        const saved = result.value as unknown as TitleTarget | null
+        setView((current) => current && { ...current, [task]: saved })
+        setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
+        setNotice('saved')
+      } else {
         const code = result.error.code
-        setNotice(code === 'conflict' || code === 'model_unavailable' ? code : 'error')
-        return
+        failure = code === 'conflict' || code === 'model_unavailable' ? code : 'error'
       }
-      const saved = result.value as unknown as TitleTarget | null
-      setView((current) => current && { ...current, [task]: saved })
-      setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
-      setNotice('saved')
     } catch {
-      if (!lifetime.signal.aborted) setNotice('error')
-    } finally {
-      lock.current = false
-      if (!lifetime.signal.aborted) setBusy(false)
+      if (!active()) return
+      failure = 'error'
+    }
+    if (!active()) return
+    let confirmed = !failure
+    if (failure) {
+      setNotice(failure)
+      setSynchronized(false)
+      setBusy('resyncing')
+      try {
+        confirmed = await read(controller)
+      } catch {
+        if (active()) setReadError('resyncError')
+      }
+    }
+    if (active()) {
+      lock.current = !confirmed
+      setBusy(undefined)
     }
   }
 
   return (
-    <section className="dsh-model-settings" aria-label={text.nav}>
+    <section className="dsh-model-settings" aria-label={text.nav} aria-busy={!!busy}>
       <h2>{text.nav}</h2>
       <p>{text.description}</p>
-      {!view && busy && <p role="status">{text.loading}</p>}
+      {busy === 'loading' && <p role="status">{text.loading}</p>}
+      {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
+      {notice && notice !== 'saved' && synchronized && !busy && <p role="status">{text.resynced}</p>}
+      {readError && <p role="alert">{text[readError]}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
       {(['target', 'worktree'] as const).map((task) => {
         const target = view?.[task]
@@ -180,25 +230,17 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const draft = drafts[task]
         const current = routeKey(target.route)
         const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
-        const invalid = !!draft && !options.some((option) => routeKey(option.route) === draft)
         const fieldId = `${id}-${task}`
         return (
-          <form
-            key={task}
-            onSubmit={(event) => {
-              event.preventDefault()
-              void save(task)
-            }}
-          >
+          <div key={task} className="dsh-model-settings-field">
             <label htmlFor={fieldId}>{task === 'target' ? text.title : text.worktree}</label>
             <select
               id={fieldId}
               value={draft}
-              disabled={busy}
+              disabled={!!busy || !synchronized}
               aria-describedby={`${fieldId}-hint`}
               onChange={(event) => {
-                setDrafts({ ...drafts, [task]: event.target.value })
-                setNotice(undefined)
+                void save(task, event.target.value)
               }}
             >
               <option value="">{text.inherit}</option>
@@ -214,28 +256,15 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               ))}
             </select>
             <small id={`${fieldId}-hint`}>{task === 'target' ? text.hint : text.worktreeHint}</small>
+            {busy === 'saving' && noticeTask === task && <p role="status">{text.saving}</p>}
             {notice && noticeTask === task && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
-            <footer>
-              <button type="submit" disabled={busy || draft === current || invalid}>
-                {busy ? text.saving : text.save}
-              </button>
-            </footer>
-          </form>
+          </div>
         )
       })}
       {view?.catalogError && <p role="alert">{text.catalog}</p>}
-      {notice && (!view || !noticeTask) && <p role="alert">{text[notice]}</p>}
-      <footer>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            void load()
-          }}
-        >
-          {text.refresh}
-        </button>
-      </footer>
+      {notice && (!noticeTask || !view?.[noticeTask]) && (
+        <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>
+      )}
     </section>
   )
 }
