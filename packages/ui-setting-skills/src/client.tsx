@@ -24,24 +24,22 @@ const styles = `
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
 .dsh-skills-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
-.dsh-skills-settings details { border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-skills-settings li { display: flex; align-items: flex-start; gap: 16px; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-skills-settings details { flex: 1; min-width: 0; }
 .dsh-skills-settings summary { display: flex; align-items: center; gap: 12px; padding: 16px 0; list-style: none; cursor: pointer; border-radius: var(--dsw-radius-md); }
 .dsh-skills-settings summary::-webkit-details-marker { display: none; }
 .dsh-skills-settings summary:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dsh-skills-settings summary:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
 .dsh-skills-settings summary svg { flex: none; }
 .dsh-skills-settings details[open] summary svg { transform: rotate(90deg); }
-.dsh-skills-summary-text { display: flex; align-items: baseline; gap: 16px; min-width: 0; flex: 1; }
-.dsh-skills-summary-text strong { max-width: 50%; overflow-wrap: anywhere; }
-.dsh-skills-preview { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-skills-settings details[open] .dsh-skills-preview { display: none; }
-.dsh-skills-settings details[open] .dsh-skills-summary-text strong { max-width: 100%; }
+.dsh-skills-summary-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.dsh-skills-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.dsh-skills-title strong { min-width: 0; overflow-wrap: anywhere; }
+.dsh-skills-title .dsh-skills-muted { flex: none; font-size: 12px; }
+.dsh-skills-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-skills-detail { padding: 0 0 16px 28px; overflow-wrap: anywhere; }
-.dsh-skills-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
-@container (max-width: 480px) {
-  .dsh-skills-summary-text { align-items: stretch; flex-direction: column; gap: 2px; }
-  .dsh-skills-summary-text strong { max-width: 100%; }
-}
+.dsh-skills-toggle { flex: none; padding-top: 27px; }
+.dsh-skills-list-header { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 `
 
 function SkillsSettings({ ctx }: { ctx: Context }) {
@@ -133,46 +131,52 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
               {group.skills.length === 0 ? (
                 <p className="dsh-skills-muted">{text.empty}</p>
               ) : (
-                <ul>
-                  {group.skills.map((skill) => (
-                    <li key={skill.path ?? skill.name}>
-                      <details>
-                        <summary aria-label={skill.name}>
-                          <IconChevronRightOutlineRegular size={16} aria-hidden="true" />
-                          <span className="dsh-skills-summary-text">
-                            <strong>{skill.name}</strong>
-                            {view.disabled.includes(skill.name) && (
-                              <span className="dsh-skills-muted">{text.disabled}</span>
-                            )}
-                            <span className="dsh-skills-preview dsh-skills-muted" aria-hidden="true">
-                              {skill.description}
+                <>
+                  <div className="dsh-skills-list-header dsh-skills-muted" aria-hidden="true">
+                    <span>
+                      {text.nav} {group.skills.length}
+                    </span>
+                    <span>{text.use}</span>
+                  </div>
+                  <ul>
+                    {group.skills.map((skill) => (
+                      <li key={skill.path ?? skill.name}>
+                        <details>
+                          <summary aria-label={skill.name}>
+                            <IconChevronRightOutlineRegular size={16} aria-hidden="true" />
+                            <span className="dsh-skills-summary-text">
+                              <span className="dsh-skills-title">
+                                <strong>{skill.name}</strong>
+                                {view.disabled.includes(skill.name) && (
+                                  <span className="dsh-skills-muted">{text.disabled}</span>
+                                )}
+                              </span>
+                              <span className="dsh-skills-preview dsh-skills-muted" aria-hidden="true">
+                                {skill.description}
+                              </span>
                             </span>
-                          </span>
-                        </summary>
-                        <div className="dsh-skills-detail">
-                          <p>{skill.description}</p>
-                          {skill.path && (
-                            <p className="dsh-skills-muted">
-                              <code>{skill.path}</code>
-                            </p>
-                          )}
-                          <div className="dsh-skills-toggle">
-                            <div>
-                              <div>{text.disable}</div>
-                              <p className="dsh-skills-muted">{text.disableDescription}</p>
-                            </div>
-                            <Switch
-                              label={`${text.disable}: ${skill.name}`}
-                              checked={view.disabled.includes(skill.name)}
-                              disabled={busy || saveError}
-                              onChange={(disabled) => void save(skill.name, disabled)}
-                            />
+                          </summary>
+                          <div className="dsh-skills-detail">
+                            <p>{skill.description}</p>
+                            {skill.path && (
+                              <p className="dsh-skills-muted">
+                                <code>{skill.path}</code>
+                              </p>
+                            )}
                           </div>
+                        </details>
+                        <div className="dsh-skills-toggle">
+                          <Switch
+                            label={`${text.use}: ${skill.name}`}
+                            checked={!view.disabled.includes(skill.name)}
+                            disabled={busy || saveError}
+                            onChange={(enabled) => void save(skill.name, !enabled)}
+                          />
                         </div>
-                      </details>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           ))}

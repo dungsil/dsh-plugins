@@ -5,16 +5,15 @@
   },
   "ui": {
     "nav": "Skills",
-    "description": "Skills loaded from your shared agent and DSH skill directories. Same-name skills are listed separately for each source.",
-    "agents": "Shared agent skills",
+    "description": "This setting applies only to DSH.",
+    "agents": "Shared skills",
     "dsh": "DSH skills",
     "loading": "Loading skills…",
     "empty": "No loaded skills from this source.",
     "error": "Could not load skills. Close and reopen this settings section to try again.",
     "incomplete": "Some skill sources could not be loaded. This list may be incomplete.",
-    "disable": "Disable in DSH only",
-    "disabled": "Disabled in DSH",
-    "disableDescription": "Applies to all skills with this name in DSH. Saved in cordis.patch.yml; skill files and directories are not changed.",
+    "use": "Use",
+    "disabled": "Off",
     "saveError": "Could not save the setting. Close and reopen this section to check the saved state before trying again."
   }
 }
