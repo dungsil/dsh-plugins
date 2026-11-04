@@ -24,6 +24,23 @@ async function fixture(t) {
   let retries = 3
   let disabled = false
   let oauthStatus = 'wait'
+  let configVersion = 1
+  let conflictWrite = false
+  let quotaAccounts
+  let quotaStatus = 200
+  let quotaAfter
+  const quotaBodies = new Map()
+  const credentialFiles = new Map()
+  const providerGroups = {
+    gemini: [
+      {
+        name: 'existing',
+        keys: [{ 'api-key': 'private-upstream-secret' }],
+        headers: { 'X-Custom': 'keep' },
+        priority: 7,
+      },
+    ],
+  }
   const server = createServer(async (req, res) => {
     let raw = ''
     for await (const chunk of req) raw += chunk
@@ -68,9 +85,22 @@ async function fixture(t) {
       return
     }
     const path = new URL(req.url, 'http://localhost').pathname
+    if (path === '/v8/management/config') {
+      res.setHeader('ETag', `"${configVersion}"`)
+      return send({ 'api-keys': providerGroups, management: { 'secret-key': 'private-management-secret' } })
+    }
+    if (path.startsWith('/v8/management/config/api-keys/')) {
+      if (conflictWrite || req.headers['if-match'] !== `"${configVersion}"`) {
+        conflictWrite = false
+        return send({ error: 'precondition_failed' }, 412)
+      }
+      providerGroups[path.split('/').at(-1)] = body
+      configVersion++
+      return send({ status: 'ok' })
+    }
     if (path === '/v8/management/credentials')
       return send({
-        files: [
+        files: quotaAccounts ?? [
           {
             name: 'demo.json',
             provider: 'codex',
@@ -83,6 +113,15 @@ async function fixture(t) {
           { name: 'virtual', provider: 'claude', runtime_only: true, source: 'config', disabled: false },
         ],
       })
+    if (path === '/v8/management/credentials/download')
+      return send(credentialFiles.get(new URL(req.url, 'http://localhost').searchParams.get('name')) ?? {})
+    if (path === '/v8/management/requests/api-call') {
+      const result = quotaBodies.get(body.url) ?? {}
+      quotaAfter?.()
+      return send({ status_code: quotaStatus, body: JSON.stringify(result) })
+    }
+    if (path.startsWith('/v8/management/plugins/') && path.endsWith('/quota'))
+      return send(quotaBodies.get(path), quotaStatus)
     if (path === '/v8/management/config/routing') {
       if (body) {
         strategy = body.strategy
@@ -196,6 +235,24 @@ async function fixture(t) {
     },
     reject(value) {
       rejected = value
+    },
+    providerGroups,
+    quotaBodies,
+    credentialFiles,
+    setQuotaAccounts(value) {
+      quotaAccounts = value
+    },
+    setQuotaStatus(value) {
+      quotaStatus = value
+    },
+    afterQuota(callback) {
+      quotaAfter = callback
+    },
+    changeConfig() {
+      configVersion++
+    },
+    conflictWrite() {
+      conflictWrite = true
     },
     async save(values = {}) {
       const described = await rpc('describe')
@@ -353,6 +410,251 @@ await test('changing endpoints never forwards old credentials and rejects unsafe
   assert.equal(h.requests.length, count)
   assert.equal(
     h.ctx.llm.listProviders().some((item) => item.id === 'cli-proxy-api'),
+    false
+  )
+})
+
+await test('registers provider API keys without exposing secrets or overwriting existing groups and concurrent edits', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  let view = (await h.rpc('providers')).value
+  assert.equal(view.groups[0].name, 'existing')
+  assert.equal(JSON.stringify(view).includes('private-'), false)
+  const existing = structuredClone(h.providerGroups.gemini[0])
+  const payload = {
+    revision: view.revision,
+    family: 'gemini',
+    name: 'new-gemini',
+    apiKey: 'registered-secret',
+    baseURL: '',
+    models: [],
+  }
+  assert.equal((await h.rpc('provider-add', payload)).ok, true)
+  assert.deepEqual(h.providerGroups.gemini[0], existing)
+  assert.deepEqual(h.providerGroups.gemini[1], { name: 'new-gemini', keys: [{ 'api-key': 'registered-secret' }] })
+  view = (await h.rpc('providers')).value
+  assert.equal(JSON.stringify(view).includes('registered-secret'), false)
+  h.changeConfig()
+  assert.equal(
+    (await h.rpc('provider-add', { ...payload, name: 'stale', revision: view.revision })).error.code,
+    'conflict'
+  )
+  view = (await h.rpc('providers')).value
+  h.conflictWrite()
+  assert.equal(
+    (await h.rpc('provider-add', { ...payload, name: 'raced', revision: view.revision })).error.code,
+    'conflict'
+  )
+  assert.equal(h.providerGroups.gemini.length, 2)
+  for (const family of ['interactions', 'codex', 'meta', 'xai', 'claude', 'vertex', 'openai-compatibility']) {
+    view = (await h.rpc('providers')).value
+    const added = await h.rpc('provider-add', {
+      ...payload,
+      family,
+      name: family,
+      revision: view.revision,
+      baseURL: 'https://upstream.example/v1',
+      models: ['model-b', 'model-a'],
+    })
+    assert.equal(added.ok, true, JSON.stringify(added))
+    assert.deepEqual(h.providerGroups[family][0].models, [
+      { name: 'model-b', alias: 'model-b' },
+      { name: 'model-a', alias: 'model-a' },
+    ])
+  }
+  const denied = await h.rpc('providers', {}, { principal: { kind: 'anonymous' }, interactions: 'none' })
+  assert.ok(denied.status === 401 || denied.status === 403)
+})
+
+await test('quota lookup normalizes observations, distinguishes exhausted from unknown and rejects stale or unauthorized accounts', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  const codex = {
+    name: 'codex.json',
+    provider: 'codex',
+    auth_index: 'c',
+    source: 'file',
+    access_token: 'private-token',
+  }
+  const external = {
+    name: 'plugin.json',
+    provider: 'codex',
+    auth_index: 'p',
+    supports_quota: true,
+    quota_plugin_id: 'fixture',
+  }
+  h.setQuotaAccounts([codex, external, { name: 'unknown.json', provider: 'gemini', auth_index: 'u' }])
+  h.quotaBodies.set('https://chatgpt.com/backend-api/wham/usage', {
+    plan_type: 'pro',
+    rate_limit: {
+      primary_window: { used_percent: 72, limit_window_seconds: 604800, reset_at: 4070926800 },
+      secondary_window: { used_percent: null },
+    },
+    access_token: 'private-token',
+  })
+  h.quotaBodies.set('/v8/management/plugins/fixture/quota', {
+    groups: [
+      {
+        displayName: 'Requests',
+        buckets: [
+          { window: '5h', remainingFraction: 0, resetTime: '2099-01-01T05:00:00Z' },
+          { window: 'unknown', remainingFraction: null },
+        ],
+      },
+    ],
+    api_key: 'private-token',
+  })
+  const denied = await h.rpc(
+    'quota-fetch',
+    { name: codex.name, authIndex: 'c' },
+    { principal: { kind: 'anonymous' }, interactions: 'none' }
+  )
+  assert.ok(denied.status === 401 || denied.status === 403)
+  assert.equal(h.requests.length, 0)
+  const accounts = (await h.rpc('quota-list')).value
+  assert.deepEqual(
+    accounts.map((account) => account.supported),
+    [true, true, false]
+  )
+  assert.equal(JSON.stringify(accounts).includes('private-token'), false)
+  let result = await h.rpc('quota-fetch', { name: codex.name, authIndex: 'c', url: 'https://evil.example' })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.value.plan, 'pro')
+  assert.equal(result.value.windows[0].usedPercent, 72)
+  assert.equal(result.value.windows[0].periodSeconds, 604800)
+  assert.equal(result.value.windows[0].resetAt, '2099-01-01T05:00:00.000Z')
+  assert.equal(result.value.windows.find((window) => window.id === 'secondary_window')?.usedPercent, undefined)
+  result = await h.rpc('quota-fetch', { name: external.name, authIndex: 'p' })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.value.windows[0].usedPercent, 100)
+  assert.equal(result.value.windows.find((window) => window.id.includes('unknown'))?.usedPercent, undefined)
+  assert.equal(JSON.stringify(result).includes('private-token'), false)
+  assert.equal(
+    h.requests.some((request) => request.body?.auth_index === 'p' && request.url.includes('api-call')),
+    false
+  )
+  h.setQuotaStatus(429)
+  result = await h.rpc('quota-fetch', { name: codex.name, authIndex: 'c' })
+  assert.equal(result.error.code, 'upstream_failed')
+  assert.equal(JSON.stringify(result).includes('private-token'), false)
+  h.setQuotaStatus(200)
+  h.afterQuota(() => h.setQuotaAccounts([{ ...codex, auth_index: 'rotated' }]))
+  assert.equal((await h.rpc('quota-fetch', { name: codex.name, authIndex: 'c' })).error.code, 'conflict')
+  const count = h.requests.filter((request) => request.url.includes('api-call')).length
+  assert.equal((await h.rpc('quota-fetch', { name: codex.name, authIndex: 'c' })).error.code, 'conflict')
+  assert.equal(h.requests.filter((request) => request.url.includes('api-call')).length, count)
+  assert.equal(
+    h.requests.some((request) => /credentials\/refresh|cooldown|consume|chat\/completions/.test(request.url)),
+    false
+  )
+  assert.equal(
+    h.requests.some((request) => request.body?.url === 'https://evil.example'),
+    false
+  )
+})
+
+await test('native quota providers keep credential downloads server-side and use only their fixed read-only endpoints', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  const cases = [
+    [
+      'claude',
+      'https://api.anthropic.com/api/oauth/usage',
+      { five_hour: { utilization: 31, resets_at: '2099-01-01T05:00:00Z' } },
+      31,
+    ],
+    [
+      'antigravity',
+      'https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary',
+      { groups: [{ displayName: 'Fixture model', buckets: [{ remainingFraction: 0.35, window: '5h' }] }] },
+      65,
+    ],
+    [
+      'kimi-ai',
+      'https://api.kimi.ai/coding/v1/usages',
+      {
+        limits: [
+          {
+            detail: { limit: '100', used: '5', remaining: '95', resetTime: '2099-01-01T05:00:00Z' },
+            window: { duration: 300, timeUnit: 'TIME_UNIT_MINUTE' },
+          },
+        ],
+        usages: { limit_month_total: { used_ratio: 0.2529 } },
+      },
+      5,
+    ],
+    [
+      'devin',
+      'https://server.codeium.com/exa.seat_management_pb.SeatManagementService/GetUserStatus',
+      {
+        userStatus: {
+          planStatus: {
+            dailyQuotaRemainingPercent: 75,
+            weeklyQuotaRemainingPercent: 50,
+            planInfo: { planName: 'Fixture plan' },
+          },
+        },
+      },
+      25,
+    ],
+    [
+      'meta',
+      'https://api.meta.ai/muse-code/key',
+      {
+        api_key: 'must-not-leak',
+        user_email: 'private@example.invalid',
+        subs_tier_name: 'Fixture plan',
+        subs_usage: { window: { used_percent: 19, window_duration_mins: 300, resets_at: 4070926800 } },
+      },
+      19,
+    ],
+    [
+      'xai',
+      'https://cli-chat-proxy.grok.com/v1/billing?format=credits',
+      { config: { currentPeriod: { type: 'weekly', end: '2099-01-08T00:00:00Z' }, creditUsagePercent: 37 } },
+      37,
+    ],
+  ]
+  for (const [provider, url, payload, usedPercent] of cases) {
+    const account = {
+      name: `${provider}.json`,
+      provider,
+      auth_index: provider,
+      source: 'file',
+      project_id: 'fixture-project',
+    }
+    h.setQuotaAccounts([account])
+    h.credentialFiles.set(account.name, {
+      domain: 'ai',
+      base_url: 'https://evil.example',
+      project_id: 'fixture-project',
+      dca_token: 'dca:must-not-leak',
+      access_token: 'must-not-leak',
+    })
+    h.quotaBodies.set(url, payload)
+    if (provider === 'xai') h.quotaBodies.set('https://cli-chat-proxy.grok.com/v1/billing', payload)
+    const result = await h.rpc('quota-fetch', { name: account.name, authIndex: provider })
+    assert.equal(result.ok, true, `${provider}: ${JSON.stringify(result)}`)
+    assert.ok(
+      result.value.windows.some((window) => Math.abs(window.usedPercent - usedPercent) < 0.001),
+      `${provider}: ${JSON.stringify(result)}`
+    )
+    assert.equal(/must-not-leak|private@example/.test(JSON.stringify(result)), false)
+    if (provider === 'kimi-ai')
+      assert.ok(result.value.windows.some((window) => Math.abs(window.usedPercent - 25.29) < 0.001))
+  }
+  const meta = h.requests.find((request) => request.body?.url === 'https://api.meta.ai/muse-code/key')
+  assert.equal(meta.body.header.Authorization, 'Bearer dca:must-not-leak')
+  const devin = h.requests.find((request) => request.body?.url?.endsWith('/GetUserStatus'))
+  assert.equal(JSON.parse(devin.body.data).metadata.apiKey, '$TOKEN$')
+  assert.equal(
+    h.requests.some((request) => request.body?.url?.includes('evil.example')),
+    false
+  )
+  assert.equal(
+    h.requests.some((request) =>
+      /chat\/completions|consume|credentials\/refresh|cooldown/.test(request.body?.url ?? request.url)
+    ),
     false
   )
 })

@@ -10,11 +10,15 @@ import {
   channel,
   endpointPrefix,
   oauthProviders,
+  providerFamilies,
   type ConnectionView,
   type ManagementView,
   type OAuthSession,
+  type ProviderView,
+  type QuotaAccount,
   type ProxyModel,
 } from './protocol.js'
+import { fetchQuota, supportsQuota } from './quota.js'
 
 export const name = 'dungsil-cli-proxy-api'
 export const inject = ['connection', 'configEditor', 'credentials', 'llm']
@@ -95,8 +99,9 @@ export function apply(ctx: Context, config: Config) {
     kind: 'api' | 'management',
     signal: AbortSignal,
     method = 'GET',
-    body?: unknown
-  ): Promise<unknown> => {
+    body?: unknown,
+    ifMatch?: string
+  ): Promise<{ data: unknown; etag: string | null }> => {
     const key = (await ctx.credentials.resolve(keyRef(baseURL, kind)))?.value
     if (!key) throw new Error(kind === 'management' ? 'management_key_missing' : 'api_key_missing')
     const response = await fetch(`${baseURL}${path}`, {
@@ -105,6 +110,7 @@ export function apply(ctx: Context, config: Config) {
       signal: AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(15_000)]),
       headers: {
         Authorization: `Bearer ${key}`,
+        ...(ifMatch ? { 'If-Match': ifMatch } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -114,9 +120,11 @@ export function apply(ctx: Context, config: Config) {
       throw new Error(
         response.status === 401 || response.status === 403
           ? 'unauthorized'
-          : response.status === 404
-            ? 'not_found'
-            : 'upstream_failed'
+          : response.status === 412
+            ? 'conflict'
+            : response.status === 404
+              ? 'not_found'
+              : 'upstream_failed'
       )
     }
     if (!response.body) throw new Error('invalid_response')
@@ -131,7 +139,7 @@ export function apply(ctx: Context, config: Config) {
         if (size > 4 * 1024 * 1024) throw new Error('invalid_response')
         chunks.push(next.value)
       }
-      return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+      return { data: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown, etag: response.headers.get('ETag') }
     } finally {
       await reader.cancel().catch(() => {})
     }
@@ -164,8 +172,62 @@ export function apply(ctx: Context, config: Config) {
     if (endpoint === 'describe') return describe()
     const input = record(payload)
     const baseURL = currentURL()
-    const management = (path: string, method = 'GET', body?: unknown) =>
-      request(baseURL, `/v8/management/${path}`, 'management', signal, method, body)
+    const management = async (path: string, method = 'GET', body?: unknown) =>
+      (await request(baseURL, `/v8/management/${path}`, 'management', signal, method, body)).data
+    if (endpoint === 'providers' || endpoint === 'provider-add') {
+      const snapshot = await request(baseURL, '/v8/management/config', 'management', signal)
+      if (!snapshot.etag) throw new Error('unavailable')
+      const families = record(record(snapshot.data)['api-keys'] ?? {})
+      if (endpoint === 'providers') {
+        const groups: ProviderView['groups'] = []
+        for (const family of providerFamilies) {
+          const rows = families[family] ?? []
+          if (!Array.isArray(rows)) throw new Error('invalid_response')
+          for (const value of rows) {
+            const row = record(value)
+            if (!Array.isArray(row.keys)) throw new Error('invalid_response')
+            groups.push({
+              family,
+              name: text(row.name),
+              keys: row.keys.length,
+            })
+          }
+        }
+        return { revision: snapshot.etag, groups } satisfies ProviderView
+      }
+      if (input.revision !== snapshot.etag) throw new Error('conflict')
+      const family = text(input.family)
+      if (!(providerFamilies as readonly string[]).includes(family)) throw new Error('invalid')
+      const name = text(input.name, 256).trim()
+      const apiKey = text(input.apiKey, 16_384).trim()
+      if (/[\r\n\0]/.test(apiKey)) throw new Error('invalid')
+      const upstreamURL =
+        typeof input.baseURL === 'string' && input.baseURL.trim() ? serverURL(input.baseURL.trim()) : undefined
+      if (!Array.isArray(input.models) || input.models.length > 500) throw new Error('invalid')
+      const models = [...new Set(input.models.map((model) => text(model, 256).trim()))]
+      if (family === 'openai-compatibility' && (!upstreamURL || models.length === 0)) throw new Error('invalid')
+      const groups = families[family] ?? []
+      if (!Array.isArray(groups)) throw new Error('invalid_response')
+      if (groups.some((group) => record(group).name === name)) throw new Error('conflict')
+      await request(
+        baseURL,
+        `/v8/management/config/api-keys/${family}`,
+        'management',
+        signal,
+        'PUT',
+        [
+          ...groups,
+          {
+            name,
+            ...(upstreamURL ? { 'base-url': upstreamURL } : {}),
+            keys: [{ 'api-key': apiKey }],
+            ...(models.length ? { models: models.map((id) => ({ name: id, alias: id })) } : {}),
+          },
+        ],
+        snapshot.etag
+      )
+      return null
+    }
     if (endpoint === 'save') {
       if (input.revision !== revision()) throw new Error('conflict')
       const nextURL = serverURL(text(input.baseURL, 4096))
@@ -197,7 +259,7 @@ export function apply(ctx: Context, config: Config) {
       return null
     }
     if (endpoint === 'models') {
-      const response = record(await request(baseURL, '/v1/models', 'api', signal))
+      const response = record((await request(baseURL, '/v1/models', 'api', signal)).data)
       if (!Array.isArray(response.data)) throw new Error('invalid_response')
       const models = new Map<string, ProxyModel>()
       for (const item of response.data) {
@@ -208,6 +270,46 @@ export function apply(ctx: Context, config: Config) {
       signal.throwIfAborted()
       await syncModels(baseURL, [...models.values()])
       return [...models.values()]
+    }
+    if (endpoint === 'quota-list' || endpoint === 'quota-fetch') {
+      const getAccounts = async () => {
+        const files = record(await management('credentials')).files
+        if (!Array.isArray(files)) throw new Error('invalid_response')
+        return files.map(record)
+      }
+      const accounts = await getAccounts()
+      if (endpoint === 'quota-list') {
+        return accounts.map(
+          (row) =>
+            ({
+              name: text(row.name),
+              provider: typeof row.provider === 'string' ? row.provider : typeof row.type === 'string' ? row.type : '',
+              status: '',
+              disabled: row.disabled === true,
+              authIndex: typeof row.auth_index === 'string' ? row.auth_index : '',
+              editable: row.source === 'file' && row.runtime_only !== true,
+              supported: supportsQuota(row),
+            }) satisfies QuotaAccount
+        )
+      }
+      const find = (rows: Record<string, unknown>[]) =>
+        rows.find((row) => row.name === text(input.name) && row.auth_index === text(input.authIndex))
+      const account = find(accounts)
+      if (!account || account.disabled === true) throw new Error('conflict')
+      const connectionRevision = revision()
+      const result = await fetchQuota(account, management)
+      const current = find(await getAccounts())
+      if (
+        revision() !== connectionRevision ||
+        !current ||
+        current.disabled === true ||
+        current.provider !== account.provider ||
+        current.type !== account.type ||
+        current.modtime !== account.modtime ||
+        current.updated_at !== account.updated_at
+      )
+        throw new Error('conflict')
+      return result
     }
     if (endpoint === 'management') {
       const files = record(await management('credentials')).files
@@ -306,6 +408,7 @@ export function apply(ctx: Context, config: Config) {
     'unauthorized',
     'not_found',
     'upstream_failed',
+    'unsupported',
     'oauth_expired',
     'busy',
   ])
@@ -314,6 +417,10 @@ export function apply(ctx: Context, config: Config) {
     'save',
     'models',
     'management',
+    'providers',
+    'provider-add',
+    'quota-list',
+    'quota-fetch',
     'routing',
     'account',
     'reset',

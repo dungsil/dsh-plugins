@@ -13,9 +13,13 @@ import {
   channel,
   endpointPrefix,
   oauthProviders,
+  providerFamilies,
   type ConnectionView,
   type ManagementView,
   type OAuthSession,
+  type ProviderView,
+  type QuotaAccount,
+  type QuotaResult,
   type ProxyModel,
 } from './protocol.js'
 import { localizedCopy } from './copy.js'
@@ -46,6 +50,12 @@ const styles = `${settingsStyles}
 .dsh-cli-proxy [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-cli-proxy p, .dsh-cli-proxy .dsh-plugin-settings-text { overflow-wrap: anywhere; }
 .dsh-cli-proxy .oauth-code { user-select: all; }
+.dsh-cli-proxy .quota-window { padding: 8px 0; }
+.dsh-cli-proxy .quota-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.dsh-cli-proxy progress { display: block; width: 100%; height: 6px; margin: 8px 0; border: 0; border-radius: 3px; overflow: hidden; appearance: none; background: var(--dsw-alias-bg-module-platform); }
+.dsh-cli-proxy progress::-webkit-progress-bar { background: var(--dsw-alias-bg-module-platform); }
+.dsh-cli-proxy progress::-webkit-progress-value { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
+.dsh-cli-proxy progress::-moz-progress-bar { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
 @container (max-width: 480px) {
   .dsh-cli-proxy .dsh-plugin-settings-row { flex-direction: column; align-items: stretch; gap: 12px; }
   .dsh-cli-proxy .controls { width: 100%; max-width: 100%; justify-content: flex-start; }
@@ -69,7 +79,15 @@ function safeAuthorizationURL(value: string) {
   }
 }
 
-function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean }) {
+function ProxyPage({
+  ctx,
+  settings = false,
+  page = 'overview',
+}: {
+  ctx: Context
+  settings?: boolean
+  page?: 'overview' | 'providers' | 'quota'
+}) {
   const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const id = useId()
@@ -87,6 +105,16 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
   const [notice, setNotice] = useState<Notice>()
   const [models, setModels] = useState<ProxyModel[]>()
   const [management, setManagement] = useState<ManagementView>()
+  const [providers, setProviders] = useState<ProviderView>()
+  const [quotaAccounts, setQuotaAccounts] = useState<QuotaAccount[]>()
+  const [quotas, setQuotas] = useState<Record<string, QuotaResult | null | undefined>>({})
+  const [quotaSearch, setQuotaSearch] = useState('')
+  const [quotaPage, setQuotaPage] = useState(0)
+  const [family, setFamily] = useState<string>(providerFamilies[0])
+  const [groupName, setGroupName] = useState('')
+  const [upstreamURL, setUpstreamURL] = useState('')
+  const [upstreamKey, setUpstreamKey] = useState('')
+  const [modelIDs, setModelIDs] = useState('')
   const [strategy, setStrategy] = useState('')
   const [retry, setRetry] = useState('0')
   const [provider, setProvider] = useState<(typeof oauthProviders)[number]>(oauthProviders[0])
@@ -121,6 +149,10 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
       setRemoveManagementKey(false)
       setModels(undefined)
       setManagement(undefined)
+      setProviders(undefined)
+      setQuotaAccounts(undefined)
+      setQuotas({})
+      setUpstreamKey('')
     },
     [call]
   )
@@ -142,6 +174,12 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
     setView(undefined)
     setModels(undefined)
     setManagement(undefined)
+    setProviders(undefined)
+    setQuotaAccounts(undefined)
+    setQuotas({})
+    setQuotaSearch('')
+    setQuotaPage(0)
+    setUpstreamKey('')
     setSession(undefined)
     setOAuthStatus(undefined)
     setStrategy('')
@@ -165,7 +203,7 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
       controller.abort()
       if (lifetime.current === controller) lifetime.current = undefined
     }
-  }, [describe, connectionVersion])
+  }, [describe, connectionVersion, page])
 
   // One lock covers reads and writes. An aborted or uncertain write is never automatically repeated.
   const run = async (work: (controller: AbortController) => Promise<void>, mutation = false) => {
@@ -182,6 +220,7 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
         if (mutation) {
           setUncertain(true)
           setManagement(undefined)
+          setQuotaAccounts(undefined)
         }
       }
     } finally {
@@ -237,6 +276,26 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
   const validStrategy = strategies.some((item) => item.id === strategy)
   const validRetry = /^\d+$/.test(retry) && Number.isSafeInteger(Number(retry))
   const oauthURL = session && safeAuthorizationURL(session.url)
+  const filteredAccounts =
+    quotaAccounts?.filter((account) =>
+      `${account.name} ${account.provider}`.toLowerCase().includes(quotaSearch.trim().toLowerCase())
+    ) ?? []
+  const quotaLabels: Record<string, string> = {
+    five_hour: text.fiveHour,
+    seven_day: text.sevenDay,
+    seven_day_oauth_apps: text.oauthApps,
+    seven_day_opus: 'Opus',
+    seven_day_sonnet: 'Sonnet',
+    seven_day_cowork: 'Cowork',
+    primary_window: text.primaryWindow,
+    secondary_window: text.secondaryWindow,
+    code_review_primary_window: text.codeReview,
+    code_review_secondary_window: text.codeReview,
+    daily: text.daily,
+    weekly: text.sevenDay,
+    monthly: text.monthly,
+    credits: text.credits,
+  }
   const row = (label: ReactNode, children: ReactNode) => (
     <SettingsRow label={label}>
       <div className="controls">{children}</div>
@@ -248,17 +307,36 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
     </button>
   )
   const mutate = (endpoint: string, payload: Record<string, unknown>) => {
-    if (managementDisabled || !management) return
+    if (managementDisabled || (!management && !quotaAccounts)) return
     void run(async (controller) => {
       await call(endpoint, payload, controller)
       setManagement(undefined)
+      setQuotaAccounts(undefined)
       setNotice('success')
     }, true)
+  }
+  const refreshManagement = () => {
+    if (!canManage) return
+    void run(async (controller) => {
+      if (page === 'providers') {
+        setQuotaAccounts(undefined)
+        setQuotaAccounts(await call<QuotaAccount[]>('quota-list', {}, controller))
+      } else {
+        setManagement(undefined)
+        const next = await call<ManagementView>('management', {}, controller)
+        setManagement(next)
+        setStrategy(next.strategy)
+        setRetry(String(next.requestRetry))
+      }
+      setUncertain(false)
+    })
   }
 
   return (
     <section className="dsh-cli-proxy" aria-label="CLIProxyAPI" aria-busy={busy}>
-      {!settings && <h1>CLIProxyAPI</h1>}
+      {!settings && (
+        <h1>CLIProxyAPI{page === 'providers' ? ` · ${text.providers}` : page === 'quota' ? ` · ${text.quota}` : ''}</h1>
+      )}
       {busy && <p role="status">{text.busy}</p>}
       {notice && <p role={notice === 'error' ? 'alert' : 'status'}>{text[notice]}</p>}
       {settings ? (
@@ -353,237 +431,507 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
               setRedirectURL('')
             })
           })}
-          <h3>{text.models}</h3>
-          {row(
-            text.models,
-            button(
-              text.refreshModels,
-              () => {
-                if (!connected) return
-                void run(async (controller) => {
-                  setModels(undefined)
-                  setModels(await call<ProxyModel[]>('models', {}, controller))
-                })
-              },
-              busy || !connected
-            )
-          )}
-          {!models ? (
-            <p className="hint">{text.unloadedModels}</p>
-          ) : models.length === 0 ? (
-            <p>{text.emptyModels}</p>
-          ) : (
-            models.map((model) => (
-              <SettingsRow key={model.id} label={model.name}>
-                <span>{model.id}</span>
-              </SettingsRow>
-            ))
-          )}
-
-          <h3>{text.accounts}</h3>
-          {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
-          {row(
-            text.accounts,
-            button(
-              text.refreshManagement,
-              () => {
-                if (!canManage) return
-                void run(async (controller) => {
-                  setManagement(undefined)
-                  const next = await call<ManagementView>('management', {}, controller)
-                  setManagement(next)
-                  setStrategy(next.strategy)
-                  setRetry(String(next.requestRetry))
-                  setUncertain(false)
-                })
-              },
-              busy || !canManage
-            )
-          )}
-          {!management ? (
-            <p className="hint">{text.unloadedManagement}</p>
-          ) : management.accounts.length === 0 ? (
-            <p>{text.emptyAccounts}</p>
-          ) : (
-            management.accounts.map((account, index) => (
-              <SettingsRow
-                key={`${account.authIndex}-${index}`}
-                label={
-                  <>
-                    {account.name}
-                    <div className="hint">
-                      {account.provider} · {account.disabled ? text.disabled : text.enabled}
-                      {!account.editable && ` · ${text.readOnly}`}
-                    </div>
-                  </>
-                }
-              >
-                <div className="controls">
-                  {button(
-                    account.disabled ? text.enable : text.disable,
-                    () => mutate('account', { name: account.name, disabled: !account.disabled }),
-                    managementDisabled || !account.editable
-                  )}
-                  {button(
-                    text.reset,
-                    () => mutate('reset', { authIndex: account.authIndex }),
-                    managementDisabled || !account.editable
-                  )}
-                </div>
-              </SettingsRow>
-            ))
-          )}
-          {row(
-            text.provider,
+          {page === 'quota' && (
             <>
-              <SettingsPicker
-                aria-label={text.provider}
-                value={provider}
-                selectedId={provider}
-                items={oauthProviders.map((item) => ({ id: item, label: item }))}
-                disabled={managementDisabled || !!session}
-                onSelect={(value) => {
-                  if (oauthProviders.some((item) => item === value)) setProvider(value as typeof provider)
-                }}
-              />
-              {button(
-                text.start,
-                () => {
-                  if (managementDisabled || session) return
-                  void run(async (controller) => {
-                    const next = await call<OAuthSession>('oauth-start', { provider }, controller)
-                    setSession(next)
-                    setOAuthStatus('wait')
-                    setRedirectURL('')
-                  }, true)
-                },
-                managementDisabled || !!session
-              )}
-            </>
-          )}
-          {oauthStatus && <p role={oauthStatus === 'oauthError' ? 'alert' : 'status'}>{text[oauthStatus]}</p>}
-          {session && (
-            <>
-              {oauthURL ? (
-                <p>
-                  <a className="button" href={oauthURL} target="_blank" rel="noopener noreferrer">
-                    {text.open}
-                  </a>
-                </p>
-              ) : (
-                <p role="alert">{text.unsafeURL}</p>
-              )}
-              {session.userCode && (
-                <p>
-                  {text.userCode}: <span className="oauth-code">{session.userCode}</span>
-                </p>
-              )}
+              <h3>{text.quota}</h3>
+              <p className="hint">{text.quotaHint}</p>
+              {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
               {row(
                 text.accounts,
-                <>
-                  {button(
-                    text.check,
-                    () => {
-                      if (managementDisabled) return
-                      void run(async (controller) => {
-                        const next = await call<{ status: 'wait' | 'ok' | 'error' }>(
-                          'oauth-status',
-                          { state: session.state },
-                          controller
-                        )
-                        setOAuthStatus(next.status === 'error' ? 'oauthError' : next.status)
-                        if (next.status !== 'wait') {
-                          setSession(undefined)
-                          setRedirectURL('')
-                        }
-                      })
-                    },
-                    managementDisabled
-                  )}
-                  {button(
-                    text.cancel,
-                    () => {
-                      if (managementDisabled) return
-                      void run(async (controller) => {
-                        await call('oauth-cancel', { state: session.state }, controller)
-                        setSession(undefined)
-                        setRedirectURL('')
-                        setOAuthStatus(undefined)
-                        setNotice('cancelled')
-                      }, true)
-                    },
-                    managementDisabled
-                  )}
-                </>
+                button(
+                  text.refreshQuotaAccounts,
+                  () => {
+                    if (!canManage) return
+                    void run(async (controller) => {
+                      setQuotaAccounts(undefined)
+                      setQuotas({})
+                      setQuotaPage(0)
+                      setQuotaAccounts(await call<QuotaAccount[]>('quota-list', {}, controller))
+                      setUncertain(false)
+                    })
+                  },
+                  busy || !canManage
+                )
               )}
               {row(
-                <label htmlFor={`${id}-callback`}>{text.redirectURL}</label>,
+                <label htmlFor={`${id}-quota-search`}>{text.searchAccounts}</label>,
+                <input
+                  id={`${id}-quota-search`}
+                  value={quotaSearch}
+                  onChange={(event) => {
+                    setQuotaSearch(event.target.value)
+                    setQuotaPage(0)
+                  }}
+                />
+              )}
+              {!quotaAccounts ? (
+                <p className="hint">{text.unloadedQuota}</p>
+              ) : filteredAccounts.length === 0 ? (
+                <p>{text.emptyAccounts}</p>
+              ) : (
+                filteredAccounts.slice(quotaPage * 20, (quotaPage + 1) * 20).map((account) => {
+                  const key = JSON.stringify([account.name, account.authIndex])
+                  const result = quotas[key]
+                  return (
+                    <div key={key}>
+                      <SettingsRow
+                        label={
+                          <>
+                            {account.name}
+                            <div className="hint">
+                              {account.provider} · {account.disabled ? text.disabled : text.enabled}
+                            </div>
+                          </>
+                        }
+                      >
+                        <div className="controls">
+                          {button(
+                            text.refreshQuota,
+                            () => {
+                              void run(async (controller) => {
+                                setQuotas((current) => ({ ...current, [key]: undefined }))
+                                try {
+                                  const next = await call<QuotaResult>(
+                                    'quota-fetch',
+                                    { name: account.name, authIndex: account.authIndex },
+                                    controller
+                                  )
+                                  setQuotas((current) => ({ ...current, [key]: next }))
+                                } catch {
+                                  if (!controller.signal.aborted && lifetime.current === controller)
+                                    setQuotas((current) => ({ ...current, [key]: null }))
+                                  throw new Error('request failed')
+                                }
+                              })
+                            },
+                            managementDisabled || !account.supported || !account.authIndex
+                          )}
+                          {button(
+                            text.reset,
+                            () => {
+                              void run(async (controller) => {
+                                await call('reset', { authIndex: account.authIndex }, controller)
+                                setNotice('success')
+                              }, true)
+                            },
+                            managementDisabled || !account.editable || !account.authIndex
+                          )}
+                        </div>
+                      </SettingsRow>
+                      {!account.supported ? (
+                        <p className="hint">{account.disabled ? text.disabled : text.unsupportedQuota}</p>
+                      ) : result === null ? (
+                        <p role="alert">{text.quotaFailed}</p>
+                      ) : !result ? (
+                        <p className="hint">{text.unloadedQuota}</p>
+                      ) : (
+                        <>
+                          {result.plan && (
+                            <p>
+                              {text.plan}: {result.plan}
+                            </p>
+                          )}
+                          {result.windows.length === 0 && <p className="hint">{text.unknownQuota}</p>}
+                          {result.windows.map((window, index) => (
+                            <div className="quota-window" key={`${window.id}-${index}`}>
+                              <div className="quota-heading">
+                                <span>
+                                  {quotaLabels[window.id] ?? window.id}
+                                  {window.periodSeconds !== undefined &&
+                                    ` · ${window.periodSeconds / 3600}${text.hours}`}
+                                </span>
+                                <span>
+                                  {window.usedPercent === undefined
+                                    ? text.unknownQuota
+                                    : `${text.used}: ${Number(window.usedPercent.toFixed(1))}% · ${text.remaining}: ${Number((100 - window.usedPercent).toFixed(1))}%`}
+                                </span>
+                              </div>
+                              {window.usedPercent !== undefined && (
+                                <progress
+                                  aria-label={quotaLabels[window.id] ?? window.id}
+                                  max={100}
+                                  value={window.usedPercent}
+                                />
+                              )}
+                              {window.resetAt && (
+                                <p className="hint">
+                                  {text.resetsAt}: {new Date(window.resetAt).toLocaleString(locale.active)}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                          <p className="hint">
+                            {text.observedAt}: {new Date(result.observedAt).toLocaleString(locale.active)}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+              {filteredAccounts.length > 20 &&
+                row(
+                  `${quotaPage + 1} / ${Math.ceil(filteredAccounts.length / 20)}`,
+                  <>
+                    {button(text.previous, () => setQuotaPage((current) => current - 1), quotaPage === 0)}
+                    {button(
+                      text.next,
+                      () => setQuotaPage((current) => current + 1),
+                      (quotaPage + 1) * 20 >= filteredAccounts.length
+                    )}
+                  </>
+                )}
+            </>
+          )}
+          {page === 'overview' && (
+            <>
+              <h3>{text.models}</h3>
+              {row(
+                text.models,
+                button(
+                  text.refreshModels,
+                  () => {
+                    if (!connected) return
+                    void run(async (controller) => {
+                      setModels(undefined)
+                      setModels(await call<ProxyModel[]>('models', {}, controller))
+                    })
+                  },
+                  busy || !connected
+                )
+              )}
+              {!models ? (
+                <p className="hint">{text.unloadedModels}</p>
+              ) : models.length === 0 ? (
+                <p>{text.emptyModels}</p>
+              ) : (
+                models.map((model) => (
+                  <SettingsRow key={model.id} label={model.name}>
+                    <span>{model.id}</span>
+                  </SettingsRow>
+                ))
+              )}
+            </>
+          )}
+          {page === 'providers' && (
+            <>
+              <h3>{text.providers}</h3>
+              {row(
+                text.providers,
+                button(
+                  text.refreshProviders,
+                  () => {
+                    if (!canManage) return
+                    void run(async (controller) => {
+                      setProviders(undefined)
+                      setProviders(await call<ProviderView>('providers', {}, controller))
+                      setUncertain(false)
+                    })
+                  },
+                  busy || !canManage
+                )
+              )}
+              {!providers ? (
+                <p className="hint">{text.loadProvidersHint}</p>
+              ) : providers.groups.length === 0 ? (
+                <p>{text.emptyProviders}</p>
+              ) : (
+                providers.groups.map((group, index) => (
+                  <SettingsRow
+                    key={index}
+                    label={
+                      <>
+                        {group.name}
+                        <div className="hint">{group.family}</div>
+                      </>
+                    }
+                  >
+                    <span>
+                      {text.keyCount}: {group.keys}
+                    </span>
+                  </SettingsRow>
+                ))
+              )}
+              {row(
+                text.providerFamily,
+                <SettingsPicker
+                  aria-label={text.providerFamily}
+                  value={family}
+                  selectedId={family}
+                  items={providerFamilies.map((id) => ({ id, label: id }))}
+                  disabled={managementDisabled}
+                  onSelect={setFamily}
+                />
+              )}
+              {row(
+                <label htmlFor={`${id}-group`}>{text.providerName}</label>,
+                <input
+                  id={`${id}-group`}
+                  value={groupName}
+                  maxLength={256}
+                  disabled={managementDisabled}
+                  onChange={(event) => setGroupName(event.target.value)}
+                />
+              )}
+              {row(
+                <label htmlFor={`${id}-upstream-url`}>{text.upstreamURL}</label>,
+                <input
+                  id={`${id}-upstream-url`}
+                  type="url"
+                  value={upstreamURL}
+                  disabled={managementDisabled}
+                  autoComplete="off"
+                  onChange={(event) => setUpstreamURL(event.target.value)}
+                />
+              )}
+              {row(
+                <label htmlFor={`${id}-upstream-key`}>{text.providerKey}</label>,
+                <input
+                  id={`${id}-upstream-key`}
+                  type="password"
+                  value={upstreamKey}
+                  disabled={managementDisabled}
+                  autoComplete="off"
+                  onChange={(event) => setUpstreamKey(event.target.value)}
+                />
+              )}
+              {row(
+                <label htmlFor={`${id}-model-ids`}>{text.modelIDs}</label>,
+                <input
+                  id={`${id}-model-ids`}
+                  value={modelIDs}
+                  disabled={managementDisabled}
+                  onChange={(event) => setModelIDs(event.target.value)}
+                />
+              )}
+              <p className="hint">{text.providerHint}</p>
+              {row(
+                text.providers,
+                button(
+                  text.addProvider,
+                  () => {
+                    if (!providers || lock.current) return
+                    const payload = {
+                      revision: providers.revision,
+                      family,
+                      name: groupName.trim(),
+                      baseURL: upstreamURL.trim(),
+                      apiKey: upstreamKey,
+                      models: modelIDs
+                        .split(/[,\n]/)
+                        .map((id) => id.trim())
+                        .filter(Boolean),
+                    }
+                    setUpstreamKey('')
+                    void run(async (controller) => {
+                      setProviders(undefined)
+                      await call('provider-add', payload, controller)
+                      setNotice('success')
+                      setGroupName('')
+                      setUpstreamURL('')
+                      setModelIDs('')
+                    }, true)
+                  },
+                  managementDisabled ||
+                    !providers ||
+                    !groupName.trim() ||
+                    !upstreamKey.trim() ||
+                    (family === 'openai-compatibility' && (!upstreamURL.trim() || !modelIDs.trim()))
+                )
+              )}
+              <h3>{text.accounts}</h3>
+              {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
+              {row(text.accounts, button(text.refreshManagement, refreshManagement, busy || !canManage))}
+              {!quotaAccounts ? (
+                <p className="hint">{text.unloadedManagement}</p>
+              ) : quotaAccounts.length === 0 ? (
+                <p>{text.emptyAccounts}</p>
+              ) : (
+                quotaAccounts.map((account, index) => (
+                  <SettingsRow
+                    key={`${account.authIndex}-${index}`}
+                    label={
+                      <>
+                        {account.name}
+                        <div className="hint">
+                          {account.provider} · {account.disabled ? text.disabled : text.enabled}
+                          {!account.editable && ` · ${text.readOnly}`}
+                        </div>
+                      </>
+                    }
+                  >
+                    <div className="controls">
+                      {button(
+                        account.disabled ? text.enable : text.disable,
+                        () => mutate('account', { name: account.name, disabled: !account.disabled }),
+                        managementDisabled || !account.editable
+                      )}
+                      {button(
+                        text.reset,
+                        () => mutate('reset', { authIndex: account.authIndex }),
+                        managementDisabled || !account.editable
+                      )}
+                    </div>
+                  </SettingsRow>
+                ))
+              )}
+              {row(
+                text.provider,
                 <>
-                  <input
-                    id={`${id}-callback`}
-                    type="password"
-                    autoComplete="off"
-                    value={redirectURL}
-                    disabled={managementDisabled}
-                    onChange={(event) => setRedirectURL(event.target.value)}
+                  <SettingsPicker
+                    aria-label={text.provider}
+                    value={provider}
+                    selectedId={provider}
+                    items={oauthProviders.map((item) => ({ id: item, label: item }))}
+                    disabled={managementDisabled || !!session}
+                    onSelect={(value) => {
+                      if (oauthProviders.some((item) => item === value)) setProvider(value as typeof provider)
+                    }}
                   />
                   {button(
-                    text.submitCallback,
+                    text.start,
                     () => {
-                      if (managementDisabled || !redirectURL.trim() || lock.current) return
-                      const payload = {
-                        state: session.state,
-                        provider: session.provider,
-                        redirectURL: redirectURL.trim(),
-                      }
-                      setRedirectURL('')
+                      if (managementDisabled || session) return
                       void run(async (controller) => {
-                        await call('oauth-callback', payload, controller)
-                        setNotice('callbackSent')
+                        const next = await call<OAuthSession>('oauth-start', { provider }, controller)
+                        setSession(next)
+                        setOAuthStatus('wait')
+                        setRedirectURL('')
                       }, true)
                     },
-                    managementDisabled || !redirectURL.trim()
+                    managementDisabled || !!session
                   )}
                 </>
               )}
-              <p className="hint">{text.callbackHint}</p>
+              {oauthStatus && <p role={oauthStatus === 'oauthError' ? 'alert' : 'status'}>{text[oauthStatus]}</p>}
+              {session && (
+                <>
+                  {oauthURL ? (
+                    <p>
+                      <a className="button" href={oauthURL} target="_blank" rel="noopener noreferrer">
+                        {text.open}
+                      </a>
+                    </p>
+                  ) : (
+                    <p role="alert">{text.unsafeURL}</p>
+                  )}
+                  {session.userCode && (
+                    <p>
+                      {text.userCode}: <span className="oauth-code">{session.userCode}</span>
+                    </p>
+                  )}
+                  {row(
+                    text.accounts,
+                    <>
+                      {button(
+                        text.check,
+                        () => {
+                          if (managementDisabled) return
+                          void run(async (controller) => {
+                            const next = await call<{ status: 'wait' | 'ok' | 'error' }>(
+                              'oauth-status',
+                              { state: session.state },
+                              controller
+                            )
+                            setOAuthStatus(next.status === 'error' ? 'oauthError' : next.status)
+                            if (next.status !== 'wait') {
+                              setSession(undefined)
+                              setRedirectURL('')
+                            }
+                          })
+                        },
+                        managementDisabled
+                      )}
+                      {button(
+                        text.cancel,
+                        () => {
+                          if (managementDisabled) return
+                          void run(async (controller) => {
+                            await call('oauth-cancel', { state: session.state }, controller)
+                            setSession(undefined)
+                            setRedirectURL('')
+                            setOAuthStatus(undefined)
+                            setNotice('cancelled')
+                          }, true)
+                        },
+                        managementDisabled
+                      )}
+                    </>
+                  )}
+                  {row(
+                    <label htmlFor={`${id}-callback`}>{text.redirectURL}</label>,
+                    <>
+                      <input
+                        id={`${id}-callback`}
+                        type="password"
+                        autoComplete="off"
+                        value={redirectURL}
+                        disabled={managementDisabled}
+                        onChange={(event) => setRedirectURL(event.target.value)}
+                      />
+                      {button(
+                        text.submitCallback,
+                        () => {
+                          if (managementDisabled || !redirectURL.trim() || lock.current) return
+                          const payload = {
+                            state: session.state,
+                            provider: session.provider,
+                            redirectURL: redirectURL.trim(),
+                          }
+                          setRedirectURL('')
+                          void run(async (controller) => {
+                            await call('oauth-callback', payload, controller)
+                            setNotice('callbackSent')
+                          }, true)
+                        },
+                        managementDisabled || !redirectURL.trim()
+                      )}
+                    </>
+                  )}
+                  <p className="hint">{text.callbackHint}</p>
+                </>
+              )}
             </>
           )}
-
-          <h3>{text.routing}</h3>
-          {row(
-            text.strategy,
-            <SettingsPicker
-              aria-label={text.strategy}
-              value={strategies.find((item) => item.id === strategy)?.label ?? text.unknownStrategy}
-              selectedId={strategy}
-              items={strategies}
-              disabled={managementDisabled || !management}
-              onSelect={setStrategy}
-            />
-          )}
-          {row(
-            <label htmlFor={`${id}-retry`}>{text.retry}</label>,
-            <input
-              id={`${id}-retry`}
-              type="number"
-              min="0"
-              step="1"
-              value={retry}
-              disabled={managementDisabled || !management}
-              onChange={(event) => setRetry(event.target.value)}
-            />
-          )}
-          <p className="hint">{text.retryHint}</p>
-          {row(
-            text.routing,
-            button(
-              text.saveRouting,
-              () => {
-                if (validStrategy && validRetry) mutate('routing', { strategy, requestRetry: Number(retry) })
-              },
-              managementDisabled || !management || !validStrategy || !validRetry
-            )
+          {page === 'overview' && (
+            <>
+              <h3>{text.routing}</h3>
+              {row(text.routing, button(text.refreshManagement, refreshManagement, busy || !canManage))}
+              {row(
+                text.strategy,
+                <SettingsPicker
+                  aria-label={text.strategy}
+                  value={strategies.find((item) => item.id === strategy)?.label ?? text.unknownStrategy}
+                  selectedId={strategy}
+                  items={strategies}
+                  disabled={managementDisabled || !management}
+                  onSelect={setStrategy}
+                />
+              )}
+              {row(
+                <label htmlFor={`${id}-retry`}>{text.retry}</label>,
+                <input
+                  id={`${id}-retry`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={retry}
+                  disabled={managementDisabled || !management}
+                  onChange={(event) => setRetry(event.target.value)}
+                />
+              )}
+              <p className="hint">{text.retryHint}</p>
+              {row(
+                text.routing,
+                button(
+                  text.saveRouting,
+                  () => {
+                    if (validStrategy && validRetry) mutate('routing', { strategy, requestRetry: Number(retry) })
+                  },
+                  managementDisabled || !management || !validStrategy || !validRetry
+                )
+              )}
+            </>
           )}
         </>
       )}
@@ -605,17 +953,28 @@ export function apply(ctx: Context) {
       (props) => <ProxyPage {...props} settings />
     )
   )
-  ctx.slots.inject('main', () =>
-    ctx.slots.register({ name: 'main', key: name as MainPanelId, inject: () => ({ ctx }) }, (props) => (
-      <div className="dsh-cli-proxy-page">
-        <ProxyPage {...props} />
-      </div>
-    ))
-  )
-  ctx.slots.inject('sidebar.panellist', () =>
-    ctx.slots.register(
-      { name: 'sidebar.panellist', id: name as MainPanelId, order: 20, label: () => 'CLIProxyAPI' },
-      ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
+  for (const page of ['overview', 'providers', 'quota'] as const) {
+    const panelId = page === 'overview' ? name : `${name}-${page}`
+    ctx.slots.inject('main', () =>
+      ctx.slots.register({ name: 'main', key: panelId as MainPanelId, inject: () => ({ ctx }) }, (props) => (
+        <div className="dsh-cli-proxy-page">
+          <ProxyPage {...props} page={page} />
+        </div>
+      ))
     )
-  )
+    ctx.slots.inject('sidebar.panellist', () =>
+      ctx.slots.register(
+        {
+          name: 'sidebar.panellist',
+          id: panelId as MainPanelId,
+          order: page === 'overview' ? 20 : page === 'providers' ? 21 : 22,
+          label: () =>
+            page === 'overview'
+              ? 'CLIProxyAPI'
+              : `CLIProxyAPI · ${localizedCopy(ctx.locale.getSnapshot().active)[page]}`,
+        },
+        ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
+      )
+    )
+  }
 }
