@@ -12,6 +12,23 @@ const pair = JSON.stringify(['auxiliary', 'title-small'])
 const otherPair = JSON.stringify(['conversation', 'chat-large'])
 const worktreeField = 'select[id$="-worktree"]'
 const failure = (code) => ({ ok: false, error: { code, message: code, details: {} } })
+await test('English, Korean and Chinese settings copies have complete, nonempty translation keys', async () => {
+  const source = await readFile(new URL('../src/client.tsx', import.meta.url), 'utf8')
+  const match = source.match(/const copy = (\{[\s\S]*?\n\})\n/)
+  assert.ok(match, 'settings translations must be present')
+  const translations = runInNewContext(`(${match[1]})`)
+  assert.deepEqual(Object.keys(translations).sort(), ['en', 'ko', 'zh'])
+  const keys = Object.keys(translations.en).sort()
+  for (const language of ['en', 'ko', 'zh']) {
+    assert.deepEqual(Object.keys(translations[language]).sort(), keys, `${language} translation keys`)
+    for (const key of keys) {
+      assert.equal(typeof translations[language][key], 'string', `${language}.${key}`)
+      assert.ok(translations[language][key].trim(), `${language}.${key} must not be empty`)
+      if (language === 'zh') assert.match(translations[language][key], /\p{Script=Han}/u, `zh.${key} must be translated`)
+    }
+  }
+})
+
 const deferred = () => {
   let resolve
   let reject

@@ -66,7 +66,32 @@ const copy = {
     conflict: '다른 곳에서 설정을 변경했습니다. 선택한 값은 자동으로 다시 저장하지 않습니다.',
     model_unavailable: '사용할 수 없는 모델입니다. 설정 확인이 끝나면 다른 모델을 선택하세요.',
   },
+  zh: {
+    nav: '任务模型设置',
+    description: '为各项任务选择模型，不更改对话模型。更改会自动保存。',
+    title: '会话标题',
+    hint: '适用于当前配置中后续生成的标题。现有标题和对话模型保持不变。',
+    worktree: '工作树分支名称',
+    worktreeHint: '仅在 Git Worktree 界面中的分支名称为空、需要自动生成名称时使用。不会更改对话模型。',
+    inherit: '使用对话模型',
+    saving: '正在保存…',
+    saved: '已保存。此任务的下一次模型请求将使用此选择。',
+    loading: '正在加载模型…',
+    resyncing: '正在检查已保存的设置…',
+    resynced: '现已显示已保存的设置。',
+    loadError: '无法加载设置。请关闭并重新打开此设置项后重试。',
+    resyncError: '无法确认已保存的设置，已禁止更改。请关闭并重新打开此设置项后重试。',
+    unavailable: '未找到已启用且受支持的标题生成器。请启用一个 DSH first-prompt 或 all-prompts 标题提供程序。',
+    catalog: '部分模型列表无法加载。仍可使用对话模型。',
+    missing: '已保存的模型（不在当前列表中）',
+    error: '无法确认更改是否生效。不会自动重新保存此更改。',
+    conflict: '设置已在其他位置更改。不会自动重新保存您选择的值。',
+    model_unavailable: '此模型不可用。请在设置检查完成后选择可用模型。',
+  },
 }
+
+const localizedCopy = (language: string) =>
+  copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
 
 const styles = `
 .dsh-model-settings { max-width: 680px; color: var(--dsw-alias-label-primary, #222); font: 14px/1.6 var(--dsw-font-family, system-ui); }
@@ -91,7 +116,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     (listener) => ctx.locale.subscribe(listener),
     () => ctx.locale.getSnapshot()
   )
-  const text = copy[locale.active.startsWith('ko') ? 'ko' : 'en']
+  const text = localizedCopy(locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
@@ -282,7 +307,7 @@ export function apply(ctx: Context) {
         name: 'settings.section',
         id: name,
         order: 15,
-        label: () => copy[ctx.locale.getSnapshot().active.startsWith('ko') ? 'ko' : 'en'].nav,
+        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
         inject: () => ({ ctx }),
       },
       ModelSettings
