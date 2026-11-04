@@ -1,4 +1,5 @@
 export const styles = `
+.dsh-worktree-sidebar-name { flex: 0 1 auto; min-width: 0; max-width: 88px; margin-inline: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-caption); font-size: 10px; line-height: 16px; }
 .dsh-worktree { display: inline-flex; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-worktree-controls { display: inline-flex; flex-wrap: nowrap; align-items: center; min-width: 0; max-width: 100%; }
 .dsh-worktree-picker { display: inline-flex; min-width: 0; max-width: calc(100% - 28px); }
