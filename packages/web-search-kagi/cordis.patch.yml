@@ -1,0 +1,7 @@
+- insert:
+    - id: dungsil-web-search-kagi
+      name: '@dungsil/dsh-plugin-web-search-kagi'
+- id: web
+  config:
+    searchProvider: kagi
+    fetchProvider: http

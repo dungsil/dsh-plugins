@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "title": "Kagi 网页搜索",
+    "description": "使用 KAGI_API_KEY 或在设置中安全保存的密钥进行 Kagi 搜索。"
+  },
+  "ui": {
+    "nav": "Kagi 网页搜索",
+    "description": "使用 Kagi 搜索网页。API 使用费用由 Kagi 单独收取。",
+    "apiKey": "API 密钥",
+    "hint": "优先使用运行 DSH 的计算机上的 KAGI_API_KEY。否则请输入密钥，密钥将安全保存，不会写入设置文件。",
+    "environment": "正在使用 DSH 运行环境中的 KAGI_API_KEY，无需输入密钥。",
+    "configured": "已保存 API 密钥。留空以保留当前密钥，或输入新密钥进行替换。",
+    "missing": "未配置 API 密钥。请输入 Kagi API 密钥以启用网页搜索。",
+    "portal": "获取 Kagi API 密钥",
+    "loading": "正在加载设置…",
+    "loadError": "无法加载设置。请关闭并重新打开此设置项后重试。",
+    "save": "保存",
+    "saving": "正在保存…",
+    "saved": "API 密钥已保存，可以使用 Kagi 网页搜索。",
+    "saveError": "无法确认是否保存成功。请关闭并重新打开此设置项，确认保存状态后再重试。",
+    "readOnly": "此部署的凭据存储为只读。"
+  }
+}

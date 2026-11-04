@@ -1,0 +1,97 @@
+{
+  "name": "@dungsil/dsh-plugin-web-search-kagi",
+  "version": "0.0.0",
+  "description": "Kagi web search with environment credentials and a private API key settings page.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/web-search-kagi"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-launch-environment": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-web": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-launch-environment": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-web": "^0.2.1-rc.5"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "market": {
+    "order": 6.1,
+    "title": {
+      "en": "Kagi web search",
+      "ko": "Kagi 웹 검색",
+      "zh": "Kagi 网页搜索"
+    },
+    "description": {
+      "en": "Search with Kagi. Uses KAGI_API_KEY when available, or a key saved privately in settings.",
+      "ko": "Kagi로 웹을 검색합니다. KAGI_API_KEY가 있으면 사용하고, 없으면 설정에서 키를 안전하게 저장합니다.",
+      "zh": "通过 Kagi 搜索网页。优先使用 KAGI_API_KEY，否则使用在设置中安全保存的密钥。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "kagi",
+      "search",
+      "web",
+      "credentials"
+    ]
+  }
+}

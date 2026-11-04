@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "title": "Kagi 웹 검색",
+    "description": "KAGI_API_KEY 또는 설정에서 안전하게 저장한 키로 Kagi를 검색합니다."
+  },
+  "ui": {
+    "nav": "Kagi 웹 검색",
+    "description": "웹 검색에 Kagi를 사용합니다. API 이용 요금은 Kagi에서 별도로 청구합니다.",
+    "apiKey": "API 키",
+    "hint": "DSH를 실행하는 컴퓨터의 KAGI_API_KEY를 우선 사용합니다. 없으면 키를 입력하세요. 키는 설정 파일과 분리된 비밀값 저장소에 보관합니다.",
+    "environment": "DSH 실행 환경의 KAGI_API_KEY를 사용하고 있습니다. 키를 입력하지 않아도 됩니다.",
+    "configured": "API 키가 저장되어 있습니다. 현재 키를 유지하려면 비워 두고, 교체하려면 새 키를 입력하세요.",
+    "missing": "API 키가 없습니다. 웹 검색을 사용하려면 Kagi API 키를 입력하세요.",
+    "portal": "Kagi API 키 발급",
+    "loading": "설정을 불러오는 중입니다…",
+    "loadError": "설정을 불러오지 못했습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.",
+    "save": "저장",
+    "saving": "저장 중…",
+    "saved": "API 키를 저장했습니다. Kagi 웹 검색을 사용할 수 있습니다.",
+    "saveError": "저장 여부를 확인하지 못했습니다. 이 설정 항목을 닫았다가 다시 열어 저장 상태를 확인한 뒤 재시도하세요.",
+    "readOnly": "이 배포 환경의 비밀값 저장소는 읽기 전용입니다."
+  }
+}

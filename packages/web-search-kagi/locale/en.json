@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "title": "Kagi web search",
+    "description": "Search with Kagi using KAGI_API_KEY or a key saved privately in settings."
+  },
+  "ui": {
+    "nav": "Kagi web search",
+    "description": "Use Kagi for web search. API usage is billed separately by Kagi.",
+    "apiKey": "API key",
+    "hint": "Uses KAGI_API_KEY from the computer running DSH first. Otherwise, enter a key to store it privately outside the settings file.",
+    "environment": "Using KAGI_API_KEY from the DSH host environment. No key entry is needed.",
+    "configured": "An API key is saved. Leave blank to keep it, or enter a replacement.",
+    "missing": "No API key is configured. Enter your Kagi API key to enable web search.",
+    "portal": "Get a Kagi API key",
+    "loading": "Loading settings…",
+    "loadError": "Could not load settings. Close and reopen this section to try again.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "API key saved. Kagi web search is ready.",
+    "saveError": "Could not confirm the save. Close and reopen this section to check the saved state before retrying.",
+    "readOnly": "Credential storage is read-only on this deployment."
+  }
+}
