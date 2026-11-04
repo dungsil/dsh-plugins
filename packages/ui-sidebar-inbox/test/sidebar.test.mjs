@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
+import * as React from 'react'
+import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 
 const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 const flatKey = '__flat_session_order__'
@@ -135,6 +138,8 @@ function nativeMenu(browser, { orderBy = 'updated' } = {}) {
 
 function setup(options = {}) {
   const browser = new Window()
+  globalThis.window = browser
+  globalThis.document = browser.document
   const rows = [
     { id: 'idle', updatedAt: 20 },
     { id: 'running', updatedAt: 50, running: true },
@@ -210,8 +215,25 @@ function setup(options = {}) {
       removeEventListener: browser.removeEventListener.bind(browser),
       __ModuleLoader__: {
         load({ factory }) {
-          // No runtime imports: the plugin contributes DOM labels and one menu row.
           plugin = factory((name) => {
+            if (name === 'react') return React
+            if (name === 'react-dom/client')
+              return {
+                createRoot(container) {
+                  const root = createRoot(container)
+                  return { render: (node) => flushSync(() => root.render(node)), unmount: () => root.unmount() }
+                },
+              }
+            if (name === '@deepseek-ai/dsh-client-ui-primitives') {
+              const icon =
+                (className) =>
+                ({ size }) =>
+                  React.createElement('svg', { width: size, height: size, className, 'aria-hidden': true })
+              return {
+                IconChevronDownOutlineRegular: icon('inbox-chevron-open'),
+                IconChevronRightOutlineRegular: icon('inbox-chevron-closed'),
+              }
+            }
             throw new Error(`Unexpected import: ${name}`)
           })
         },
@@ -385,6 +407,13 @@ void test('the all-conversations view folds archived rows into a collapsed botto
   assert.equal(workingToggle.getAttribute('aria-expanded'), 'true')
   assert.equal(archivedToggle.textContent, 'Archived')
   assert.equal(archivedToggle.getAttribute('aria-expanded'), 'false')
+  const visibleIcons = (button) =>
+    [...button.querySelectorAll('svg')].filter((icon) => app.browser.getComputedStyle(icon).display !== 'none')
+  assert.equal(visibleIcons(workingToggle).length, 1)
+  assert.equal(visibleIcons(workingToggle)[0].classList.contains('inbox-chevron-open'), true)
+  assert.equal(visibleIcons(archivedToggle).length, 1)
+  assert.equal(visibleIcons(archivedToggle)[0].classList.contains('inbox-chevron-closed'), true)
+  assert.equal(visibleIcons(archivedToggle)[0].getAttribute('aria-hidden'), 'true')
   assert.equal(app.browser.getComputedStyle(app.row('archived')).visibility, 'hidden')
   assert.notEqual(app.browser.getComputedStyle(app.row('running')).visibility, 'hidden')
 
@@ -392,12 +421,15 @@ void test('the all-conversations view folds archived rows into a collapsed botto
   archivedToggle.click()
   await app.browser.happyDOM.waitUntilComplete()
   assert.equal(archivedToggle.getAttribute('aria-expanded'), 'true')
+  assert.equal(visibleIcons(archivedToggle).length, 1)
+  assert.equal(visibleIcons(archivedToggle)[0].classList.contains('inbox-chevron-open'), true)
   assert.notEqual(app.browser.getComputedStyle(app.row('archived')).visibility, 'hidden')
 
   // A live language switch relabels mounted headings.
   app.locale.setActive('ko')
   await app.browser.happyDOM.waitUntilComplete()
   assert.deepEqual(app.headingTexts(), ['작업 중', '보관됨'])
+  assert.equal(visibleIcons(archivedToggle).length, 1, 'relabeling preserves the icon')
   app.locale.setActive('en')
   await app.browser.happyDOM.waitUntilComplete()
   assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])

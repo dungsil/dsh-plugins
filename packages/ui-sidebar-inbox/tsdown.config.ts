@@ -18,7 +18,7 @@ export default defineConfig([
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),
     dts: false,
-    deps: { neverBundle: ['react', '@deepseek-ai/dsh-client-ui-primitives'] },
+    deps: { neverBundle: ['react', 'react-dom/client', '@deepseek-ai/dsh-client-ui-primitives'] },
     banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(manifest.name)}, factory(require) { const module = { exports: {} }; const exports = module.exports;`,
     footer: 'return module.exports; } });',
   },
