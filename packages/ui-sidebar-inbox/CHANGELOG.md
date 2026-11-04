@@ -1,5 +1,17 @@
 # @dungsil/dsh-plugin-ui-sidebar-inbox
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.1.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.0) (2026-11-04)
+
+### Features
+
+- **locale:** 플러그인에 중국어 메타데이터를 추가한다 ([#49](https://github.com/dungsil/dsh-plugins/issues/49)) ([7876f45](https://github.com/dungsil/dsh-plugins/commit/7876f45448bb47d43a0f6cf8e16c7b29a6a1ecfb))
+
+### Bug Fixes
+
+- **sidebar-inbox:** 새 설치의 기본 정렬을 에이전트 활동으로 설정한다 ([#57](https://github.com/dungsil/dsh-plugins/issues/57)) ([8684cb7](https://github.com/dungsil/dsh-plugins/commit/8684cb77eeaccef4288117301aacbe1bff9bd391))
+- **ui-sidebar-inbox:** 긴 목록에서 제목과 스크롤이 가려지지 않게 한다 ([#45](https://github.com/dungsil/dsh-plugins/issues/45)) ([78d7258](https://github.com/dungsil/dsh-plugins/commit/78d725878cf4356e6b33cd808094552575ddeb43))
+- **ui-sidebar-inbox:** 라벨 화살표를 DSH 공식 아이콘으로 교체한다 ([#48](https://github.com/dungsil/dsh-plugins/issues/48)) ([a18411a](https://github.com/dungsil/dsh-plugins/commit/a18411adc55e1444457a99b490b6e60fc44ab474))
+
 패키지 이름을 `@dungsil/dsh-plugin-sidebar-inbox`에서 변경하고 `0.1.0`부터 다시 배포합니다. 아래 `2.0.0` 이하 기록은 사용 중단 대상인 이전 패키지의 이력입니다.
 
 ## 0.1.0 (2026-11-04)
