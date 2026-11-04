@@ -6,7 +6,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  Menu,
+  IconBranchOutlineRegular,
+  IconChevronDownOutlineRegular,
+  IconPlusOutlineRegular,
+  IconRefreshOutlineRegular,
+  IconCloseOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { channel, endpointPrefix, type WorktreeView } from './protocol.js'
 import { copy } from './requests.js'
 import { styles } from './styles.js'
@@ -31,10 +38,11 @@ export function apply(ctx: Context) {
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState(false)
     const [changed, setChanged] = useState(false)
+    const [open, setOpen] = useState(false)
     const pending = useRef(false)
     const needsRefresh = useRef(false)
     const lifetime = useRef<AbortController | null>(null)
-    const trigger = useRef<HTMLSelectElement>(null)
+    const trigger = useRef<HTMLButtonElement>(null)
     const dialog = useRef<HTMLDialogElement>(null)
     const title = useId()
     const field = useId()
@@ -76,7 +84,10 @@ export function apply(ctx: Context) {
       const focus = () => {
         void load()
       }
-      const resize = () => dialog.current?.close()
+      const resize = () => {
+        setOpen(false)
+        dialog.current?.close()
+      }
       window.addEventListener('focus', focus)
       window.addEventListener('resize', resize)
       return () => {
@@ -86,12 +97,16 @@ export function apply(ctx: Context) {
       }
     }, [])
 
+    useEffect(() => {
+      if (disabled) setOpen(false)
+    }, [disabled])
+
     const show = () => {
       const element = dialog.current
-      const select = trigger.current
-      if (disabled || pending.current || !element || !select) return
+      const button = trigger.current
+      if (disabled || pending.current || !element || !button) return
       element.showModal()
-      const anchor = select.getBoundingClientRect()
+      const anchor = button.getBoundingClientRect()
       const box = element.getBoundingClientRect()
       element.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - box.width - 8))}px`
       element.style.top = `${Math.max(8, anchor.top - box.height - 8)}px`
@@ -157,46 +172,69 @@ export function apply(ctx: Context) {
 
     return (
       <div className="dsh-worktree">
-        <div className="dsh-worktree-picker">
-          <IconBranchOutlineRegular className="dsh-worktree-branch" aria-hidden="true" />
-          <select
-            ref={trigger}
-            className="dsh-worktree-select"
-            value="current"
-            disabled={disabled}
-            aria-label={view ? `${text.title}: ${branch}` : text.title}
-            aria-describedby={status}
-            aria-busy={loading || busy}
-            title={view ? branch : text.title}
-            onChange={(event) => {
-              const selected = event.target.value
-              event.target.value = 'current'
-              if (selected === 'create') show()
-              else if (selected.startsWith('path:')) void change('switch', selected.slice(5))
+        <div className="dsh-worktree-controls">
+          <Menu
+            className="dsh-worktree-picker"
+            open={open}
+            side="top"
+            portal
+            selectedId={current ? `path:${current.path}` : undefined}
+            items={[
+              { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
+              ...(view?.worktrees.map((item) => ({
+                id: `path:${item.path}`,
+                label: item.branch ?? text.detached,
+                icon: <IconBranchOutlineRegular />,
+              })) ?? []),
+            ]}
+            onClose={() => setOpen(false)}
+            onSelect={(id) => {
+              setOpen(false)
+              if (disabled || pending.current) return
+              if (id === 'create') show()
+              else if (id.startsWith('path:') && id !== `path:${current?.path}`) void change('switch', id.slice(5))
             }}
+            anchor={
+              <button
+                ref={trigger}
+                type="button"
+                className="dsh-worktree-trigger"
+                disabled={disabled}
+                aria-label={view ? `${text.title}: ${branch}` : text.title}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-describedby={status}
+                aria-busy={loading || busy}
+                title={view ? branch : text.title}
+                onClick={() => setOpen((value) => !value)}
+                onKeyDown={(event) => {
+                  if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                    event.preventDefault()
+                    setOpen(true)
+                  }
+                }}
+              >
+                <span className="dsh-worktree-icon" aria-hidden="true">
+                  <IconBranchOutlineRegular className="dsh-worktree-branch" />
+                </span>
+                <span className="dsh-worktree-name">{view ? branch : loading ? text.loading : text.title}</span>
+                <span className="dsh-worktree-chevron" aria-hidden="true">
+                  <IconChevronDownOutlineRegular />
+                </span>
+              </button>
+            }
+          />
+          <button
+            type="button"
+            className="dsh-worktree-refresh"
+            disabled={loading || busy}
+            onClick={() => void load(true)}
+            aria-label={text.refresh}
+            title={text.refresh}
           >
-            <option value="current">{view ? branch : loading ? text.loading : text.title}</option>
-            <option value="create">{text.create}</option>
-            {view?.worktrees
-              .filter((item) => item.path !== view.cwd)
-              .map((item) => (
-                <option key={item.path} value={`path:${item.path}`}>
-                  {item.branch ?? text.detached}
-                </option>
-              ))}
-          </select>
-          <IconChevronDownOutlineRegular className="dsh-worktree-chevron" aria-hidden="true" />
+            <IconRefreshOutlineRegular aria-hidden="true" />
+          </button>
         </div>
-        <button
-          type="button"
-          className="dsh-worktree-refresh"
-          disabled={loading || busy}
-          onClick={() => void load(true)}
-          aria-label={text.refresh}
-          title={text.refresh}
-        >
-          ↻
-        </button>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>
@@ -226,17 +264,7 @@ export function apply(ctx: Context) {
           <header>
             <h2 id={title}>{text.createTitle}</h2>
             <button type="button" aria-label={text.close} disabled={busy} onClick={() => dialog.current?.close()}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                aria-hidden="true"
-              >
-                <path d="m4 4 8 8m0-8-8 8" />
-              </svg>
+              <IconCloseOutlineRegular aria-hidden="true" />
             </button>
           </header>
           <form
