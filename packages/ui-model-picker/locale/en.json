@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Codex Model Picker",
-    "description": "A compact Codex-style composer picker with model menus and a reasoning effort slider."
+    "title": "Model Picker",
+    "description": "A compact composer picker with model menus and a reasoning effort slider."
   }
 }
