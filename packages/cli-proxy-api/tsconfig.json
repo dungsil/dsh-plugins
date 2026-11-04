@@ -1,0 +1,11 @@
+{
+  "extends": "@dungsil/dsh-tsconfig",
+  "compilerOptions": {
+    "lib": ["ES2025", "ESNext.Collection", "ESNext.Temporal", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tsdown.config.ts"]
+}
