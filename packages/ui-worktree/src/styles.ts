@@ -1,5 +1,6 @@
 export const styles = `
-.dsh-worktree { display: inline-flex; min-width: 0; }
+.dsh-worktree { display: inline-flex; align-items: center; min-width: 0; }
+.dsh-worktree-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .dsh-worktree-trigger { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px; border: 0; border-radius: 7px; color: var(--dsw-alias-label-secondary, #626873); background: transparent; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .dsh-worktree-trigger:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2, #f1f2f4); }
 .dsh-worktree-chevron { opacity: .55; }
