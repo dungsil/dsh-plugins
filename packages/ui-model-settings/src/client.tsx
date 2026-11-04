@@ -22,6 +22,11 @@ const copy = {
     title: 'Session title',
     hint: 'Applies to future title generation across this profile. Existing titles and conversation models stay unchanged.',
     inherit: 'Use conversation model',
+    effort: 'Reasoning effort',
+    automatic: 'Automatic (lowest supported effort)',
+    effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the title generator’s existing behavior.',
+    noEfforts: 'This model does not offer reasoning effort settings.',
+    missingEffort: 'Saved effort (currently unavailable)',
     save: 'Save',
     saving: 'Saving…',
     saved: 'Saved. The next title request will use this selection.',
@@ -34,6 +39,7 @@ const copy = {
     error: 'Could not confirm the change. Reload settings to check the saved value before retrying.',
     conflict: 'Settings changed elsewhere. Reload settings before saving again.',
     model_unavailable: 'This model is unavailable. Reload settings and choose an available model.',
+    reasoning_unavailable: 'This reasoning effort is unavailable. Choose a supported effort or Automatic.',
   },
   ko: {
     nav: '상황별 모델',
@@ -41,6 +47,11 @@ const copy = {
     title: '세션 제목',
     hint: '이 프로필에서 이후 생성하는 제목에 적용합니다. 기존 제목과 대화 모델은 바뀌지 않습니다.',
     inherit: '대화 모델 따르기',
+    effort: '추론 수준',
+    automatic: '자동 (지원하는 최저 수준)',
+    effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 제목 생성기의 기존 동작을 유지합니다.',
+    noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
+    missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
     save: '저장',
     saving: '저장 중…',
     saved: '저장했습니다. 다음 제목 생성부터 적용합니다.',
@@ -53,6 +64,7 @@ const copy = {
     error: '변경 여부를 확인하지 못했습니다. 다시 시도하기 전에 설정을 새로고침하여 저장된 값을 확인하세요.',
     conflict: '다른 곳에서 설정을 변경했습니다. 설정을 새로고침한 뒤 다시 저장하세요.',
     model_unavailable: '사용할 수 없는 모델입니다. 설정을 새로고침한 뒤 다른 모델을 선택하세요.',
+    reasoning_unavailable: '사용할 수 없는 추론 수준입니다. 지원하는 수준이나 자동을 선택하세요.',
   },
 }
 
@@ -85,8 +97,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
   const [draft, setDraft] = useState('')
+  const [effort, setEffort] = useState('')
   const [busy, setBusy] = useState(true)
-  const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable'>()
+  const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'>()
   const lock = useRef(false)
   const [lifetime] = useState(() => new AbortController())
 
@@ -101,6 +114,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       const next = result.value as unknown as ModelSettingsView
       setView(next)
       setDraft(routeKey(next.target?.route ?? null))
+      setEffort(next.target?.reasoningEffort ?? '')
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
     } finally {
@@ -118,14 +132,19 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       provider.models.map((model) => ({
         route: { provider: provider.id, model: model.id },
         label: `${provider.name} / ${model.name}`,
+        efforts: model.efforts,
       }))
     ) ?? []
   const current = routeKey(view?.target?.route ?? null)
   const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
-  const selected = options.find((option) => routeKey(option.route) === draft)?.route ?? null
+  const option = options.find((option) => routeKey(option.route) === draft)
+  const selected = option?.route ?? null
+  const efforts = option?.efforts ?? []
+  const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
+  const unchanged = draft === current && effort === (view?.target?.reasoningEffort ?? '')
 
   const save = async () => {
-    if (lock.current || !view?.target || (draft && !selected)) return
+    if (lock.current || !view?.target || (draft && !selected) || missingEffort) return
     lock.current = true
     setBusy(true)
     setNotice(undefined)
@@ -137,17 +156,21 @@ function ModelSettings({ ctx }: { ctx: Context }) {
           id: view.target.id,
           revision: view.target.revision,
           route: selected,
+          reasoningEffort: effort || null,
         },
         lifetime.signal
       )
       if (!result.ok) {
         const code = result.error.code
-        setNotice(code === 'conflict' || code === 'model_unavailable' ? code : 'error')
+        setNotice(
+          code === 'conflict' || code === 'model_unavailable' || code === 'reasoning_unavailable' ? code : 'error'
+        )
         return
       }
       const target = result.value as unknown as TitleTarget | null
       setView({ ...view, target })
       setDraft(routeKey(target?.route ?? null))
+      setEffort(target?.reasoningEffort ?? '')
       setNotice('saved')
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
@@ -179,6 +202,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               aria-describedby={`${id}-hint`}
               onChange={(event) => {
                 setDraft(event.target.value)
+                setEffort('')
                 setNotice(undefined)
               }}
             >
@@ -195,6 +219,32 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               ))}
             </select>
             <small id={`${id}-hint`}>{text.hint}</small>
+            <label htmlFor={`${id}-effort`}>{text.effort}</label>
+            <select
+              id={`${id}-effort`}
+              value={effort}
+              disabled={busy || !selected || (efforts.length === 0 && !effort)}
+              aria-describedby={`${id}-effort-hint`}
+              onChange={(event) => {
+                setEffort(event.target.value)
+                setNotice(undefined)
+              }}
+            >
+              <option value="">{text.automatic}</option>
+              {missingEffort && (
+                <option value={effort} disabled>
+                  {text.missingEffort}: {effort}
+                </option>
+              )}
+              {efforts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <small id={`${id}-effort-hint`}>
+              {selected && efforts.length === 0 ? text.noEfforts : text.effortHint}
+            </small>
             {view.catalogError && <p role="alert">{text.catalog}</p>}
           </>
         )}
@@ -210,7 +260,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
             {text.refresh}
           </button>
           {view?.target && (
-            <button type="submit" disabled={busy || draft === current || (!!draft && !selected)}>
+            <button type="submit" disabled={busy || unchanged || (!!draft && !selected) || missingEffort}>
               {busy ? text.saving : text.save}
             </button>
           )}

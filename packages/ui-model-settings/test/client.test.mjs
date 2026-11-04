@@ -100,9 +100,9 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
       container.querySelector(selector).click()
     })
   }
-  const select = async (value) => {
+  const select = async (value, selector = 'select') => {
     await act(async () => {
-      const element = container.querySelector('select')
+      const element = container.querySelector(selector)
       element.value = value
       element.dispatchEvent(new window.Event('change', { bubbles: true }))
     })
@@ -121,11 +121,39 @@ await test('settings UI saves exact provider/model pairs, resets, reports confli
   assert.equal(selectElement.value, '')
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
   const pair = JSON.stringify(['auxiliary', 'title-small'])
+  const effortSelector = 'select[id$="-effort"]'
+  assert.equal(container.querySelector(effortSelector).disabled, true)
   await select(pair)
+  const effortElement = container.querySelector(effortSelector)
+  assert.equal(effortElement.disabled, false)
+  assert.equal(window.document.getElementById(effortElement.getAttribute('aria-describedby')).tagName, 'SMALL')
+  assert.equal(container.querySelector(`label[for="${effortElement.id}"]`).textContent, '추론 수준')
+  assert.deepEqual(
+    [...effortElement.options].map((option) => option.value),
+    ['', 'quick', 'thorough']
+  )
+  await select('thorough', effortSelector)
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=status]'))
   assert.deepEqual((await h.rpc('describe')).value.target.route, { provider: 'auxiliary', model: 'title-small' })
   assert.equal(container.querySelector('select').value, pair)
+  assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
+  await click('button[type=button]')
+  await waitFor(() => !container.querySelector('button[type=button]').disabled)
+  assert.equal(container.querySelector(effortSelector).value, 'thorough')
+  assert.equal(container.querySelector('button[type=submit]').disabled, true)
+  await select('', effortSelector)
+  assert.equal(container.querySelector('button[type=submit]').disabled, false, 'effort-only changes must be saveable')
+  await click('button[type=submit]')
+  await waitFor(() => container.querySelector('[role=status]'))
+  assert.equal((await h.rpc('describe')).value.target.reasoningEffort, null)
+
+  await select('thorough', effortSelector)
+  await select(JSON.stringify(['auxiliary', 'chat-large']))
+  assert.equal(container.querySelector(effortSelector).value, '')
+  assert.equal(container.querySelector(effortSelector).disabled, true)
+  assert.ok(container.textContent.includes('이 모델은 추론 수준 설정을 제공하지 않습니다.'))
+  await select(pair)
 
   const target = (await h.rpc('describe')).value.target
   await h.rpc('save', { ...target, route: { provider: 'conversation', model: 'chat-large' } })
