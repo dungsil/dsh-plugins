@@ -22,6 +22,8 @@ const copy = {
     title: 'Session title',
     hint: 'Applies to future titles.',
     model: 'Model',
+    worktree: 'Worktree branch name',
+    worktreeHint: 'Used when the branch name is left empty.',
     inherit: 'Use conversation model',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
@@ -31,7 +33,7 @@ const copy = {
     missingEffort: 'Saved effort (currently unavailable)',
     save: 'Save',
     saving: 'Saving…',
-    saved: 'Saved. The next title request will use this selection.',
+    saved: 'Saved. The next request for this task will use this selection.',
     refresh: 'Reload settings',
     loading: 'Loading models…',
     unavailable:
@@ -48,6 +50,8 @@ const copy = {
     title: '세션 제목',
     hint: '이후 생성하는 제목에 적용합니다.',
     model: '모델',
+    worktree: '워크트리 브랜치 이름',
+    worktreeHint: '이름을 비워 자동 생성할 때 사용합니다.',
     inherit: '대화 모델 따르기',
     effort: '추론 수준',
     automatic: '자동',
@@ -57,7 +61,7 @@ const copy = {
     missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
     save: '저장',
     saving: '저장 중…',
-    saved: '저장했습니다. 다음 제목 생성부터 적용합니다.',
+    saved: '저장했습니다. 이 작업의 다음 모델 요청부터 적용합니다.',
     refresh: '설정 새로고침',
     loading: '모델을 불러오는 중입니다…',
     unavailable:
@@ -78,7 +82,7 @@ const styles = `
 .dsh-model-settings-hint { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker { min-width: 0; }
-.dsh-model-settings-picker:last-child { flex: none; max-width: 60%; }
+.dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
 .dsh-model-settings-selector { box-sizing: border-box; display: inline-flex; align-items: center; gap: 12px; max-width: 100%; height: 36px; padding: 0 14px; border: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; cursor: pointer; }
 .dsh-model-settings-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-model-settings-selector svg { flex: none; }
@@ -95,6 +99,7 @@ const styles = `
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
+type Task = 'target' | 'worktree'
 
 function Picker({
   label,
@@ -158,10 +163,11 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
-  const [draft, setDraft] = useState('')
+  const [drafts, setDrafts] = useState({ target: '', worktree: '' })
   const [effort, setEffort] = useState('')
   const [busy, setBusy] = useState(true)
   const [notice, setNotice] = useState<'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'>()
+  const [noticeTask, setNoticeTask] = useState<Task>()
   const lock = useRef(false)
   const [lifetime] = useState(() => new AbortController())
 
@@ -170,13 +176,14 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     lock.current = true
     setBusy(true)
     setNotice(undefined)
+    setNoticeTask(undefined)
     try {
       const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, lifetime.signal)
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
-      setDraft(routeKey(next.target?.route ?? null))
       setEffort(next.target?.reasoningEffort ?? '')
+      setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
     } finally {
@@ -198,26 +205,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         efforts: model.efforts,
       }))
     ) ?? []
-  const current = routeKey(view?.target?.route ?? null)
-  const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
-  const option = options.find((option) => routeKey(option.route) === draft)
-  const selected = option?.route ?? null
-  const efforts = option?.efforts ?? []
-  const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
-  const unchanged = draft === current && effort === (view?.target?.reasoningEffort ?? '')
-  const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
-  const effortLabel = efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
   const modelItems: MenuEntry[] = [
     { id: '', label: text.inherit },
-    ...(missing
-      ? [
-          {
-            id: current,
-            label: `${text.missing}: ${view!.target!.route!.provider} / ${view!.target!.route!.model}`,
-            disabled: true,
-          },
-        ]
-      : []),
     ...(view?.providers.flatMap((provider): MenuEntry[] =>
       provider.models.length
         ? [
@@ -232,20 +221,26 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     ) ?? []),
   ]
 
-  const save = async () => {
-    if (lock.current || !view?.target || (draft && !selected) || missingEffort) return
+  const save = async (task: Task) => {
+    const target = view?.[task]
+    const draft = drafts[task]
+    const option = options.find((option) => routeKey(option.route) === draft)
+    const selected = option?.route ?? null
+    const missingEffort = task === 'target' && effort !== '' && !option?.efforts.some((item) => item.id === effort)
+    if (lock.current || !target || (draft && !selected) || missingEffort) return
     lock.current = true
     setBusy(true)
     setNotice(undefined)
+    setNoticeTask(task)
     try {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
         {
-          id: view.target.id,
-          revision: view.target.revision,
+          id: target.id,
+          revision: target.revision,
           route: selected,
-          reasoningEffort: effort || null,
+          reasoningEffort: task === 'target' ? effort || null : null,
         },
         lifetime.signal
       )
@@ -256,10 +251,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         )
         return
       }
-      const target = result.value as unknown as TitleTarget | null
-      setView({ ...view, target })
-      setDraft(routeKey(target?.route ?? null))
-      setEffort(target?.reasoningEffort ?? '')
+      const saved = result.value as unknown as TitleTarget | null
+      setView((current) => current && { ...current, [task]: saved })
+      setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
+      if (task === 'target') setEffort(saved?.reasoningEffort ?? '')
       setNotice('saved')
     } catch {
       if (!lifetime.signal.aborted) setNotice('error')
@@ -273,97 +268,124 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     <section className="dsh-model-settings" aria-label={text.nav}>
       {!view && busy && <p role="status">{text.loading}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void save()
-        }}
-      >
-        {view?.target && (
-          <>
+      {(['target', 'worktree'] as const).map((task) => {
+        const target = view?.[task]
+        if (!target) return null
+        const title = task === 'target' ? text.title : text.worktree
+        const draft = drafts[task]
+        const current = routeKey(target.route)
+        const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
+        const option = options.find((option) => routeKey(option.route) === draft)
+        const selected = option?.route ?? null
+        const efforts = option?.efforts ?? []
+        const missingEffort = task === 'target' && effort !== '' && !efforts.some((item) => item.id === effort)
+        const unchanged = draft === current && (task !== 'target' || effort === (target.reasoningEffort ?? ''))
+        const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
+        const effortLabel =
+          efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
+        const fieldId = `${id}-${task}`
+        return (
+          <form
+            key={task}
+            aria-label={title}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void save(task)
+            }}
+          >
             <div className="dsh-model-settings-row">
               <div className="dsh-model-settings-text">
-                <div>{text.title}</div>
-                <p className="dsh-model-settings-hint" id={`${id}-hint`}>
-                  {text.hint}
+                <div>{title}</div>
+                <p className="dsh-model-settings-hint" id={`${fieldId}-hint`}>
+                  {task === 'target' ? text.hint : text.worktreeHint}
                 </p>
               </div>
               <div className="dsh-model-settings-controls">
                 <Picker
-                  label={`${text.title} ${text.model}`}
+                  label={`${title} ${text.model}`}
                   value={modelLabel}
                   title={
                     option?.label ??
-                    (draft
-                      ? `${text.missing}: ${view.target.route!.provider} / ${view.target.route!.model}`
-                      : text.inherit)
+                    (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
                   }
                   selectedId={draft}
-                  items={modelItems}
+                  items={
+                    missing
+                      ? [
+                          ...modelItems,
+                          {
+                            id: current,
+                            label: `${text.missing}: ${target.route!.provider} / ${target.route!.model}`,
+                            disabled: true,
+                          },
+                        ]
+                      : modelItems
+                  }
                   disabled={busy}
-                  describedBy={`${id}-hint`}
+                  describedBy={`${fieldId}-hint`}
                   onSelect={(value) => {
                     if (value !== draft) {
-                      setDraft(value)
-                      setEffort('')
+                      setDrafts((current) => ({ ...current, [task]: value }))
+                      if (task === 'target') setEffort('')
                       setNotice(undefined)
                     }
                   }}
                 />
-                <Picker
-                  label={`${text.title} ${text.effort}`}
-                  value={effortLabel}
-                  title={
-                    !selected
-                      ? text.effortHint
-                      : efforts.length === 0
-                        ? text.noEfforts
-                        : effort
-                          ? effortLabel
-                          : text.automaticHint
-                  }
-                  selectedId={effort}
-                  items={[
-                    { id: '', label: text.automaticHint },
-                    ...(missingEffort
-                      ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
-                      : []),
-                    ...efforts.map((item) => ({ id: item.id, label: item.name })),
-                  ]}
-                  disabled={busy || !selected || (efforts.length === 0 && !effort)}
-                  onSelect={(value) => {
-                    setEffort(value)
-                    setNotice(undefined)
-                  }}
-                />
+                {task === 'target' && (
+                  <Picker
+                    label={`${title} ${text.effort}`}
+                    value={effortLabel}
+                    title={
+                      !selected
+                        ? text.effortHint
+                        : efforts.length === 0
+                          ? text.noEfforts
+                          : effort
+                            ? effortLabel
+                            : text.automaticHint
+                    }
+                    selectedId={effort}
+                    items={[
+                      { id: '', label: text.automaticHint },
+                      ...(missingEffort
+                        ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
+                        : []),
+                      ...efforts.map((item) => ({ id: item.id, label: item.name })),
+                    ]}
+                    disabled={busy || !selected || (efforts.length === 0 && !effort)}
+                    onSelect={(value) => {
+                      setEffort(value)
+                      setNotice(undefined)
+                    }}
+                  />
+                )}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={busy || unchanged || (!!draft && !selected) || missingEffort}
+                >
+                  {busy && noticeTask === task ? text.saving : text.save}
+                </Button>
               </div>
             </div>
-            {view.catalogError && <p role="alert">{text.catalog}</p>}
-          </>
-        )}
-        {notice && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
-        <footer>
-          <Button
-            type="button"
-            aria-label={text.refresh}
-            disabled={busy}
-            onClick={() => {
-              void load()
-            }}
-          >
-            {text.refresh}
-          </Button>
-          {view?.target && (
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={busy || unchanged || (!!draft && !selected) || missingEffort}
-            >
-              {busy ? text.saving : text.save}
-            </Button>
-          )}
-        </footer>
-      </form>
+            {notice && noticeTask === task && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
+          </form>
+        )
+      })}
+      {view?.catalogError && <p role="alert">{text.catalog}</p>}
+      {notice && (!view || !noticeTask) && <p role="alert">{text[notice]}</p>}
+      <footer>
+        <Button
+          type="button"
+          aria-label={text.refresh}
+          disabled={busy}
+          onClick={() => {
+            void load()
+          }}
+        >
+          {text.refresh}
+        </Button>
+      </footer>
     </section>
   )
 }

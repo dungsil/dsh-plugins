@@ -17,17 +17,22 @@ const titlePlugins = new Set([
 export function apply(ctx: Context) {
   const settingsEntry = () =>
     ctx.configEditor.entries().find((entry) => entry.options.name === '@dungsil/dsh-plugin-model-settings')
-  const targetEntry = () => {
+  const targetEntry = (task: 'title' | 'worktree') => {
     const entries = ctx.configEditor
       .entries()
-      .filter((entry) => titlePlugins.has(entry.options.name) && entry.fiber?.state === 2)
+      .filter(
+        (entry) =>
+          (task === 'title'
+            ? titlePlugins.has(entry.options.name)
+            : entry.options.name === '@dungsil/dsh-plugin-ui-worktree') && entry.fiber?.state === 2
+      )
     return entries.length === 1 ? entries[0] : undefined
   }
-  const snapshot = (): TitleTarget | null => {
-    const entry = targetEntry()
+  const snapshot = (task: 'title' | 'worktree'): TitleTarget | null => {
+    const entry = targetEntry(task)
     if (!entry) return null
     const config = entry.fiber!.config as { provider?: string; model?: string }
-    const settings = settingsEntry()?.options.config?.titleReasoning as
+    const settings = (task === 'title' ? settingsEntry()?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
     return {
@@ -50,9 +55,9 @@ export function apply(ctx: Context) {
   // validation and durable request logging, never by rewriting a stream.
   ctx.on('internal/get', (consumer, service, _error, next) => {
     if (service !== 'llm') return next()
-    const entry = targetEntry()
+    const entry = targetEntry('title')
     if (consumer.fiber !== entry?.fiber) return next()
-    const effort = snapshot()?.reasoningEffort
+    const effort = snapshot('title')?.reasoningEffort
     if (typeof effort !== 'string') return next()
     const llm = next() as Context['llm']
     const prepareCall: Context['llm']['prepareCall'] = (config, signal, configure) =>
@@ -97,7 +102,7 @@ export function apply(ctx: Context) {
           }
         })
       )
-      return { ok: true, value: { target: snapshot(), providers, catalogError } }
+      return { ok: true, value: { target: snapshot('title'), worktree: snapshot('worktree'), providers, catalogError } }
     }
     if (!payload || typeof payload !== 'object') return failure('invalid')
     const input = payload as { id?: unknown; revision?: unknown; route?: unknown; reasoningEffort?: unknown }
@@ -128,13 +133,15 @@ export function apply(ctx: Context) {
         return failure('model_unavailable')
       }
     }
-    const entry = targetEntry()
+    const task = snapshot('worktree')?.id === input.id ? 'worktree' : 'title'
+    const entry = targetEntry(task)
     const owner = settingsEntry()
-    if (!entry || !owner) return failure('unavailable')
+    if (!entry || (task === 'title' && !owner)) return failure('unavailable')
+    if (task === 'worktree' && reasoningEffort !== null) return failure('reasoning_unavailable')
     try {
       signal.throwIfAborted()
       await ctx.configEditor.edit(entry, (current) => {
-        const latest = snapshot()
+        const latest = snapshot(task)
         if (!latest || latest.id !== input.id || latest.revision !== input.revision) throw new Error('conflict')
         const next = { ...current }
         if (route) Object.assign(next, route)
@@ -144,10 +151,11 @@ export function apply(ctx: Context) {
         }
         return next
       })
+      if (task === 'worktree') return { ok: true, value: snapshot(task) }
       // The upstream title config rejects additional fields. Store our
       // extension in this plugin's config, bound to the exact title route so
       // changing that route elsewhere cannot reuse an incompatible effort.
-      const updated = snapshot()
+      const updated = snapshot('title')
       if (
         !updated ||
         updated.id !== input.id ||
@@ -155,14 +163,14 @@ export function apply(ctx: Context) {
         updated.route?.model !== route?.model
       )
         throw new Error('conflict')
-      await ctx.configEditor.edit(owner, (current) => {
-        if (snapshot()?.revision !== updated.revision) throw new Error('conflict')
+      await ctx.configEditor.edit(owner!, (current) => {
+        if (snapshot('title')?.revision !== updated.revision) throw new Error('conflict')
         const next = { ...current }
         if (route && reasoningEffort !== null) next.titleReasoning = { target: input.id, ...route, reasoningEffort }
         else delete next.titleReasoning
         return next
       })
-      return { ok: true, value: snapshot() }
+      return { ok: true, value: snapshot('title') }
     } catch (error) {
       return failure(error instanceof Error && error.message === 'conflict' ? 'conflict' : 'save_failed')
     }

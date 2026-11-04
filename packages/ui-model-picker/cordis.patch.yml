@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-ui-model-picker
+      name: '@dungsil/dsh-plugin-ui-model-picker'

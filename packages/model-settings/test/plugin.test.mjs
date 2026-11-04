@@ -67,6 +67,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     const initial = (await h.rpc('describe')).value
     assert.equal(initial.target.id, 'custom-title-entry')
     assert.deepEqual(initial.target.route, { provider: 'conversation', model: 'title-small' })
+    assert.equal(initial.worktree, null, 'worktree configuration is not offered without the active plugin')
     const route = { provider: 'auxiliary', model: 'title-small' }
     const saved = await h.rpc('save', { ...initial.target, route })
     assert.equal(saved.ok, true)
@@ -170,4 +171,53 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   await entry.fiber.dispose()
   assert.equal((await h.rpc('describe')).value.target, null)
   assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'unavailable')
+})
+
+await test('worktree routes persist independently of titles, preserve other settings and reject stale writes', async (t) => {
+  const h = await profileFixture('first-prompt', {}, { namingStyle: 'semantic' })
+  t.after(h.close)
+  const initial = (await h.rpc('describe')).value
+  assert.equal(initial.worktree.id, 'custom-worktree-entry')
+  assert.equal(initial.worktree.route, null)
+  const title = await h.rpc('save', {
+    ...initial.target,
+    route: { provider: 'conversation', model: 'title-small' },
+    reasoningEffort: 'thorough',
+  })
+  assert.equal(title.ok, true)
+  assert.deepEqual((await h.rpc('describe')).value.worktree, initial.worktree)
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  assert.equal(
+    (await h.rpc('save', { ...initial.worktree, route, reasoningEffort: 'quick' })).error.code,
+    'reasoning_unavailable'
+  )
+  const saved = await h.rpc('save', { ...initial.worktree, route })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.route, route)
+  assert.equal(h.adapter.requests.length, 0)
+  assert.deepEqual((await h.rpc('describe')).value.target, title.value)
+  assert.equal((await h.rpc('save', { ...initial.worktree, route: null })).error.code, 'conflict')
+  assert.equal(
+    (await h.rpc('save', { ...saved.value, route: { provider: 'missing', model: 'title-small' } })).error.code,
+    'model_unavailable'
+  )
+  await h.restart()
+  const restored = (await h.rpc('describe')).value.worktree
+  assert.deepEqual(restored.route, route)
+  assert.equal((await h.rpc('save', { ...restored, route: null })).ok, true)
+  assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
+  await h.generate('after-worktree-reset')
+  assert.equal(h.adapter.requests.at(-1).reasoningEffort, 'thorough')
+  const entry = h.ctx.configEditor.entries().find((item) => item.options.id === restored.id)
+  assert.deepEqual(entry.options.config, { namingStyle: 'semantic' })
+  await h.restart()
+  assert.equal((await h.rpc('describe')).value.worktree.route, null)
+  const titleEntry = h.ctx.configEditor.entries().find((item) => item.options.id === initial.target.id)
+  await titleEntry.fiber.dispose()
+  const onlyWorktree = (await h.rpc('describe')).value
+  assert.equal(onlyWorktree.target, null)
+  assert.equal((await h.rpc('save', { ...onlyWorktree.worktree, route })).ok, true)
+  const worktreeEntry = h.ctx.configEditor.entries().find((item) => item.options.id === restored.id)
+  await worktreeEntry.fiber.dispose()
+  assert.equal((await h.rpc('describe')).value.worktree, null)
 })

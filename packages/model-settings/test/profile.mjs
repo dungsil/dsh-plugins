@@ -58,7 +58,7 @@ class RecordingAdapter extends LlmAdapter {
 }
 
 /** Real profile persistence, Loader reconciliation, title service and LLM routing. */
-export async function profileFixture(strategy = 'first-prompt', initialRoute = {}) {
+export async function profileFixture(strategy = 'first-prompt', initialRoute = {}, worktreeConfig) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-model-settings-'))
   const dir = join(home, 'profiles', 'test')
   initProfile(dir, ['test-bundle'])
@@ -82,6 +82,9 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
           { id: 'editor', name: 'cordis:editor' },
           { id: 'custom-title-entry', name: providerName, config: { ...titleConfig, ...initialRoute } },
           { id: 'model-settings', name: '@dungsil/dsh-plugin-model-settings' },
+          ...(worktreeConfig
+            ? [{ id: 'custom-worktree-entry', name: '@dungsil/dsh-plugin-ui-worktree', config: worktreeConfig }]
+            : []),
         ],
       },
     ])
@@ -116,6 +119,8 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
         import: async (specifier) => {
           if (specifier === providerName) return strategy === 'first-prompt' ? FirstPrompt : AllPrompts
           if (specifier === '@dungsil/dsh-plugin-model-settings') return plugin
+          // This fixture exercises config ownership and persistence; real worktree calls are tested by ui-worktree.
+          if (specifier === '@dungsil/dsh-plugin-ui-worktree') return { apply() {} }
           throw new Error(`Unexpected import: ${specifier}`)
         },
       }

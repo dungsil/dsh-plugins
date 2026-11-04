@@ -15,6 +15,7 @@ export interface TitleTarget {
 
 export interface ModelSettingsView {
   target: TitleTarget | null
+  worktree?: TitleTarget | null
   providers: {
     id: string
     name: string
