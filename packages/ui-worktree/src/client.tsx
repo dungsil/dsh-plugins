@@ -5,18 +5,19 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Menu,
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
-  IconRefreshOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
+import { settingsLabel, WorktreeSettingsSection } from './settings.js'
 import { styles } from './styles.js'
 import { installSidebarLabel } from './sidebar.js'
 
@@ -50,7 +51,6 @@ export function apply(ctx: Context) {
     const dialog = useRef<HTMLDialogElement>(null)
     const errorDialog = useRef<HTMLDialogElement>(null)
     const errorTrigger = useRef<HTMLButtonElement>(null)
-    const refreshButton = useRef<HTMLButtonElement>(null)
     const title = useId()
     const errorTitle = useId()
     const errorDescription = useId()
@@ -186,7 +186,7 @@ export function apply(ctx: Context) {
     }, [error, creation?.failed])
 
     const restoreErrorFocus = () => {
-      const button = errorTrigger.current ?? (!disabled ? trigger.current : refreshButton.current)
+      const button = errorTrigger.current ?? trigger.current
       button?.focus()
     }
 
@@ -278,17 +278,6 @@ export function apply(ctx: Context) {
               </button>
             }
           />
-          <button
-            ref={refreshButton}
-            type="button"
-            className="dsh-worktree-refresh"
-            disabled={loading || busy}
-            onClick={() => void load(true)}
-            aria-label={text.refresh}
-            title={text.refresh}
-          >
-            <IconRefreshOutlineRegular aria-hidden="true" />
-          </button>
           {detailError && (
             <button
               ref={errorTrigger}
@@ -413,6 +402,18 @@ export function apply(ctx: Context) {
     ctx.slots.register({ name: 'conversation.input.left', id: 'dungsil-ui-worktree', order: -100 }, (props) => (
       <Picker key={props.sessionId} {...props} />
     ))
+  )
+  ctx.slots.inject('settings.section', () =>
+    ctx.slots.register(
+      {
+        name: 'settings.section',
+        id: name,
+        order: 16,
+        label: () => settingsLabel(ctx.locale.getSnapshot().active),
+        inject: () => ({ ctx }),
+      },
+      WorktreeSettingsSection
+    )
   )
   ctx.effect(() => {
     const style = document.createElement('style')

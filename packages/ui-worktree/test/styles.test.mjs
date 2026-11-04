@@ -47,8 +47,9 @@ await test('host Menu trigger follows composer permission sizing without a fixed
   assert.match(styles, /\.dsh-worktree-trigger:focus-visible[^}]*var\(--dsw-focus-ring-color/)
   const controls = declarations('.dsh-worktree-controls')
   assert.ok(controls.includes('display: inline-flex'))
-  assert.ok(controls.includes('flex-wrap: nowrap'), 'picker and refresh must remain on the same row')
-  assert.equal(declarations('.dsh-worktree-refresh').includes('flex: 0 0 auto'), true)
+  assert.ok(controls.includes('flex-wrap: nowrap'), 'picker and error details must remain on the same row')
+  assert.ok(declarations('.dsh-worktree-picker').includes('max-width: 100%'))
+  assert.doesNotMatch(styles, /\.dsh-worktree-refresh|calc\(100% - 28px\)/)
   assert.doesNotMatch(styles, /\.dsh-worktree-select|\.dsh-worktree-branch|appearance:\s*none/)
 })
 

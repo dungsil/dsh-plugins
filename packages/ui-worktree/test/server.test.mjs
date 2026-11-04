@@ -4,28 +4,30 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { Context } from '@deepseek-ai/cordis'
+import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
+import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
-import Worktrees from '@deepseek-ai/dsh-experimental-worktree'
 import { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
-async function fixture(t, options = {}, config = {}) {
+async function fixture(t, options = {}, settings = {}) {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-worktree-')))
   const repo = join(home, 'source')
   const other = join(home, process.platform === 'win32' ? 'existing space 한글' : 'existing space\n한글')
-  const ctx = new Context()
+  let ctx
   t.after(async () => {
-    await ctx.fiber.dispose()
+    await ctx?.fiber.dispose()
     await rm(home, { recursive: true, force: true })
   })
   await mkdir(repo)
@@ -34,39 +36,85 @@ async function fixture(t, options = {}, config = {}) {
   git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'initial')
   git('worktree', 'add', '--detach', other)
   await writeFile(join(repo, 'draft.txt'), 'unsaved source file')
-  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
-  await ctx.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
-  await ctx.plugin(Connection)
-  await ctx.plugin(SubprocessLocal)
-  await ctx.plugin(SandboxLocal)
-  await ctx.plugin(SandboxPolicy, { mode: 'danger-full-access' })
-  await ctx.plugin(Worktrees)
-  const harness = await mountAgentLoopTestHarness(ctx)
-  const requests = []
-  class WorkAdapter extends LlmAdapter {
-    async resolveModel(provider, model) {
-      return { provider, id: model, name: model }
-    }
-    async *stream(request) {
-      requests.push({ ...request, cwd: ctx.workingDirectory.get(agent.session) })
-      yield { type: 'text-delta', index: 0, text: 'Finished' }
-      yield { type: 'finish', reason: { kind: 'stop' } }
-    }
-  }
-  ctx.llm.registerAdapter(['test'], new WorkAdapter())
-  const agent = await harness.create(
-    SessionId('worktree-ui-test'),
-    { provider: 'test', model: 'test-model', ...options },
-    { cwd: repo }
+  const dir = join(home, 'profiles/test')
+  initProfile(dir, ['test-bundle'])
+  const bundle = join(dir, 'node_modules/test-bundle')
+  await mkdir(bundle, { recursive: true })
+  await writeFile(join(home, 'package.json'), '{"name":"test-installation"}')
+  await writeFile(
+    join(bundle, 'package.json'),
+    JSON.stringify({
+      name: 'test-bundle',
+      version: '1.0.0',
+      dsh: { bundle: { patch: 'cordis.patch.yml' } },
+    })
   )
-  ctx.provide('sessionController', {
-    resolveAgent: async (id) =>
-      id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } },
+  await writeFile(
+    join(bundle, 'cordis.patch.yml'),
+    JSON.stringify([
+      {
+        insert: [
+          { id: 'editor', name: 'cordis:editor' },
+          { id: 'worktree-ui', name: '@dungsil/dsh-plugin-ui-worktree', config: settings },
+        ],
+      },
+    ])
+  )
+  await writeFile(join(dir, 'cordis.yml'), '[]\n')
+  const profile = {
+    name: 'test',
+    startedBundles: ['test-bundle'],
+    dir,
+    patchPath: join(dir, 'cordis.patch.yml'),
+    installAnchor: join(home, 'package.json'),
+    cwd: repo,
+    home,
+    overlays: [],
+    telemetryDisabledEnv: undefined,
+  }
+  let agent, harness
+  const requests = []
+  ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
+    root.provide('profileContext', profile)
+    root.loader.builtins.editor = ConfigEditor
+    root.loader.internal = {
+      version: 'v2',
+      import: async (specifier) => {
+        assert.equal(specifier, '@dungsil/dsh-plugin-ui-worktree')
+        return plugin
+      },
+    }
+    await mountAgentLoopTestDependencies(root, { workingDirectory: true })
+    await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
+    await root.plugin(Connection)
+    await root.plugin(SubprocessLocal)
+    await root.plugin(SandboxLocal)
+    await root.plugin(SandboxPolicy, { mode: 'danger-full-access' })
+    harness = await mountAgentLoopTestHarness(root)
+    class WorkAdapter extends LlmAdapter {
+      async resolveModel(provider, model) {
+        return { provider, id: model, name: model }
+      }
+      async *stream(request) {
+        requests.push({ ...request, cwd: root.workingDirectory.get(agent.session) })
+        yield { type: 'text-delta', index: 0, text: 'Finished' }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    root.llm.registerAdapter(['test'], new WorkAdapter())
+    agent = await harness.create(
+      SessionId('worktree-ui-test'),
+      { provider: 'test', model: 'test-model', ...options },
+      { cwd: repo }
+    )
+    root.provide('sessionController', {
+      resolveAgent: async (id) =>
+        id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } },
+    })
   })
-  const fiber = await ctx.plugin(plugin, config)
   const handler = ctx.connection.createSharedFetchHandler('/api')
   const rpc = async (endpoint, payload = {}, peer = owner) => {
-    const method = `dungsil-worktree/${endpoint}`
+    const method = endpoint.includes('/') ? endpoint : `dungsil-worktree/${endpoint}`
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',
@@ -87,7 +135,7 @@ async function fixture(t, options = {}, config = {}) {
     agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
     await agent.whenIdle()
   }
-  return { ctx, agent, repo, other, git, rpc, requests, submit, harness, fiber }
+  return { ctx, agent, repo, other, git, rpc, home, profile, requests, submit, harness }
 }
 
 await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
@@ -116,7 +164,7 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(requests.length, 0, 'reserving must not call a model')
   assert.equal(git('branch', '--list', 'fix/login-ui'), '', 'reserving must not create a branch')
   assert.deepEqual((await rpc('describe')).value, reserved.value, 'reloading must retain the reservation')
-  await submit('Fix the login UI in the reserved checkout')
+  await submit('Fix the login UI')
   const created = await rpc('describe')
   assert.equal(created.ok, true)
   assert.equal(created.value.pendingCreation, undefined)
@@ -129,7 +177,14 @@ await test('reserves without side effects, creates before prompt work, and keeps
     requests.every((request) => request.cwd === path),
     'all work calls must run in the new checkout'
   )
-  assert.match(JSON.stringify(requests[0].messages), /Fix the login UI in the reserved checkout/)
+  assert.deepEqual(
+    agent.session
+      .deriveMessages()
+      .filter((message) => message.source.kind === 'user')
+      .map((message) => message.content),
+    [[{ type: 'text', text: 'Fix the login UI' }]],
+    'creation must not add a user message or rewrite the submitted task'
+  )
   assert.ok(
     requests[0].messages.some((message) =>
       message.content.some(
@@ -141,6 +196,9 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(git('rev-parse', 'refs/heads/fix/login-ui'), git('rev-parse', 'HEAD'))
   assert.equal(await readFile(join(repo, 'draft.txt'), 'utf8'), 'unsaved source file')
   await assert.rejects(readFile(join(path, 'draft.txt')), { code: 'ENOENT' })
+  await submit('Add a regression test for the fix')
+  assert.equal(ctx.workingDirectory.get(agent.session), path, 'follow-ups stay in the same checkout and session')
+  assert.equal((await rpc('describe')).value.worktrees.length, 3, 'follow-ups must not create another worktree')
 
   assert.equal((await rpc('switch', { cwd: repo, path: otherPath })).error.code, 'conflict')
   assert.equal((await rpc('switch', { cwd: path, path: tmpdir() })).error.code, 'invalid')
@@ -200,8 +258,9 @@ await test('reservations are session-local, cancellable, and refuse a source dir
 await test('an empty reserved name uses the newly submitted prompt, not earlier history, only for naming', async (t) => {
   const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'fallback', model: 'fallback-model' })
   const requests = []
-  let answer = 'fix-session-isolation'
+  let answer = 'fix/session-isolation'
   let reason = { kind: 'stop' }
+  let namingStarted, namingGate
   class NamingAdapter extends LlmAdapter {
     async resolveModel(provider, model) {
       return { provider, id: model, name: model }
@@ -209,6 +268,10 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
     async *stream(options) {
       requests.push(options)
       const naming = options.maxTokens === 256
+      if (naming) {
+        namingStarted?.()
+        await namingGate
+      }
       yield { type: 'text-delta', index: 0, text: naming ? answer : 'Finished' }
       yield { type: 'finish', reason: naming ? reason : { kind: 'stop' } }
     }
@@ -240,11 +303,26 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   })
   assert.equal((await rpc('create', { cwd: repo, name: '  ' })).ok, true)
   assert.equal(requests.length, 0, 'an empty name must wait for the submitted prompt too')
-  await submit('Fix session isolation when switching worktrees')
+  const started = new Promise((resolve) => {
+    namingStarted = resolve
+  })
+  let release
+  namingGate = new Promise((resolve) => {
+    release = resolve
+  })
+  const submitted = submit('Fix session isolation when switching worktrees')
+  await started
+  try {
+    const settings = (await rpc('settings')).value
+    assert.equal((await rpc('save-settings', settings)).error.code, 'busy', 'settings cannot interrupt creation')
+  } finally {
+    release()
+  }
+  await submitted
   const generated = await rpc('describe')
   assert.equal(generated.ok, true)
-  assert.equal(generated.value.cwd, join(repo, '.agents/worktrees/fix-session-isolation'))
-  assert.equal(git('rev-parse', 'refs/heads/fix-session-isolation'), git('rev-parse', 'HEAD'))
+  assert.equal(generated.value.cwd, join(repo, '.agents/worktrees/fix/session-isolation'))
+  assert.equal(git('rev-parse', 'refs/heads/fix/session-isolation'), git('rev-parse', 'HEAD'))
   assert.equal(requests.filter((request) => request.maxTokens === 256).length, 1)
   assert.equal(requests[0].provider, 'conversation')
   assert.equal(requests[0].model, 'selected-model')
@@ -282,7 +360,7 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
   assert.equal(ctx.workingDirectory.get(agent.session), cwd)
   assert.deepEqual((await rpc('describe')).value.worktrees.map((entry) => entry.branch).sort(), [
-    'fix-session-isolation',
+    'fix/session-isolation',
     'main',
     'manual-name',
     null,
@@ -291,7 +369,7 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
 
 await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
-  for (const endpoint of ['describe', 'create', 'switch']) {
+  for (const endpoint of ['describe', 'create', 'switch', 'settings', 'save-settings']) {
     assert.equal(
       (
         await rpc(
@@ -343,14 +421,142 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
   )
 })
 
-await test('uses the configured naming model, then follows the conversation again after reset', async (t) => {
-  const route = { provider: 'naming', model: 'small' }
-  const { ctx, agent, repo, rpc, fiber, submit } = await fixture(
+await test('persists settings through Loader reload and uses absolute paths and the tracked remote commit, not local HEAD', async (t) => {
+  const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(t)
+  const initial = (await rpc('settings')).value
+  assert.deepEqual(initial.settings, { directory: '.agents/worktrees', remote: false, naming: 'semantic', prefix: '' })
+  const remoteCommit = git('rev-parse', 'HEAD')
+  git('remote', 'add', 'origin', join(home, 'not-fetched'))
+  git('update-ref', 'refs/remotes/origin/main', remoteCommit)
+  git('branch', '--set-upstream-to=origin/main', 'main')
+  await writeFile(join(repo, 'local-only.txt'), 'not on remote')
+  git('add', 'local-only.txt')
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'local ahead')
+  const directory = join(home, 'absolute pool 한글')
+  const settings = { ...initial.settings, directory, remote: true }
+  const saved = await rpc('save-settings', { ...initial, settings })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.settings, settings)
+  assert.notEqual(saved.value.revision, initial.revision)
+  assert.match(await readFile(profile.patchPath, 'utf8'), /remote: true/)
+  assert.deepEqual((await rpc('settings')).value, saved.value)
+  assert.equal((await rpc('save-settings', initial)).error.code, 'conflict')
+  assert.equal((await rpc('create', { cwd: repo, name: 'remote-base' })).ok, true)
+  await submit()
+  const created = await rpc('describe')
+  assert.equal(created.ok, true)
+  assert.equal(created.value.cwd, join(directory, 'remote-base'))
+  assert.equal(git('rev-parse', 'remote-base'), remoteCommit)
+  assert.notEqual(git('rev-parse', 'remote-base'), git('rev-parse', 'main'))
+  await assert.rejects(readFile(join(created.value.cwd, 'local-only.txt')), { code: 'ENOENT' })
+  assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+
+  // A relative pool is resolved from the repository root even when the Session is nested.
+  const latest = (await rpc('settings')).value
+  assert.equal(
+    (await rpc('save-settings', { ...latest, settings: { ...settings, remote: false, directory: '../relative pool' } }))
+      .ok,
+    true
+  )
+  const nested = join(repo, 'src/nested')
+  await mkdir(nested, { recursive: true })
+  await ctx.workingDirectory.set(agent, nested)
+  assert.equal((await rpc('create', { cwd: nested, name: 'local-base' })).ok, true)
+  await submit()
+  const relative = await rpc('describe')
+  assert.equal(relative.ok, true)
+  assert.equal(relative.value.cwd, join(home, 'relative pool/local-base'))
+  assert.equal(git('rev-parse', 'local-base'), git('rev-parse', 'main'))
+  assert.equal(await readFile(join(relative.value.cwd, 'local-only.txt'), 'utf8'), 'not on remote')
+})
+
+await test('saved DSH and custom prefixes affect generated names only; invalid settings and missing upstream never create branches', async (t) => {
+  const { ctx, repo, git, rpc, submit } = await fixture(t, { provider: 'namer', model: 'small' })
+  let modelCalls = 0
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream(options) {
+      if (options.maxTokens === 256) modelCalls++
+      yield { type: 'text-delta', index: 0, text: options.maxTokens === 256 ? 'task-name' : 'Finished' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['namer'], new NamingAdapter())
+  for (const [naming, prefix, branch] of [
+    ['dsh', '', 'dsh/task-name'],
+    ['custom', 'team/topic-', 'team/topic-task-name'],
+  ]) {
+    const view = (await rpc('settings')).value
+    assert.equal((await rpc('save-settings', { ...view, settings: { ...view.settings, naming, prefix } })).ok, true)
+    assert.equal((await rpc('create', { cwd: repo })).ok, true)
+    await submit()
+    const created = await rpc('describe')
+    assert.equal(created.ok, true)
+    assert.equal(created.value.cwd, join(repo, '.agents/worktrees', branch))
+    assert.equal(git('rev-parse', branch), git('rev-parse', 'HEAD'))
+    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+  }
+  assert.equal((await rpc('create', { cwd: repo, name: 'explicit-name' })).ok, true)
+  await submit()
+  const manual = await rpc('describe')
+  assert.equal(manual.ok, true)
+  assert.equal(manual.value.cwd, join(repo, '.agents/worktrees/explicit-name'))
+  assert.equal(modelCalls, 2)
+  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: repo })).ok, true)
+  const view = (await rpc('settings')).value
+  for (const change of [
+    { directory: ' ' },
+    { remote: 'yes' },
+    { naming: 'other' },
+    { prefix: '' },
+    { prefix: '../escape/' },
+  ]) {
+    assert.equal(
+      (await rpc('save-settings', { ...view, settings: { ...view.settings, ...change } })).error.code,
+      'invalid'
+    )
+  }
+  assert.deepEqual((await rpc('settings')).value, view)
+  assert.equal((await rpc('save-settings', { ...view, settings: { ...view.settings, remote: true } })).ok, true)
+  assert.equal((await rpc('create', { cwd: repo, name: 'no-upstream' })).ok, true)
+  await submit()
+  assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
+  assert.equal(git('for-each-ref', '--format=%(refname)', 'refs/heads/no-upstream'), '')
+  assert.equal((await rpc('describe')).value.cwd, repo)
+})
+
+await test('configured hooks and checkout filters do not execute while creating a worktree', async (t) => {
+  const { repo, home, git, rpc, submit } = await fixture(t)
+  await writeFile(join(repo, '.gitattributes'), '*.txt filter=unsafe\n')
+  await writeFile(join(repo, 'tracked.txt'), 'original content\n')
+  git('add', '.gitattributes', 'tracked.txt')
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'tracked content')
+  const marker = join(home, 'must-not-execute')
+  git('config', 'filter.unsafe.smudge', `touch '${marker}'; cat`)
+  git('config', 'filter.unsafe.required', 'true')
+  const hooks = join(home, 'hooks')
+  await mkdir(hooks)
+  await writeFile(join(hooks, 'post-checkout'), `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 })
+  git('config', 'core.hooksPath', hooks)
+  assert.equal((await rpc('create', { cwd: repo, name: 'safe-checkout' })).ok, true)
+  await submit()
+  const result = await rpc('describe')
+  assert.equal(result.ok, true)
+  assert.equal(await readFile(join(result.value.cwd, 'tracked.txt'), 'utf8'), 'original content\n')
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
+})
+
+await test('task model and worktree settings coexist across profile reloads, reject stale writes and reset to the conversation model', async (t) => {
+  const initialSettings = { directory: '../naming pool', remote: true, naming: 'custom', prefix: 'team/' }
+  const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(
     t,
-    { provider: 'conversation', model: 'selected' },
-    route
+    { provider: 'fallback', model: 'large' },
+    initialSettings
   )
   const requests = []
+  let answer = 'task'
   class NamingAdapter extends LlmAdapter {
     async resolveModel(provider, model) {
       return { provider, id: model, name: model }
@@ -358,28 +564,88 @@ await test('uses the configured naming model, then follows the conversation agai
     async *stream(options) {
       const naming = options.maxTokens === 256
       if (naming) requests.push(options)
-      yield { type: 'text-delta', index: 0, text: naming ? `branch-${requests.length}` : 'Finished' }
+      yield { type: 'text-delta', index: 0, text: naming ? answer : 'Finished' }
       yield { type: 'finish', reason: { kind: 'stop' } }
     }
   }
-  ctx.llm.registerAdapter(['naming', 'conversation'], new NamingAdapter())
-  const named = await rpc('create', { cwd: repo, name: 'manual' })
-  assert.equal(named.ok, true)
-  assert.equal(requests.length, 0)
+  ctx.llm.registerAdapter(['naming', 'conversation', 'fallback'], new NamingAdapter())
+  await ctx.plugin(ModelSettings)
+  installModelSelection(agent.ctx, { current: { provider: 'conversation', model: 'selected' } })
+  agent.session.append('request/header', {
+    header: { config: { provider: 'conversation', model: 'selected' } },
+    reason: 'initial',
+  })
+  git('remote', 'add', 'origin', join(home, 'not-fetched'))
+  git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'))
+  git('branch', '--set-upstream-to=origin/main', 'main')
+
+  const staleSettings = (await rpc('settings')).value
+  const initial = (await rpc('dungsil-model-settings/describe')).value
+  assert.equal(initial.target, null)
+  const route = { provider: 'naming', model: 'small' }
+  const saved = await rpc('dungsil-model-settings/save', { ...initial.worktree, route })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.route, route)
+  assert.deepEqual((await rpc('settings')).value.settings, initialSettings)
+  assert.equal((await rpc('save-settings', staleSettings)).error.code, 'conflict')
+
+  assert.equal((await rpc('create', { cwd: repo, name: 'manual' })).ok, true)
+  assert.equal(requests.length, 0, 'saving a model and supplying a branch name must not generate text')
   await submit()
-  assert.equal(requests.length, 0, 'explicit names must still skip the configured naming model')
-  assert.equal((await rpc('create', { cwd: ctx.workingDirectory.get(agent.session) })).ok, true)
-  assert.equal(requests.length, 0, 'the configured model must wait for prompt submission')
+  const manual = await rpc('describe')
+  assert.equal(requests.length, 0, 'an explicit name must bypass the configured naming model')
+  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: repo })).ok, true)
+
+  for (const [naming, generated, branch] of [
+    ['semantic', 'fix/task-1', 'fix/task-1'],
+    ['dsh', 'task-2', 'dsh/task-2'],
+    ['custom', 'task-3', 'team/task-3'],
+  ]) {
+    const view = (await rpc('settings')).value
+    const modelBeforeEdit = (await rpc('dungsil-model-settings/describe')).value.worktree
+    const settings = { ...view.settings, naming }
+    const updated = await rpc('save-settings', {
+      ...view,
+      settings: { ...settings, provider: 'conversation', model: 'selected' },
+    })
+    assert.equal(updated.ok, true)
+    assert.deepEqual(updated.value.settings, settings, 'the worktree API only reads and writes its own fields')
+    const models = (await rpc('dungsil-model-settings/describe')).value
+    assert.deepEqual(models.worktree.route, route, 'worktree edits must preserve the task model')
+    const stale = await rpc('dungsil-model-settings/save', { ...modelBeforeEdit, route: null })
+    assert.equal(stale.error?.code, 'conflict', `${naming}: ${JSON.stringify(stale)}`)
+    answer = generated
+    assert.equal((await rpc('create', { cwd: repo })).ok, true)
+    const before = requests.length
+    await submit()
+    assert.equal(requests.length, before + 1, 'only submission may call the configured naming model')
+    const created = await rpc('describe')
+    assert.equal(created.ok, true)
+    assert.equal(created.value.cwd, join(home, 'naming pool', branch))
+    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+  }
+  assert.deepEqual(
+    requests.map(({ provider, model, tools }) => ({ provider, model, tools })),
+    Array.from({ length: 3 }, () => ({ ...route, tools: undefined }))
+  )
+  assert.match(await readFile(profile.patchPath, 'utf8'), /provider: naming/)
+  assert.match(await readFile(profile.patchPath, 'utf8'), /model: small/)
+
+  const beforeReset = (await rpc('settings')).value
+  const models = (await rpc('dungsil-model-settings/describe')).value
+  const reset = await rpc('dungsil-model-settings/save', { ...models.worktree, route: null })
+  assert.equal(reset.ok, true)
+  assert.equal(reset.value.route, null)
+  assert.deepEqual((await rpc('settings')).value.settings, beforeReset.settings)
+  assert.equal((await rpc('save-settings', beforeReset)).error.code, 'conflict')
+  assert.doesNotMatch(await readFile(profile.patchPath, 'utf8'), /provider:|model:/)
+  answer = 'inherited'
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
   await submit()
-  assert.equal(requests[0].provider, 'naming')
-  assert.equal(requests[0].model, 'small')
-  assert.equal(requests[0].tools, undefined)
-  assert.deepEqual(agent.session.requestHeader().config, { provider: 'conversation', model: 'selected' })
-  await fiber.dispose()
-  await ctx.plugin(plugin, {})
-  const inherited = await rpc('create', { cwd: ctx.workingDirectory.get(agent.session) })
+  const inherited = await rpc('describe')
   assert.equal(inherited.ok, true)
-  await submit()
-  assert.equal(requests[1].provider, 'conversation')
-  assert.equal(requests[1].model, 'selected')
+  assert.equal(inherited.value.cwd, join(home, 'naming pool/team/inherited'))
+  assert.equal(requests.at(-1).provider, 'conversation')
+  assert.equal(requests.at(-1).model, 'selected')
+  assert.deepEqual(agent.session.requestHeader().config, { provider: 'conversation', model: 'selected' })
 })

@@ -1,5 +1,3 @@
 - insert:
-    - id: worktree
-      name: '@deepseek-ai/dsh-experimental-worktree'
     - id: dungsil-ui-worktree
       name: '@dungsil/dsh-plugin-ui-worktree'

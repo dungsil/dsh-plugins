@@ -80,14 +80,14 @@ await test('task model API works without a client and the UI bundle activates it
   )
 })
 
-await test('worktree UI bundle includes its runtime without the model tool', async () => {
+await test('worktree UI bundle owns creation and loads the settings UI without the model tool', async () => {
   const { base, manifest } = packages.get('@dungsil/dsh-plugin-ui-worktree')
-  const runtime = '@deepseek-ai/dsh-experimental-worktree'
-  assert.ok(manifest.dependencies[runtime])
+  assert.ok(manifest.peerDependencies['@deepseek-ai/dsh-config-editor'])
+  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings'))
   const patch = parse(await readFile(new URL(manifest.dsh.bundle.patch, base), 'utf8'))
   const rows = patch.flatMap((operation) => operation.insert ?? [])
   assert.deepEqual(
     rows.map(({ name }) => name),
-    [runtime, manifest.name]
+    [manifest.name]
   )
 })
