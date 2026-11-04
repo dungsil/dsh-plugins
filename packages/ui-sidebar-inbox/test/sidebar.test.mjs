@@ -138,6 +138,7 @@ function nativeMenu(browser, { orderBy = 'updated' } = {}) {
 
 function setup(options = {}) {
   const browser = new Window()
+  if (options.previousSort !== null) browser.localStorage.setItem(previousSortKey, options.previousSort ?? 'updated')
   globalThis.window = browser
   globalThis.document = browser.document
   const rows = [
@@ -318,7 +319,39 @@ async function openMenu(app, options) {
   return menu
 }
 
-void test('stays opt-in: default view options are never rewritten and no labels appear', async (t) => {
+void test('new installations default to agent activity once and preserve later choices', async (t) => {
+  for (const groupBy of ['flat', 'workspace', 'workspace-tree']) {
+    for (const orderBy of ['manual', 'updated']) {
+      await t.test(`${groupBy} / ${orderBy}`, async () => {
+        const app = setup({ previousSort: null, view: { groupBy, orderBy, archivedFilter: 'show' } })
+        assert.equal(app.view.getSnapshot().groupBy, 'flat')
+        assert.equal(app.view.getSnapshot().orderBy, agentActivity)
+        assert.equal(app.view.getSnapshot().archivedFilter, 'show')
+        assert.equal(app.browser.localStorage.getItem(previousSortKey), orderBy)
+        assert.deepEqual(app.accounts(), {
+          old: ['idle'],
+          [flatKey]: ['pinned', 'approval', 'idle', 'running', 'archived'],
+        })
+        await app.paint()
+        assert.deepEqual(app.headingTexts(), ['Working', 'Archived'])
+        const menu = await openMenu(app)
+        assert.equal(menu.injected().querySelector('button').getAttribute('aria-current'), 'true')
+        menu.injected().querySelector('button').click()
+        await app.browser.happyDOM.waitUntilComplete()
+        assert.equal(app.view.getSnapshot().orderBy, orderBy)
+        const saved = { ...app.view.getSnapshot(), groupBy }
+        app.dispose()
+
+        const reloaded = setup({ view: saved, previousSort: orderBy })
+        assert.deepEqual({ ...reloaded.view.getSnapshot() }, saved, 'reload preserves the user choice')
+        assert.equal(reloaded.writes(), 0)
+        reloaded.dispose()
+      })
+    }
+  }
+})
+
+void test('existing native view choices are never rewritten and no labels appear', async (t) => {
   const app = setup()
   t.after(app.dispose)
   assert.deepEqual({ ...app.view.getSnapshot() }, { ...app.original })
@@ -704,7 +737,7 @@ void test('switching Group by away from the single list releases the mode', asyn
 })
 
 void test('a persisted mode that starts grouped is released on load', async (t) => {
-  const app = setup({ view: { orderBy: agentActivity, groupBy: 'workspace' } })
+  const app = setup({ previousSort: null, view: { orderBy: agentActivity, groupBy: 'workspace' } })
   t.after(app.dispose)
   assert.equal(app.view.getSnapshot().orderBy, 'manual', 'the previous sort is restored from the fallback')
   assert.equal(app.view.getSnapshot().groupBy, 'workspace')
