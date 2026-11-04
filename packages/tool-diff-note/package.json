@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-tool-diff-note",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Agent-authored explanations beside historical code diffs in DSH conversations.",
   "license": "MIT",
   "repository": {
@@ -32,7 +32,6 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-tool": "0.2.1-rc.5",
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
@@ -48,6 +47,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-system-prompt": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.5"
   },

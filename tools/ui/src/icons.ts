@@ -1,4 +1,3 @@
-/// <reference path="./svg.d.ts" />
 import { createElement } from 'react'
 import resetIconSvg from './icons/rotate-ccw.svg'
 
@@ -15,9 +14,14 @@ export {
   IconClockOutlineRegular,
   IconCloseOutlineRegular,
   IconDataOutlineRegular,
+  IconCopyOutlineRegular,
+  IconGaugeOutlineRegular,
   IconLoadingOutlineRegular,
   IconPlusOutlineRegular,
+  IconRefreshOutlineRegular,
+  IconRightUpOutlineRegular,
   IconStopFillRegular,
+  IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 export function IconResetOutlineRegular() {

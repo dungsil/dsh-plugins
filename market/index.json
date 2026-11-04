@@ -77,6 +77,16 @@
       },
       "versions": [
         {
+          "version": "0.7.2",
+          "publishTimestamp": 1793804383,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.7.1",
           "publishTimestamp": 1793784452,
           "source": {
@@ -457,6 +467,16 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1793804334,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1793781164,
           "source": {
@@ -503,6 +523,16 @@
       },
       "versions": [
         {
+          "version": "0.5.0",
+          "publishTimestamp": 1793804371,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.4.0",
           "publishTimestamp": 1793784441,
           "source": {
@@ -545,6 +575,42 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-setting-skills",
+      "title": {
+        "en": "Skills Settings",
+        "ko": "스킬 설정",
+        "zh": "技能设置"
+      },
+      "description": {
+        "en": "View loaded skills from your shared agent and DSH skill directories in settings.",
+        "ko": "설정 화면에서 공용 에이전트 및 DSH 스킬 경로에 로드된 스킬을 확인합니다.",
+        "zh": "在设置中查看从共享代理和 DSH 技能目录加载的技能。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-setting-skills"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["skills", "settings", "ui"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793804353,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-worktree",
       "title": {
         "en": "Git Worktree UI",
@@ -568,6 +634,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1793804377,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1793784446,
@@ -624,6 +700,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.2",
+          "publishTimestamp": 1793804347,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.2.1",
           "publishTimestamp": 1793784430,
@@ -683,6 +769,114 @@
         {
           "version": "0.1.0",
           "publishTimestamp": 1793774725,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-vcs",
+      "title": {
+        "en": "Version Control",
+        "ko": "버전 관리",
+        "zh": "版本控制"
+      },
+      "description": {
+        "en": "Git actions above the composer: push on the default branch, create or update a PR on other branches or worktrees, or commit only.",
+        "ko": "입력창 위에서 Git 작업을 요청합니다. 기본 브랜치에서는 푸시하고 다른 브랜치나 worktree에서는 PR을 생성·업데이트하며, 커밋만 선택할 수도 있습니다.",
+        "zh": "在输入框上方请求 Git 操作：默认分支推送，其他分支或 worktree 创建或更新 PR，也可选择仅提交。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-vcs"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["git", "commit", "push", "pull-request", "composer"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793804365,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-usage",
+      "title": {
+        "en": "Usage Dashboard",
+        "ko": "사용량 대시보드",
+        "zh": "用量仪表盘"
+      },
+      "description": {
+        "en": "View recorded session tokens, daily activity, and model usage from the sidebar.",
+        "ko": "사이드바에서 세션에 기록된 토큰, 일별 추이, 모델별 사용량을 확인합니다.",
+        "zh": "从侧边栏查看会话记录的令牌、每日趋势和模型用量。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-usage"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["usage", "tokens", "dashboard", "models"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793804359,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-tool-diff-note",
+      "title": {
+        "en": "Diff Notes",
+        "ko": "변경 설명",
+        "zh": "变更说明"
+      },
+      "description": {
+        "en": "Let the agent explain important decisions beside before-and-after code snapshots without editing source files.",
+        "ko": "소스 파일을 수정하지 않고, 수정 전·후 코드 스냅샷 옆에 에이전트가 중요한 판단의 이유를 남깁니다.",
+        "zh": "让智能体在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/tool-diff-note"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["diff", "note", "review", "tool"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793804341,
           "source": {
             "type": "npm"
           },

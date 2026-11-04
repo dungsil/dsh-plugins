@@ -5,14 +5,12 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { Button, Menu, StateDot } from '@dungsil/dsh-ui'
 import {
-  Button,
   IconChevronDownOutlineRegular,
   IconGaugeOutlineRegular,
   IconRefreshOutlineRegular,
-  Menu,
-  StateDot,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { localizedCopy } from './copy.js'
 import { channel, method, type UsageView } from './protocol.js'
