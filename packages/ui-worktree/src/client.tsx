@@ -20,23 +20,26 @@ import { copy } from './requests.js'
 import { settingsLabel, WorktreeSettingsSection } from './settings.js'
 import { styles } from './styles.js'
 import { installSidebarLabel } from './sidebar.js'
+import { installProgress } from './progress.js'
 
 export const name = 'dungsil-ui-worktree'
-export const inject = ['slots', 'locale', 'connection']
+export const inject = ['slots', 'locale', 'connection', 'uiConversation']
 
 type Props = PropsRuntime<'conversation.input.left'>
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const subscribeLocale = (listener: () => void) => ctx.locale.subscribe(listener)
+  installProgress(ctx)
   function Picker({ sessionId, useSession }: Props) {
     const language = useSyncExternalStore(subscribeLocale, () => ctx.locale.getSnapshot().active)
-    const text = copy[language.startsWith('ko') ? 'ko' : 'en']
+    const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
+    const running = useSession((s) => s.running)
+    const wasRunning = useRef(running)
     const [view, setView] = useState<WorktreeView>()
-    const [value, setValue] = useState('')
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<WorktreeFailure>()
@@ -46,16 +49,16 @@ export function apply(ctx: Context) {
     const needsRefresh = useRef(false)
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
-    const dialog = useRef<HTMLDialogElement>(null)
     const errorDialog = useRef<HTMLDialogElement>(null)
     const errorTrigger = useRef<HTMLButtonElement>(null)
-    const title = useId()
     const errorTitle = useId()
     const errorDescription = useId()
-    const field = useId()
     const status = useId()
     const disabled = unavailable || loading || busy || !!error || !view
-    const errorLabel = error?.uncertain ? text.mutationError : text.lookupError
+    const creation = view?.pendingCreation
+    const detailError: WorktreeFailure | undefined =
+      error ?? (creation?.failed ? { operation: 'create', code: 'operation_failed', uncertain: true } : undefined)
+    const errorLabel = detailError?.uncertain ? text.mutationError : text.lookupError
 
     const recordFailure = (operation: WorktreeOperation, cause: unknown) => {
       const code = failureCode(cause)
@@ -106,7 +109,6 @@ export function apply(ctx: Context) {
       }
       const resize = () => {
         setOpen(false)
-        dialog.current?.close()
       }
       window.addEventListener('focus', focus)
       window.addEventListener('resize', resize)
@@ -118,19 +120,13 @@ export function apply(ctx: Context) {
     }, [])
 
     useEffect(() => {
+      if (wasRunning.current && !running) void load()
+      wasRunning.current = running
+    }, [running])
+
+    useEffect(() => {
       if (disabled) setOpen(false)
     }, [disabled])
-
-    const show = () => {
-      const element = dialog.current
-      const button = trigger.current
-      if (disabled || pending.current || !element || !button) return
-      element.showModal()
-      const anchor = button.getBoundingClientRect()
-      const box = element.getBoundingClientRect()
-      element.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - box.width - 8))}px`
-      element.style.top = `${Math.max(8, anchor.top - box.height - 8)}px`
-    }
 
     const change = async (endpoint: 'create' | 'switch', path?: string) => {
       const controller = lifetime.current
@@ -140,20 +136,13 @@ export function apply(ctx: Context) {
       setBusy(true)
       setChanged(false)
       try {
-        const payload =
-          endpoint === 'create'
-            ? { sessionId, cwd: view.cwd, ...(value.trim() ? { name: value.trim() } : {}) }
-            : { sessionId, cwd: view.cwd, path }
+        const payload = endpoint === 'create' ? { sessionId, cwd: view.cwd } : { sessionId, cwd: view.cwd, path }
         // ConnectionHandle exposes no authenticated principal. Owner-only access
         // is enforced by the server, not by unrelated session/prompt permission.
         const nextView = await request(endpoint, payload, controller.signal)
         if (controller.signal.aborted) return
         setView(nextView)
         setChanged(true)
-        if (endpoint === 'create') {
-          setValue('')
-          dialog.current?.close()
-        }
         pending.current = false
         await load()
       } catch (cause) {
@@ -167,12 +156,12 @@ export function apply(ctx: Context) {
     }
 
     useEffect(() => {
-      if (!busy && changed && !dialog.current?.open) trigger.current?.focus()
+      if (!busy && changed) trigger.current?.focus()
     }, [busy, changed])
 
     useEffect(() => {
-      if (!error && errorDialog.current?.open) errorDialog.current.close()
-    }, [error])
+      if (!detailError && errorDialog.current?.open) errorDialog.current.close()
+    }, [error, creation?.failed])
 
     const restoreErrorFocus = () => {
       const button = errorTrigger.current ?? trigger.current
@@ -187,7 +176,13 @@ export function apply(ctx: Context) {
       return installSidebarLabel(sessionId, name, current.path)
     }, [sessionId, current, view])
 
-    const branch = current ? (current.branch ?? text.detached) : text.unknown
+    const branch = creation
+      ? creation.failed
+        ? text.mutationError
+        : text.create
+      : current
+        ? (current.branch ?? text.detached)
+        : text.unknown
     const notice = loading
       ? text.loading
       : busy
@@ -196,11 +191,15 @@ export function apply(ctx: Context) {
           ? errorLabel
           : unavailable
             ? text.wait
-            : changed
-              ? text.changed
-              : view?.worktrees.length === 0
-                ? text.empty
-                : ''
+            : creation
+              ? creation.failed
+                ? text.creationError
+                : text.reservationHint
+              : changed
+                ? text.changed
+                : view?.worktrees.length === 0
+                  ? text.empty
+                  : ''
 
     return (
       <div className="dsh-worktree">
@@ -210,7 +209,7 @@ export function apply(ctx: Context) {
             open={open}
             side="top"
             portal
-            selectedId={current ? `path:${current.path}` : undefined}
+            selectedId={creation ? 'create' : current ? `path:${current.path}` : undefined}
             items={[
               { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
               ...(view?.worktrees.map((item) => ({
@@ -223,8 +222,10 @@ export function apply(ctx: Context) {
             onSelect={(id) => {
               setOpen(false)
               if (disabled || pending.current) return
-              if (id === 'create') show()
-              else if (id.startsWith('path:') && id !== `path:${current?.path}`) void change('switch', id.slice(5))
+              if (id === 'create') {
+                if (!creation || creation.failed) void change('create')
+              } else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
+                void change('switch', id.slice(5))
             }}
             anchor={
               <button
@@ -256,7 +257,7 @@ export function apply(ctx: Context) {
               </button>
             }
           />
-          {error && (
+          {detailError && (
             <button
               ref={errorTrigger}
               type="button"
@@ -273,71 +274,6 @@ export function apply(ctx: Context) {
           {notice}
         </span>
         <dialog
-          ref={dialog}
-          className="dsh-worktree-dialog"
-          aria-labelledby={title}
-          onClose={() => trigger.current?.focus()}
-          onCancel={(event) => {
-            if (pending.current) event.preventDefault()
-          }}
-          onClick={(event) => {
-            const box = event.currentTarget.getBoundingClientRect()
-            const outside =
-              event.clientX < box.left ||
-              event.clientX > box.right ||
-              event.clientY < box.top ||
-              event.clientY > box.bottom
-            if (event.target === event.currentTarget && outside && !pending.current) event.currentTarget.close()
-          }}
-        >
-          <header>
-            <h2 id={title}>{text.createTitle}</h2>
-            <button type="button" aria-label={text.close} disabled={busy} onClick={() => dialog.current?.close()}>
-              <IconCloseOutlineRegular aria-hidden="true" />
-            </button>
-          </header>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void change('create')
-            }}
-          >
-            <label htmlFor={field}>{text.branch}</label>
-            <input
-              id={field}
-              type="text"
-              value={value}
-              disabled={busy}
-              maxLength={200}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="fix-login"
-              onChange={(event) => setValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229))
-                  event.preventDefault()
-              }}
-            />
-            <p className="dsh-worktree-hint">{text.hint}</p>
-            {error && (
-              <div role="alert">
-                <p>{error.uncertain ? text.error : text.readError}</p>
-                <p>{text.reasons[error.code]}</p>
-                <code>{error.code}</code>
-              </div>
-            )}
-            {unavailable && <p role="status">{text.wait}</p>}
-            <footer>
-              <button type="button" disabled={loading || busy} onClick={() => void load(true)}>
-                {text.refresh}
-              </button>
-              <button type="submit" className="dsh-worktree-primary" disabled={disabled}>
-                {busy ? text.busy : text.submit}
-              </button>
-            </footer>
-          </form>
-        </dialog>
-        <dialog
           ref={errorDialog}
           className="dsh-worktree-dialog dsh-worktree-error-dialog"
           aria-labelledby={errorTitle}
@@ -350,16 +286,18 @@ export function apply(ctx: Context) {
               <IconCloseOutlineRegular aria-hidden="true" />
             </button>
           </header>
-          <p id={errorDescription}>{error?.uncertain ? text.error : text.readError}</p>
-          {error && (
+          <p id={errorDescription}>
+            {creation?.failed ? text.creationError : error?.uncertain ? text.error : text.readError}
+          </p>
+          {detailError && (
             <>
-              <p>{text.reasons[error.code]}</p>
+              <p>{text.reasons[detailError.code]}</p>
               <dl>
                 <dt>{text.errorOperation}</dt>
-                <dd>{text.operations[error.operation]}</dd>
+                <dd>{text.operations[detailError.operation]}</dd>
                 <dt>{text.errorCode}</dt>
                 <dd>
-                  <code>{error.code}</code>
+                  <code>{detailError.code}</code>
                 </dd>
               </dl>
             </>

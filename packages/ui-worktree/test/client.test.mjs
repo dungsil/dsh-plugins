@@ -94,6 +94,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   const ctx = new Context()
   let Component
   let SettingsComponent
+  let ProgressComponent
   let settingsOptions
   let language = 'ko'
   const calls = []
@@ -104,11 +105,23 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       if (options.name === 'settings.section') {
         SettingsComponent = component
         settingsOptions = options
+      } else if (options.name === 'conversation.chat.node') {
+        assert.equal(options.key, 'dungsil-worktree-progress')
+        ProgressComponent = component
       } else {
         assert.equal(options.name, 'conversation.input.left')
         Component = component
       }
       return () => {}
+    },
+  })
+  ctx.provide('uiConversation', {
+    events: {
+      register: (definition) => {
+        assert.equal(definition.kind, 'dungsil-worktree-progress')
+        assert.equal(definition.target, 'chat')
+        return () => {}
+      },
     },
   })
   const locale = {
@@ -174,9 +187,13 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     })
   const trigger = () => document.querySelector('.dsh-worktree-trigger')
   const branchName = () => document.querySelector('.dsh-worktree-name').textContent
-  const dialog = () => document.querySelector('dialog')
-  const field = () => document.querySelector('input[type=text]')
   const submitButton = () => document.querySelector('button[type=submit]')
+  const assertNoCreationForm = () => {
+    assert.equal(document.querySelector('dialog:not(.dsh-worktree-error-dialog)'), null)
+    assert.equal(document.querySelector('form'), null)
+    assert.equal(document.querySelector('input'), null)
+    assert.equal(submitButton(), null)
+  }
   const openMenu = async () => {
     if (!menuProps.open) await act(async () => trigger().click())
   }
@@ -194,8 +211,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   }
   const refresh = async () =>
     act(async () => {
-      if (dialog().open) document.querySelector('form footer button[type=button]').click()
-      else if (document.querySelector('.dsh-worktree-error-trigger')) {
+      if (document.querySelector('.dsh-worktree-error-trigger')) {
         document.querySelector('.dsh-worktree-error-trigger').click()
         document.querySelector('[data-worktree-retry]').click()
       } else window.dispatchEvent(new window.Event('focus'))
@@ -207,11 +223,6 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   const submit = async () =>
     act(async () => {
       document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
-    })
-  const input = async (value) =>
-    act(async () => {
-      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(field(), value)
-      field().dispatchEvent(new window.Event('input', { bubbles: true }))
     })
   const resolve = async (call, view) =>
     act(async () => {
@@ -234,6 +245,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     cwd: '/repo/new',
     worktrees: [...original.worktrees, { path: '/repo/new', branch: 'feature/한글-"quote"' }],
   }
+  const reserved = { ...original, pendingCreation: { name: 'feature/한글-"quote"', failed: false } }
 
   await t.test(
     'mount, host Menu contract, current no-op, create, switch, duplicate prevention and refresh',
@@ -280,7 +292,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       )
       assert.deepEqual(
         menuProps.items.map((item) => item.label),
-        ['신규 워크트리…', 'main', 'feature/한글', '분리된 HEAD']
+        ['새 워크트리', 'main', 'feature/한글', '분리된 HEAD']
       )
       assert.equal(menuProps.items[0].icon.type, hostPrimitives.IconPlusOutlineRegular)
       for (const item of menuProps.items.slice(1)) assert.equal(item.icon.type, hostPrimitives.IconBranchOutlineRegular)
@@ -293,49 +305,48 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       await choose('path:/repo')
       assert.equal(calls.length, count)
       assert.equal(menuProps.open, false, 'current path selection must close without RPC')
-      await choose('create')
-      assert.equal(dialog().open, true)
-      assert.equal(menuProps.open, false, 'create must close Menu before opening the existing dialog')
-      assert.equal(menuProps.selectedId, 'path:/repo')
-      await input('feature/한글-"quote"')
-      for (const options of [{ isComposing: true }, { keyCode: 229 }]) {
-        await act(async () => {
-          const event = new window.KeyboardEvent('keydown', {
-            key: 'Enter',
-            bubbles: true,
-            cancelable: true,
-            ...options,
-          })
-          field().dispatchEvent(event)
-          assert.equal(event.defaultPrevented, true, 'IME Enter must not submit')
-        })
-      }
+      assertNoCreationForm()
+      await openMenu()
       const beforeCreate = calls.length
       await act(async () => {
-        for (let index = 0; index < 2; index++)
-          document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
+        for (let index = 0; index < 2; index++) menuProps.onSelect('create')
       })
-      assert.equal(calls.length, beforeCreate + 1, 'same-tick double submission must be serialized')
+      assert.equal(calls.length, beforeCreate + 1, 'same-tick duplicate create selection must be serialized')
+      assert.equal(menuProps.open, false, 'create must close Menu and call RPC immediately')
+      assertNoCreationForm()
       const create = calls.at(-1)
       assert.equal(create.endpoint, 'create')
-      assert.deepEqual(create.payload, { sessionId: 'session-a', cwd: '/repo', name: 'feature/한글-"quote"' })
-      await submit()
+      assert.deepEqual(create.payload, { sessionId: 'session-a', cwd: '/repo' })
+      await choose('create')
       await choose('path:/repo/detached')
       await focus()
       await refresh()
       assert.equal(calls.at(-1), create, 'one mutation only while busy')
-      assert.equal(submitButton().disabled, true)
-      await act(async () => {
-        const cancel = new window.Event('cancel', { cancelable: true })
-        dialog().dispatchEvent(cancel)
-        assert.equal(cancel.defaultPrevented, true, 'Escape must not hide an in-flight mutation')
-      })
-      await resolve(create, created)
-      assert.equal(dialog().open, false)
+      assert.equal(trigger().disabled, true)
+      await resolve(create, reserved)
+      assertNoCreationForm()
       assert.equal(calls.at(-1).endpoint, 'describe', 'success must refresh the list')
-      await resolve(calls.at(-1), created)
-      assert.equal(field().value, '')
+      await resolve(calls.at(-1), reserved)
       assert.equal(document.activeElement, trigger(), 'return focus after success refresh finishes')
+      assert.equal(branchName(), '새 워크트리', 'old reserved names must not appear before task completion')
+      assert.equal(trigger().title, '새 워크트리')
+      assert.equal(trigger().getAttribute('aria-label'), 'Git worktree: 새 워크트리')
+      assert.equal(menuProps.selectedId, 'create')
+      assert.match(document.querySelector('[role=status]').textContent, /다음 프롬프트를 전송/)
+      const beforePrompt = calls.length
+      await choose('create')
+      assert.equal(calls.length, beforePrompt, 'selecting a nonfailed reservation must be a no-op')
+      assert.equal(menuProps.open, false)
+      assertNoCreationForm()
+      snapshot = { ...ready, running: true }
+      await render()
+      assert.equal(trigger().disabled, true)
+      assert.equal(branchName(), '새 워크트리')
+      assert.equal(calls.length, beforePrompt, 'running must not try an idle-only lookup')
+      snapshot = ready
+      await render()
+      assert.equal(calls.at(-1).endpoint, 'describe', 'finishing the prompt must refresh the branch')
+      await resolve(calls.at(-1), created)
       assert.equal(branchName(), 'feature/한글-"quote"')
       assert.equal(trigger().getAttribute('aria-label'), 'Git worktree: feature/한글-"quote"')
       await choose(`path:${switched.cwd}`)
@@ -367,58 +378,70 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     }
   )
 
-  await t.test('failures require explicit refresh, preserve branch drafts, and never retry automatically', async () => {
-    await choose('create')
-    await input('keep-this-branch')
-    for (const code of ['busy', 'conflict', 'invalid', 'operation_failed', 'session_not_found', 'forbidden']) {
-      await submit()
-      const mutation = calls.at(-1)
-      assert.equal(mutation.endpoint, 'create')
-      await fail(mutation, code)
-      assert.match(document.querySelector('dialog [role=alert]').textContent, /새로고침으로 상태를 확인/)
-      assert.equal(field().value, 'keep-this-branch')
-      assert.equal(dialog().open, true)
-      assert.equal(submitButton().disabled, true)
-      await submit()
-      await focus()
-      assert.equal(calls.at(-1), mutation, 'failure must not retry or silently requery')
+  await t.test(
+    'failures require explicit refresh, preserve composer drafts, and never retry automatically',
+    async () => {
+      for (const code of ['busy', 'conflict', 'invalid', 'operation_failed', 'session_not_found', 'forbidden']) {
+        await choose('create')
+        const mutation = calls.at(-1)
+        assert.equal(mutation.endpoint, 'create')
+        assert.deepEqual(mutation.payload, { sessionId: 'session-a', cwd: switched.cwd })
+        await fail(mutation, code)
+        assertNoCreationForm()
+        assert.equal(trigger().disabled, true)
+        await act(async () => document.querySelector('.dsh-worktree-error-trigger').click())
+        const details = document.querySelector('.dsh-worktree-error-dialog')
+        assert.equal(details.open, true)
+        assert.match(details.textContent, /새로고침으로 상태를 확인/)
+        assert.match(details.textContent, new RegExp(code))
+        assert.doesNotMatch(details.textContent, /Server detail/)
+        assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
+        assert.equal(document.querySelector('[data-attachment]').textContent, 'file.txt')
+        await choose('create')
+        await choose('path:/repo')
+        await focus()
+        assert.equal(calls.at(-1), mutation, 'failure must not retry or silently requery')
+        await refresh()
+        assert.equal(calls.at(-1).endpoint, 'describe')
+        await resolve(calls.at(-1), switched)
+        assert.equal(trigger().disabled, false)
+        assert.equal(details.open, false)
+        assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+      }
+      await choose('create')
+      const uncertain = calls.at(-1)
       await act(async () => {
-        document.querySelector('footer button[type=button]').click()
+        uncertain.reject(new Error('Connection lost'))
       })
-      assert.equal(calls.at(-1).endpoint, 'describe')
+      assert.equal(trigger().disabled, true)
+      await choose('create')
+      await focus()
+      assert.equal(calls.at(-1), uncertain)
+      await refresh()
       await resolve(calls.at(-1), switched)
-      assert.equal(submitButton().disabled, false)
-      assert.equal(field().value, 'keep-this-branch')
+      await choose('create')
+      assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-a', cwd: switched.cwd })
+      await resolve(calls.at(-1), created)
+      await fail(calls.at(-1), 'operation_failed')
+      assertNoCreationForm()
+      assert.ok(document.querySelector('.dsh-worktree-error-trigger'))
+      assert.equal(trigger().disabled, true, 'failed success-refresh must require explicit recovery')
+      const failedRefresh = calls.at(-1)
+      await choose('create')
+      await focus()
+      assert.equal(calls.at(-1), failedRefresh)
+      await refresh()
+      await resolve(calls.at(-1), created)
+      await choose('path:/repo')
+      const failedSwitch = calls.at(-1)
+      await fail(failedSwitch, 'conflict')
+      assert.equal(menuProps.selectedId, 'path:/repo/new')
+      await focus()
+      assert.equal(calls.at(-1), failedSwitch)
+      await refresh()
+      await resolve(calls.at(-1), created)
     }
-    await submit()
-    const uncertain = calls.at(-1)
-    await act(async () => {
-      uncertain.reject(new Error('Connection lost'))
-    })
-    assert.equal(submitButton().disabled, true)
-    await focus()
-    assert.equal(calls.at(-1), uncertain)
-    await refresh()
-    await resolve(calls.at(-1), switched)
-    await input('')
-    await submit()
-    assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-a', cwd: switched.cwd }, 'branch name is optional')
-    await resolve(calls.at(-1), created)
-    await fail(calls.at(-1), 'operation_failed')
-    assert.equal(dialog().open, false)
-    assert.ok(document.querySelector('.dsh-worktree-error-trigger'))
-    assert.equal(trigger().disabled, true, 'failed success-refresh must require explicit recovery')
-    await refresh()
-    await resolve(calls.at(-1), created)
-    await choose('path:/repo')
-    const failedSwitch = calls.at(-1)
-    await fail(failedSwitch, 'conflict')
-    assert.equal(menuProps.selectedId, 'path:/repo/new')
-    await focus()
-    assert.equal(calls.at(-1), failedSwitch)
-    await refresh()
-    await resolve(calls.at(-1), created)
-  })
+  )
 
   await t.test('session navigation discards delayed reads and writes even if transport ignores abort', async () => {
     await refresh()
@@ -432,9 +455,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(oldRead, original)
     assert.equal(branchName(), 'other')
     await choose('create')
-    await input('old-session-branch')
-    await submit()
     const oldWrite = calls.at(-1)
+    assert.deepEqual(oldWrite.payload, { sessionId: 'session-b', cwd: '/other' })
     await render('session-c')
     assert.equal(oldWrite.signal.aborted, true)
     const thirdRead = calls.at(-1)
@@ -442,17 +464,61 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     const count = calls.length
     await resolve(oldWrite, created)
     assert.equal(calls.length, count, 'stale mutation must not refresh the new session')
-    assert.equal(dialog().open, false)
-    assert.equal(field().value, '')
+    assertNoCreationForm()
     assert.equal(branchName(), 'main')
     await choose('create')
-    await submit()
-    assert.equal(calls.at(-1).payload.sessionId, 'session-c')
+    assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-c', cwd: '/repo' })
     await resolve(calls.at(-1), created)
     await resolve(calls.at(-1), created)
   })
 
-  await t.test('initial errors, empty lists, locale, idle restrictions, and dismissal remain accessible', async () => {
+  await t.test(
+    'reservations are no-ops, failed creations can be reselected, and the current checkout cancels either',
+    async () => {
+      await render('session-reserved')
+      await resolve(calls.at(-1), reserved)
+      assert.equal(menuProps.selectedId, 'create')
+      assert.equal(branchName(), '새 워크트리')
+      const count = calls.length
+      await choose('create')
+      assert.equal(calls.length, count)
+      assertNoCreationForm()
+      await choose('path:/repo')
+      assert.equal(calls.at(-1).endpoint, 'switch', 'the current checkout must cancel instead of being a no-op')
+      await resolve(calls.at(-1), original)
+      await resolve(calls.at(-1), original)
+      assert.equal(branchName(), 'main')
+      await refresh()
+      const failed = { ...reserved, pendingCreation: { ...reserved.pendingCreation, failed: true } }
+      await resolve(calls.at(-1), failed)
+      assert.equal(trigger().disabled, false, 'failure recovery must allow an explicit checkout selection')
+      assert.equal(branchName(), '변경 확인 필요')
+      await act(async () => document.querySelector('.dsh-worktree-error-trigger').click())
+      const details = document.querySelector('.dsh-worktree-error-dialog')
+      assert.match(details.textContent, /프롬프트를 다시 전송/)
+      await act(async () => details.querySelector('[data-worktree-retry]').click())
+      await resolve(calls.at(-1), failed)
+      assert.equal(details.open, true, 'lookup alone must not retry creation or dismiss its unresolved error')
+      await act(async () => details.close())
+      await choose('create')
+      assert.equal(calls.at(-1).endpoint, 'create', 'a failed reservation may be explicitly created again')
+      assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-reserved', cwd: '/repo' })
+      await resolve(calls.at(-1), reserved)
+      await resolve(calls.at(-1), reserved)
+      assert.equal(branchName(), '새 워크트리', 'retry must not restore a legacy custom name')
+      assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+      await refresh()
+      await resolve(calls.at(-1), failed)
+      await choose('path:/repo')
+      await resolve(calls.at(-1), original)
+      await resolve(calls.at(-1), original)
+      assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+      assert.equal(branchName(), 'main')
+      assert.equal(prompts, 0, 'the picker must never replay a prompt itself')
+    }
+  )
+
+  await t.test('initial errors, empty lists, locale, and idle restrictions remain accessible', async () => {
     await render('session-empty')
     await fail(calls.at(-1), 'forbidden')
     assert.equal(trigger().disabled, true)
@@ -474,17 +540,36 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     })
     assert.equal(branchName(), 'Branch unavailable')
     await choose('create')
-    assert.equal(document.querySelector('h2').textContent, 'Create worktree')
-    await input('retained-on-dismiss')
-    await act(async () => {
-      const cancel = new window.Event('cancel', { cancelable: true })
-      dialog().dispatchEvent(cancel)
-      assert.equal(cancel.defaultPrevented, false, 'idle Escape may close the dialog')
-      // happy-dom does not implement the native Escape default action.
-      dialog().close()
-    })
+    assert.equal(calls.at(-1).endpoint, 'create')
+    assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-empty', cwd: '/not-git' })
+    assertNoCreationForm()
+    await resolve(calls.at(-1), reserved)
+    await resolve(calls.at(-1), reserved)
+    assert.equal(branchName(), 'New worktree')
+    assert.equal(trigger().title, 'New worktree')
+    assert.equal(trigger().getAttribute('aria-label'), 'Git worktree: New worktree')
+    const beforeDuplicate = calls.length
     await choose('create')
-    assert.equal(field().value, 'retained-on-dismiss')
+    assert.equal(calls.length, beforeDuplicate, 'English named reservations are also no-ops')
+    for (const active of ['zh', 'zh-CN']) {
+      await act(async () => {
+        language = active
+        for (const listener of locale.listeners) listener()
+      })
+      assert.equal(branchName(), '新工作树')
+      assert.equal(trigger().title, '新工作树')
+      assert.match(trigger().getAttribute('aria-label'), /新工作树$/)
+      assert.equal(menuProps.items[0].label, '新工作树')
+      assert.equal(menuProps.selectedId, 'create')
+      assert.match(document.querySelector('[role=status]').textContent, /提示/)
+      assertNoCreationForm()
+      await choose('create')
+      assert.equal(calls.length, beforeDuplicate, 'Chinese reservations and locale changes must not issue RPC')
+    }
+    await act(async () => {
+      language = 'en'
+      for (const listener of locale.listeners) listener()
+    })
     for (const state of [
       { ...ready, running: true },
       { ...ready, removed: true },
@@ -493,18 +578,16 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     ]) {
       snapshot = state
       await render('session-empty')
+      if (calls.at(-1).endpoint === 'describe') await resolve(calls.at(-1), { cwd: '/not-git', worktrees: [] })
       assert.equal(trigger().disabled, true)
-      assert.equal(submitButton().disabled, true)
+      assertNoCreationForm()
       const count = calls.length
-      await submit()
+      await choose('create')
       assert.equal(calls.length, count)
     }
     snapshot = ready
     await render('session-empty')
-    await act(async () => {
-      document.querySelector('header button').click()
-    })
-    assert.equal(dialog().open, false)
+    assertNoCreationForm()
     await refresh()
     await resolve(calls.at(-1), { ...original, cwd: '/repo/detached' })
     assert.equal(branchName(), 'Detached HEAD')
@@ -682,7 +765,9 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       { ...ready, pendingSubmissions: [{}] },
     ]) {
       snapshot = ready
+      const countBeforeReady = calls.length
       await render('session-empty')
+      if (calls.length > countBeforeReady) await resolve(calls.at(-1), original)
       await openMenu()
       assert.equal(menuProps.open, true)
       snapshot = state
@@ -693,7 +778,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       const count = calls.length
       await choose('create')
       await choose('path:/repo')
-      assert.equal(dialog().open, false, 'disabled create selection must not open a dialog')
+      assertNoCreationForm()
       assert.equal(calls.length, count, 'disabled switch selection must not call RPC')
     }
     snapshot = ready
@@ -905,6 +990,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(settingsOptions.label(), 'Worktrees')
     assert.match(document.querySelector('section').textContent, /locally fetched remote reference/)
     assertNoSettingsButtons()
+    assert.match(document.querySelector('[id$="-naming-hint"]').textContent, /automatically generated from your prompt/)
   })
 
   await t.test('settings ignores stale reads, writes and recovery reads after unmount', async () => {
@@ -968,11 +1054,25 @@ await test('built composer uses direct worktree RPC without touching prompts or 
 
   await t.test('settings labels, validation and status use English, Korean and Chinese', async () => {
     const before = calls.length
-    for (const [active, nav, label, invalid, saved] of [
-      ['en', 'Worktrees', 'Worktree pool directory', /custom prefix cannot be empty/, /Settings saved/],
-      ['ko', '워크트리', '워크트리 풀 디렉터리', /접두사는 비워 둘 수 없습니다/, /설정을 저장했습니다/],
-      ['zh', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/],
-      ['zh-CN', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/],
+    for (const [active, nav, label, invalid, saved, namingHint] of [
+      [
+        'en',
+        'Worktrees',
+        'Worktree pool directory',
+        /custom prefix cannot be empty/,
+        /Settings saved/,
+        /automatically generated from your prompt/,
+      ],
+      [
+        'ko',
+        '워크트리',
+        '워크트리 풀 디렉터리',
+        /접두사는 비워 둘 수 없습니다/,
+        /설정을 저장했습니다/,
+        /프롬프트.*자동 생성/,
+      ],
+      ['zh', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/, /提示.*自动生成|自动生成.*提示/],
+      ['zh-CN', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/, /提示.*自动生成|自动生成.*提示/],
     ]) {
       await act(async () => {
         language = active
@@ -981,6 +1081,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.equal(settingsOptions.label(), nav)
       assert.equal(document.querySelector('section').getAttribute('aria-label'), nav)
       assert.equal(document.querySelector(`label[for="${directory().id}"]`).textContent, label)
+      assert.match(document.querySelector('[id$="-naming-hint"]').textContent, namingHint)
       await chooseNaming('custom')
       assert.match(document.querySelector('[role=alert]').textContent, invalid)
       await chooseNaming('semantic')
@@ -988,6 +1089,163 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assertNoSettingsButtons()
     }
     assert.equal(calls.length, before, 'locale changes and invalid drafts must not write settings')
+  })
+
+  await t.test('chat progress renders ordered timed steps, completion, and safe failure guidance', async () => {
+    assert.equal(typeof ProgressComponent, 'function')
+    const originalNow = Date.now
+    const updatedAt = 1_700_000_000_000
+    Date.now = () => updatedAt + 500
+    const progress = {
+      id: 'worktree-progress',
+      step: 0,
+      status: 'running',
+      updatedAt,
+      durations: [125, 1250, 250, 75],
+      branch: 'feature/ready-only-after-completion',
+    }
+    const renderProgress = async (data, location = { kind: 'turn', turn: { status: 'open' } }) =>
+      act(async () => {
+        root.render(createElement(ProgressComponent, { node: { data, location } }))
+      })
+    const section = () => document.querySelector('.dsh-worktree-progress')
+    const steps = () => Array.from(section().querySelectorAll('ol > li'))
+    const states = () => steps().map((step) => step.dataset.state)
+    const times = () => steps().map((step) => step.querySelector('.dsh-worktree-progress-time')?.textContent)
+    const labels = () => steps().map((step) => step.children[1].textContent)
+    const count = calls.length
+    try {
+      await act(async () => {
+        language = 'ko'
+        for (const listener of locale.listeners) listener()
+      })
+      await renderProgress(progress)
+      assert.deepEqual(labels(), ['브랜치 이름 정하기', '기준 커밋 및 경로 확인', '파일 체크아웃', '작업 경로 전환'])
+      assert.equal(section().getAttribute('aria-label'), '워크트리 준비 중…')
+      assert.equal(section().getAttribute('aria-busy'), 'true')
+      assert.equal(section().querySelector('[role=status]').textContent, '워크트리 준비 중…')
+      assert.deepEqual(states(), ['running', 'pending', 'pending', 'pending'])
+      assert.deepEqual(times(), ['625ms', undefined, undefined, undefined])
+      for (let index = 0; index < 4; index++) {
+        await renderProgress({ ...progress, step: index })
+        assert.deepEqual(
+          states(),
+          Array.from({ length: 4 }, (_, step) => (step < index ? 'completed' : step === index ? 'running' : 'pending'))
+        )
+        assert.equal(section().querySelectorAll('[aria-current=step]').length, 1)
+        assert.equal(steps()[index].getAttribute('aria-current'), 'step')
+        assert.equal(
+          steps()[index].querySelector('.dsh-worktree-progress-time').textContent,
+          ['625ms', '1.8s', '750ms', '575ms'][index]
+        )
+        for (const step of steps().slice(0, index))
+          assert.equal(step.querySelector('.dsh-worktree-progress-mark').textContent, '✓')
+        assert.equal(section().querySelector('[role=alert]'), null)
+        assert.ok(
+          !section().textContent.includes(progress.branch),
+          'a provisional branch must stay hidden while running'
+        )
+      }
+      await renderProgress({ ...progress, step: 3, status: 'completed' })
+      assert.equal(section().getAttribute('aria-busy'), 'false')
+      assert.equal(section().querySelector('[role=status]').textContent, `워크트리 준비 완료 · ${progress.branch}`)
+      assert.deepEqual(states(), ['completed', 'completed', 'completed', 'completed'])
+      assert.deepEqual(times(), ['125ms', '1.3s', '250ms', '75ms'])
+      assert.equal(section().querySelector('[aria-current]'), null)
+      for (const step of steps()) assert.equal(step.querySelector('.dsh-worktree-progress-mark').textContent, '✓')
+      for (const [status, title, mark] of [
+        ['failed', '워크트리 생성 실패', '×'],
+        ['cancelled', '워크트리 준비 중단', '−'],
+      ]) {
+        await renderProgress({ ...progress, step: 2, status })
+        assert.equal(section().getAttribute('aria-busy'), 'false')
+        assert.equal(section().querySelector('[role=status]').textContent, title)
+        assert.deepEqual(states(), ['completed', 'completed', status, 'pending'])
+        assert.deepEqual(times(), ['125ms', '1.3s', '250ms', undefined])
+        assert.equal(steps()[2].querySelector('.dsh-worktree-progress-mark').textContent, mark)
+        assert.match(
+          section().querySelector('[role=alert]').textContent,
+          /작업을 시작하지 않았습니다.*프롬프트를 다시 전송/
+        )
+        assert.ok(
+          !section().textContent.includes(progress.branch),
+          'failed or cancelled work must not advertise a ready branch'
+        )
+      }
+      await act(async () => {
+        language = 'en'
+        for (const listener of locale.listeners) listener()
+      })
+      assert.deepEqual(labels(), [
+        'Name branch',
+        'Check base commit and path',
+        'Check out files',
+        'Switch working directory',
+      ])
+      assert.equal(section().querySelector('[role=status]').textContent, 'Worktree setup stopped')
+      assert.match(section().querySelector('[role=alert]').textContent, /Work did not start.*resend your prompt/)
+      await renderProgress({ ...progress, step: 1 }, { kind: 'turn', turn: { status: 'closed' } })
+      assert.deepEqual(states(), ['completed', 'cancelled', 'pending', 'pending'])
+      assert.equal(
+        section().getAttribute('aria-busy'),
+        'false',
+        'an ended turn must not leave progress running forever'
+      )
+      assert.match(section().querySelector('[role=alert]').textContent, /Work did not start/)
+      await renderProgress({ ...progress, step: 3, status: 'completed' })
+      assert.equal(section().querySelector('[role=status]').textContent, `Worktree ready · ${progress.branch}`)
+      for (const active of ['zh', 'zh-CN']) {
+        await act(async () => {
+          language = active
+          for (const listener of locale.listeners) listener()
+        })
+        for (const [index, expected] of [/分支/, /提交.*路径/, /检出.*文件/, /切换.*目录/].entries()) {
+          assert.match(labels()[index], expected)
+        }
+        await renderProgress(progress)
+        assert.match(section().getAttribute('aria-label'), /工作树/)
+        assert.equal(section().getAttribute('aria-busy'), 'true')
+        assert.equal(section().querySelector('[role=status]').textContent, section().getAttribute('aria-label'))
+        assert.deepEqual(states(), ['running', 'pending', 'pending', 'pending'])
+        assert.deepEqual(times(), ['625ms', undefined, undefined, undefined])
+        assert.ok(!section().textContent.includes(progress.branch))
+        for (const [status, title] of [
+          ['failed', /工作树.*失败/],
+          ['cancelled', /工作树.*(?:中断|停止)/],
+        ]) {
+          await renderProgress({ ...progress, step: 2, status })
+          assert.equal(section().getAttribute('aria-busy'), 'false')
+          assert.match(section().querySelector('[role=status]').textContent, title)
+          assert.equal(section().getAttribute('aria-label'), section().querySelector('[role=status]').textContent)
+          assert.match(
+            section().querySelector('[role=alert]').textContent,
+            /未开始.*重新发送.*提示|没有开始.*重新发送.*提示/
+          )
+          assert.deepEqual(states(), ['completed', 'completed', status, 'pending'])
+          assert.ok(!section().textContent.includes(progress.branch))
+        }
+        await renderProgress({ ...progress, step: 1 }, { kind: 'turn', turn: { status: 'closed' } })
+        assert.equal(section().getAttribute('aria-busy'), 'false')
+        assert.deepEqual(states(), ['completed', 'cancelled', 'pending', 'pending'])
+        assert.match(section().querySelector('[role=alert]').textContent, /重新发送.*提示/)
+        await renderProgress({ ...progress, step: 3, status: 'completed' })
+        assert.match(section().getAttribute('aria-label'), /工作树.*(?:就绪|完成)/)
+        assert.equal(
+          section().querySelector('[role=status]').textContent,
+          `${section().getAttribute('aria-label')} · ${progress.branch}`
+        )
+        assert.deepEqual(states(), ['completed', 'completed', 'completed', 'completed'])
+        assert.deepEqual(times(), ['125ms', '1.3s', '250ms', '75ms'])
+        assert.equal(section().querySelector('[role=alert]'), null)
+      }
+      assert.equal(calls.length, count, 'progress is display-only and must not issue worktree requests')
+      assert.equal(prompts, 0)
+      assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
+      assert.equal(document.querySelector('[data-attachment]').textContent, 'file.txt')
+    } finally {
+      await act(async () => root.render(null))
+      Date.now = originalNow
+    }
   })
 })
 
