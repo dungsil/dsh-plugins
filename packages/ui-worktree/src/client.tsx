@@ -15,7 +15,8 @@ import {
   IconRefreshOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { channel, endpointPrefix, type WorktreeView } from './protocol.js'
+import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
+import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
 import { settingsLabel, WorktreeSettingsSection } from './settings.js'
 import { styles } from './styles.js'
@@ -38,7 +39,7 @@ export function apply(ctx: Context) {
     const [value, setValue] = useState('')
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
-    const [error, setError] = useState(false)
+    const [error, setError] = useState<WorktreeFailure>()
     const [changed, setChanged] = useState(false)
     const [open, setOpen] = useState(false)
     const pending = useRef(false)
@@ -46,10 +47,32 @@ export function apply(ctx: Context) {
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
     const dialog = useRef<HTMLDialogElement>(null)
+    const errorDialog = useRef<HTMLDialogElement>(null)
+    const errorTrigger = useRef<HTMLButtonElement>(null)
+    const refreshButton = useRef<HTMLButtonElement>(null)
     const title = useId()
+    const errorTitle = useId()
+    const errorDescription = useId()
     const field = useId()
     const status = useId()
-    const disabled = unavailable || loading || busy || error || !view
+    const disabled = unavailable || loading || busy || !!error || !view
+    const errorLabel = error?.uncertain ? text.mutationError : text.lookupError
+
+    const recordFailure = (operation: WorktreeOperation, cause: unknown) => {
+      const code = failureCode(cause)
+      needsRefresh.current = true
+      setError((previous) => ({ operation, code, uncertain: operation !== 'describe' || !!previous?.uncertain }))
+      console.warn('[dungsil-ui-worktree]', { operation, code })
+    }
+
+    const request = async (operation: WorktreeOperation, payload: object, signal: AbortSignal) => {
+      if (typeof connection?.rpc?.call !== 'function') throw { code: 'client_unavailable' }
+      const result = await connection.rpc.call(channel, endpointPrefix + operation, payload, signal)
+      signal.throwIfAborted()
+      if (!result.ok) throw result.error
+      if (!isWorktreeView(result.value)) throw { code: 'invalid_response' }
+      return result.value
+    }
 
     // Serialize reads and writes. Never automatically retry an uncertain mutation,
     // and ignore replies after unmount (including navigation to another Session).
@@ -59,17 +82,13 @@ export function apply(ctx: Context) {
       pending.current = true
       setLoading(true)
       try {
-        const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, { sessionId }, controller.signal)
+        const view = await request('describe', { sessionId }, controller.signal)
         if (controller.signal.aborted) return
-        if (!result.ok) throw new Error('describe failed')
-        setView(result.value as WorktreeView)
+        setView(view)
         needsRefresh.current = false
-        setError(false)
-      } catch {
-        if (!controller.signal.aborted) {
-          needsRefresh.current = true
-          setError(true)
-        }
+        setError(undefined)
+      } catch (cause) {
+        if (!controller.signal.aborted) recordFailure('describe', cause)
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
@@ -128,10 +147,9 @@ export function apply(ctx: Context) {
             : { sessionId, cwd: view.cwd, path }
         // ConnectionHandle exposes no authenticated principal. Owner-only access
         // is enforced by the server, not by unrelated session/prompt permission.
-        const result = await connection.rpc.call(channel, endpointPrefix + endpoint, payload, controller.signal)
+        const nextView = await request(endpoint, payload, controller.signal)
         if (controller.signal.aborted) return
-        if (!result.ok) throw new Error('change failed')
-        setView(result.value as WorktreeView)
+        setView(nextView)
         setChanged(true)
         if (endpoint === 'create') {
           setValue('')
@@ -139,11 +157,8 @@ export function apply(ctx: Context) {
         }
         pending.current = false
         await load()
-      } catch {
-        if (!controller.signal.aborted) {
-          needsRefresh.current = true
-          setError(true)
-        }
+      } catch (cause) {
+        if (!controller.signal.aborted) recordFailure(endpoint, cause)
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
@@ -156,21 +171,30 @@ export function apply(ctx: Context) {
       if (!busy && changed && !dialog.current?.open) trigger.current?.focus()
     }, [busy, changed])
 
-    const current = view?.worktrees
-      .filter((item) => view.cwd === item.path || view.cwd.startsWith(item.path.replace(/\/$/, '') + '/'))
-      .sort((a, b) => b.path.length - a.path.length)[0]
+    useEffect(() => {
+      if (!error && errorDialog.current?.open) errorDialog.current.close()
+    }, [error])
+
+    const restoreErrorFocus = () => {
+      const button = errorTrigger.current ?? (!disabled ? trigger.current : refreshButton.current)
+      button?.focus()
+    }
+
+    const current = currentWorktree(view)
     const branch = current ? (current.branch ?? text.detached) : text.unknown
     const notice = loading
       ? text.loading
       : busy
         ? text.busy
-        : unavailable
-          ? text.wait
-          : changed
-            ? text.changed
-            : view?.worktrees.length === 0
-              ? text.empty
-              : ''
+        : error
+          ? errorLabel
+          : unavailable
+            ? text.wait
+            : changed
+              ? text.changed
+              : view?.worktrees.length === 0
+                ? text.empty
+                : ''
 
     return (
       <div className="dsh-worktree">
@@ -227,6 +251,7 @@ export function apply(ctx: Context) {
             }
           />
           <button
+            ref={refreshButton}
             type="button"
             className="dsh-worktree-refresh"
             disabled={loading || busy}
@@ -236,15 +261,22 @@ export function apply(ctx: Context) {
           >
             <IconRefreshOutlineRegular aria-hidden="true" />
           </button>
+          {error && (
+            <button
+              ref={errorTrigger}
+              type="button"
+              className="dsh-worktree-error-trigger"
+              aria-haspopup="dialog"
+              aria-label={`${errorLabel}: ${text.errorTitle}`}
+              onClick={() => errorDialog.current?.showModal()}
+            >
+              {errorLabel}
+            </button>
+          )}
         </div>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>
-        {error && (
-          <p role="alert" className="dsh-worktree-error">
-            {text.error}
-          </p>
-        )}
         <dialog
           ref={dialog}
           className="dsh-worktree-dialog"
@@ -292,7 +324,13 @@ export function apply(ctx: Context) {
               }}
             />
             <p className="dsh-worktree-hint">{text.hint}</p>
-            {error && <p role="alert">{text.error}</p>}
+            {error && (
+              <div role="alert">
+                <p>{error.uncertain ? text.error : text.readError}</p>
+                <p>{text.reasons[error.code]}</p>
+                <code>{error.code}</code>
+              </div>
+            )}
             {unavailable && <p role="status">{text.wait}</p>}
             <footer>
               <button type="button" disabled={loading || busy} onClick={() => void load(true)}>
@@ -303,6 +341,39 @@ export function apply(ctx: Context) {
               </button>
             </footer>
           </form>
+        </dialog>
+        <dialog
+          ref={errorDialog}
+          className="dsh-worktree-dialog dsh-worktree-error-dialog"
+          aria-labelledby={errorTitle}
+          aria-describedby={errorDescription}
+          onClose={restoreErrorFocus}
+        >
+          <header>
+            <h2 id={errorTitle}>{text.errorTitle}</h2>
+            <button type="button" aria-label={text.close} onClick={() => errorDialog.current?.close()}>
+              <IconCloseOutlineRegular aria-hidden="true" />
+            </button>
+          </header>
+          <p id={errorDescription}>{error?.uncertain ? text.error : text.readError}</p>
+          {error && (
+            <>
+              <p>{text.reasons[error.code]}</p>
+              <dl>
+                <dt>{text.errorOperation}</dt>
+                <dd>{text.operations[error.operation]}</dd>
+                <dt>{text.errorCode}</dt>
+                <dd>
+                  <code>{error.code}</code>
+                </dd>
+              </dl>
+            </>
+          )}
+          <footer>
+            <button type="button" data-worktree-retry disabled={loading || busy} onClick={() => void load(true)}>
+              {loading ? text.loading : text.refresh}
+            </button>
+          </footer>
         </dialog>
       </div>
     )

@@ -68,6 +68,20 @@ await test('compact trigger hides only its branch name and animates the open che
   assert.doesNotMatch(styles, /\banimation:/)
 })
 
+await test('error details stay outside the toolbar flow with a compact keyboard-focusable trigger', () => {
+  assert.doesNotMatch(styles, /\.dsh-worktree-error\s*\{/)
+  const trigger = declarations('.dsh-worktree-error-trigger')
+  for (const declaration of ['min-height: 28px', 'white-space: nowrap', 'text-decoration: underline']) {
+    assert.ok(trigger.includes(declaration), declaration)
+  }
+  assert.match(styles, /\.dsh-worktree-error-trigger:focus-visible[^}]*var\(--dsw-focus-ring-color/)
+  const dialog = declarations('.dsh-worktree-dialog.dsh-worktree-error-dialog')
+  assert.ok(dialog.includes('inset: 0'))
+  assert.ok(dialog.includes('margin: auto'))
+  assert.ok(declarations('.dsh-worktree-error-dialog dl').includes('minmax(0, 1fr)'))
+  assert.ok(declarations('.dsh-worktree-error-dialog dd').includes('overflow-wrap: anywhere'))
+})
+
 await test('hover and dialog surfaces retain host theme tokens without local menu styling', () => {
   assert.match(
     styles,
