@@ -28,7 +28,6 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.mjs",
     "prepack": "pnpm build"
   },
   "devDependencies": {

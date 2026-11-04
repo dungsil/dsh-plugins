@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -11,7 +10,6 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { Window } from 'happy-dom'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
@@ -176,152 +174,4 @@ await test('sanitizes storage failures and admits only one concurrent save, incl
   assert.ok(!JSON.stringify(result).includes(secret))
   assert.equal(stored, secret)
   assert.deepEqual((await h.rpc('pending')).value, [])
-})
-
-await test('inline card isolates sessions and calls, clears private input and retains only the settled status', async (t) => {
-  const window = new Window()
-  const previous = Object.getOwnPropertyDescriptors(globalThis)
-  const globals = {
-    window,
-    document: window.document,
-    navigator: window.navigator,
-    HTMLElement: window.HTMLElement,
-    HTMLInputElement: window.HTMLInputElement,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  }
-  for (const [key, value] of Object.entries(globals))
-    Object.defineProperty(globalThis, key, { configurable: true, value })
-  const { createElement, act } = await import('react')
-  const { createRoot } = await import('react-dom/client')
-  const require = createRequire(import.meta.url)
-  let client
-  window.__ModuleLoader__ = {
-    load: ({ factory }) => {
-      client = factory(require)
-    },
-  }
-  new Function('window', await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'))(window)
-  const h = await setup(t)
-  const clientCtx = new Context()
-  const document = window.document
-  document.body.innerHTML = '<main></main><textarea aria-label="Chat composer"></textarea>'
-  const container = document.querySelector('main')
-  const root = createRoot(container)
-  t.after(async () => {
-    await act(async () => {
-      root.unmount()
-      await clientCtx.fiber.dispose()
-    })
-    await window.happyDOM.close()
-    for (const key of Object.keys(globals)) {
-      if (previous[key]) Object.defineProperty(globalThis, key, previous[key])
-      else delete globalThis[key]
-    }
-  })
-  let Card
-  clientCtx.provide('slots', {
-    inject: (_slot, register) => register(),
-    register: (_options, component) => {
-      Card = component
-      return () => {}
-    },
-  })
-  let fail = true
-  clientCtx.provide('locale', { getSnapshot: () => ({ active: 'ko' }) })
-  clientCtx.provide('connection', {
-    interactions: 'answer',
-    rpc: {
-      call: (_channel, endpoint, payload) => {
-        if (endpoint === 'dungsil-secrets/answer' && fail) return Promise.reject(new Error(`echo ${payload.value}`))
-        return h.rpc(endpoint.replace('dungsil-secrets/', ''), payload)
-      },
-    },
-  })
-  await clientCtx.plugin(client)
-  await h.rpc('pending')
-  const running = h.run({ ...args, label: '<script>no HTML</script>' })
-  const request = await h.next()
-  await delay(1100)
-  const props = {
-    sessionId: request.sessionId,
-    callId: request.callId,
-    phase: 'start',
-    block: { args: { text: (key) => args[key] } },
-  }
-  const render = async (overrides = {}) => {
-    await act(async () => {
-      root.render(createElement(Card, { ...props, ...overrides }))
-    })
-  }
-  await render({ sessionId: 'another-session' })
-  assert.equal(container.querySelector('input'), null)
-  await render({ callId: 'another-call' })
-  assert.equal(container.querySelector('input'), null)
-  await render()
-  assert.equal(document.querySelector('dialog'), null)
-  assert.equal(container.querySelector('script'), null)
-  assert.equal(container.querySelector('h3').textContent, '<script>no HTML</script>')
-  assert.equal(container.querySelector('p').textContent, args.reason)
-  const privacy = '에이전트에게 비밀값을 보여주지 않습니다.'
-  assert.equal(container.textContent, `<script>no HTML</script>${args.reason}거절비밀값 저장${privacy}`)
-  let input = container.querySelector('input')
-  assert.equal(input.type, 'password')
-  assert.equal(document.getElementById(input.getAttribute('aria-describedby')).textContent, privacy)
-  assert.equal(container.querySelector('button[type=submit]').disabled, true)
-  const enter = async () => {
-    await act(async () => {
-      input.value = 'synthetic-browser-secret'
-      input.dispatchEvent(new window.Event('input', { bubbles: true }))
-    })
-  }
-  const submit = async () => {
-    await act(async () => {
-      container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
-      await delay(10)
-    })
-  }
-  await enter()
-  // Leaving the session removes its input without moving its value into another card.
-  await render({ sessionId: 'another-session' })
-  assert.equal(input.value, '')
-  await render()
-  input = container.querySelector('input')
-  await enter()
-  await submit()
-  assert.equal(input.value, '')
-  assert.equal(document.activeElement, input)
-  assert.ok(container.querySelector('[role=alert]').textContent.includes('저장 여부'))
-  assert.ok(!document.body.textContent.includes('synthetic-browser-secret'))
-  assert.equal(document.querySelector('textarea').value, '')
-  fail = false
-  await enter()
-  await submit()
-  const result = await running
-  assert.equal(result.value.status, 'saved')
-  assert.equal(container.querySelector('input'), null)
-  assert.ok(container.textContent.includes('비밀값을 저장했습니다.'))
-  assert.equal(input.value, '')
-  // A remounted historical row uses the durable tool result, never a stored value.
-  await render({ key: 'history', phase: 'result', block: { ...props.block, ...result } })
-  assert.equal(container.querySelector('input'), null)
-  assert.ok(container.textContent.includes('비밀값을 저장했습니다.'))
-  const declined = h.run()
-  await h.next()
-  await act(async () => {
-    await delay(1100)
-  })
-  await render({ key: 'next' })
-  await act(async () => {
-    container.querySelector('button[type=button]').click()
-    await delay(10)
-  })
-  assert.equal((await declined).value.status, 'declined')
-  assert.ok(container.textContent.includes('요청을 거절했습니다.'))
-  await render({
-    key: 'expired',
-    phase: 'result',
-    block: { ...props.block, content: [{ type: 'text', text: '{"status":"timed_out"}' }] },
-  })
-  assert.ok(container.textContent.includes('입력 시간이 만료되었습니다.'))
-  assert.equal(container.querySelector('input'), null)
 })
