@@ -18,6 +18,7 @@ const copy = {
   ko: {
     model: '모델 선택',
     effort: '추론 강도',
+    choose: '추론 수준 선택',
     default: '제공자 기본값',
     reset: '기본값으로 재설정',
     loading: '모델을 불러오는 중입니다…',
@@ -31,6 +32,7 @@ const copy = {
   en: {
     model: 'Select model',
     effort: 'Reasoning effort',
+    choose: 'Select reasoning effort',
     default: 'Provider default',
     reset: 'Reset to default',
     loading: 'Loading models…',
@@ -136,7 +138,10 @@ export function apply(ctx: Context) {
         ]?.focus()
       }
       element.addEventListener('keydown', keydown)
-      const focusable = element.querySelector<HTMLElement>('[aria-checked=true], input, button')
+      const focusable =
+        element.querySelector<HTMLElement>('[aria-checked=true]') ??
+        element.querySelector<HTMLElement>('input:not(:disabled)') ??
+        element.querySelector<HTMLElement>('button:not(:disabled)')
       focusable?.focus()
       return () => {
         observer.disconnect()
@@ -172,11 +177,11 @@ export function apply(ctx: Context) {
         pending.current = false
       }
     }
-    const show = (next: 'model' | 'effort', button: HTMLButtonElement) => {
+    const show = (button: HTMLButtonElement) => {
       trigger.current = button
       setDraft(Math.max(0, effortIndex))
       setFailed(false)
-      setPanel(panel === next ? null : next)
+      setPanel(panel ? null : 'effort')
       void directory.load().catch(() => {})
     }
     const selectEffort = (index: number) => {
@@ -194,34 +199,34 @@ export function apply(ctx: Context) {
         <div className="dsh-codex-picker" ref={anchor} aria-busy={busy}>
           <button
             type="button"
-            className="dsh-codex-model"
+            className="dsh-codex-trigger"
             disabled={disabled}
-            aria-label={`${text.model}: ${model?.name ?? current?.model ?? text.model}`}
+            aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
-            aria-expanded={panel === 'model'}
-            aria-controls={panel === 'model' ? id : undefined}
-            onClick={(event) => show('model', event.currentTarget)}
+            aria-expanded={panel !== null}
+            aria-controls={panel ? id : undefined}
+            onClick={(event) => show(event.currentTarget)}
           >
             <span className="dsh-codex-icon" aria-hidden="true">
               ϟ
             </span>
-            <span className="dsh-codex-name">{model?.name ?? current?.model ?? text.model}</span>
-            {!efforts.length && <span aria-hidden="true">⌄</span>}
+            <span className="dsh-codex-name">
+              {panel ? (
+                text.choose
+              ) : (
+                <>
+                  {model?.name ?? current?.model ?? text.model}
+                  {effortLabel && (
+                    <>
+                      {' '}
+                      <span className="dsh-codex-effort">{effortLabel}</span>
+                    </>
+                  )}
+                </>
+              )}
+            </span>
+            <span aria-hidden="true">⌄</span>
           </button>
-          {efforts.length > 0 && (
-            <button
-              type="button"
-              className="dsh-codex-effort"
-              disabled={disabled}
-              aria-label={`${text.effort}: ${effortLabel ?? text.default}`}
-              aria-haspopup="dialog"
-              aria-expanded={panel === 'effort'}
-              aria-controls={panel === 'effort' ? id : undefined}
-              onClick={(event) => show('effort', event.currentTarget)}
-            >
-              {effortLabel ?? text.default} <span aria-hidden="true">⌄</span>
-            </button>
-          )}
         </div>
         {panel &&
           createPortal(
@@ -232,7 +237,58 @@ export function apply(ctx: Context) {
               aria-label={panel === 'model' ? text.model : text.effort}
               className="dsh-codex-popover"
             >
-              <h2>{panel === 'model' ? text.model : text.effort}</h2>
+              {panel === 'model' ? (
+                <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
+                  ‹ {text.effort}
+                </button>
+              ) : (
+                <header className="dsh-codex-header">
+                  <svg
+                    className="dsh-codex-bolt"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M9.2 1.5 3 8.3a.7.7 0 0 0 .5 1.2h3.1l-.8 4.1a.5.5 0 0 0 .9.4L13 7.2a.7.7 0 0 0-.5-1.2H9.4l.7-4.1a.5.5 0 0 0-.9-.4Z" />
+                  </svg>
+                  <button
+                    type="button"
+                    className="dsh-codex-model"
+                    disabled={disabled}
+                    aria-label={`${text.model}: ${model?.name ?? current?.model ?? text.model}`}
+                    onClick={() => setPanel('model')}
+                  >
+                    <strong>{efforts[draft]?.name ?? effortLabel ?? text.default}</strong>
+                    <span>
+                      {model?.name ?? current?.model ?? text.model} <span aria-hidden="true">›</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="dsh-codex-reset"
+                    disabled={disabled || !current}
+                    aria-label={text.reset}
+                    title={text.reset}
+                    onClick={() => {
+                      if (current) void select({ provider: current.provider, model: current.model })
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 4a5.5 5.5 0 1 1-1 6M3 1v3h3" />
+                    </svg>
+                  </button>
+                </header>
+              )}
               {state.status === 'loading' && (
                 <p className="dsh-codex-notice" role="status">
                   {text.loading}
@@ -299,20 +355,6 @@ export function apply(ctx: Context) {
                       {text.empty}
                     </p>
                   )}
-                  {efforts.length > 0 && (
-                    <button
-                      type="button"
-                      className="dsh-codex-option"
-                      disabled={disabled}
-                      onClick={() => {
-                        setDraft(Math.max(0, effortIndex))
-                        setPanel('effort')
-                      }}
-                    >
-                      <span>{text.effort}</span>
-                      <span>{effortLabel ?? text.default} ›</span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="dsh-codex-option"
@@ -328,39 +370,37 @@ export function apply(ctx: Context) {
               ) : (
                 efforts.length > 0 && (
                   <div className="dsh-codex-slider">
-                    <label htmlFor={`${id}-effort`}>{efforts[draft]?.name ?? effortLabel}</label>
-                    <p>{model?.name}</p>
-                    <input
-                      id={`${id}-effort`}
-                      type="range"
-                      min={0}
-                      max={efforts.length - 1}
-                      step={1}
-                      value={draft}
-                      disabled={disabled || efforts.length < 2}
-                      aria-label={text.effort}
-                      aria-valuetext={efforts[draft]?.name}
-                      onChange={(event) => setDraft(Number(event.target.value))}
-                      onPointerUp={(event) => selectEffort(Number(event.currentTarget.value))}
-                      onKeyUp={(event) => {
-                        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))
-                          selectEffort(Number(event.currentTarget.value))
-                      }}
-                    />
-                    <footer>
-                      <span>{efforts[0]?.name}</span>
-                      <span>{efforts.at(-1)?.name}</span>
-                    </footer>
-                    <button
-                      type="button"
-                      className="dsh-codex-option"
-                      disabled={disabled}
-                      onClick={() => {
-                        if (current) void select({ provider: current.provider, model: current.model })
-                      }}
+                    <div
+                      className="dsh-codex-rail"
+                      style={
+                        {
+                          '--dsh-codex-progress': `${efforts.length > 1 ? (draft / (efforts.length - 1)) * 100 : 0}%`,
+                        } as React.CSSProperties
+                      }
                     >
-                      {text.reset} ↺
-                    </button>
+                      <div className="dsh-codex-track" aria-hidden="true">
+                        {efforts.map((effort, index) => (
+                          <span key={effort.id ?? 'default'} data-filled={index <= draft} />
+                        ))}
+                      </div>
+                      <input
+                        id={`${id}-effort`}
+                        type="range"
+                        min={0}
+                        max={efforts.length - 1}
+                        step={1}
+                        value={draft}
+                        disabled={disabled || efforts.length < 2}
+                        aria-label={text.effort}
+                        aria-valuetext={efforts[draft]?.name}
+                        onChange={(event) => setDraft(Number(event.target.value))}
+                        onPointerUp={(event) => selectEffort(Number(event.currentTarget.value))}
+                        onKeyUp={(event) => {
+                          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))
+                            selectEffort(Number(event.currentTarget.value))
+                        }}
+                      />
+                    </div>
                   </div>
                 )
               )}

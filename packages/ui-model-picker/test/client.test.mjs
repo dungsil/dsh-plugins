@@ -143,13 +143,27 @@ await test('composer shares host model selection, preserves exact routes and use
     }
   })
   await render()
-  assert.match(container.textContent, /Alpha SharedDeep/)
+  assert.match(container.textContent, /Alpha Shared\s*Deep/)
+  assert.equal(container.querySelectorAll('button').length, 1)
+  const openModels = async () => {
+    await click('.dsh-codex-trigger')
+    assert.ok(find('.dsh-codex-header'))
+    assert.equal(find('[role=radio]'), null, 'opening the picker shows effort, not the model catalog')
+    await click('.dsh-codex-model')
+    assert.ok(find('[role=radio]'), 'the model name opens the model catalog')
+  }
+  await click('.dsh-codex-trigger')
+  assert.equal(find('input[type=range]').getAttribute('aria-valuetext'), 'Deep')
+  assert.equal(find('[role=radio]'), null)
   await click('.dsh-codex-model')
   assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared✓')
+  await click('.dsh-codex-back')
+  assert.ok(find('input[type=range]'))
+  await click('.dsh-codex-model')
   await click('section[aria-label=Beta] [role=radio]')
   assert.deepEqual(projection.getSnapshot().next, { provider: 'beta', model: 'shared' })
-  assert.match(container.textContent, /Beta Shared제공자 기본값/)
-  await click('.dsh-codex-effort')
+  assert.match(container.textContent, /Beta Shared\s*제공자 기본값/)
+  await click('.dsh-codex-trigger')
   const slider = find('input[type=range]')
   assert.equal(slider.max, '2')
   assert.equal(slider.getAttribute('aria-valuetext'), '제공자 기본값')
@@ -158,57 +172,54 @@ await test('composer shares host model selection, preserves exact routes and use
     slider.dispatchEvent(new window.KeyboardEvent('keyup', { key: 'End', bubbles: true }))
   })
   assert.deepEqual(projection.getSnapshot().next, { provider: 'beta', model: 'shared', reasoningEffort: 'thorough' })
-  await click('.dsh-codex-effort')
-  await click('.dsh-codex-slider button')
+  await click('.dsh-codex-trigger')
+  await click('.dsh-codex-reset')
   assert.deepEqual(projection.getSnapshot().next, { provider: 'beta', model: 'shared' })
 
   // An external /model selection projects into the same trigger and closes stale drafts.
-  await click('.dsh-codex-effort')
+  await click('.dsh-codex-trigger')
   await act(async () => projection.set({ next: initial }))
   assert.equal(find('[role=dialog]'), null)
-  assert.match(container.textContent, /Alpha SharedDeep/)
-  await click('.dsh-codex-model')
+  assert.match(container.textContent, /Alpha Shared\s*Deep/)
+  await openModels()
   await click('section[aria-label=Alpha] [role=radio]')
   assert.deepEqual(projection.getSnapshot().next, initial)
 
   reject = true
-  await click('.dsh-codex-model')
+  await openModels()
   await click('section[aria-label=Beta] [role=radio]')
   assert.ok(find('[role=alert]'))
-  assert.match(container.textContent, /Alpha SharedDeep/)
+  assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared✓')
   assert.deepEqual(projection.getSnapshot().next, initial)
   reject = false
   await click('section[aria-label=Beta] [role=radio]:last-child')
   assert.match(container.textContent, /Plain/)
-  assert.equal(find('.dsh-codex-effort'), null)
+  await click('.dsh-codex-trigger')
+  assert.equal(find('input[type=range]'), null)
+  assert.ok(find('.dsh-codex-model'), 'models without effort still expose model selection through the header')
 
   // Both triggers and menu options obey the composer lock and a pending write.
   await render({ locked: true })
-  assert.equal(find('.dsh-codex-model').disabled, true)
+  assert.equal(find('.dsh-codex-trigger').disabled, true)
   await render()
-  await click('.dsh-codex-model')
+  await openModels()
   settle = {}
   await click('section[aria-label=Alpha] [role=radio]')
-  assert.equal(find('.dsh-codex-model').disabled, true)
+  assert.equal(find('.dsh-codex-trigger').disabled, true)
   assert.ok([...window.document.querySelectorAll('[role=radio]')].every((option) => option.disabled))
   await act(async () => settle.resolve())
-  assert.match(container.textContent, /Alpha SharedBalanced/)
+  assert.match(container.textContent, /Alpha Shared\s*Balanced/)
   assert.equal(find('[role=dialog]'), null)
 
-  await click('.dsh-codex-model')
+  await click('.dsh-codex-trigger')
   await act(async () =>
     find('[role=dialog]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   )
   assert.equal(find('[role=dialog]'), null)
-  assert.equal(window.document.activeElement, find('.dsh-codex-model'))
+  assert.equal(window.document.activeElement, find('.dsh-codex-trigger'))
 
-  // The model menu retains access to effort when the host collapses trigger text.
-  await click('.dsh-codex-model')
-  await act(async () =>
-    [...window.document.querySelectorAll('.dsh-codex-option')]
-      .find((button) => button.textContent.startsWith('추론 강도'))
-      .click()
-  )
+  // The same single trigger flow works when the host collapses its text.
+  await click('.dsh-codex-trigger')
   assert.equal(find('input[type=range]').getAttribute('aria-valuetext'), 'Balanced')
   await act(async () =>
     catalog.store.set({
@@ -220,9 +231,9 @@ await test('composer shares host model selection, preserves exact routes and use
   await click('.dsh-codex-model')
   assert.match(find('[role=dialog]').textContent, /일부 제공자/)
   assert.match(find('[role=dialog]').textContent, /사용할 수 있는 모델이 없습니다/)
-  assert.match(container.textContent, /shared/)
+  assert.match(find('.dsh-codex-trigger').getAttribute('aria-label'), /shared/)
   await act(async () => catalog.store.set({ value: null, status: 'loading', error: null }))
-  await click('.dsh-codex-model')
+  await click('.dsh-codex-trigger')
   assert.match(find('[role=status]').textContent, /모델을 불러오는 중/)
   await render({ sessionId: 'child' })
   assert.equal(container.textContent, '')
