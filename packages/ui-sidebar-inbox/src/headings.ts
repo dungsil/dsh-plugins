@@ -1,3 +1,6 @@
+import { createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { IconChevronDownOutlineRegular, IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Placement, Section } from './inbox.js'
 
 /** Section copy resolved at render time so a language switch relabels live DOM. */
@@ -26,6 +29,7 @@ export function installHeadings(
   active: () => boolean = () => true
 ) {
   const headings = new Map<HTMLElement, HTMLSpanElement>()
+  const icons = new Map<HTMLSpanElement, Root>()
   const trees = new Set<HTMLElement>()
   const wrappers = new Set<HTMLElement>()
   /** Each footer opens independently; a reload resets to these defaults. */
@@ -65,11 +69,10 @@ export function installHeadings(
       color: var(--dsw-alias-label-tertiary); font-weight: 500;
     }
     [data-dsh-inbox-heading] button {
-      display: block; width: 100%; padding: 0; border: 0; background: none;
+      display: flex; align-items: center; width: 100%; padding: 0; border: 0; background: none;
       color: inherit; font: inherit; text-align: left; cursor: pointer;
     }
-    [data-dsh-inbox-heading] button::before { content: '▸'; display: inline-block; width: 16px; }
-    [data-dsh-inbox-heading] button[aria-expanded="true"]::before { content: '▾'; }
+    [data-dsh-inbox-heading] button > span:first-child { display: flex; flex: 0 0 16px; }
   `
   document.head.append(style)
   const clearWrapper = (wrapper: HTMLElement) => {
@@ -113,6 +116,8 @@ export function installHeadings(
       if (!active()) {
         // The native list owns the order: no footer styles, no headings.
         for (const [wrapper, heading] of headings) {
+          icons.get(heading)?.unmount()
+          icons.delete(heading)
           heading.remove()
           headings.delete(wrapper)
         }
@@ -147,6 +152,8 @@ export function installHeadings(
       }
       for (const [wrapper, heading] of headings) {
         if (!wanted.has(wrapper)) {
+          icons.get(heading)?.unmount()
+          icons.delete(heading)
           heading.remove()
           headings.delete(wrapper)
         }
@@ -162,6 +169,8 @@ export function installHeadings(
         }
         // A wrapper can cross sections when a session resumes or is archived.
         if (heading.dataset.dshInboxSection !== section) {
+          icons.get(heading)?.unmount()
+          icons.delete(heading)
           heading.textContent = ''
           heading.dataset.dshInboxSection = section
         }
@@ -169,6 +178,10 @@ export function installHeadings(
         if (!button) {
           button = document.createElement('button')
           button.type = 'button'
+          const icon = document.createElement('span')
+          icon.setAttribute('aria-hidden', 'true')
+          icons.set(heading, createRoot(icon))
+          button.append(icon, document.createElement('span'))
           button.onclick = (event) => {
             event.stopPropagation()
             const current = heading.dataset.dshInboxSection
@@ -181,9 +194,18 @@ export function installHeadings(
         // Only write changed copy: an unconditional textContent write emits a
         // childList mutation that would re-trigger this refresh forever.
         const text = section === 'Archived' ? labels().archived : labels().working
-        if (button.textContent !== text) button.textContent = text
+        const label = button.lastElementChild!
+        if (label.textContent !== text) label.textContent = text
         button.setAttribute('aria-label', text)
-        button.setAttribute('aria-expanded', String(open[section]))
+        const expanded = String(open[section])
+        if (button.getAttribute('aria-expanded') !== expanded) {
+          button.setAttribute('aria-expanded', expanded)
+          icons.get(heading)!.render(
+            createElement(open[section] ? IconChevronDownOutlineRegular : IconChevronRightOutlineRegular, {
+              size: 16,
+            })
+          )
+        }
         if (wrapper.firstChild !== heading) wrapper.prepend(heading)
       }
       positionFooters()
@@ -210,6 +232,8 @@ export function installHeadings(
       disposed = true
       observer.disconnect()
       resize.disconnect()
+      for (const root of icons.values()) root.unmount()
+      icons.clear()
       for (const heading of headings.values()) heading.remove()
       headings.clear()
       for (const tree of trees) {
