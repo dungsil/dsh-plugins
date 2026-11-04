@@ -1,0 +1,24 @@
+{
+  "meta": { "title": "Web Tool Settings", "description": "Configure web search and fetch tools per agent preset." },
+  "ui": {
+    "nav": "Web tools",
+    "description": "Configure the tools available to the model. DeepSeek API credentials and endpoints remain on the built-in Web search page.",
+    "target": "Agent preset",
+    "presetHint": "Changes apply to newly created sessions. Existing sessions keep their current agent settings.",
+    "directHint": "Changes apply to this profile's web tools.",
+    "search": "Web search",
+    "fetch": "Fetch web pages",
+    "searchMaxResults": "Maximum sources per search",
+    "searchMaxQueries": "Maximum queries per call",
+    "searchTimeoutMs": "Search timeout (ms)",
+    "fetchTimeoutMs": "Fetch timeout (ms)",
+    "fetchMaxOutputChars": "Maximum fetched characters",
+    "loading": "Loading settings…",
+    "saving": "Saving…",
+    "error": "Could not confirm the change. Reopen this section to check saved settings before trying again.",
+    "conflict": "Settings changed elsewhere. Reopen this section to load the latest values.",
+    "empty": "No editable web tools were found in active agent presets or this profile.",
+    "invalid": "Enter a positive whole number.",
+    "loadError": "Could not load settings. Reopen this section to try again."
+  }
+}

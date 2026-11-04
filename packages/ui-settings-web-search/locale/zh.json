@@ -1,0 +1,24 @@
+{
+  "meta": { "title": "网页工具设置", "description": "按代理预设配置网页搜索和抓取工具。" },
+  "ui": {
+    "nav": "网页工具",
+    "description": "配置模型可使用的工具。DeepSeek API 密钥和地址仍在内置的网页搜索设置中管理。",
+    "target": "代理预设",
+    "presetHint": "更改适用于新建的会话。现有会话保留当前代理设置。",
+    "directHint": "更改适用于此配置中的网页工具。",
+    "search": "网页搜索",
+    "fetch": "抓取网页",
+    "searchMaxResults": "每次搜索的最大来源数",
+    "searchMaxQueries": "每次调用的最大查询数",
+    "searchTimeoutMs": "搜索超时（毫秒）",
+    "fetchTimeoutMs": "抓取超时（毫秒）",
+    "fetchMaxOutputChars": "抓取的最大字符数",
+    "loading": "正在加载设置…",
+    "saving": "正在保存…",
+    "error": "无法确认更改结果。请重新打开此设置项，检查已保存的值后再试。",
+    "conflict": "设置已在其他位置更改。请重新打开此设置项以加载最新值。",
+    "empty": "在启用的代理预设或此配置中未找到可编辑的网页工具。",
+    "invalid": "请输入正整数。",
+    "loadError": "无法加载设置。请重新打开此设置项后重试。"
+  }
+}

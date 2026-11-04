@@ -1,0 +1,96 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-settings-web-search",
+  "version": "0.0.0",
+  "description": "Configure web search and fetch tools per agent preset in DeepSeek Harness settings.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-settings-web-search"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-config-editor": "^0.2.1-rc.5"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "market": {
+    "order": 7.3,
+    "title": {
+      "en": "Web Tool Settings",
+      "ko": "웹 검색 도구 설정",
+      "zh": "网页工具设置"
+    },
+    "description": {
+      "en": "Enable search and fetch tools and configure their limits per agent preset.",
+      "ko": "에이전트 프리셋별로 웹 검색·페이지 가져오기를 켜고 제한값을 설정합니다.",
+      "zh": "按代理预设启用网页搜索和抓取工具，并配置其限制。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "web",
+      "search",
+      "fetch",
+      "settings",
+      "tools",
+      "ui"
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-ui-settings-web-search
+      name: '@dungsil/dsh-plugin-ui-settings-web-search'
