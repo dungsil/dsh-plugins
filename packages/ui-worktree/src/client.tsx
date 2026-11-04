@@ -34,6 +34,8 @@ export function apply(ctx: Context) {
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
+    const running = useSession((s) => s.running)
+    const wasRunning = useRef(running)
     const [view, setView] = useState<WorktreeView>()
     const [value, setValue] = useState('')
     const [loading, setLoading] = useState(true)
@@ -55,7 +57,10 @@ export function apply(ctx: Context) {
     const field = useId()
     const status = useId()
     const disabled = unavailable || loading || busy || !!error || !view
-    const errorLabel = error?.uncertain ? text.mutationError : text.lookupError
+    const creation = view?.pendingCreation
+    const detailError: WorktreeFailure | undefined =
+      error ?? (creation?.failed ? { operation: 'create', code: 'operation_failed', uncertain: true } : undefined)
+    const errorLabel = detailError?.uncertain ? text.mutationError : text.lookupError
 
     const recordFailure = (operation: WorktreeOperation, cause: unknown) => {
       const code = failureCode(cause)
@@ -118,6 +123,11 @@ export function apply(ctx: Context) {
     }, [])
 
     useEffect(() => {
+      if (wasRunning.current && !running) void load()
+      wasRunning.current = running
+    }, [running])
+
+    useEffect(() => {
       if (disabled) setOpen(false)
     }, [disabled])
 
@@ -125,6 +135,7 @@ export function apply(ctx: Context) {
       const element = dialog.current
       const button = trigger.current
       if (disabled || pending.current || !element || !button) return
+      if (creation) setValue(creation.name)
       element.showModal()
       const anchor = button.getBoundingClientRect()
       const box = element.getBoundingClientRect()
@@ -171,8 +182,8 @@ export function apply(ctx: Context) {
     }, [busy, changed])
 
     useEffect(() => {
-      if (!error && errorDialog.current?.open) errorDialog.current.close()
-    }, [error])
+      if (!detailError && errorDialog.current?.open) errorDialog.current.close()
+    }, [error, creation?.failed])
 
     const restoreErrorFocus = () => {
       const button = errorTrigger.current ?? (!disabled ? trigger.current : refreshButton.current)
@@ -187,7 +198,13 @@ export function apply(ctx: Context) {
       return installSidebarLabel(sessionId, name, current.path)
     }, [sessionId, current, view])
 
-    const branch = current ? (current.branch ?? text.detached) : text.unknown
+    const branch = creation
+      ? creation.failed
+        ? text.mutationError
+        : `${text.reserved}${creation.name ? `: ${creation.name}` : ''}`
+      : current
+        ? (current.branch ?? text.detached)
+        : text.unknown
     const notice = loading
       ? text.loading
       : busy
@@ -196,11 +213,15 @@ export function apply(ctx: Context) {
           ? errorLabel
           : unavailable
             ? text.wait
-            : changed
-              ? text.changed
-              : view?.worktrees.length === 0
-                ? text.empty
-                : ''
+            : creation
+              ? creation.failed
+                ? text.creationError
+                : text.reservationHint
+              : changed
+                ? text.changed
+                : view?.worktrees.length === 0
+                  ? text.empty
+                  : ''
 
     return (
       <div className="dsh-worktree">
@@ -210,7 +231,7 @@ export function apply(ctx: Context) {
             open={open}
             side="top"
             portal
-            selectedId={current ? `path:${current.path}` : undefined}
+            selectedId={creation ? 'create' : current ? `path:${current.path}` : undefined}
             items={[
               { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
               ...(view?.worktrees.map((item) => ({
@@ -224,7 +245,8 @@ export function apply(ctx: Context) {
               setOpen(false)
               if (disabled || pending.current) return
               if (id === 'create') show()
-              else if (id.startsWith('path:') && id !== `path:${current?.path}`) void change('switch', id.slice(5))
+              else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
+                void change('switch', id.slice(5))
             }}
             anchor={
               <button
@@ -267,7 +289,7 @@ export function apply(ctx: Context) {
           >
             <IconRefreshOutlineRegular aria-hidden="true" />
           </button>
-          {error && (
+          {detailError && (
             <button
               ref={errorTrigger}
               type="button"
@@ -361,16 +383,18 @@ export function apply(ctx: Context) {
               <IconCloseOutlineRegular aria-hidden="true" />
             </button>
           </header>
-          <p id={errorDescription}>{error?.uncertain ? text.error : text.readError}</p>
-          {error && (
+          <p id={errorDescription}>
+            {creation?.failed ? text.creationError : error?.uncertain ? text.error : text.readError}
+          </p>
+          {detailError && (
             <>
-              <p>{text.reasons[error.code]}</p>
+              <p>{text.reasons[detailError.code]}</p>
               <dl>
                 <dt>{text.errorOperation}</dt>
-                <dd>{text.operations[error.operation]}</dd>
+                <dd>{text.operations[detailError.operation]}</dd>
                 <dt>{text.errorCode}</dt>
                 <dd>
-                  <code>{error.code}</code>
+                  <code>{detailError.code}</code>
                 </dd>
               </dl>
             </>

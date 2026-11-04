@@ -4,6 +4,7 @@ export const endpointPrefix = 'dungsil-worktree/'
 export interface WorktreeView {
   cwd: string
   worktrees: { path: string; branch: string | null }[]
+  pendingCreation?: { name: string; failed: boolean }
 }
 
 function comparablePath(path: string) {
@@ -28,6 +29,10 @@ export function isWorktreeView(value: unknown): value is WorktreeView {
   const view = value as Partial<WorktreeView>
   return (
     typeof view.cwd === 'string' &&
+    (view.pendingCreation === undefined ||
+      (view.pendingCreation !== null &&
+        typeof view.pendingCreation.name === 'string' &&
+        typeof view.pendingCreation.failed === 'boolean')) &&
     Array.isArray(view.worktrees) &&
     view.worktrees.every(
       (item) => item && typeof item.path === 'string' && (item.branch === null || typeof item.branch === 'string')

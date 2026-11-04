@@ -212,6 +212,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     cwd: '/repo/new',
     worktrees: [...original.worktrees, { path: '/repo/new', branch: 'feature/한글-"quote"' }],
   }
+  const reserved = { ...original, pendingCreation: { name: 'feature/한글-"quote"', failed: false } }
 
   await t.test(
     'mount, host Menu contract, current no-op, create, switch, duplicate prevention and refresh',
@@ -314,12 +315,24 @@ await test('built composer uses direct worktree RPC without touching prompts or 
         dialog().dispatchEvent(cancel)
         assert.equal(cancel.defaultPrevented, true, 'Escape must not hide an in-flight mutation')
       })
-      await resolve(create, created)
+      await resolve(create, reserved)
       assert.equal(dialog().open, false)
       assert.equal(calls.at(-1).endpoint, 'describe', 'success must refresh the list')
-      await resolve(calls.at(-1), created)
+      await resolve(calls.at(-1), reserved)
       assert.equal(field().value, '')
       assert.equal(document.activeElement, trigger(), 'return focus after success refresh finishes')
+      assert.equal(branchName(), '신규 워크트리 예약: feature/한글-"quote"')
+      assert.equal(menuProps.selectedId, 'create')
+      assert.match(document.querySelector('[role=status]').textContent, /다음 프롬프트를 전송/)
+      const beforePrompt = calls.length
+      snapshot = { ...ready, running: true }
+      await render()
+      assert.equal(trigger().disabled, true)
+      assert.equal(calls.length, beforePrompt, 'running must not try an idle-only lookup')
+      snapshot = ready
+      await render()
+      assert.equal(calls.at(-1).endpoint, 'describe', 'finishing the prompt must refresh the branch')
+      await resolve(calls.at(-1), created)
       assert.equal(branchName(), 'feature/한글-"quote"')
       assert.equal(trigger().getAttribute('aria-label'), 'Git worktree: feature/한글-"quote"')
       await choose(`path:${switched.cwd}`)
@@ -436,6 +449,42 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(calls.at(-1), created)
   })
 
+  await t.test(
+    'reserved and failed creations remain selectable and can be cancelled with the current checkout',
+    async () => {
+      await render('session-reserved')
+      await resolve(calls.at(-1), reserved)
+      assert.equal(menuProps.selectedId, 'create')
+      assert.match(branchName(), /신규 워크트리 예약/)
+      await choose('create')
+      assert.equal(field().value, reserved.pendingCreation.name, 'editing restores the reserved name')
+      await act(async () => dialog().close())
+      await choose('path:/repo')
+      assert.equal(calls.at(-1).endpoint, 'switch', 'the current checkout must cancel instead of being a no-op')
+      await resolve(calls.at(-1), original)
+      await resolve(calls.at(-1), original)
+      assert.equal(branchName(), 'main')
+      await refresh()
+      const failed = { ...reserved, pendingCreation: { name: '', failed: true } }
+      await resolve(calls.at(-1), failed)
+      assert.equal(trigger().disabled, false, 'failure recovery must allow an explicit checkout selection')
+      assert.equal(branchName(), '변경 확인 필요')
+      await act(async () => document.querySelector('.dsh-worktree-error-trigger').click())
+      const details = document.querySelector('.dsh-worktree-error-dialog')
+      assert.match(details.textContent, /프롬프트를 다시 전송/)
+      await act(async () => details.querySelector('[data-worktree-retry]').click())
+      await resolve(calls.at(-1), failed)
+      assert.equal(details.open, true, 'lookup alone must not retry creation or dismiss its unresolved error')
+      await act(async () => details.close())
+      await choose('path:/repo')
+      await resolve(calls.at(-1), original)
+      await resolve(calls.at(-1), original)
+      assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+      assert.equal(branchName(), 'main')
+      assert.equal(prompts, 0, 'the picker must never replay a prompt itself')
+    }
+  )
+
   await t.test('initial errors, empty lists, locale, idle restrictions, and dismissal remain accessible', async () => {
     await render('session-empty')
     await fail(calls.at(-1), 'forbidden')
@@ -457,7 +506,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     })
     assert.equal(branchName(), 'Branch unavailable')
     await choose('create')
-    assert.equal(document.querySelector('h2').textContent, 'Create worktree')
+    assert.equal(document.querySelector('h2').textContent, 'Schedule new worktree')
     await input('retained-on-dismiss')
     await act(async () => {
       const cancel = new window.Event('cancel', { cancelable: true })
@@ -476,6 +525,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     ]) {
       snapshot = state
       await render('session-empty')
+      if (calls.at(-1).endpoint === 'describe') await resolve(calls.at(-1), { cwd: '/not-git', worktrees: [] })
       assert.equal(trigger().disabled, true)
       assert.equal(submitButton().disabled, true)
       const count = calls.length
@@ -665,7 +715,9 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       { ...ready, pendingSubmissions: [{}] },
     ]) {
       snapshot = ready
+      const countBeforeReady = calls.length
       await render('session-empty')
+      if (calls.length > countBeforeReady) await resolve(calls.at(-1), original)
       await openMenu()
       assert.equal(menuProps.open, true)
       snapshot = state
