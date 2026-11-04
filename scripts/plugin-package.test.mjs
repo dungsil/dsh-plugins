@@ -80,7 +80,7 @@ await test('task model API works without a client and the UI bundle activates it
   )
 })
 
-await test('worktree UI bundle installs and activates its runtime without the model tool', async (t) => {
+await test('worktree UI bundle includes its runtime without the model tool', async () => {
   const { base, manifest } = packages.get('@dungsil/dsh-plugin-ui-worktree')
   const runtime = '@deepseek-ai/dsh-experimental-worktree'
   assert.ok(manifest.dependencies[runtime])
@@ -90,25 +90,4 @@ await test('worktree UI bundle installs and activates its runtime without the mo
     rows.map(({ name }) => name),
     [runtime, manifest.name]
   )
-  const require = createRequire(new URL('package.json', base))
-  const { Context } = require('@deepseek-ai/cordis')
-  const ctx = new Context()
-  t.after(() => ctx.fiber.dispose())
-  for (const service of ['workingDirectory', 'fs', 'subprocess', 'sandbox', 'sandboxPolicy', 'agents', 'llm'])
-    ctx.provide(service, {})
-  const routes = new Set()
-  ctx.provide('connection', {
-    fetch: {
-      register: ({ path }) => {
-        routes.add(path)
-        return () => routes.delete(path)
-      },
-    },
-  })
-  for (const row of rows) {
-    const plugin = await import(require.resolve(row.name))
-    await ctx.plugin(plugin.default ?? plugin)
-  }
-  assert.equal(typeof ctx.worktrees.create, 'function')
-  assert.ok(routes.has('/api/dungsil-ui-worktree/create'))
 })

@@ -6,9 +6,30 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
+import Worktrees from '@deepseek-ai/dsh-experimental-worktree'
 import Llm, { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import * as plugin from '../dist/index.js'
+
+await test('worktree runtime and UI activate together without the model tool', async (t) => {
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  for (const service of ['workingDirectory', 'fs', 'subprocess', 'sandbox', 'sandboxPolicy', 'agents', 'llm'])
+    ctx.provide(service, {})
+  const routes = new Set()
+  ctx.provide('connection', {
+    fetch: {
+      register: ({ path }) => {
+        routes.add(path)
+        return () => routes.delete(path)
+      },
+    },
+  })
+  await ctx.plugin(Worktrees)
+  await ctx.plugin(plugin)
+  assert.equal(typeof ctx.worktrees.create, 'function')
+  assert.ok(routes.has('/api/dungsil-ui-worktree/create'))
+})
 
 test('owner creates directly; only a missing name uses the model, without tools or a conversation turn', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'ui-worktree-'))
