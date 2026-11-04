@@ -48,13 +48,41 @@ await test('commit-driven releases preserve independent history, versions, tags 
     JSON.stringify({
       name: 'release-fixture',
       private: true,
-      scripts: { 'market:index': 'node --import ./deny-fetch.mjs scripts/market-index.mjs' },
+      scripts: { 'market:index': 'node --import ./registry-fixture.mjs scripts/market-index.mjs' },
     })
   )
   // Exercise the real generator offline, not a replacement that hides registry propagation bugs.
   mkdirSync(join(cwd, 'scripts'))
   write('scripts/market-index.mjs', readFileSync(join(root, 'scripts/market-index.mjs'), 'utf8'))
-  write('deny-fetch.mjs', 'globalThis.fetch = async () => { throw new Error("Release indexing must not query npm") }\n')
+  write(
+    'registry-fixture.mjs',
+    `import { readFileSync, readdirSync } from 'node:fs'
+
+const bootstrap = {
+  '@dungsil/dsh-plugin-locale-ko': '0.3.1',
+  '@fixture/other': '2.7.4',
+  '@fixture/new': '0.0.0',
+}
+globalThis.fetch = async (url) => {
+  const name = decodeURIComponent(new URL(url).pathname.slice(1))
+  const manifest = readdirSync('packages')
+    .map((directory) => JSON.parse(readFileSync('packages/' + directory + '/package.json', 'utf8')))
+    .find((pkg) => pkg.name === name)
+  if (!manifest) throw new Error('Unexpected registry request: ' + url)
+  const index = JSON.parse(readFileSync('market/index.json', 'utf8'))
+  const recorded = index.plugins.find((plugin) => plugin.name === name)?.versions ?? []
+  const versions = { '0.0.0-stage': {} }
+  const time = { '0.0.0-stage': '2026-01-01T00:00:00.000Z' }
+  for (const version of [bootstrap[name], ...recorded.map((entry) => entry.version), manifest.version]) {
+    // Simulate a first publish still pending validation throughout the retry window.
+    if (!version || name === '@fixture/initial') continue
+    versions[version] = { engines: manifest.engines }
+    time[version] = '2026-02-01T00:00:00.000Z'
+  }
+  return { ok: true, json: async () => ({ versions, time }) }
+}
+`
+  )
   mkdirSync(join(cwd, 'market'))
   const emptyIndex = JSON.stringify(buildMarketIndex({ packages: [], registryDocuments: {} }))
   write('market/index.json', emptyIndex)
@@ -123,6 +151,18 @@ await test('commit-driven releases preserve independent history, versions, tags 
   }
   assert.equal(run('git', ['rev-parse', 'origin/main']), releaseHead)
   assert.equal(run('git', ['status', '--porcelain']), '')
+  const firstIndex = JSON.parse(run('git', ['show', 'HEAD:market/index.json']))
+  for (const [name, versions] of [
+    ['@fixture/new', ['0.1.0', '0.0.0']],
+    ['@fixture/other', ['2.7.4']],
+    ['@dungsil/dsh-plugin-locale-ko', ['0.3.2', '0.3.1']],
+  ]) {
+    assert.deepEqual(
+      firstIndex.plugins.find((plugin) => plugin.name === name)?.versions.map((entry) => entry.version),
+      versions
+    )
+  }
+  assert.match(run('pnpm', ['market:index', '--check']), /market\/index.json is up to date/)
   await releaseWorkspace({ npm: { publish: false }, github: { release: false } })
   assert.equal(run('git', ['rev-parse', 'HEAD']), releaseHead)
   assert.equal(manifest('new').version, '0.1.0')
@@ -218,7 +258,7 @@ await test('commit-driven releases preserve independent history, versions, tags 
     index.plugins
       .find((plugin) => plugin.name === '@dungsil/dsh-plugin-locale-ko')
       .versions.map((entry) => entry.version),
-    ['0.4.0', '0.3.2']
+    ['0.4.0', '0.3.2', '0.3.1']
   )
   assert.equal(run('git', ['status', '--porcelain']), '')
   assert.equal(run('git', ['rev-parse', 'HEAD']), run('git', ['rev-parse', 'origin/main']))

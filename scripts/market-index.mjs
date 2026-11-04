@@ -348,18 +348,20 @@ async function generateIndex(releasePackage) {
   const packages = readLocalPackages()
   const warnings = []
   const previousIndex = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : undefined
-  const index = releasePackage
+  // Record the confirmed publish first so registry reconciliation cannot drop a pending release.
+  const recordedIndex = releasePackage
     ? recordRelease({ index: previousIndex, packages, packageName: releasePackage })
-    : buildMarketIndex({
-        packages,
-        registryDocuments: await generateRegistryDocuments({
-          packages,
-          onWarning: (message) => warnings.push(message),
-        }),
-        previousIndex,
-        indexUrl: INDEX_URL,
-        onWarning: (message) => warnings.push(message),
-      })
+    : previousIndex
+  const index = buildMarketIndex({
+    packages,
+    registryDocuments: await generateRegistryDocuments({
+      packages,
+      onWarning: (message) => warnings.push(message),
+    }),
+    previousIndex: recordedIndex,
+    indexUrl: INDEX_URL,
+    onWarning: (message) => warnings.push(message),
+  })
   for (const warning of warnings) console.warn(`warning: ${warning}`)
   try {
     parseMarketIndex(index, INDEX_URL)
