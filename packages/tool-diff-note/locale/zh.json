@@ -1,0 +1,17 @@
+{
+  "meta": { "title": "变更说明", "description": "在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。" },
+  "ui": {
+    "title": "变更说明",
+    "open": "打开文件",
+    "waiting": "正在记录变更说明…",
+    "failed": "未能记录变更说明。",
+    "wrapLabel": "自动换行",
+    "unwrapLabel": "关闭自动换行",
+    "copy": "复制",
+    "copied": "已复制",
+    "collapseAria": "折叠差异",
+    "expandAria": "显示隐藏的 {count} 行",
+    "collapse": "折叠",
+    "expand": "再显示 {count} 行"
+  }
+}
