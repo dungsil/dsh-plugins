@@ -12,7 +12,8 @@
     "dist",
     "locale",
     "assets",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "THIRD-PARTY-LICENSES"
   ],
   "type": "module",
   "exports": {
