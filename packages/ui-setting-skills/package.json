@@ -1,0 +1,98 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-setting-skills",
+  "version": "0.2.0",
+  "description": "View loaded user skills in DeepSeek Harness settings.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-setting-skills"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-config-editor": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill-filesystem": "0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-config-editor": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill-filesystem": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "market": {
+    "order": 7.2,
+    "title": {
+      "en": "Skills Settings",
+      "ko": "스킬 설정",
+      "zh": "技能设置"
+    },
+    "description": {
+      "en": "View loaded skills from your shared agent and DSH skill directories in settings.",
+      "ko": "설정 화면에서 공용 에이전트 및 DSH 스킬 경로에 로드된 스킬을 확인합니다.",
+      "zh": "在设置中查看从共享代理和 DSH 技能目录加载的技能。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "skills",
+      "settings",
+      "ui"
+    ]
+  }
+}

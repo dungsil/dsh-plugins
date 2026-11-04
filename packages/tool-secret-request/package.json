@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-tool-secret-request",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Private credential input for DeepSeek Harness without returning secret values to the model.",
   "license": "MIT",
   "repository": {
@@ -56,7 +56,7 @@
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.5 || ^0.2.2-rc.1"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5",
+    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {

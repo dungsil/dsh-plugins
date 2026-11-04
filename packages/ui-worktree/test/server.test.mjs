@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -21,7 +21,7 @@ import * as plugin from '../dist/index.js'
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
-async function fixture(t, options = {}, settings = {}) {
+async function fixture(t, options = {}, settings = {}, taskModels) {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-worktree-')))
   const repo = join(home, 'source')
   const other = join(home, process.platform === 'win32' ? 'existing space 한글' : 'existing space\n한글')
@@ -56,6 +56,9 @@ async function fixture(t, options = {}, settings = {}) {
         insert: [
           { id: 'editor', name: 'cordis:editor' },
           { id: 'worktree-ui', name: '@dungsil/dsh-plugin-ui-worktree', config: settings },
+          ...(taskModels
+            ? [{ id: 'task-models', name: '@dungsil/dsh-plugin-model-settings', config: taskModels }]
+            : []),
         ],
       },
     ])
@@ -80,6 +83,7 @@ async function fixture(t, options = {}, settings = {}) {
     root.loader.internal = {
       version: 'v2',
       import: async (specifier) => {
+        if (specifier === '@dungsil/dsh-plugin-model-settings') return ModelSettings
         assert.equal(specifier, '@dungsil/dsh-plugin-ui-worktree')
         return plugin
       },
@@ -961,4 +965,151 @@ await test('task model and worktree settings coexist across profile reloads, rej
     model: 'selected',
     reasoningEffort: 'quick',
   })
+})
+
+await test('automatic worktree naming follows live auxiliary settings without changing conversation calls', async (t) => {
+  const route = { provider: 'auxiliary', model: 'small' }
+  const { ctx, agent, repo, rpc, requests, submit } = await fixture(
+    t,
+    {},
+    {},
+    {
+      auxiliaryModel: { ...route, reasoningEffort: 'quick' },
+    }
+  )
+  const namingRequests = []
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: { efforts: ['quick', 'thorough'].map((id) => ({ id, name: id })), defaultEffort: 'thorough' },
+      }
+    }
+    async *stream(options) {
+      namingRequests.push(options)
+      yield { type: 'text-delta', index: 0, text: `fix/task-${namingRequests.length}` }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['auxiliary', 'explicit'], new NamingAdapter())
+  const check = async (expected, effort) => {
+    assert.equal((await rpc('create', { cwd: repo })).ok, true)
+    await submit()
+    const created = (await rpc('describe')).value
+    assert.ok(created.cwd.endsWith(`task-${namingRequests.length}`))
+    assert.equal(namingRequests.at(-1).provider, expected.provider)
+    assert.equal(namingRequests.at(-1).model, expected.model)
+    assert.equal(namingRequests.at(-1).reasoningEffort, effort)
+    assert.equal((await rpc('switch', { cwd: created.cwd, path: gitPath(repo) })).ok, true)
+  }
+  const describe = async () => (await rpc('dungsil-model-settings/describe')).value
+  const save = (payload) => rpc('dungsil-model-settings/save', payload)
+  assert.equal((await describe()).worktree.useAuxiliary, true)
+  await check(route, 'quick')
+  const nextRoute = { provider: 'auxiliary', model: 'updated' }
+  assert.equal(
+    (await save({ ...(await describe()).auxiliary, route: nextRoute, reasoningEffort: 'thorough' })).ok,
+    true
+  )
+  await check(nextRoute, 'thorough')
+  const explicit = { provider: 'explicit', model: 'own' }
+  assert.equal((await save({ ...(await describe()).worktree, route: explicit, reasoningEffort: 'quick' })).ok, true)
+  await check(explicit, 'quick')
+  assert.equal(
+    (await save({ ...(await describe()).worktree, route: null, reasoningEffort: null, useAuxiliary: true })).ok,
+    true
+  )
+  await check(nextRoute, 'thorough')
+  assert.equal(
+    (await save({ ...(await describe()).worktree, route: null, reasoningEffort: null, useAuxiliary: false })).ok,
+    true
+  )
+  const auxiliaryCalls = namingRequests.length
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(namingRequests.length, auxiliaryCalls)
+  assert.ok(requests.some((request) => request.system?.startsWith('Return only a short')))
+  assert.deepEqual(
+    { provider: agent.options.provider, model: agent.options.model },
+    { provider: 'test', model: 'test-model' }
+  )
+  assert.ok(requests.every((request) => request.provider === 'test' && request.model === 'test-model'))
+})
+
+await test('destination-only conditional checkout filters cannot execute', async (t) => {
+  const { repo, home, git, rpc, submit } = await fixture(t)
+  await writeFile(join(repo, '.gitattributes'), '*.txt filter=linked\n')
+  await writeFile(join(repo, 'tracked.txt'), 'unchanged\n')
+  git('add', '.gitattributes', 'tracked.txt')
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'content')
+  const marker = join(home, 'filter-executed')
+  const included = join(home, 'linked-config')
+  await writeFile(included, `[filter "linked"]\n smudge = "touch '${marker}'; cat"\n required = true\n`)
+  git('config', `includeIf.gitdir:${gitPath(repo)}/.git/worktrees/.path`, included)
+  assert.equal(git('config', '--get-regexp', '^includeIf\\.').includes('linked-config'), true)
+  assert.equal((await rpc('create', { cwd: repo, name: 'linked-safe' })).ok, true)
+  await submit()
+  const result = await rpc('describe')
+  assert.notEqual(result.value.cwd, repo)
+  assert.equal(await readFile(join(result.value.cwd, 'tracked.txt'), 'utf8'), 'unchanged\n')
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
+})
+
+await test('repository symlinks cannot redirect pool or branch-prefix allocation', async (t) => {
+  for (const component of ['.agents', '.agents/worktrees', '.agents/worktrees/fix']) {
+    await t.test(component, async (t) => {
+      const { repo, home, git, rpc, submit } = await fixture(t)
+      const outside = join(home, 'outside')
+      await mkdir(outside)
+      const parts = component.split('/')
+      if (parts.length > 1) await mkdir(join(repo, ...parts.slice(0, -1)), { recursive: true })
+      await symlink(outside, join(repo, component), 'dir')
+      await rpc('create', { cwd: repo, name: 'fix/escape' })
+      await submit()
+      assert.equal((await rpc('describe')).value.cwd, repo)
+      assert.equal(git('branch', '--list', 'fix/escape'), '')
+      await assert.rejects(readFile(join(outside, 'escape/.git')), { code: 'ENOENT' })
+      assert.deepEqual(await (await import('node:fs/promises')).readdir(outside), [])
+    })
+  }
+})
+
+await test('stale or forged worktree metadata cannot switch to unrelated directories', async (t) => {
+  for (const replacement of ['plain', 'repository', 'forged-link', 'symlink-git']) {
+    await t.test(replacement, async (t) => {
+      const { ctx, agent, repo, other, git, rpc } = await fixture(t)
+      const link = await readFile(join(other, '.git'), 'utf8')
+      await rm(other, { recursive: true })
+      await mkdir(other)
+      if (replacement === 'repository') execFileSync('git', ['init', '-b', 'main', other])
+      if (replacement === 'forged-link' || replacement === 'symlink-git') {
+        const valid = join(repo, 'valid')
+        git('worktree', 'add', '--detach', valid)
+        if (replacement === 'symlink-git') await symlink(join(valid, '.git'), join(other, '.git'), 'file')
+        else await writeFile(join(other, '.git'), await readFile(join(valid, '.git')))
+        assert.notEqual(await readFile(join(other, '.git'), 'utf8'), link)
+      }
+      const response = await rpc('switch', { cwd: repo, path: gitPath(other) })
+      assert.equal(response.ok, false)
+      assert.equal(ctx.workingDirectory.get(agent.session), repo)
+    })
+  }
+})
+
+await test('explicit external pools retain owner-selected symlink ancestors', async (t) => {
+  const { repo, home, rpc, submit } = await fixture(t)
+  const external = join(home, 'external')
+  const alias = join(home, 'pool-alias')
+  await mkdir(external)
+  await symlink(external, alias, 'dir')
+  const current = (await rpc('settings')).value
+  assert.equal(
+    (await rpc('save-settings', { ...current, settings: { ...current.settings, directory: join(alias, 'pool') } })).ok,
+    true
+  )
+  await rpc('create', { cwd: repo, name: 'safe' })
+  await submit()
+  assert.equal((await rpc('describe')).value.cwd, join(external, 'pool/safe'))
 })

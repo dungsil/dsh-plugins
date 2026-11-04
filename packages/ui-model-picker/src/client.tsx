@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -9,16 +9,16 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   IconChevronLeftOutlineRegular,
   IconChevronRightOutlineRegular,
   IconCheckOutlineRegular,
   IconDataOutlineRegular,
-  MenuSurface,
-  focusWithoutRing,
-  useDismissOnOutsidePointer,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+  IconResetOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
+import { MenuSurface, focusWithoutRing, useDismissOnOutsidePointer } from '@dungsil/dsh-ui'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-model-picker'
@@ -74,11 +74,10 @@ export function apply(ctx: Context) {
     locked,
     directory,
   }: Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & { directory: ModelDirectory }) {
-    const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
-    const locale = useSyncExternalStore(
-      (fn) => ctx.locale.subscribe(fn),
-      () => ctx.locale.getSnapshot().active
-    )
+    const subscribe = useCallback((listener: () => void) => directory.store.subscribe(listener), [directory])
+    const getSnapshot = useCallback(() => directory.store.getSnapshot(), [directory])
+    const state = useSyncExternalStore(subscribe, getSnapshot)
+    const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
     const [draft, setDraft] = useState(0)
@@ -270,17 +269,7 @@ export function apply(ctx: Context) {
                       if (current) void select({ provider: current.provider, model: current.model })
                     }}
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      aria-hidden="true"
-                    >
-                      <path d="M3 4a5.5 5.5 0 1 1-1 6M3 1v3h3" />
-                    </svg>
+                    <IconResetOutlineRegular />
                   </button>
                 </header>
               )}
@@ -424,10 +413,5 @@ export function apply(ctx: Context) {
         ) : null
     )
   )
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-model-picker: styles')
+  ctx.effect(() => installStyles(styles), 'ui-model-picker: styles')
 }

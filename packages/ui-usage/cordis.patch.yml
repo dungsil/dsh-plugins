@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-ui-usage
+      name: '@dungsil/dsh-plugin-ui-usage'

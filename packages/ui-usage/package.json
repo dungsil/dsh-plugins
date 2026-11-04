@@ -1,0 +1,96 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-usage",
+  "version": "0.1.0",
+  "description": "Recorded session token usage dashboard for DeepSeek Harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-usage"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-query": "0.2.2-rc.1",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-query": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "market": {
+    "order": 12,
+    "title": {
+      "en": "Usage Dashboard",
+      "ko": "사용량 대시보드",
+      "zh": "用量仪表盘"
+    },
+    "description": {
+      "en": "View recorded session tokens, daily activity, and model usage from the sidebar.",
+      "ko": "사이드바에서 세션에 기록된 토큰, 일별 추이, 모델별 사용량을 확인합니다.",
+      "zh": "从侧边栏查看会话记录的令牌、每日趋势和模型用量。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "usage",
+      "tokens",
+      "dashboard",
+      "models"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { IconChevronDownOutlineRegular, IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineRegular, IconChevronRightOutlineRegular } from '@dungsil/dsh-ui/icons'
 import type { Placement, Section } from './inbox.js'
 
 /** Section copy resolved at render time so a language switch relabels live DOM. */

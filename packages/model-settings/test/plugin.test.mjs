@@ -4,6 +4,49 @@ import test from 'node:test'
 import { profileFixture, titleConfig } from './profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
+  await test(`${strategy}: shared auxiliary defaults preserve provenance, explicit overrides and conversation opt-out across reloads`, async (t) => {
+    const h = await profileFixture(strategy)
+    t.after(h.close)
+    const initial = (await h.rpc('describe')).value
+    assert.equal(initial.target.useAuxiliary, true)
+    const fallback = await h.generate('auxiliary-unset')
+    assert.deepEqual(h.ctx.sessionTitle.get(fallback).source.model, { provider: 'conversation', model: 'chat-large' })
+    const route = { provider: 'auxiliary', model: 'title-small' }
+    const saved = await h.rpc('save', { ...initial.auxiliary, route, reasoningEffort: 'thorough' })
+    assert.equal(saved.ok, true)
+    assert.equal((await h.rpc('save', { ...initial.auxiliary, route })).error.code, 'conflict')
+    const check = async (id, expectedRoute, effort) => {
+      const session = await h.generate(id)
+      const logged = session.snapshotEvents().findLast((event) => event.type === 'session/title-llm-request')
+      assert.deepEqual(logged.data.route, expectedRoute)
+      assert.deepEqual(h.ctx.sessionTitle.get(session).source.model, expectedRoute)
+      assert.equal(h.adapter.requests.at(-1).provider, expectedRoute.provider)
+      assert.equal(h.adapter.requests.at(-1).model, expectedRoute.model)
+      assert.equal(h.adapter.requests.at(-1).reasoningEffort, effort)
+      assert.deepEqual(session.requestHeader().config, { provider: 'conversation', model: 'chat-large' })
+    }
+    await check('shared', route, 'thorough')
+    await h.restart()
+    assert.deepEqual((await h.rpc('describe')).value.auxiliary.route, route)
+    await check('shared-restored', route, 'thorough')
+    const target = (await h.rpc('describe')).value.target
+    const ownRoute = { provider: 'conversation', model: 'title-small' }
+    const explicit = await h.rpc('save', { ...target, route: ownRoute, reasoningEffort: 'quick' })
+    assert.equal(explicit.ok, true)
+    await check('explicit', ownRoute, 'quick')
+    const optedOut = await h.rpc('save', { ...explicit.value, route: null, reasoningEffort: null, useAuxiliary: false })
+    assert.equal(optedOut.ok, true)
+    assert.equal(optedOut.value.useAuxiliary, false)
+    await h.restart()
+    await check('conversation-restored', { provider: 'conversation', model: 'chat-large' }, undefined)
+    const restored = (await h.rpc('describe')).value
+    assert.equal((await h.rpc('save', { ...restored.target, useAuxiliary: true })).ok, true)
+    await check('shared-again', route, 'thorough')
+    const auxiliary = (await h.rpc('describe')).value.auxiliary
+    assert.equal((await h.rpc('save', { ...auxiliary, route: null, reasoningEffort: null })).ok, true)
+    await check('auxiliary-reset', { provider: 'conversation', model: 'chat-large' }, undefined)
+  })
+
   await test(`${strategy}: persists reasoning effort and applies it before request logging without affecting conversation calls`, async (t) => {
     const h = await profileFixture(strategy)
     t.after(h.close)

@@ -1,14 +1,15 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ChatNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   IconCheckCircleOutlineRegular,
   IconCloseOutlineRegular,
   IconStopFillRegular,
   IconLoadingOutlineRegular,
   IconClockOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@dungsil/dsh-ui/icons'
 import { isWorktreeProgress, progressRecord, type WorktreeProgress } from './protocol.js'
 
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {
@@ -85,10 +86,7 @@ export function installProgress(ctx: Context) {
     ctx.slots.register(
       { name: 'conversation.chat.node', key: 'dungsil-worktree-progress', inject: () => ({}) },
       function Progress({ node }: { node: ChatNode<'dungsil-worktree-progress'> }) {
-        const language = useSyncExternalStore(
-          (listener) => ctx.locale.subscribe(listener),
-          () => ctx.locale.getSnapshot().active
-        )
+        const { active: language } = useLocaleSnapshot(ctx.locale)
         const text = labels[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
         const progress = node.data
         const ended =

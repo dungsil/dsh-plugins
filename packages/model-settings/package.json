@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-model-settings",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Owner-only task model configuration API for DeepSeek Harness, starting with session titles.",
   "license": "MIT",
   "repository": {
@@ -56,7 +56,7 @@
     "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5",
+    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {

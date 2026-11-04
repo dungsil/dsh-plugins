@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-vcs",
-  "version": "0.0.0",
-  "description": "Version control actions for the session agent, with Git commit, push, and pull request support.",
+  "version": "0.1.0",
+  "description": "Git actions and PR/MR review for GitHub, GitLab, Gitea and Forgejo.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -31,15 +31,16 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-agent": "0.2.2-rc.1",
     "@deepseek-ai/dsh-agent-loop-testkit": "0.2.2-rc.1",
     "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-store": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
     "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
     "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
@@ -50,12 +51,20 @@
     "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
     "@deepseek-ai/dsh-subprocess-local": "0.2.2-rc.1",
     "@deepseek-ai/dsh-working-directory": "0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "3.19.0",
     "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-math": "3.0.0",
+    "micromark-extension-gfm": "3.0.0",
+    "micromark-extension-math": "3.1.0",
     "react": "18.3.1",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-session": "^0.2.1-rc.5 || ^0.2.2-rc.1"
@@ -75,7 +84,8 @@
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-session"
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },
@@ -87,9 +97,9 @@
       "zh": "版本控制"
     },
     "description": {
-      "en": "Git actions above the composer: push on the default branch, create or update a PR on other branches or worktrees, or commit only.",
-      "ko": "입력창 위에서 Git 작업을 요청합니다. 기본 브랜치에서는 푸시하고 다른 브랜치나 worktree에서는 PR을 생성·업데이트하며, 커밋만 선택할 수도 있습니다.",
-      "zh": "在输入框上方请求 Git 操作：默认分支推送，其他分支或 worktree 创建或更新 PR，也可选择仅提交。"
+      "en": "Request Git commits, pushes and PR/MR updates, then review CI, diffs and discussions and merge GitHub, GitLab, Gitea or Forgejo requests with gh / glab / tea. Self-hosted instances use an explicit provider.",
+      "ko": "Git 커밋·푸시·PR/MR 업데이트를 요청하고 GitHub·GitLab·Gitea·Forgejo의 CI·차이·토론을 검토한 뒤 gh / glab / tea로 병합합니다. 자체 호스팅은 provider 설정으로 지원합니다.",
+      "zh": "请求 Git 提交、推送和 PR/MR 更新，审查 GitHub、GitLab、Gitea 或 Forgejo 的 CI、差异与讨论，并通过 gh / glab / tea 合并。自托管实例需显式设置 provider。"
     },
     "category": "ui",
     "labels": [],
@@ -98,7 +108,14 @@
       "commit",
       "push",
       "pull-request",
-      "composer"
+      "composer",
+      "github",
+      "gitlab",
+      "gitea",
+      "forgejo",
+      "self-hosted",
+      "mr",
+      "sidebar"
     ]
   }
 }
