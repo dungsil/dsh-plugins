@@ -114,12 +114,10 @@ export function apply(ctx: Context) {
     view.store.set({ ...current, orderBy: AGENT_ACTIVITY as View['orderBy'] })
   }
 
-  // This declaration is owned by ui-workspace, so both loading orders and HMR
-  // are covered. The v0.2.1 browser explicitly shares one create() instance.
-  // DSH already archives sessions from its own row menu, so this plugin adds no
-  // session menu item and only reads that state; the injection is the lifecycle
-  // anchor that exposes the shared view store.
-  ctx.slots.inject('sidebar.workspaces.session.menu.item', () => {
+  // The browser declares this slot together with its shared view store, so
+  // both loading orders and HMR are covered. The session menu is not an anchor:
+  // DSH 0.2.2 declares it independently, before the browser entry can exist.
+  ctx.slots.inject('sidebar.workspaces.session.row.action', () => {
     const entry =
       ctx.slots
         .entries('sidebar.workspaces')

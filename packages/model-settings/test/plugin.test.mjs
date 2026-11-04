@@ -173,6 +173,22 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'unavailable')
 })
 
+await test('an enabled worktree with no raw config can be described, configured and reloaded', async (t) => {
+  const h = await profileFixture('first-prompt', {}, null)
+  t.after(h.close)
+  const initial = (await h.rpc('describe')).value.worktree
+  assert.equal(initial.route, null)
+  assert.equal(initial.reasoningEffort, null)
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  const saved = await h.rpc('save', { ...initial, route, reasoningEffort: 'thorough' })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.route, route)
+  await h.restart()
+  const restored = (await h.rpc('describe')).value.worktree
+  assert.deepEqual(restored.route, route)
+  assert.equal(restored.reasoningEffort, 'thorough')
+})
+
 await test('worktree routes persist independently of titles, preserve other settings and reject stale writes', async (t) => {
   const h = await profileFixture('first-prompt', {}, { namingStyle: 'semantic' })
   t.after(h.close)

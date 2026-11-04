@@ -16,7 +16,7 @@
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-plugin-market-index": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-plugin-market-index": "0.2.2-rc.1",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@release-it/conventional-changelog": "12.0.2",
     "@types/node": "26.6.5",

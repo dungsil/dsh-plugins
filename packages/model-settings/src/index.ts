@@ -31,7 +31,12 @@ export function apply(ctx: Context) {
   const snapshot = (task: 'title' | 'worktree'): TitleTarget | null => {
     const entry = targetEntry(task)
     if (!entry) return null
-    const config = entry.fiber!.config as { provider?: string; model?: string; reasoningEffort?: string }
+    // Cordis 4.1 keeps raw input in config, including undefined for default installs.
+    const config = (entry.fiber!.effectiveConfig ?? entry.fiber!.config ?? {}) as {
+      provider?: string
+      model?: string
+      reasoningEffort?: string
+    }
     const settings = (task === 'title' ? settingsEntry()?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
@@ -60,7 +65,8 @@ export function apply(ctx: Context) {
   ctx.on('internal/get', (consumer, service, _error, next) => {
     if (service !== 'llm') return next()
     const entry = targetEntry('title')
-    if (consumer.fiber !== entry?.fiber) return next()
+    // Cordis 4.1 traces fibers through distinct proxies; their uid remains stable.
+    if (!entry?.fiber || consumer.fiber.uid !== entry.fiber.uid) return next()
     const effort = snapshot('title')?.reasoningEffort
     if (typeof effort !== 'string') return next()
     const llm = next() as Context['llm']

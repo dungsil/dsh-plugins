@@ -29,6 +29,13 @@ await test('all public plugins satisfy the shared in-place update package contra
         assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), false, version)
       }
 
+      for (const [peer, range] of Object.entries(manifest.peerDependencies ?? {})) {
+        if (!peer.startsWith('@deepseek-ai/dsh-')) continue
+        for (const version of ['0.2.2-rc.1', '0.2.2']) {
+          assert.ok(semver.satisfies(version, range), `${peer}@${version} must satisfy ${range}`)
+        }
+      }
+
       const patchPath = manifest.dsh.bundle.patch
       assert.ok(manifest.files.includes(patchPath.replace(/^\.\//u, '')), 'the bundle patch must be published')
       assert.ok(manifest.files.includes('dist'), 'the replacement must include its built entry points')

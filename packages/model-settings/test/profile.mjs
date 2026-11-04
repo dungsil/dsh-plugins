@@ -82,8 +82,14 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
           { id: 'editor', name: 'cordis:editor' },
           { id: 'custom-title-entry', name: providerName, config: { ...titleConfig, ...initialRoute } },
           { id: 'model-settings', name: '@dungsil/dsh-plugin-model-settings' },
-          ...(worktreeConfig
-            ? [{ id: 'custom-worktree-entry', name: '@dungsil/dsh-plugin-ui-worktree', config: worktreeConfig }]
+          ...(worktreeConfig !== undefined
+            ? [
+                {
+                  id: 'custom-worktree-entry',
+                  name: '@dungsil/dsh-plugin-ui-worktree',
+                  ...(worktreeConfig === null ? {} : { config: worktreeConfig }),
+                },
+              ]
             : []),
         ],
       },
