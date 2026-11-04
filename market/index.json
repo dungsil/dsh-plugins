@@ -607,6 +607,16 @@
           "engines": {
             "dsh": "^0.2.1-rc.5"
           }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793804448,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
         }
       ]
     },
@@ -729,6 +739,16 @@
           "engines": {
             "dsh": "^0.2.1-rc.5"
           }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793804247,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
         }
       ]
     },
@@ -786,9 +806,9 @@
         "zh": "版本控制"
       },
       "description": {
-        "en": "Git actions above the composer: push on the default branch, create or update a PR on other branches or worktrees, or commit only.",
-        "ko": "입력창 위에서 Git 작업을 요청합니다. 기본 브랜치에서는 푸시하고 다른 브랜치나 worktree에서는 PR을 생성·업데이트하며, 커밋만 선택할 수도 있습니다.",
-        "zh": "在输入框上方请求 Git 操作：默认分支推送，其他分支或 worktree 创建或更新 PR，也可选择仅提交。"
+        "en": "Request Git commits, pushes, or PR creation and updates above the composer, and review CI, changes, and GitHub PRs or GitLab MRs before merging with gh / glab in the right sidebar.",
+        "ko": "입력창 위에서 Git 커밋·푸시·PR 생성과 업데이트를 요청하고, 오른쪽 사이드바에서 GitHub PR/GitLab MR의 CI와 변경 내용을 검토한 뒤 gh / glab으로 병합합니다.",
+        "zh": "在输入框上方请求 Git 提交、推送或创建和更新 PR，并在右侧栏审查 GitHub PR/GitLab MR 的 CI 与变更，使用 gh / glab 合并。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -797,7 +817,7 @@
       "author": "dungsil",
       "metadata": {
         "category": "ui",
-        "keywords": ["git", "commit", "push", "pull-request", "composer"],
+        "keywords": ["git", "commit", "push", "pull-request", "composer", "github", "gitlab", "mr", "sidebar"],
         "labels": [],
         "sortKeys": {}
       },
@@ -805,6 +825,16 @@
         {
           "version": "0.1.0",
           "publishTimestamp": 1793804365,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1793804437,
           "source": {
             "type": "npm"
           },
@@ -847,6 +877,16 @@
           "engines": {
             "dsh": "^0.2.1-rc.5"
           }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1793804474,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
         }
       ]
     },
@@ -877,6 +917,16 @@
         {
           "version": "0.1.0",
           "publishTimestamp": 1793804341,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1793804484,
           "source": {
             "type": "npm"
           },
