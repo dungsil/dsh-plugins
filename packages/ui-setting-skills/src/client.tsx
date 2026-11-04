@@ -101,9 +101,6 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
               hidden={source !== group.value}
               tabIndex={0}
             >
-              <p className="dsh-skills-muted">
-                <code>{group.value === 'user-agents' ? '~/.agents/skills' : '$DSH_HOME/skills'}</code>
-              </p>
               {group.skills.length === 0 ? (
                 <p className="dsh-skills-muted">{text.empty}</p>
               ) : (
