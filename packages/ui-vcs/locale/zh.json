@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "版本控制",
-    "description": "在输入框上方请求 Git 提交、推送和创建 PR，在右侧栏审查并合并当前分支的 GitHub PR 或 GitLab MR。"
+    "description": "在输入框上方请求 Git 提交、推送和创建 PR，在右侧栏审查并合并当前分支的 GitHub、Gitea、Forgejo PR 或 GitLab MR。"
   },
   "title": "PR / MR",
   "description": "查看从此会话当前分支推送的 PR 或 MR",
@@ -12,10 +12,10 @@
   "draft": "草稿",
   "closed": "已关闭",
   "merged": "已合并",
-  "hint": "请在 DSH 主机上安装 gh（GitHub）或 glab（GitLab）并登录。",
+  "hint": "请在 DSH 主机上安装 gh（GitHub）、glab（GitLab）或 tea 0.12.x（Gitea/Forgejo）并登录。",
   "repository": "未找到此会话的 Git 仓库或远程地址。",
-  "unsupported": "无法识别主机。对于自托管实例，请将此插件的 provider 设置为 github 或 gitlab。",
-  "cli_missing": "DSH 主机上未安装所需的 CLI。",
+  "unsupported": "无法识别主机。对于自托管实例，请将此插件的 provider 显式设置为 github、gitlab、gitea 或 forgejo。",
+  "cli_missing": "DSH 主机上缺少所需的 CLI 或版本不受支持。Gitea 和 Forgejo 使用 tea 0.12.x。",
   "command_failed": "无法加载请求。请检查 CLI 登录状态、仓库访问权限和会话的沙箱网络策略。",
   "invalid_response": "CLI 返回了无效响应。",
   "unavailable": "无法查询请求。请重新连接后刷新。",

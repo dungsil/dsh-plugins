@@ -34,7 +34,7 @@ export interface RequestItem {
 }
 
 export interface RequestView {
-  provider: 'github' | 'gitlab'
+  provider: 'github' | 'gitlab' | 'gitea' | 'forgejo'
   repository: string
   branch: string
   request: RequestItem | null

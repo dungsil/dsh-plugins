@@ -36,6 +36,13 @@ export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs']
 type ReviewAction = Exclude<RequestAction['action'], 'merge'>
 type Strategy = NonNullable<RequestAction['strategy']>
 
+const providerNames: Record<RequestView['provider'], string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  gitea: 'Gitea',
+  forgejo: 'Forgejo',
+}
+
 function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>, 'text' | 'labels'>) {
   const { introduction, sections, definitions } = useMemo(() => splitMarkdownSections(text), [text])
   const render = (items: MarkdownSection[]) =>
@@ -302,7 +309,7 @@ export function apply(ctx: Context) {
     const strategies = [
       { id: 'squash', label: copy.squash },
       { id: 'merge', label: copy.merge_commit },
-      ...(view?.provider === 'github' ? [{ id: 'rebase', label: copy.rebase }] : []),
+      ...(view && view.provider !== 'gitlab' ? [{ id: 'rebase', label: copy.rebase }] : []),
     ]
 
     return (
@@ -310,7 +317,7 @@ export function apply(ctx: Context) {
         <style>{styles}</style>
         <header>
           <div>
-            <strong>{view ? (view.provider === 'github' ? 'GitHub' : 'GitLab') : copy.title}</strong>
+            <strong>{view ? providerNames[view.provider] : copy.title}</strong>
             {view && (
               <>
                 <span className="dsh-pr-repository" title={view.repository}>
@@ -351,7 +358,7 @@ export function apply(ctx: Context) {
                     <a href={item.url} target="_blank" rel="noopener noreferrer">
                       {item.title}{' '}
                       <span className="dsh-pr-number">
-                        {view.provider === 'github' ? '#' : '!'}
+                        {view.provider === 'gitlab' ? '!' : '#'}
                         {item.number}
                       </span>
                       <IconLinkOutlineRegular aria-hidden="true" />
@@ -536,7 +543,7 @@ export function apply(ctx: Context) {
                                 label: copy.approve,
                                 disabled: item.draft || item.diffTruncated || !item.diff,
                               },
-                              ...(view.provider === 'github'
+                              ...(view.provider !== 'gitlab'
                                 ? [{ id: 'request_changes' as const, label: copy.request_changes }]
                                 : []),
                             ]}
