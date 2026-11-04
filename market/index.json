@@ -509,6 +509,39 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-model-picker",
+      "title": {
+        "en": "Model Picker",
+        "ko": "모델 피커",
+        "zh": "模型选择器"
+      },
+      "description": {
+        "en": "A compact composer picker with model menus and a reasoning effort slider.",
+        "ko": "입력창에서 모델 메뉴와 추론 강도 슬라이더를 사용합니다.",
+        "zh": "在输入框中使用模型菜单和推理强度滑块。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-model-picker"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["models", "reasoning", "composer"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793778011,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-turn-rail-left",
       "title": {
         "en": "Left Turn Rail",
