@@ -28,6 +28,7 @@ import {
   type ProxyModel,
 } from './protocol.js'
 import { localizedCopy } from './copy.js'
+import { QuotaPanel, quotaStyles } from './quota-panel.js'
 
 export const name = 'dungsil-cli-proxy-api'
 export const inject = ['connection', 'locale', 'slots']
@@ -38,7 +39,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-const styles = `${settingsStyles}
+const styles = `${settingsStyles}${quotaStyles}
 .dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 32px max(24px, var(--dsh-frame-leading-clearance, 0px)); }
 .dsh-cli-proxy-page > .dsh-cli-proxy { max-width: 960px; margin: 0 auto; }
@@ -113,8 +114,6 @@ function ProxyPage({
   const [providers, setProviders] = useState<ProviderView>()
   const [quotaAccounts, setQuotaAccounts] = useState<QuotaAccount[]>()
   const [quotas, setQuotas] = useState<Record<string, QuotaResult | null | undefined>>({})
-  const [quotaSearch, setQuotaSearch] = useState('')
-  const [quotaPage, setQuotaPage] = useState(0)
   const [family, setFamily] = useState<string>(providerFamilies[0])
   const [groupName, setGroupName] = useState('')
   const [upstreamURL, setUpstreamURL] = useState('')
@@ -182,8 +181,6 @@ function ProxyPage({
     setProviders(undefined)
     setQuotaAccounts(undefined)
     setQuotas({})
-    setQuotaSearch('')
-    setQuotaPage(0)
     setUpstreamKey('')
     setSession(undefined)
     setOAuthStatus(undefined)
@@ -281,26 +278,6 @@ function ProxyPage({
   const validStrategy = strategies.some((item) => item.id === strategy)
   const validRetry = /^\d+$/.test(retry) && Number.isSafeInteger(Number(retry))
   const oauthURL = session && safeAuthorizationURL(session.url)
-  const filteredAccounts =
-    quotaAccounts?.filter((account) =>
-      `${account.name} ${account.provider}`.toLowerCase().includes(quotaSearch.trim().toLowerCase())
-    ) ?? []
-  const quotaLabels: Record<string, string> = {
-    five_hour: text.fiveHour,
-    seven_day: text.sevenDay,
-    seven_day_oauth_apps: text.oauthApps,
-    seven_day_opus: 'Opus',
-    seven_day_sonnet: 'Sonnet',
-    seven_day_cowork: 'Cowork',
-    primary_window: text.primaryWindow,
-    secondary_window: text.secondaryWindow,
-    code_review_primary_window: text.codeReview,
-    code_review_secondary_window: text.codeReview,
-    daily: text.daily,
-    weekly: text.sevenDay,
-    monthly: text.monthly,
-    credits: text.credits,
-  }
   const row = (label: ReactNode, children: ReactNode) => (
     <SettingsRow label={label}>
       <div className="controls">{children}</div>
@@ -424,165 +401,62 @@ function ProxyPage({
         </>
       ) : (
         <>
-          <p className="hint">{text.connectionSettingsHint}</p>
-          {button(text.refresh, () => {
-            void run(async (controller) => {
-              await describe(controller)
-              setSession(undefined)
-              setOAuthStatus(undefined)
-              setRedirectURL('')
-            })
-          })}
+          <div className={page === 'quota' ? 'dsh-cli-quota-connection' : undefined}>
+            <p className="hint">{text.connectionSettingsHint}</p>
+            {button(page === 'quota' ? text.quotaRefreshConnection : text.refresh, () => {
+              void run(async (controller) => {
+                await describe(controller)
+                setSession(undefined)
+                setOAuthStatus(undefined)
+                setRedirectURL('')
+              })
+            })}
+          </div>
           {page === 'quota' && (
             <>
-              <h3>{text.quota}</h3>
-              <p className="hint">{text.quotaHint}</p>
               {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
-              {row(
-                text.accounts,
-                button(
-                  text.refreshQuotaAccounts,
-                  () => {
-                    if (!canManage) return
-                    void run(async (controller) => {
-                      setQuotaAccounts(undefined)
-                      setQuotas({})
-                      setQuotaPage(0)
-                      setQuotaAccounts(await call<QuotaAccount[]>('quota-list', {}, controller))
-                      setUncertain(false)
-                    })
-                  },
-                  busy || !canManage
-                )
-              )}
-              {row(
-                <label htmlFor={`${id}-quota-search`}>{text.searchAccounts}</label>,
-                <input
-                  id={`${id}-quota-search`}
-                  value={quotaSearch}
-                  onChange={(event) => {
-                    setQuotaSearch(event.target.value)
-                    setQuotaPage(0)
-                  }}
-                />
-              )}
-              {!quotaAccounts ? (
-                <p className="hint">{text.unloadedQuota}</p>
-              ) : filteredAccounts.length === 0 ? (
-                <p>{text.emptyAccounts}</p>
-              ) : (
-                filteredAccounts.slice(quotaPage * 20, (quotaPage + 1) * 20).map((account) => {
+              <QuotaPanel
+                accounts={quotaAccounts}
+                quotas={quotas}
+                language={locale.active}
+                text={text}
+                busy={busy}
+                canLoad={canManage}
+                managementDisabled={managementDisabled}
+                onLoad={() => {
+                  if (!canManage) return
+                  void run(async (controller) => {
+                    setQuotaAccounts(undefined)
+                    setQuotas({})
+                    setQuotaAccounts(await call<QuotaAccount[]>('quota-list', {}, controller))
+                    setUncertain(false)
+                  })
+                }}
+                onFetch={(account) => {
                   const key = JSON.stringify([account.name, account.authIndex])
-                  const result = quotas[key]
-                  return (
-                    <div key={key}>
-                      <SettingsRow
-                        label={
-                          <>
-                            {account.name}
-                            <div className="hint">
-                              {account.provider} · {account.disabled ? text.disabled : text.enabled}
-                            </div>
-                          </>
-                        }
-                      >
-                        <div className="controls">
-                          {button(
-                            text.refreshQuota,
-                            () => {
-                              void run(async (controller) => {
-                                setQuotas((current) => ({ ...current, [key]: undefined }))
-                                try {
-                                  const next = await call<QuotaResult>(
-                                    'quota-fetch',
-                                    { name: account.name, authIndex: account.authIndex },
-                                    controller
-                                  )
-                                  setQuotas((current) => ({ ...current, [key]: next }))
-                                } catch {
-                                  if (!controller.signal.aborted && lifetime.current === controller)
-                                    setQuotas((current) => ({ ...current, [key]: null }))
-                                  throw new Error('request failed')
-                                }
-                              })
-                            },
-                            managementDisabled || !account.supported || !account.authIndex
-                          )}
-                          {button(
-                            text.reset,
-                            () => {
-                              void run(async (controller) => {
-                                await call('reset', { authIndex: account.authIndex }, controller)
-                                setNotice('success')
-                              }, true)
-                            },
-                            managementDisabled || !account.editable || !account.authIndex
-                          )}
-                        </div>
-                      </SettingsRow>
-                      {!account.supported ? (
-                        <p className="hint">{account.disabled ? text.disabled : text.unsupportedQuota}</p>
-                      ) : result === null ? (
-                        <p role="alert">{text.quotaFailed}</p>
-                      ) : !result ? (
-                        <p className="hint">{text.unloadedQuota}</p>
-                      ) : (
-                        <>
-                          {result.plan && (
-                            <p>
-                              {text.plan}: {result.plan}
-                            </p>
-                          )}
-                          {result.windows.length === 0 && <p className="hint">{text.unknownQuota}</p>}
-                          {result.windows.map((window, index) => (
-                            <div className="quota-window" key={`${window.id}-${index}`}>
-                              <div className="quota-heading">
-                                <span>
-                                  {quotaLabels[window.id] ?? window.id}
-                                  {window.periodSeconds !== undefined &&
-                                    ` · ${window.periodSeconds / 3600}${text.hours}`}
-                                </span>
-                                <span>
-                                  {window.usedPercent === undefined
-                                    ? text.unknownQuota
-                                    : `${text.used}: ${Number(window.usedPercent.toFixed(1))}% · ${text.remaining}: ${Number((100 - window.usedPercent).toFixed(1))}%`}
-                                </span>
-                              </div>
-                              {window.usedPercent !== undefined && (
-                                <progress
-                                  aria-label={quotaLabels[window.id] ?? window.id}
-                                  max={100}
-                                  value={window.usedPercent}
-                                />
-                              )}
-                              {window.resetAt && (
-                                <p className="hint">
-                                  {text.resetsAt}: {new Date(window.resetAt).toLocaleString(locale.active)}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                          <p className="hint">
-                            {text.observedAt}: {new Date(result.observedAt).toLocaleString(locale.active)}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  )
-                })
-              )}
-              {filteredAccounts.length > 20 &&
-                row(
-                  `${quotaPage + 1} / ${Math.ceil(filteredAccounts.length / 20)}`,
-                  <>
-                    {button(text.previous, () => setQuotaPage((current) => current - 1), quotaPage === 0)}
-                    {button(
-                      text.next,
-                      () => setQuotaPage((current) => current + 1),
-                      (quotaPage + 1) * 20 >= filteredAccounts.length
-                    )}
-                  </>
-                )}
+                  void run(async (controller) => {
+                    setQuotas((current) => ({ ...current, [key]: undefined }))
+                    try {
+                      const next = await call<QuotaResult>(
+                        'quota-fetch',
+                        { name: account.name, authIndex: account.authIndex },
+                        controller
+                      )
+                      setQuotas((current) => ({ ...current, [key]: next }))
+                    } catch {
+                      if (!controller.signal.aborted && lifetime.current === controller)
+                        setQuotas((current) => ({ ...current, [key]: null }))
+                      throw new Error('request failed')
+                    }
+                  })
+                }}
+                onReset={(account) => {
+                  void run(async (controller) => {
+                    await call('reset', { authIndex: account.authIndex }, controller)
+                    setNotice('success')
+                  }, true)
+                }}
+              />
             </>
           )}
           {page === 'overview' && (
