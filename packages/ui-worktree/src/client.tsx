@@ -50,7 +50,6 @@ export function apply(ctx: Context) {
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
     const errorDialog = useRef<HTMLDialogElement>(null)
-    const errorTrigger = useRef<HTMLButtonElement>(null)
     const errorTitle = useId()
     const errorDescription = useId()
     const status = useId()
@@ -164,8 +163,7 @@ export function apply(ctx: Context) {
     }, [error, creation?.failed])
 
     const restoreErrorFocus = () => {
-      const button = errorTrigger.current ?? trigger.current
-      button?.focus()
+      trigger.current?.focus()
     }
 
     const current = currentWorktree(view)
@@ -183,6 +181,7 @@ export function apply(ctx: Context) {
       : current
         ? (current.branch ?? text.detached)
         : text.unknown
+    const label = detailError ? errorLabel : view ? branch : loading ? text.loading : text.title
     const notice = loading
       ? text.loading
       : busy
@@ -203,73 +202,62 @@ export function apply(ctx: Context) {
 
     return (
       <div className="dsh-worktree">
-        <div className="dsh-worktree-controls">
-          <Menu
-            className="dsh-worktree-picker"
-            open={open}
-            side="top"
-            portal
-            selectedId={creation ? 'create' : current ? `path:${current.path}` : undefined}
-            items={[
-              { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
-              ...(view?.worktrees.map((item) => ({
-                id: `path:${item.path}`,
-                label: item.branch ?? text.detached,
-                icon: <IconBranchOutlineRegular />,
-              })) ?? []),
-            ]}
-            onClose={() => setOpen(false)}
-            onSelect={(id) => {
-              setOpen(false)
-              if (disabled || pending.current) return
-              if (id === 'create') {
-                if (!creation || creation.failed) void change('create')
-              } else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
-                void change('switch', id.slice(5))
-            }}
-            anchor={
-              <button
-                ref={trigger}
-                type="button"
-                className="dsh-worktree-trigger"
-                disabled={disabled}
-                aria-label={view ? `${text.title}: ${branch}` : text.title}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                aria-describedby={status}
-                aria-busy={loading || busy}
-                title={view ? branch : text.title}
-                onClick={() => setOpen((value) => !value)}
-                onKeyDown={(event) => {
-                  if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
-                    event.preventDefault()
-                    setOpen(true)
-                  }
-                }}
-              >
-                <span className="dsh-worktree-icon" aria-hidden="true">
-                  <IconBranchOutlineRegular className="dsh-worktree-branch" />
-                </span>
-                <span className="dsh-worktree-name">{view ? branch : loading ? text.loading : text.title}</span>
-                <span className="dsh-worktree-chevron" aria-hidden="true">
-                  <IconChevronDownOutlineRegular />
-                </span>
-              </button>
-            }
-          />
-          {detailError && (
+        <Menu
+          className="dsh-worktree-picker"
+          open={open}
+          side="top"
+          portal
+          selectedId={creation ? 'create' : current ? `path:${current.path}` : undefined}
+          items={[
+            { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
+            ...(view?.worktrees.map((item) => ({
+              id: `path:${item.path}`,
+              label: item.branch ?? text.detached,
+              icon: <IconBranchOutlineRegular />,
+            })) ?? []),
+          ]}
+          onClose={() => setOpen(false)}
+          onSelect={(id) => {
+            setOpen(false)
+            if (disabled || pending.current) return
+            if (id === 'create') {
+              if (!creation || creation.failed) void change('create')
+            } else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
+              void change('switch', id.slice(5))
+          }}
+          anchor={
             <button
-              ref={errorTrigger}
+              ref={trigger}
               type="button"
-              className="dsh-worktree-error-trigger"
-              aria-haspopup="dialog"
-              aria-label={`${errorLabel}: ${text.errorTitle}`}
-              onClick={() => errorDialog.current?.showModal()}
+              className="dsh-worktree-trigger"
+              disabled={detailError ? loading || busy : disabled}
+              aria-label={`${text.title}: ${label}`}
+              aria-haspopup={detailError ? 'dialog' : 'menu'}
+              aria-expanded={detailError ? undefined : open}
+              aria-describedby={status}
+              aria-busy={loading || busy}
+              title={label}
+              onClick={() => {
+                if (detailError) errorDialog.current?.showModal()
+                else setOpen((value) => !value)
+              }}
+              onKeyDown={(event) => {
+                if (!detailError && !disabled && !open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                  event.preventDefault()
+                  setOpen(true)
+                }
+              }}
             >
-              {errorLabel}
+              <span className="dsh-worktree-icon" aria-hidden="true">
+                <IconBranchOutlineRegular className="dsh-worktree-branch" />
+              </span>
+              <span className="dsh-worktree-name">{label}</span>
+              <span className="dsh-worktree-chevron" aria-hidden="true">
+                <IconChevronDownOutlineRegular />
+              </span>
             </button>
-          )}
-        </div>
+          }
+        />
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>
