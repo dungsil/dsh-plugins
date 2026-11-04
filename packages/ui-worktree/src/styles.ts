@@ -37,16 +37,16 @@ export const styles = `
 .dsh-worktree-dialog button:disabled { opacity: .45; cursor: not-allowed; }
 .dsh-worktree-dialog button:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dsh-worktree-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.dsh-worktree-progress { margin: 12px 0 20px; color: var(--dsw-alias-label-secondary); font: 13px/1.6 ui-monospace, monospace; }
+.dsh-worktree-progress { margin: 12px 0 20px; color: var(--dsw-alias-label-secondary); font: inherit; font-size: var(--dsh-content-font-size-secondary, 13px); line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px)); }
 .dsh-worktree-progress > p { margin: 0 0 8px; overflow-wrap: anywhere; }
 .dsh-worktree-progress ol { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--dsw-alias-border-l2); }
 .dsh-worktree-progress li { display: flex; align-items: center; gap: 10px; padding: 3px 4px; }
 .dsh-worktree-progress li[data-state=pending] { opacity: .4; }
-.dsh-worktree-progress-mark { box-sizing: border-box; display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; line-height: 1; }
-.dsh-worktree-progress li[data-state=running] .dsh-worktree-progress-mark { border-right-color: transparent; }
+.dsh-worktree-progress-mark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: calc(16px + var(--dsh-content-font-delta, 0px)); height: calc(16px + var(--dsh-content-font-delta, 0px)); }
+.dsh-worktree-progress-mark svg { width: calc(14px + var(--dsh-content-font-delta, 0px)); height: calc(14px + var(--dsh-content-font-delta, 0px)); }
 .dsh-worktree-progress li[data-state=failed], .dsh-worktree-progress [role=alert] { color: var(--dsw-alias-state-error-primary); }
 .dsh-worktree-progress [role=alert] { margin-top: 10px; font: inherit; }
-.dsh-worktree-progress-time { margin-inline-start: auto; padding-inline-start: 8px; font-size: 11px; }
+.dsh-worktree-progress-time { margin-inline-start: auto; padding-inline-start: 8px; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px); font-variant-numeric: tabular-nums; }
 @keyframes dsh-worktree-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: no-preference) {
   .dsh-worktree-progress li[data-state=running] .dsh-worktree-progress-mark { animation: dsh-worktree-spin .8s linear infinite; }
