@@ -409,6 +409,9 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31

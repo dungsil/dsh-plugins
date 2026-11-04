@@ -9,8 +9,8 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
-  IconChevronDownOutlineRegular,
   IconChevronLeftOutlineRegular,
   IconChevronRightOutlineRegular,
   IconCheckOutlineRegular,
@@ -242,9 +242,11 @@ export function apply(ctx: Context) {
     return (
       <>
         <div className="dsh-codex-picker" ref={anchor} aria-busy={busy}>
-          <button
-            type="button"
+          <ComposerTrigger
             className="dsh-codex-trigger"
+            icon={<IconDataOutlineRegular size={16} />}
+            label={model?.name ?? current?.model ?? text.model}
+            detail={effortLabel}
             disabled={disabled}
             aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
@@ -252,12 +254,7 @@ export function apply(ctx: Context) {
             aria-expanded={panel !== null && !exiting}
             aria-controls={panel && !exiting ? id : undefined}
             onClick={(event) => show(event.currentTarget)}
-          >
-            <IconDataOutlineRegular className="dsh-codex-trigger-icon" size={16} />
-            <span className="dsh-codex-name">{model?.name ?? current?.model ?? text.model}</span>
-            {effortLabel && <span className="dsh-codex-effort">{effortLabel}</span>}
-            <IconChevronDownOutlineRegular className="dsh-codex-chevron" />
-          </button>
+          />
         </div>
         {panel &&
           createPortal(
