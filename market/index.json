@@ -2,30 +2,35 @@
   "format": 1,
   "title": {
     "en": "DUNGSIL's DSH Plugins",
-    "ko": "DUNGSIL의 DSH 플러그인"
+    "ko": "DUNGSIL의 DSH 플러그인",
+    "zh": "DUNGSIL 的 DSH 插件"
   },
   "description": {
     "en": "Korean-focused DeepSeek Harness plugins: Korean UI, writing skills, sidebar inbox, and secret input.",
-    "ko": "한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다."
+    "ko": "한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다.",
+    "zh": "DUNGSIL 开发的 DeepSeek Harness 插件集，专注于韩语使用体验，包含韩语界面、写作技能、侧边栏收件箱和私密凭据输入。"
   },
   "metadata": {
     "categories": {
       "ui": {
         "title": {
           "en": "Interface",
-          "ko": "인터페이스"
+          "ko": "인터페이스",
+          "zh": "界面"
         }
       },
       "skills": {
         "title": {
           "en": "Skills",
-          "ko": "스킬"
+          "ko": "스킬",
+          "zh": "技能"
         }
       },
       "tools": {
         "title": {
           "en": "Tools",
-          "ko": "도구"
+          "ko": "도구",
+          "zh": "工具"
         }
       }
     },
@@ -33,13 +38,15 @@
       "korean": {
         "title": {
           "en": "Korean",
-          "ko": "한국어"
+          "ko": "한국어",
+          "zh": "韩语"
         }
       },
       "accessibility": {
         "title": {
           "en": "Accessibility",
-          "ko": "접근성"
+          "ko": "접근성",
+          "zh": "无障碍"
         }
       }
     }
@@ -49,11 +56,13 @@
       "name": "@dungsil/dsh-plugin-locale-ko",
       "title": {
         "en": "Korean UI",
-        "ko": "한국어 UI"
+        "ko": "한국어 UI",
+        "zh": "韩语界面"
       },
       "description": {
         "en": "Korean interface strings for DeepSeek Harness, including the plugin pages and the Korean IME and writing skills.",
-        "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다."
+        "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다.",
+        "zh": "为 DeepSeek Harness 提供韩语界面，包含插件管理页面翻译、韩语输入法和写作技能。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -160,11 +169,13 @@
       "name": "@dungsil/dsh-plugin-korean-ime",
       "title": {
         "en": "Korean IME",
-        "ko": "한국어 IME"
+        "ko": "한국어 IME",
+        "zh": "韩语输入法"
       },
       "description": {
         "en": "Sends the message when Enter commits a Korean IME composition, without changing other key behavior.",
-        "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다."
+        "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다.",
+        "zh": "按 Enter 确认韩语输入法组字时发送消息，不改变其他按键行为。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -221,11 +232,13 @@
       "name": "@dungsil/dsh-plugin-yoonmoon",
       "title": {
         "en": "Yoonmoon",
-        "ko": "윤문"
+        "ko": "윤문",
+        "zh": "韩语润色"
       },
       "description": {
         "en": "Six Korean writing skills for proofreading, translation cleanup, AI-style removal, and style conversion.",
-        "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다."
+        "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다.",
+        "zh": "提供六项韩语写作技能，涵盖校对、翻译腔修正、AI 文风去除和文体转换。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -282,11 +295,13 @@
       "name": "@dungsil/dsh-plugin-i-have-adhd",
       "title": {
         "en": "ADHD-friendly responses",
-        "ko": "ADHD 친화 응답"
+        "ko": "ADHD 친화 응답",
+        "zh": "ADHD 友好回复"
       },
       "description": {
         "en": "Turns on ADHD-friendly response formatting: one action first, short steps, and no preamble.",
-        "ko": "행동을 먼저 제시하고 단계를 짧게 유지하는 ADHD 친화 응답 형식을 켭니다."
+        "ko": "행동을 먼저 제시하고 단계를 짧게 유지하는 ADHD 친화 응답 형식을 켭니다.",
+        "zh": "启用 ADHD 友好的回复格式：优先给出行动，步骤简短，不加开场白。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -343,11 +358,13 @@
       "name": "@dungsil/dsh-plugin-ui-sidebar-inbox",
       "title": {
         "en": "Sidebar Inbox",
-        "ko": "사이드바 수신함"
+        "ko": "사이드바 수신함",
+        "zh": "侧边栏收件箱"
       },
       "description": {
         "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
-        "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다."
+        "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다.",
+        "zh": "将侧边栏会话分为收件箱、进行中和已归档列表，不改变现有侧边栏外观。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -377,11 +394,13 @@
       "name": "@dungsil/dsh-plugin-tool-secret-request",
       "title": {
         "en": "Secret input",
-        "ko": "비밀값 입력"
+        "ko": "비밀값 입력",
+        "zh": "私密凭据输入"
       },
       "description": {
         "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
-        "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다."
+        "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다.",
+        "zh": "在对话中显示凭据输入卡片，仅将输入值传递到 DSH 私密存储，绝不传递给模型。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -411,11 +430,13 @@
       "name": "@dungsil/dsh-plugin-ui-model-settings",
       "title": {
         "en": "Task Models UI",
-        "ko": "상황별 모델"
+        "ko": "상황별 모델",
+        "zh": "任务模型设置"
       },
       "description": {
         "en": "Choose a session title model in settings. Includes the task model configuration API.",
-        "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다."
+        "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다.",
+        "zh": "在设置中选择会话标题生成模型，同时安装任务模型配置 API。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -455,11 +476,13 @@
       "name": "@dungsil/dsh-plugin-ui-worktree",
       "title": {
         "en": "Git Worktree UI",
-        "ko": "Git Worktree UI"
+        "ko": "Git Worktree UI",
+        "zh": "Git 工作树界面"
       },
       "description": {
         "en": "Select, create, and switch Git worktrees next to the composer permission selector. The model only names branches when the name is empty.",
-        "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다."
+        "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다.",
+        "zh": "在输入框的权限选择器旁选择、创建和切换 Git 工作树。仅在名称为空时由模型生成分支名称。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",

@@ -63,11 +63,13 @@
     "order": 1,
     "title": {
       "en": "Korean UI",
-      "ko": "한국어 UI"
+      "ko": "한국어 UI",
+      "zh": "韩语界面"
     },
     "description": {
       "en": "Korean interface strings for DeepSeek Harness, including the plugin pages and the Korean IME and writing skills.",
-      "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다."
+      "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다.",
+      "zh": "为 DeepSeek Harness 提供韩语界面，包含插件管理页面翻译、韩语输入法和写作技能。"
     },
     "category": "ui",
     "labels": [

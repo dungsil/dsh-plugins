@@ -90,11 +90,13 @@
     "order": 8,
     "title": {
       "en": "Git Worktree UI",
-      "ko": "Git Worktree UI"
+      "ko": "Git Worktree UI",
+      "zh": "Git 工作树界面"
     },
     "description": {
       "en": "Select, create, and switch Git worktrees next to the composer permission selector. The model only names branches when the name is empty.",
-      "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다."
+      "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다.",
+      "zh": "在输入框的权限选择器旁选择、创建和切换 Git 工作树。仅在名称为空时由模型生成分支名称。"
     },
     "category": "ui",
     "labels": [],
