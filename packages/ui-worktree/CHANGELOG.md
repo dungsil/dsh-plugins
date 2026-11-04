@@ -1,5 +1,24 @@
 # @dungsil/dsh-plugin-ui-worktree
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.1.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.2.0) (2026-11-04)
+
+### Features
+
+- **locale:** 플러그인에 중국어 메타데이터를 추가한다 ([#49](https://github.com/dungsil/dsh-plugins/issues/49)) ([7876f45](https://github.com/dungsil/dsh-plugins/commit/7876f45448bb47d43a0f6cf8e16c7b29a6a1ecfb))
+- **model-settings:** 상황별 모델에 추론 수준 설정을 추가한다 ([#52](https://github.com/dungsil/dsh-plugins/issues/52)) ([08cfdea](https://github.com/dungsil/dsh-plugins/commit/08cfdeabb4b57c7fe048a954731201f1302c0453))
+- **model-settings:** 워크트리 이름 생성 모델 설정을 추가한다 ([#55](https://github.com/dungsil/dsh-plugins/issues/55)) ([613c61d](https://github.com/dungsil/dsh-plugins/commit/613c61dd65540e5d136e3596d4df124da188795c))
+- **ui-worktree:** 사이드바에 현재 워크트리 이름을 표시한다 ([#53](https://github.com/dungsil/dsh-plugins/issues/53)) ([293373a](https://github.com/dungsil/dsh-plugins/commit/293373ada44dec31703f66c40292f9b98ef8861d))
+- **ui-worktree:** 생성을 자동화하고 모델은 브랜치 이름만 정한다 ([#44](https://github.com/dungsil/dsh-plugins/issues/44)) ([aadad48](https://github.com/dungsil/dsh-plugins/commit/aadad48bfbe800c9a004452f4df81cb7e2720b9a))
+- **ui-worktree:** 선택 상자에서 워크트리를 직접 생성하고 전환한다 ([#47](https://github.com/dungsil/dsh-plugins/issues/47)) ([e2d8518](https://github.com/dungsil/dsh-plugins/commit/e2d8518b0d27404d1ec4b6c61b5f82f258da2f94))
+- **ui-worktree:** 워크트리 경로와 생성 규칙 설정 메뉴를 추가한다 ([#51](https://github.com/dungsil/dsh-plugins/issues/51)) ([019f423](https://github.com/dungsil/dsh-plugins/commit/019f4230ecff04bfa4530227f616200a98d2a78c))
+
+### Bug Fixes
+
+- **ui-worktree:** Windows 브랜치 판별과 오류 표시를 고친다 ([9c2d491](https://github.com/dungsil/dsh-plugins/commit/9c2d491b8b88b8c7f2e9155ee062adde94574297))
+- **ui-worktree:** 권한 모드 선택상자와 워크트리 UI의 스타일을 통일한다 ([855024b](https://github.com/dungsil/dsh-plugins/commit/855024b9f4af98e1b122aece76317283f9c0ed8e))
+- **ui-worktree:** 새로고침 아이콘 버튼을 제거한다 ([32d8adf](https://github.com/dungsil/dsh-plugins/commit/32d8adfe2f95637a523203ec6b9d6e0a0e03fb80))
+- **ui-worktree:** 워크트리 선택상자를 권한 모드와 같은 공통 메뉴로 바꾼다 ([9076044](https://github.com/dungsil/dsh-plugins/commit/90760442d24efbed6652dbe8a16bf323120eb268))
+
 ## 0.1.1 (2026-11-04)
 
 ### Bug Fixes

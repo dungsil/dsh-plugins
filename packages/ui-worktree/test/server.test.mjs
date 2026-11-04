@@ -267,7 +267,7 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
     }
     async *stream(options) {
       requests.push(options)
-      const naming = options.maxTokens === 256
+      const naming = options.system?.startsWith('Return only a short')
       if (naming) {
         namingStarted?.()
         await namingGate
@@ -323,7 +323,7 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   assert.equal(generated.ok, true)
   assert.equal(generated.value.cwd, join(repo, '.agents/worktrees/fix/session-isolation'))
   assert.equal(git('rev-parse', 'refs/heads/fix/session-isolation'), git('rev-parse', 'HEAD'))
-  assert.equal(requests.filter((request) => request.maxTokens === 256).length, 1)
+  assert.equal(requests.filter((request) => request.system?.startsWith('Return only a short')).length, 1)
   assert.equal(requests[0].provider, 'conversation')
   assert.equal(requests[0].model, 'selected-model')
   assert.equal(requests[0].tools, undefined)
@@ -365,6 +365,56 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
     'manual-name',
     null,
   ])
+})
+
+await test('automatic naming leaves room for reasoning before the branch name', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'reasoning', model: 'reasoner' })
+  const requests = []
+  class ReasoningAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        defaultMaxTokens: 4096,
+        reasoning: { efforts: [{ id: 'high', name: 'High' }], defaultEffort: 'high' },
+      }
+    }
+    async *stream(options) {
+      if (!options.system?.startsWith('Return only a short')) {
+        yield { type: 'text-delta', index: 0, text: 'Finished' }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+        return
+      }
+      requests.push(options)
+      yield { type: 'reasoning-delta', index: 0, text: 'Choose a short branch name for this task.' }
+      if (options.maxTokens < 512) {
+        yield { type: 'finish', reason: { kind: 'max-tokens' } }
+        return
+      }
+      yield { type: 'text-delta', index: 1, text: 'fix/reasoning-budget' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['reasoning'], new ReasoningAdapter())
+  const before = agent.session.deriveMessages()
+  const created = await rpc('create', { cwd: repo })
+  assert.equal(created.ok, true, JSON.stringify(created))
+  assert.deepEqual(agent.session.deriveMessages(), before)
+  await submit()
+  assert.equal((await rpc('describe')).value.cwd, join(repo, '.agents/worktrees/fix/reasoning-budget'))
+  assert.equal(git('rev-parse', 'fix/reasoning-budget'), git('rev-parse', 'HEAD'))
+  assert.equal(requests.length, 1, 'naming must not retry a billable model call')
+  assert.equal(requests[0].maxTokens, 4096, 'the model default includes reasoning, not just the visible name')
+  assert.equal(requests[0].reasoningEffort, 'high')
+  assert.equal(requests[0].tools, undefined)
+  assert.ok(
+    !agent.session
+      .deriveMessages()
+      .some((message) =>
+        message.content.some((block) => block.type === 'text' && block.text.includes('Choose a short branch name'))
+      )
+  )
 })
 
 await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
@@ -449,7 +499,7 @@ await test('persists settings through Loader reload and uses absolute paths and 
   assert.equal(git('rev-parse', 'remote-base'), remoteCommit)
   assert.notEqual(git('rev-parse', 'remote-base'), git('rev-parse', 'main'))
   await assert.rejects(readFile(join(created.value.cwd, 'local-only.txt')), { code: 'ENOENT' })
-  assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+  assert.equal((await rpc('switch', { cwd: created.value.cwd, path: gitPath(repo) })).ok, true)
 
   // A relative pool is resolved from the repository root even when the Session is nested.
   const latest = (await rpc('settings')).value
@@ -478,8 +528,9 @@ await test('saved DSH and custom prefixes affect generated names only; invalid s
       return { provider, id: model, name: model }
     }
     async *stream(options) {
-      if (options.maxTokens === 256) modelCalls++
-      yield { type: 'text-delta', index: 0, text: options.maxTokens === 256 ? 'task-name' : 'Finished' }
+      const naming = options.system?.startsWith('Return only a short')
+      if (naming) modelCalls++
+      yield { type: 'text-delta', index: 0, text: naming ? 'task-name' : 'Finished' }
       yield { type: 'finish', reason: { kind: 'stop' } }
     }
   }
@@ -496,7 +547,7 @@ await test('saved DSH and custom prefixes affect generated names only; invalid s
     assert.equal(created.ok, true)
     assert.equal(created.value.cwd, join(repo, '.agents/worktrees', branch))
     assert.equal(git('rev-parse', branch), git('rev-parse', 'HEAD'))
-    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: gitPath(repo) })).ok, true)
   }
   assert.equal((await rpc('create', { cwd: repo, name: 'explicit-name' })).ok, true)
   await submit()
@@ -504,7 +555,7 @@ await test('saved DSH and custom prefixes affect generated names only; invalid s
   assert.equal(manual.ok, true)
   assert.equal(manual.value.cwd, join(repo, '.agents/worktrees/explicit-name'))
   assert.equal(modelCalls, 2)
-  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: repo })).ok, true)
+  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: gitPath(repo) })).ok, true)
   const view = (await rpc('settings')).value
   for (const change of [
     { directory: ' ' },
@@ -573,7 +624,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
       }
     }
     async *stream(options) {
-      const naming = options.maxTokens === 256
+      const naming = options.system?.startsWith('Return only a short')
       if (naming) requests.push(options)
       yield { type: 'text-delta', index: 0, text: naming ? answer : 'Finished' }
       yield { type: 'finish', reason: { kind: 'stop' } }
@@ -607,7 +658,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
   await submit()
   const manual = await rpc('describe')
   assert.equal(requests.length, 0, 'an explicit name must bypass the configured naming model')
-  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: repo })).ok, true)
+  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: gitPath(repo) })).ok, true)
 
   for (const [naming, generated, branch] of [
     ['semantic', 'fix/task-1', 'fix/task-1'],
@@ -636,7 +687,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
     const created = await rpc('describe')
     assert.equal(created.ok, true)
     assert.equal(created.value.cwd, join(home, 'naming pool', branch))
-    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
+    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: gitPath(repo) })).ok, true)
   }
   assert.deepEqual(
     requests.map(({ provider, model, tools, reasoningEffort }) => ({ provider, model, tools, reasoningEffort })),
@@ -655,7 +706,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
   const autoNamed = await rpc('describe')
   assert.equal(autoNamed.ok, true)
   assert.equal(requests.at(-1).reasoningEffort, 'thorough', 'automatic uses the model default')
-  assert.equal((await rpc('switch', { cwd: autoNamed.value.cwd, path: repo })).ok, true)
+  assert.equal((await rpc('switch', { cwd: autoNamed.value.cwd, path: gitPath(repo) })).ok, true)
   assert.equal((await rpc('dungsil-model-settings/save', { ...automatic.value, reasoningEffort: 'quick' })).ok, true)
 
   const beforeReset = (await rpc('settings')).value

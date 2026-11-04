@@ -121,7 +121,6 @@ export function apply(ctx: Context, config: Config) {
           {
             provider: route.provider,
             model: route.model,
-            maxTokens: 256,
             reasoningEffort:
               config.provider && config.model && config.reasoningEffort
                 ? ReasoningEffortId(config.reasoningEffort)

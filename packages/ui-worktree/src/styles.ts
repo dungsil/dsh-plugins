@@ -58,7 +58,6 @@ export const styles = `
 .dsh-worktree-settings-selector:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dsh-worktree-settings [role=status], .dsh-worktree-settings [role=alert] { margin: 12px 0; font-size: 12px; line-height: 18px; }
 .dsh-worktree-settings [role=status]:empty { margin: 0; }
-.dsh-worktree-settings footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 .dsh-worktree-settings [role=alert] { color: var(--dsw-alias-state-error-primary); }
 @media (max-width: 600px) {
   .dsh-worktree-settings-row { flex-wrap: wrap; gap: 12px; }

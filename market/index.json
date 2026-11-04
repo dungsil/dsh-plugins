@@ -77,6 +77,16 @@
       },
       "versions": [
         {
+          "version": "0.7.0",
+          "publishTimestamp": 1793781228,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.6.0",
           "publishTimestamp": 1793693953,
           "source": {
@@ -183,6 +193,16 @@
       },
       "versions": [
         {
+          "version": "0.4.0",
+          "publishTimestamp": 1793781147,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2"
+          }
+        },
+        {
           "version": "0.3.0",
           "publishTimestamp": 1793693926,
           "source": {
@@ -238,6 +258,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1793781201,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1793693945,
@@ -295,6 +325,16 @@
       },
       "versions": [
         {
+          "version": "0.4.0",
+          "publishTimestamp": 1793781138,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.3.0",
           "publishTimestamp": 1793693918,
           "source": {
@@ -351,6 +391,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1793781181,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1793770620,
           "source": {
@@ -387,6 +437,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1793781164,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1793690081,
           "source": {
@@ -422,6 +482,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1793781210,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.2.1",
           "publishTimestamp": 1793770275,
@@ -469,8 +539,54 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1793781219,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1793693372,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-model-picker",
+      "title": {
+        "en": "Model Picker",
+        "ko": "모델 피커",
+        "zh": "模型选择器"
+      },
+      "description": {
+        "en": "A compact composer picker with model menus and a reasoning effort slider.",
+        "ko": "입력창에서 모델 메뉴와 추론 강도 슬라이더를 사용합니다.",
+        "zh": "在输入框中使用模型菜单和推理强度滑块。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-model-picker"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["models", "reasoning", "composer"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793781173,
           "source": {
             "type": "npm"
           },
@@ -504,6 +620,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793781192,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.1.0",
           "publishTimestamp": 1793774725,

@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-korean-ime
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-korean-ime%400.3.0...%40dungsil%2Fdsh-plugin-korean-ime%400.4.0) (2026-11-04)
+
+### Features
+
+- **locale:** 플러그인에 중국어 메타데이터를 추가한다 ([#49](https://github.com/dungsil/dsh-plugins/issues/49)) ([7876f45](https://github.com/dungsil/dsh-plugins/commit/7876f45448bb47d43a0f6cf8e16c7b29a6a1ecfb))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-korean-ime%400.2.0...%40dungsil%2Fdsh-plugin-korean-ime%400.3.0) (2026-11-03)
 
 ### Features
