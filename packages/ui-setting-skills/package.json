@@ -31,13 +31,17 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-skill": "0.2.1-rc.5",
     "@deepseek-ai/dsh-skill-filesystem": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "3.18.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
@@ -49,6 +53,8 @@
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-config-editor": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-skill-filesystem": "^0.2.1-rc.5"
   },
   "engines": {
