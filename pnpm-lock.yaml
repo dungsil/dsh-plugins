@@ -247,10 +247,10 @@ importers:
   packages/locale-ko:
     dependencies:
       '@dungsil/dsh-plugin-korean-ime':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../korean-ime
       '@dungsil/dsh-plugin-yoonmoon':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../yoonmoon
     devDependencies:
       '@deepseek-ai/cordis':
@@ -428,7 +428,7 @@ importers:
   packages/ui-model-settings:
     dependencies:
       '@dungsil/dsh-plugin-model-settings':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../model-settings
     devDependencies:
       '@deepseek-ai/cordis':

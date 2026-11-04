@@ -30,7 +30,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@dungsil/dsh-plugin-model-settings": "workspace:^"
+    "@dungsil/dsh-plugin-model-settings": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",

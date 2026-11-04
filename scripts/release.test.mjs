@@ -78,7 +78,7 @@ await test('commit-driven releases preserve independent history, versions, tags 
         version,
         market: { title: packageName },
         engines: { dsh: '^0.2.1-rc.5' },
-        ...(name === 'locale-ko' ? { dependencies: { '@fixture/new': 'workspace:^' } } : {}),
+        ...(name === 'locale-ko' ? { dependencies: { '@fixture/new': 'workspace:*' } } : {}),
       })
     )
   }
@@ -138,7 +138,7 @@ await test('commit-driven releases preserve independent history, versions, tags 
   const packed = JSON.parse(run('tar', ['-xOf', archive, 'package/package.json']))
   assert.equal(packed.version, '0.3.2')
   assert.deepEqual(packed.dependencies, { '@fixture/new': '^0.1.0' })
-  assert.deepEqual(manifest('locale-ko').dependencies, { '@fixture/new': 'workspace:^' })
+  assert.deepEqual(manifest('locale-ko').dependencies, { '@fixture/new': 'workspace:*' })
   assert.equal(run('tar', ['-xOf', archive, 'package/CHANGELOG.md']), localeNotes)
 
   assert.equal((await publishLocally('other')).version, undefined)
