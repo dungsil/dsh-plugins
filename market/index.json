@@ -155,13 +155,6 @@
           "engines": {
             "dsh": "0.2.1-rc.2"
           }
-        },
-        {
-          "version": "0.0.0-stage",
-          "publishTimestamp": 1793284258,
-          "source": {
-            "type": "npm"
-          }
         }
       ]
     },
@@ -217,13 +210,6 @@
           },
           "engines": {
             "dsh": "^0.2.1-rc.2"
-          }
-        },
-        {
-          "version": "0.0.0-stage",
-          "publishTimestamp": 1793589554,
-          "source": {
-            "type": "npm"
           }
         }
       ]
@@ -281,13 +267,6 @@
           "engines": {
             "dsh": "^0.2.1-rc.5"
           }
-        },
-        {
-          "version": "0.0.0-stage",
-          "publishTimestamp": 1793588462,
-          "source": {
-            "type": "npm"
-          }
         }
       ]
     },
@@ -343,13 +322,6 @@
           },
           "engines": {
             "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.0.0-stage",
-          "publishTimestamp": 1793588400,
-          "source": {
-            "type": "npm"
           }
         }
       ]
@@ -540,13 +512,6 @@
           },
           "engines": {
             "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.0.0-stage",
-          "publishTimestamp": 1793774494,
-          "source": {
-            "type": "npm"
           }
         }
       ]
