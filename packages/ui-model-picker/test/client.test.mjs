@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { runInThisContext } from 'node:vm'
 import test from 'node:test'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { Window } from 'happy-dom'
 
@@ -120,14 +120,25 @@ await test('composer shares host model selection, preserves exact routes and use
   })
   const locale = createSnapshotStore({ active: 'ko' })
   ctx.provide('locale', locale)
-  ctx.provide('sessions', { subagentAddress: (id) => (id === 'child' ? ['child'] : undefined) })
+  ctx.provide('sessions', {})
+  ctx.provide('remote', {})
+  ctx.provide('remote.session', {})
   ctx.provide('modelDirectories', { directoryFor: () => directory })
   await ctx.plugin(modules.get('@dungsil/dsh-plugin-ui-model-picker'))
   const container = window.document.createElement('main')
   window.document.body.append(container)
   const root = createRoot(container)
   const render = (props = {}) =>
-    act(async () => root.render(createElement(Component, { sessionId: 'session-a', locked: false, ...props })))
+    act(async () =>
+      root.render(
+        createElement(Component, {
+          sessionId: 'session-a',
+          locked: false,
+          useSession: (selector) => selector({ subagent: props.sessionId === 'child' ? { address: ['child'] } : null }),
+          ...props,
+        })
+      )
+    )
   const find = (selector) => window.document.querySelector(selector)
   const click = async (selector) => {
     assert.ok(find(selector), selector)
@@ -143,9 +154,80 @@ await test('composer shares host model selection, preserves exact routes and use
       else delete globalThis[key]
     }
   })
+  await t.test('a fresh session resolves the real directory through caller-bound Remote dependencies', async () => {
+    const fresh = new Context()
+    let FreshPicker
+    fresh.provide('slots', {
+      inject: (_name, register) => register(),
+      register: (_options, component) => {
+        FreshPicker = component
+        return () => {}
+      },
+    })
+    fresh.provide('locale', locale)
+    await fresh.plugin({
+      name: 'model-directory-fixture',
+      apply(provider) {
+        provider.provide('remote.session', {
+          modelCatalog: async () => ({ ok: true, value: catalogValue }),
+          selectModel: async () => ({ ok: true, value: undefined }),
+        })
+        class Remote extends Service {
+          constructor(ctx) {
+            super(ctx, 'remote')
+          }
+          get session() {
+            return this.ctx['remote.session']
+          }
+          $on() {
+            return () => {}
+          }
+        }
+        new Remote(provider)
+        provider.provide('sessions', {
+          scope: () => provider,
+          binding: () => ({
+            session: {
+              projections: { faceOf: () => projection },
+              getSnapshot: () => ({ blank: false }),
+            },
+          }),
+          subagentAddress: () => undefined,
+        })
+        const { ModelDirectoryResolver } = modules.get('@deepseek-ai/dsh-client-ui-model-selection')
+        new ModelDirectoryResolver(provider)
+      },
+    })
+    try {
+      await fresh.plugin(modules.get('@dungsil/dsh-plugin-ui-model-picker'))
+      const element = FreshPicker({
+        sessionId: 'fresh-session',
+        locked: false,
+        useSession: (select) => select({ subagent: null }),
+      })
+      assert.ok(element.props.directory, 'the picker resolves a newly created directory, not a cached native one')
+      await element.props.directory.load()
+    } finally {
+      await fresh.fiber.dispose()
+    }
+  })
   await render()
   assert.match(container.textContent, /Alpha Shared\s*Deep/)
   assert.equal(container.querySelectorAll('button').length, 1)
+  const assertChevron = (selector, path) => {
+    const svg = find(`${selector} svg.dsh-codex-chevron`)
+    assert.ok(svg, `${selector} uses an SVG chevron, not a font glyph`)
+    assert.equal(svg.getAttribute('width'), '14')
+    assert.equal(svg.getAttribute('height'), '14')
+    assert.equal(svg.getAttribute('viewBox'), '0 0 16 16')
+    assert.equal(svg.getAttribute('stroke-width'), '1')
+    assert.equal(svg.getAttribute('aria-hidden'), 'true')
+    assert.equal(svg.getAttribute('focusable'), 'false')
+    assert.equal(svg.querySelector('path').getAttribute('stroke'), 'currentColor')
+    assert.equal(svg.querySelector('path').getAttribute('d'), path)
+    assert.doesNotMatch(find(selector).textContent, /[⌄‹›]/u)
+  }
+  assertChevron('.dsh-codex-trigger', 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6')
   const openModels = async () => {
     await click('.dsh-codex-trigger')
     assert.ok(find('.dsh-codex-header'))
@@ -156,7 +238,9 @@ await test('composer shares host model selection, preserves exact routes and use
   await click('.dsh-codex-trigger')
   assert.equal(find('input[type=range]').getAttribute('aria-valuetext'), 'Deep')
   assert.equal(find('[role=radio]'), null)
+  assertChevron('.dsh-codex-model', 'M6 12L9.29289 8.70711C9.68342 8.31658 9.68342 7.68342 9.29289 7.29289L6 4')
   await click('.dsh-codex-model')
+  assertChevron('.dsh-codex-back', 'M10 4L6.70711 7.29289C6.31658 7.68342 6.31658 8.31658 6.70711 8.70711L10 12')
   assert.equal(find('[role=radio][aria-checked=true]').textContent, 'Alpha Shared✓')
   await click('.dsh-codex-back')
   assert.ok(find('input[type=range]'))

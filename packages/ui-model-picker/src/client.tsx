@@ -9,10 +9,11 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { Chevron } from './chevron.js'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-model-picker'
-export const inject = ['slots', 'locale', 'sessions', 'modelDirectories']
+export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.session', 'modelDirectories']
 
 const copy = {
   ko: {
@@ -236,7 +237,7 @@ export function apply(ctx: Context) {
                 </>
               )}
             </span>
-            <span aria-hidden="true">⌄</span>
+            <Chevron direction="down" />
           </button>
         </div>
         {panel &&
@@ -250,7 +251,7 @@ export function apply(ctx: Context) {
             >
               {panel === 'model' ? (
                 <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
-                  ‹ {text.effort}
+                  <Chevron direction="left" /> {text.effort}
                 </button>
               ) : (
                 <header className="dsh-codex-header">
@@ -263,7 +264,7 @@ export function apply(ctx: Context) {
                   >
                     <strong>{efforts[draft]?.name ?? effortLabel ?? text.default}</strong>
                     <span>
-                      {model?.name ?? current?.model ?? text.model} <span aria-hidden="true">›</span>
+                      {model?.name ?? current?.model ?? text.model} <Chevron direction="right" />
                     </span>
                   </button>
                   <button
@@ -419,7 +420,7 @@ export function apply(ctx: Context) {
         priority: -100,
       },
       (props) =>
-        ctx.sessions.subagentAddress(props.sessionId) === undefined ? (
+        !props.useSession((state) => state.subagent) ? (
           <Picker
             key={props.sessionId}
             locked={props.locked}
