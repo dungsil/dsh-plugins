@@ -36,7 +36,7 @@ await test('all public plugins satisfy the shared in-place update package contra
       assert.equal(manifest.exports['./package.json'], './package.json')
       assert.ok(manifest.files.includes('locale'), 'plugin metadata must be published')
       assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
-      for (const language of ['en', 'ko']) {
+      for (const language of ['en', 'ko', 'zh']) {
         const { meta } = JSON.parse(await readFile(new URL(`locale/${language}.json`, base), 'utf8'))
         assert.ok(meta.title.trim(), `${language} title must not be blank`)
         assert.ok(meta.description.trim(), `${language} description must not be blank`)

@@ -78,11 +78,13 @@
     "order": 6,
     "title": {
       "en": "Secret input",
-      "ko": "비밀값 입력"
+      "ko": "비밀값 입력",
+      "zh": "私密凭据输入"
     },
     "description": {
       "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
-      "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다."
+      "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다.",
+      "zh": "在对话中显示凭据输入卡片，仅将输入值传递到 DSH 私密存储，绝不传递给模型。"
     },
     "category": "tools",
     "labels": [],

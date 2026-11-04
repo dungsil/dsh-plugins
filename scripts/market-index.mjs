@@ -16,22 +16,23 @@ export const AUTHOR = 'dungsil'
 /** Committed index file, relative to the repository root. */
 export const INDEX_FILE = 'market/index.json'
 /** Index-level display title. */
-export const INDEX_TITLE = { en: "DUNGSIL's DSH Plugins", ko: 'DUNGSIL의 DSH 플러그인' }
+export const INDEX_TITLE = { en: "DUNGSIL's DSH Plugins", ko: 'DUNGSIL의 DSH 플러그인', zh: 'DUNGSIL 的 DSH 插件' }
 /** Index-level display description. */
 export const INDEX_DESCRIPTION = {
   en: 'Korean-focused DeepSeek Harness plugins: Korean UI, writing skills, sidebar inbox, and secret input.',
   ko: '한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다.',
+  zh: 'DUNGSIL 开发的 DeepSeek Harness 插件集，专注于韩语使用体验，包含韩语界面、写作技能、侧边栏收件箱和私密凭据输入。',
 }
 /** Categories a plugin's `market.category` may reference. */
 export const CATEGORIES = {
-  ui: { title: { en: 'Interface', ko: '인터페이스' } },
-  skills: { title: { en: 'Skills', ko: '스킬' } },
-  tools: { title: { en: 'Tools', ko: '도구' } },
+  ui: { title: { en: 'Interface', ko: '인터페이스', zh: '界面' } },
+  skills: { title: { en: 'Skills', ko: '스킬', zh: '技能' } },
+  tools: { title: { en: 'Tools', ko: '도구', zh: '工具' } },
 }
 /** Labels a plugin's `market.labels` may reference. */
 export const LABELS = {
-  korean: { title: { en: 'Korean', ko: '한국어' } },
-  accessibility: { title: { en: 'Accessibility', ko: '접근성' } },
+  korean: { title: { en: 'Korean', ko: '한국어', zh: '韩语' } },
+  accessibility: { title: { en: 'Accessibility', ko: '접근성', zh: '无障碍' } },
 }
 
 const FETCH_TIMEOUT_MS = 15_000
