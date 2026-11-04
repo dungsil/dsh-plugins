@@ -5,7 +5,14 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { SettingsPicker, settingsStyles } from '@dungsil/dsh-ui'
+import {
+  Button,
+  IconChevronDownOutlineRegular,
+  IconGaugeOutlineRegular,
+  IconRefreshOutlineRegular,
+  Menu,
+  StateDot,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { localizedCopy } from './copy.js'
 import { channel, method, type UsageView } from './protocol.js'
@@ -13,12 +20,13 @@ import { channel, method, type UsageView } from './protocol.js'
 export const name = 'dungsil-ui-usage'
 export const inject = ['connection', 'locale', 'slots']
 
-const styles = `${settingsStyles}
+const styles = `
 .dsh-usage-page { box-sizing: border-box; height: 100%; overflow: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
 .dsh-usage-page > .dsh-usage { max-width: 960px; margin: 0 auto; }
 .dsh-usage h1 { margin: 0 0 24px; font-size: 20px; line-height: 28px; font-weight: 500; }
 .dsh-usage { container-type: inline-size; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-usage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dsh-usage-status { display: flex; align-items: center; gap: 6px; }
 .dsh-usage-muted, .dsh-usage dt { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-usage h3 { margin: 24px 0 12px; font-size: 14px; font-weight: 500; }
 .dsh-usage dl { margin: 0; }
@@ -31,7 +39,7 @@ const styles = `${settingsStyles}
 .dsh-usage-bar { flex: 1; min-width: 0; display: flex; align-items: flex-end; border: none; padding: 0; background: transparent; cursor: pointer; }
 .dsh-usage-bar span { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); opacity: .55; }
 .dsh-usage-bar[aria-pressed=true] span, .dsh-usage-bar:hover span { opacity: 1; }
-.dsh-usage button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
+.dsh-usage-bar:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dsh-usage-axis { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; font-size: 11px; color: var(--dsw-alias-label-secondary); }
 .dsh-usage-detail { min-height: 22px; margin: 8px 0; font-variant-numeric: tabular-nums; }
 .dsh-usage-model { padding: 14px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
@@ -55,6 +63,7 @@ function Usage({ ctx }: { ctx: Context }) {
   const text = localizedCopy(locale.active)
   const number = new Intl.NumberFormat(locale.active)
   const [period, setPeriod] = useState(7)
+  const [periodOpen, setPeriodOpen] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [view, setView] = useState<UsageView>()
   const [busy, setBusy] = useState(true)
@@ -106,23 +115,44 @@ function Usage({ ctx }: { ctx: Context }) {
     <section className="dsh-usage" aria-label={text.nav} aria-busy={busy}>
       <h1>{text.nav}</h1>
       <div className="dsh-usage-toolbar">
-        <SettingsPicker
-          aria-label={text.period}
-          value={periods.find(({ id }) => id === String(period))!.label}
+        <Menu
+          open={periodOpen}
+          onClose={() => setPeriodOpen(false)}
           selectedId={String(period)}
           items={periods}
-          onSelect={(id) => setPeriod(Number(id))}
+          onSelect={(id) => {
+            setPeriodOpen(false)
+            setPeriod(Number(id))
+          }}
+          portal
+          anchor={
+            <Button
+              variant="toolbar"
+              aria-label={text.period}
+              aria-haspopup="menu"
+              aria-expanded={periodOpen}
+              onClick={() => setPeriodOpen((open) => !open)}
+            >
+              {periods.find(({ id }) => id === String(period))!.label}
+              <IconChevronDownOutlineRegular />
+            </Button>
+          }
         />
-        <button
-          type="button"
-          className="dsh-plugin-settings-selector"
+        <Button
+          variant="toolbar"
+          icon={<IconRefreshOutlineRegular />}
           disabled={busy}
           onClick={() => setRefresh((value) => value + 1)}
         >
           {text.refresh}
-        </button>
+        </Button>
       </div>
-      {busy && <p role="status">{text.loading}</p>}
+      {busy && (
+        <p role="status" className="dsh-usage-status">
+          <StateDot state="ongoing" />
+          {text.loading}
+        </p>
+      )}
       {error && <p role="alert">{text.error}</p>}
       {view && (
         <>
@@ -244,11 +274,7 @@ export function apply(ctx: Context) {
         order: 1,
         label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
       },
-      () => (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
-          <path d="M2 13.5h12M3.5 11V7M8 11V2.5M12.5 11V5" />
-        </svg>
-      )
+      ({ size }) => <IconGaugeOutlineRegular size={size} />
     )
   )
 }
