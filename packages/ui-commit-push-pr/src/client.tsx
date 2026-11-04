@@ -1,4 +1,4 @@
-import { useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -55,9 +55,29 @@ export function apply(ctx: Context) {
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
     const pending = useRef(false)
+    const anchor = useRef<HTMLSpanElement>(null)
+    const [hasChanges, setHasChanges] = useState(false)
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
     const statusId = useId()
     const disabled = !canPrompt || unavailable || status === 'sending'
+
+    useEffect(() => {
+      const conversation = anchor.current?.closest('[data-conversation-session]')
+      if (conversation?.getAttribute('data-conversation-session') !== sessionId) return
+      // Follow the actual card, not a tool call or an announcement whose summary may be missing.
+      // Remember it for this session even when the chat virtualizes the card away.
+      const observer = new MutationObserver(() => {
+        if (!conversation.querySelector('[data-changed-files]')) return
+        setHasChanges(true)
+        observer.disconnect()
+      })
+      observer.observe(conversation, { childList: true, subtree: true })
+      if (conversation.querySelector('[data-changed-files]')) {
+        setHasChanges(true)
+        observer.disconnect()
+      }
+      return () => observer.disconnect()
+    }, [sessionId])
 
     const send = async () => {
       if (disabled || pending.current) return
@@ -77,7 +97,7 @@ export function apply(ctx: Context) {
       }
     }
 
-    if (hidden) return null
+    if (hidden || !hasChanges) return <span ref={anchor} hidden />
 
     return (
       <div className="dsh-commit-push-pr">
