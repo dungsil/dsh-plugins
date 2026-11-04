@@ -16,6 +16,7 @@ export function clientConfig(name: string, options: UserConfig): UserConfig {
     format: 'cjs',
     platform: 'browser',
     inputOptions: { platform: 'browser' },
+    loader: { '.svg': 'text' },
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),
     dts: false,
