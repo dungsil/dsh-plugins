@@ -339,14 +339,15 @@ importers:
         version: 0.23.4(typescript@7.0.2)
 
   packages/tool-diff-note:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: ^0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5
         version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
       '@deepseek-ai/dsh-client-locale':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-primitives':
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-client-ui-renderer':
@@ -687,6 +688,10 @@ importers:
         version: 0.23.4(typescript@7.0.2)
 
   packages/ui-usage:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: ^0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5
@@ -698,9 +703,6 @@ importers:
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-client-ui-layout':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-client-ui-primitives':
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-client-ui-renderer':
