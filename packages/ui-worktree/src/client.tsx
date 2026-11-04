@@ -1,234 +1,265 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { copy, requestText, type Action } from './requests.js'
-import { channel, createMethod } from './protocol.js'
+import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { channel, endpointPrefix, type WorktreeView } from './protocol.js'
+import { copy } from './requests.js'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-worktree'
-export const inject = ['slots', 'locale', 'sessions', 'connection']
+export const inject = ['slots', 'locale', 'connection']
 
 type Props = PropsRuntime<'conversation.input.left'>
 
 export function apply(ctx: Context) {
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
   const subscribeLocale = (listener: () => void) => ctx.locale.subscribe(listener)
-  function Picker({ sessionId, useSession, useAccess }: Props) {
+  function Picker({ sessionId, useSession }: Props) {
     const language = useSyncExternalStore(subscribeLocale, () => ctx.locale.getSnapshot().active)
-    const text = copy[language === 'ko' ? 'ko' : 'en']
+    const text = copy[language.startsWith('ko') ? 'ko' : 'en']
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
-    const allowed = useAccess('session/prompt')
-    const [mode, setMode] = useState<'create' | 'reuse'>('create')
+    const [view, setView] = useState<WorktreeView>()
     const [value, setValue] = useState('')
+    const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
-    const [error, setError] = useState<string>()
-    const [notice, setNotice] = useState('')
-    const [worktree, setWorktree] = useState('')
-    const [open, setOpen] = useState(false)
+    const [error, setError] = useState(false)
+    const [changed, setChanged] = useState(false)
     const pending = useRef(false)
-    const alive = useRef(true)
-    const trigger = useRef<HTMLButtonElement>(null)
+    const needsRefresh = useRef(false)
+    const lifetime = useRef<AbortController | null>(null)
+    const trigger = useRef<HTMLSelectElement>(null)
     const dialog = useRef<HTMLDialogElement>(null)
     const title = useId()
     const field = useId()
-    const disabled = unavailable || !allowed || busy
+    const status = useId()
+    const disabled = unavailable || loading || busy || error || !view
+
+    // Serialize reads and writes. Never automatically retry an uncertain mutation,
+    // and ignore replies after unmount (including navigation to another Session).
+    const load = async (explicit = false) => {
+      const controller = lifetime.current
+      if (!controller || controller.signal.aborted || pending.current || (needsRefresh.current && !explicit)) return
+      pending.current = true
+      setLoading(true)
+      try {
+        const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, { sessionId }, controller.signal)
+        if (controller.signal.aborted) return
+        if (!result.ok) throw new Error('describe failed')
+        setView(result.value as WorktreeView)
+        needsRefresh.current = false
+        setError(false)
+      } catch {
+        if (!controller.signal.aborted) {
+          needsRefresh.current = true
+          setError(true)
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          pending.current = false
+          setLoading(false)
+        }
+      }
+    }
 
     useEffect(() => {
-      alive.current = true
-      return () => {
-        alive.current = false
+      const controller = new AbortController()
+      lifetime.current = controller
+      pending.current = false
+      void load()
+      const focus = () => {
+        void load()
       }
-    }, [])
-    useEffect(() => {
-      const close = () => dialog.current?.close()
-      window.addEventListener('resize', close)
-      return () => window.removeEventListener('resize', close)
+      const resize = () => dialog.current?.close()
+      window.addEventListener('focus', focus)
+      window.addEventListener('resize', resize)
+      return () => {
+        controller.abort()
+        window.removeEventListener('focus', focus)
+        window.removeEventListener('resize', resize)
+      }
     }, [])
 
     const show = () => {
       const element = dialog.current
-      const button = trigger.current
-      if (!element || !button) return
-      setError(undefined)
+      const select = trigger.current
+      if (disabled || pending.current || !element || !select) return
       element.showModal()
-      const anchor = button.getBoundingClientRect()
+      const anchor = select.getBoundingClientRect()
       const box = element.getBoundingClientRect()
       element.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - box.width - 8))}px`
       element.style.top = `${Math.max(8, anchor.top - box.height - 8)}px`
-      setOpen(true)
     }
 
-    const send = async (action: Action) => {
-      if (pending.current || disabled || (action === 'reuse' && !value.trim())) return
+    const change = async (endpoint: 'create' | 'switch', path?: string) => {
+      const controller = lifetime.current
+      if (disabled || pending.current || needsRefresh.current || !view || !controller || controller.signal.aborted)
+        return
       pending.current = true
       setBusy(true)
-      setError(undefined)
-      setNotice('')
+      setChanged(false)
       try {
-        if (action === 'create') {
-          const connection = ctx.get('connection') as unknown as ConnectionHandle
-          const result = await connection.rpc.call(channel, createMethod, { sessionId, name: value.trim() })
-          if (!result.ok) {
-            if (alive.current) setError(text.createError)
-            return
-          }
-          const created = result.value as { branch: string }
-          if (alive.current) setWorktree(created.branch)
-        } else {
-          const sessions = ctx.get('sessions') as unknown as ISessions
-          const session = sessions.binding(sessionId)?.session
-          if (!session) throw new Error('Session is no longer available')
-          // Send separately: never replace the composer draft or consume its attachments.
-          const result = await session.prompt(
-            [{ type: 'text', text: requestText(action, value, language === 'ko') }],
-            'queue'
-          )
-          if (!result.ok) throw new Error('Request was not accepted')
+        const payload =
+          endpoint === 'create'
+            ? { sessionId, cwd: view.cwd, ...(value.trim() ? { name: value.trim() } : {}) }
+            : { sessionId, cwd: view.cwd, path }
+        // ConnectionHandle exposes no authenticated principal. Owner-only access
+        // is enforced by the server, not by unrelated session/prompt permission.
+        const result = await connection.rpc.call(channel, endpointPrefix + endpoint, payload, controller.signal)
+        if (controller.signal.aborted) return
+        if (!result.ok) throw new Error('change failed')
+        setView(result.value as WorktreeView)
+        setChanged(true)
+        if (endpoint === 'create') {
+          setValue('')
+          dialog.current?.close()
         }
-        if (!alive.current) return
-        if (action !== 'create') setNotice(text.sent)
-        setValue('')
-        dialog.current?.close()
-      } catch {
-        if (alive.current) setError(action === 'create' ? text.createError : text.error)
-      } finally {
         pending.current = false
-        if (alive.current) setBusy(false)
+        await load()
+      } catch {
+        if (!controller.signal.aborted) {
+          needsRefresh.current = true
+          setError(true)
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          pending.current = false
+          setBusy(false)
+        }
       }
     }
 
+    useEffect(() => {
+      if (!busy && changed && !dialog.current?.open) trigger.current?.focus()
+    }, [busy, changed])
+
+    const current = view?.worktrees
+      .filter((item) => view.cwd === item.path || view.cwd.startsWith(item.path.replace(/\/$/, '') + '/'))
+      .sort((a, b) => b.path.length - a.path.length)[0]
+    const branch = current ? (current.branch ?? text.detached) : text.unknown
+    const notice = loading
+      ? text.loading
+      : busy
+        ? text.busy
+        : unavailable
+          ? text.wait
+          : changed
+            ? text.changed
+            : view?.worktrees.length === 0
+              ? text.empty
+              : ''
+
     return (
       <div className="dsh-worktree">
-        <button
-          ref={trigger}
-          type="button"
-          className="dsh-worktree-trigger"
-          disabled={disabled}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          title={unavailable ? text.wait : worktree || text.title}
-          onClick={show}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            aria-hidden="true"
+        <div className="dsh-worktree-picker">
+          <IconBranchOutlineRegular className="dsh-worktree-branch" aria-hidden="true" />
+          <select
+            ref={trigger}
+            className="dsh-worktree-select"
+            value="current"
+            disabled={disabled}
+            aria-label={text.title}
+            aria-describedby={status}
+            aria-busy={loading || busy}
+            title={view ? branch : text.title}
+            onChange={(event) => {
+              const selected = event.target.value
+              event.target.value = 'current'
+              if (selected === 'create') show()
+              else if (selected.startsWith('path:')) void change('switch', selected.slice(5))
+            }}
           >
-            <circle cx="4" cy="3" r="1.5" />
-            <circle cx="12" cy="4" r="1.5" />
-            <circle cx="4" cy="13" r="1.5" />
-            <path d="M4 4.5v7M12 5.5v1A3.5 3.5 0 0 1 8.5 10H4" />
-          </svg>
-          <span className="dsh-worktree-name">{worktree || 'Worktree'}</span>
-          <span aria-hidden="true" className="dsh-worktree-chevron">
-            ⌄
-          </span>
+            <option value="current">{view ? branch : loading ? text.loading : text.title}</option>
+            <option value="create">{text.create}</option>
+            {view?.worktrees
+              .filter((item) => item.path !== view.cwd)
+              .map((item) => (
+                <option key={item.path} value={`path:${item.path}`}>
+                  {item.branch ?? text.detached}
+                </option>
+              ))}
+          </select>
+          <IconChevronDownOutlineRegular className="dsh-worktree-chevron" aria-hidden="true" />
+        </div>
+        <button
+          type="button"
+          className="dsh-worktree-refresh"
+          disabled={loading || busy}
+          onClick={() => void load(true)}
+          aria-label={text.refresh}
+          title={text.refresh}
+        >
+          ↻
         </button>
-        <span className="dsh-worktree-sr" role="status">
+        <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>
+        {error && (
+          <p role="alert" className="dsh-worktree-error">
+            {text.error}
+          </p>
+        )}
         <dialog
           ref={dialog}
           className="dsh-worktree-dialog"
           aria-labelledby={title}
-          onClose={() => setOpen(false)}
-          onClick={(e) => {
-            const box = e.currentTarget.getBoundingClientRect()
+          onClose={() => trigger.current?.focus()}
+          onCancel={(event) => {
+            if (pending.current) event.preventDefault()
+          }}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect()
             const outside =
-              e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom
-            if (e.target === e.currentTarget && outside && !pending.current) e.currentTarget.close()
+              event.clientX < box.left ||
+              event.clientX > box.right ||
+              event.clientY < box.top ||
+              event.clientY > box.bottom
+            if (event.target === event.currentTarget && outside && !pending.current) event.currentTarget.close()
           }}
         >
           <header>
-            <h2 id={title}>{text.title}</h2>
-            <button type="button" aria-label={text.close} onClick={() => dialog.current?.close()}>
+            <h2 id={title}>{text.createTitle}</h2>
+            <button type="button" aria-label={text.close} disabled={busy} onClick={() => dialog.current?.close()}>
               ×
             </button>
           </header>
-          <p>{mode === 'create' ? text.description : text.reuseDescription}</p>
-          <fieldset disabled={busy}>
-            <legend className="dsh-worktree-sr">{text.mode}</legend>
-            <label>
-              <input
-                type="radio"
-                name={field}
-                checked={mode === 'create'}
-                onChange={() => {
-                  setMode('create')
-                  setValue('')
-                  setError(undefined)
-                }}
-              />
-              {text.create}
-            </label>
-            <label>
-              <input
-                type="radio"
-                name={field}
-                checked={mode === 'reuse'}
-                onChange={() => {
-                  setMode('reuse')
-                  setValue('')
-                  setError(undefined)
-                }}
-              />
-              {text.reuse}
-            </label>
-          </fieldset>
           <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              void send(mode)
+            onSubmit={(event) => {
+              event.preventDefault()
+              void change('create')
             }}
           >
-            <label htmlFor={field}>{mode === 'create' ? text.branch : text.path}</label>
+            <label htmlFor={field}>{text.branch}</label>
             <input
               id={field}
               type="text"
               value={value}
               disabled={busy}
-              required={mode === 'reuse'}
-              maxLength={mode === 'create' ? 200 : 4096}
+              maxLength={200}
               autoComplete="off"
               spellCheck={false}
-              placeholder={mode === 'create' ? 'fix-login' : '/path/to/worktree'}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.nativeEvent.isComposing || e.keyCode === 229)) e.preventDefault()
+              placeholder="fix-login"
+              onChange={(event) => setValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229))
+                  event.preventDefault()
               }}
             />
-            <p className="dsh-worktree-hint">{mode === 'create' ? text.createHint : text.reuseHint}</p>
-            {error && <p role="alert">{error}</p>}
+            <p className="dsh-worktree-hint">{text.hint}</p>
+            {error && <p role="alert">{text.error}</p>}
             {unavailable && <p role="status">{text.wait}</p>}
             <footer>
-              {mode === 'reuse' && (
-                <button type="button" disabled={disabled} onClick={() => void send('list')}>
-                  {text.list}
-                </button>
-              )}
-              <button
-                type="submit"
-                className="dsh-worktree-primary"
-                disabled={disabled || (mode === 'reuse' && !value.trim())}
-              >
-                {busy
-                  ? mode === 'create'
-                    ? text.creating
-                    : text.sending
-                  : mode === 'create'
-                    ? text.create
-                    : text.send}
+              <button type="button" disabled={loading || busy} onClick={() => void load(true)}>
+                {text.refresh}
+              </button>
+              <button type="submit" className="dsh-worktree-primary" disabled={disabled}>
+                {busy ? text.busy : text.submit}
               </button>
             </footer>
           </form>

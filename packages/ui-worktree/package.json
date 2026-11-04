@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
   "version": "0.1.0",
-  "description": "Create Git worktrees automatically from the DeepSeek Harness composer, using the model only for branch naming.",
+  "description": "Create and switch Git worktrees directly from the DeepSeek Harness composer, using the model only for optional branch naming.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,16 +35,24 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-agent-loop-testkit": "0.2.1-rc.5",
     "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-subprocess-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/react": "18.3.31",
     "happy-dom": "21.0.4",
@@ -54,9 +62,10 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-agent": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5"
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "^0.2.1-rc.5"
   },
   "engines": {
     "dsh": "^0.2.1-rc.5",
@@ -84,8 +93,8 @@
       "ko": "Git Worktree UI"
     },
     "description": {
-      "en": "Create Git worktrees automatically next to the composer permission selector. The model only names branches; reuse requests use existing tools.",
-      "ko": "입력창의 권한 선택 옆에서 Git worktree를 자동으로 생성합니다. 모델은 브랜치 이름만 정하며, 재사용은 기존 도구로 요청합니다."
+      "en": "Select, create, and switch Git worktrees next to the composer permission selector. The model only names branches when the name is empty.",
+      "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다."
     },
     "category": "ui",
     "labels": [],

@@ -458,8 +458,8 @@
         "ko": "Git Worktree UI"
       },
       "description": {
-        "en": "Create Git worktrees automatically next to the composer permission selector. The model only names branches; reuse requests use existing tools.",
-        "ko": "입력창의 권한 선택 옆에서 Git worktree를 자동으로 생성합니다. 모델은 브랜치 이름만 정하며, 재사용은 기존 도구로 요청합니다."
+        "en": "Select, create, and switch Git worktrees next to the composer permission selector. The model only names branches when the name is empty.",
+        "ko": "입력창의 권한 선택 옆에서 Git worktree를 선택·생성·전환합니다. 이름을 비운 경우에만 모델이 브랜치 이름을 정합니다."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
