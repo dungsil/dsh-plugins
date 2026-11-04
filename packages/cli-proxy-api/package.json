@@ -90,9 +90,9 @@
       "zh": "CLIProxyAPI"
     },
     "description": {
-      "en": "Register API-key and OAuth providers, inspect quota, and manage proxy models and routing from the DSH sidebar. Requires CLIProxyAPI v8.",
-      "ko": "DSH 사이드바에서 API 키·OAuth 공급자를 등록하고 할당량·프록시 모델·라우팅을 관리합니다. CLIProxyAPI v8이 필요합니다.",
-      "zh": "从 DSH 侧边栏注册 API 密钥和 OAuth 提供商，查看配额并管理代理模型和路由。需要 CLIProxyAPI v8。"
+      "en": "Connect CLIProxyAPI models and inspect account quota from the DSH sidebar. Requires CLIProxyAPI v8.",
+      "ko": "CLIProxyAPI 모델을 연결하고 DSH 사이드바에서 계정별 할당량을 확인합니다. CLIProxyAPI v8이 필요합니다.",
+      "zh": "连接 CLIProxyAPI 模型，并从 DSH 侧边栏查看账户配额。需要 CLIProxyAPI v8。"
     },
     "category": "tools",
     "labels": [],
