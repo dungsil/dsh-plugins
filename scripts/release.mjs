@@ -92,17 +92,57 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     .map((line) => JSON.parse(line))
   const selected = packages.filter((pkg) => !pkg.private && (!packageName || pkg.name === packageName))
   if (packageName && selected.length === 0) throw new Error(`Unknown public package: ${packageName}`)
+  const releases = []
   try {
-    // Each release commits its own manifest and changelog before the next starts.
+    // Publish dependencies first, but defer workspace Git and GitHub releases
+    // until every manifest, changelog and market entry is ready for one commit.
     for (const pkg of selected) {
       process.chdir(pkg.path)
       const settings = releaseOptions({ dryRun })
-      await release({
+      const result = await release({
         ...settings,
         ...(version ? { increment: version } : {}),
         ...options,
         npm: { ...settings.npm, ...options.npm, ...(version ? { allowSameVersion: true } : {}) },
+        ...(!packageName
+          ? {
+              git: {
+                ...settings.git,
+                commit: false,
+                tag: false,
+                push: false,
+                requireCleanWorkingDir: releases.length === 0,
+              },
+              github: { ...settings.github, ...options.github, release: false },
+            }
+          : {}),
       })
+      if (result.version) releases.push({ pkg, settings, result })
+    }
+    if (!packageName && !dryRun && releases.length > 0) {
+      process.chdir(root)
+      const git = (args) => execFileSync('git', args, { encoding: 'utf8' })
+      git(['add', '--', ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`])])
+      git(['commit', '-m', 'chore(release): 전체 패키지를 릴리즈한다 [skip ci]'])
+      for (const { pkg, result } of releases) {
+        git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
+      }
+      git(['push', '--follow-tags', '--atomic'])
+
+      // Publish immutable GitHub releases only after all tags reach the remote.
+      for (const { pkg, settings, result } of releases) {
+        process.chdir(pkg.path)
+        await release({
+          ...settings,
+          ...options,
+          increment: false,
+          plugins: {},
+          hooks: {},
+          git: { ...settings.git, commit: false, tag: false, push: false },
+          npm: { ...settings.npm, publish: false },
+          github: { ...settings.github, ...options.github, releaseNotes: () => result.changelog },
+        })
+      }
     }
   } finally {
     process.chdir(root)
