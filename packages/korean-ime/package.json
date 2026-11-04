@@ -30,6 +30,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
     "tsdown": "0.23.4"
   },
   "engines": {
