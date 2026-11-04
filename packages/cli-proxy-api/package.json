@@ -1,0 +1,103 @@
+{
+  "name": "@dungsil/dsh-plugin-cli-proxy-api",
+  "version": "0.0.0",
+  "description": "CLIProxyAPI model provider and owner-only management settings for DeepSeek Harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/cli-proxy-api"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "3.18.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-config-editor": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm-pi-ai": "^0.2.1-rc.5"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "market": {
+    "order": 8,
+    "title": {
+      "en": "CLIProxyAPI",
+      "ko": "CLIProxyAPI",
+      "zh": "CLIProxyAPI"
+    },
+    "description": {
+      "en": "Connect proxy models and manage OAuth accounts and routing in DSH settings. Requires CLIProxyAPI v8.",
+      "ko": "DSH 설정에서 프록시 모델을 연결하고 OAuth 계정과 라우팅을 관리합니다. CLIProxyAPI v8이 필요합니다.",
+      "zh": "在 DSH 设置中连接代理模型并管理 OAuth 账户和路由。需要 CLIProxyAPI v8。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "cliproxyapi",
+      "proxy",
+      "models",
+      "oauth",
+      "management"
+    ]
+  }
+}

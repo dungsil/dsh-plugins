@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-cli-proxy-api
+      name: '@dungsil/dsh-plugin-cli-proxy-api'
