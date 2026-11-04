@@ -180,7 +180,8 @@ function compareEntries(left, right) {
 
 /**
  * Build a format-1 market index from local package manifests and npm registry documents.
- * Packages missing from `registryDocuments` are unpublished (404) and are skipped with a warning.
+ * Packages missing from `registryDocuments` are skipped unless their local release is already recorded.
+ * Retain the recorded local release while npm validation or propagation keeps it out of the registry.
  * Preserve recorded release timestamps when npm later reports a different publication time.
  */
 export function buildMarketIndex({
@@ -197,17 +198,25 @@ export function buildMarketIndex({
     const { name } = manifest
     if (typeof name !== 'string' || name === '') throw new Error('Every package manifest must have a name')
     const market = marketMetadata(manifest)
+    const previous = previousIndex?.plugins.find((entry) => entry.name === name)
+    const localRelease = previous?.versions.find(
+      (entry) => entry.version === manifest.version && entry.version !== '0.0.0-stage'
+    )
     const document = registryDocuments instanceof Map ? registryDocuments.get(name) : registryDocuments[name]
-    if (document === undefined || document === null) {
+    if ((document === undefined || document === null) && !localRelease) {
       onWarning(`${name} is not published on npm; it is omitted from the market index`)
       continue
     }
-    const versions = versionRecords(name, document)
+    const versions = document === undefined || document === null ? [] : versionRecords(name, document)
+    if (localRelease && !versions.some((entry) => entry.version === localRelease.version)) {
+      onWarning(`${name}@${localRelease.version} is not visible on npm yet; retaining the recorded release`)
+      versions.push({ ...localRelease })
+      versions.sort(compareVersions)
+    }
     if (versions.length === 0) {
       onWarning(`${name} has no published versions; it is omitted from the market index`)
       continue
     }
-    const previous = previousIndex?.plugins.find((entry) => entry.name === name)
     for (const version of versions) {
       const recorded = previous?.versions.find((entry) => entry.version === version.version)
       if (recorded) version.publishTimestamp = recorded.publishTimestamp
