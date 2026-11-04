@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Version Control",
-    "description": "Request Git commits, pushes and PR creation above the composer. Review the current branch's GitHub PR or GitLab MR and merge in the right sidebar."
+    "description": "Request Git commits, pushes and PR creation above the composer. Review the current branch's GitHub, Gitea or Forgejo PR or GitLab MR and merge in the right sidebar."
   },
   "title": "PR / MR",
   "description": "The PR or MR pushed from this session's current branch",
@@ -12,10 +12,10 @@
   "draft": "Draft",
   "closed": "Closed",
   "merged": "Merged",
-  "hint": "Install gh (GitHub) or glab (GitLab) and sign in on the DSH host.",
+  "hint": "Install gh (GitHub), glab (GitLab) or tea 0.12.x (Gitea/Forgejo) and sign in on the DSH host.",
   "repository": "No Git repository or remote was found for this session.",
-  "unsupported": "Host not recognized. Set this plugin's provider to github or gitlab for a self-hosted instance.",
-  "cli_missing": "The required CLI is not installed on the DSH host.",
+  "unsupported": "Host not recognized. Explicitly set this plugin's provider to github, gitlab, gitea or forgejo for a self-hosted instance.",
+  "cli_missing": "The required CLI is missing or unsupported on the DSH host. Gitea and Forgejo use tea 0.12.x.",
   "command_failed": "Could not load requests. Check CLI authentication, repository access and the session's sandbox network policy.",
   "invalid_response": "The CLI returned an invalid response.",
   "unavailable": "Requests are unavailable. Reconnect and refresh.",

@@ -36,7 +36,12 @@ const github = {
   headRepository: { nameWithOwner: 'team/project' },
 }
 
-async function fixture(t, remote = 'git@github.com:team/project.git', provider = 'auto') {
+async function fixture(
+  t,
+  remote = 'git@github.com:team/project.git',
+  provider = 'auto',
+  loginUrl = 'https://forge.example:3443/git'
+) {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pr-'))
   const ctx = new Context()
   t.after(async () => {
@@ -50,10 +55,52 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
   const cli = join(dir, 'cli.mjs')
   let rows = github,
     exitCode = 0,
-    missing = false
+    missing = false,
+    httpStatus = 200
   const calls = []
   let dispatch
   const defaultDispatch = (args) => {
+    if (args[0] === 'login')
+      return [
+        { name: 'default', url: 'https://other.invalid', ssh_host: 'other.invalid' },
+        { name: 'work', url: loginUrl, ssh_host: new URL(loginUrl).host },
+      ]
+    const forgeUrl = args.find((arg) => arg.startsWith(`${loginUrl}/api/v1/`))
+    if (forgeUrl) {
+      const endpoint = forgeUrl.slice(`${loginUrl}/api/v1/`.length)
+      if (args.includes('POST')) return { id: 9, commit_id: sha, stale: false, dismissed: false }
+      if (new URL(forgeUrl).searchParams.get('page') > 1) return []
+      if (/\/pulls\?/.test(endpoint)) return rows ? [rows] : []
+      if (/\/pulls\/\d+$/.test(endpoint)) return rows
+      if (endpoint.endsWith('.diff')) return details.diff
+      if (endpoint.includes('/branches/'))
+        return {
+          name: 'release',
+          required_approvals: 1,
+          enable_status_check: true,
+          status_check_contexts: ['build'],
+          user_can_merge: true,
+        }
+      if (endpoint.includes('/statuses/'))
+        return [{ id: 7, context: 'build', status: 'success', target_url: 'https://ci.example/job/7' }]
+      if (endpoint.includes('/reviews?'))
+        return [
+          {
+            id: 3,
+            user: { login: 'carol' },
+            body: 'Reviewed',
+            state: 'APPROVED',
+            commit_id: sha,
+            official: true,
+            stale: false,
+            dismissed: false,
+          },
+        ]
+      if (endpoint.endsWith('/comments'))
+        return [{ id: 4, user: { login: 'bob' }, body: 'Comment', html_url: `${rows.html_url}#issuecomment-4` }]
+      if (endpoint.includes('/files?')) return [{ filename: 'src/main.ts', additions: 2, deletions: 1 }]
+      return { full_name: 'team/project', allow_merge_commits: true, allow_squash_merge: true, allow_rebase: true }
+    }
     if (args[1] === 'status' || args[1] === 'list') return rows
     if (args[1] === 'view' && args[0] === 'pr')
       return {
@@ -85,7 +132,10 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
     if (endpoint.includes('/diffs?')) return [{ old_path: 'a.ts', new_path: 'b.ts', diff: '@@ -1 +1 @@\n-old\n+new' }]
     return { completed: true, merged: true }
   }
-  await writeFile(cli, `process.stdout.write(process.argv[2]); process.exit(Number(process.argv[3]))`)
+  await writeFile(
+    cli,
+    `process.stdout.write(process.argv[2]); process.stderr.write(process.argv[4] ?? ''); process.exit(Number(process.argv[3]))`
+  )
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
   await ctx.plugin(SubprocessLocal)
@@ -96,7 +146,7 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
     return command === 'git' ? resolve(command, env, signal) : command
   }
   ctx.subprocess.spawn = (spec) => {
-    if (['gh', 'glab'].includes(spec.argv[0])) {
+    if (['gh', 'glab', 'tea'].includes(spec.argv[0])) {
       calls.push(spec)
       const args = spec.argv.slice(1)
       const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
@@ -107,6 +157,7 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
           cli,
           typeof value === 'string' ? value : JSON.stringify(value),
           String(value instanceof Error ? 1 : exitCode),
+          spec.argv[0] === 'tea' && args[0] === 'api' ? `HTTP/1.1 ${httpStatus} Test\n` : '',
         ],
       })
     }
@@ -155,6 +206,9 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
     },
     dispatch: (value) => {
       dispatch = value
+    },
+    httpStatus: (value) => {
+      httpStatus = value
     },
     git,
     setRows: (value) => {
@@ -760,4 +814,220 @@ await test('GitLab merged-result CI verifies the current head pipeline commit pa
   assert.equal(unrelated.detailsError, true)
   assert.deepEqual(unrelated.checks, [])
   assert.equal(jobs(), count)
+})
+
+const forge = {
+  number: 23,
+  title: 'Review a feature',
+  html_url: 'https://forge.example:3443/git/team/project/pulls/23',
+  user: { login: 'alice' },
+  head: { ref: 'feat/sidebar', sha, repo: { full_name: 'team/project' } },
+  base: { ref: 'release', repo: { full_name: 'team/project' } },
+  draft: false,
+  merged: false,
+  mergeable: true,
+  state: 'open',
+  body: '## Summary\nA forge request',
+  changed_files: 1,
+}
+
+await test('Gitea and Forgejo load the same sidebar details and support comments, reviews and SHA-conditional merges', async (t) => {
+  for (const provider of ['gitea', 'forgejo']) {
+    const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', provider)
+    f.setRows(forge)
+    f.dispatch((args, next) => (args.at(-1).includes('/files?') && args.at(-1).endsWith('page=2') ? null : next(args)))
+    const result = await f.rpc()
+    assert.equal(result.ok, true)
+    assert.equal(result.value.provider, provider)
+    const item = result.value.request
+    assert.equal(item.detailsError, undefined)
+    assert.equal(item.url, forge.html_url)
+    assert.equal(item.headSha, sha)
+    assert.equal(item.mergeable, 'MERGEABLE')
+    assert.equal(item.reviewDecision, 'APPROVED')
+    assert.equal(item.body, forge.body)
+    assert.deepEqual(item.files, [{ path: 'src/main.ts', additions: 2, deletions: 1 }])
+    assert.deepEqual(item.checks, [{ name: 'build', status: 'success', url: 'https://ci.example/job/7' }])
+    assert.equal(item.diff, details.diff)
+    assert.equal(item.comments[0].body, 'Comment')
+    assert.equal(item.reviews[0].author, 'carol')
+    f.confine()
+    for (const input of [
+      { action: 'comment', body: '@private-file; $(echo unsafe)\ntrue' },
+      { action: 'approve', body: 'Reviewed' },
+      { action: 'request_changes', body: 'Please fix this' },
+      ...['merge', 'squash', 'rebase'].map((strategy) => ({ action: 'merge', strategy })),
+    ]) {
+      assert.deepEqual(await f.action({ requestUrl: forge.html_url, ...input }), {
+        ok: true,
+        value: { completed: true },
+      })
+      const args = f.calls.at(-1).argv
+      assert.equal(args[args.indexOf('--login') + 1], 'work')
+      assert.ok(args.includes('POST'))
+      if (input.body) assert.ok(args.includes(`body=${input.body}`))
+      if (input.action === 'merge') {
+        assert.ok(args.includes(`head_commit_id=${sha}`))
+        assert.ok(args.includes(`Do=${input.strategy}`))
+        for (const field of ['force_merge=false', 'delete_branch_after_merge=false', 'merge_when_checks_succeed=false'])
+          assert.ok(args.includes(field))
+      } else if (input.action !== 'comment') {
+        assert.ok(args.includes(`commit_id=${sha}`))
+        assert.ok(args.includes(`event=${input.action === 'approve' ? 'APPROVED' : 'REQUEST_CHANGES'}`))
+      }
+    }
+    for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
+      assert.match(call.argv.at(-1), /^https:\/\/forge\.example:3443\/git\/api\/v1\/repos\/team\/project(?:\/|$)/)
+      for (const key of ['GITEA_INSTANCE_URL', 'GITEA_TOKEN', 'GH_TOKEN', 'TEA_LOGIN'])
+        assert.equal(call.env[key], undefined)
+    }
+    assert.ok(f.confined.some((argv) => argv[0] === 'tea'))
+  }
+})
+
+await test('forge lookups select an exact configured instance, preserve SSH web ports and prefixes, and fail on HTTP errors', async (t) => {
+  const f = await fixture(t, 'ssh://git@forge.example:2222/team/project.git', 'forgejo')
+  f.setRows(forge)
+  assert.equal((await f.rpc()).value.request.url, forge.html_url)
+  f.dispatch((args, next) =>
+    args[0] === 'login' ? [{ name: 'wrong', url: 'https://other.invalid', ssh_host: 'other.invalid' }] : next(args)
+  )
+  const reads = f.calls.length
+  assert.equal((await f.rpc()).ok, false)
+  assert.equal(f.calls.length, reads + 1) // Only public login metadata was inspected.
+  f.dispatch((args, next) =>
+    args[0] === 'login' ? [...next(args), { ...next(args)[1], name: 'ambiguous' }] : next(args)
+  )
+  assert.equal((await f.rpc()).ok, false)
+  f.dispatch(undefined)
+  f.httpStatus(403)
+  assert.equal((await f.rpc()).error.code, 'command_failed') // tea itself still exits zero.
+  assert.ok(!f.calls.some((call) => call.argv.includes('POST')))
+  f.httpStatus(200)
+  f.dispatch((args, next) => {
+    if (args.includes('POST')) f.httpStatus(409)
+    return next(args)
+  })
+  assert.equal((await f.action({ requestUrl: forge.html_url, action: 'merge' })).error.code, 'action_failed')
+  assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 1)
+  const publicForge = await fixture(t, 'git@codeberg.org:team/project.git', 'auto', 'https://codeberg.org')
+  publicForge.setRows({ ...forge, html_url: 'https://codeberg.org/team/project/pulls/23' })
+  assert.equal((await publicForge.rpc()).value.provider, 'forgejo')
+  publicForge.dispatch((args, next) =>
+    args.some((arg) => arg.includes('/branches/'))
+      ? { ...next(args), enable_status_check: false, status_check_contexts: null }
+      : next(args)
+  )
+  assert.equal((await publicForge.rpc()).value.request.detailsError, undefined)
+})
+
+await test('forge CI, required reviews, missing details, permissions and stale heads block mutations without bypasses', async (t) => {
+  const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'gitea')
+  f.setRows(forge)
+  const mutations = () => f.calls.filter((call) => call.argv.includes('POST')).length
+  for (const override of [
+    (args, next) =>
+      args.some((arg) => arg.includes('/statuses/') && arg.endsWith('page=1'))
+        ? [{ id: 7, context: 'build', status: 'pending', target_url: '' }]
+        : next(args),
+    (args, next) => (args.some((arg) => arg.includes('/statuses/')) ? [] : next(args)),
+    (args, next) => (args.some((arg) => arg.includes('/reviews?')) ? [] : next(args)),
+    (args, next) =>
+      args.some((arg) => arg.includes('/reviews?') && arg.endsWith('page=1'))
+        ? [...next(args), { ...next(args)[0], id: 99, dismissed: true }]
+        : next(args),
+    (args, next) =>
+      args.some((arg) => arg.includes('/branches/')) ? { ...next(args), user_can_merge: false } : next(args),
+    (args, next) => (args.at(-1).endsWith('.diff') ? new Error('diff unavailable') : next(args)),
+  ]) {
+    f.dispatch(override)
+    assert.equal((await f.action({ requestUrl: forge.html_url, action: 'merge' })).error.code, 'action_failed')
+  }
+  assert.equal(mutations(), 0)
+  f.dispatch(undefined)
+  assert.equal((await f.action({ requestUrl: forge.html_url, headSha: 'b'.repeat(40) })).error.code, 'stale_request')
+  f.setRows({ ...forge, draft: true })
+  assert.equal((await f.action({ requestUrl: forge.html_url })).error.code, 'action_failed')
+  f.setRows({ ...forge, head: { ...forge.head, repo: { full_name: 'someone/project' } } })
+  assert.equal((await f.rpc()).value.request, null)
+  f.setRows(forge)
+  f.dispatch((args, next) => (args.at(-1).endsWith('.diff') ? 'x'.repeat(120_001) : next(args)))
+  assert.equal((await f.action({ requestUrl: forge.html_url })).error.code, 'action_failed')
+  assert.equal((await f.action({ requestUrl: forge.html_url, action: 'merge' })).ok, true)
+  assert.equal(mutations(), 1)
+})
+
+await test('forge pagination includes capped later pages and latest CI reruns, and finds PRs in the fork parent', async (t) => {
+  const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'forgejo')
+  const parentRequest = {
+    ...forge,
+    html_url: 'https://forge.example:3443/git/upstream/project/pulls/23',
+    base: { ...forge.base, repo: { full_name: 'upstream/project' } },
+  }
+  f.setRows(parentRequest)
+  f.dispatch((args, next) => {
+    const endpoint = args.at(-1)
+    if (endpoint.endsWith('/repos/team/project')) return { ...next(args), parent: { full_name: 'upstream/project' } }
+    if (endpoint.includes('/repos/team/project/pulls?')) return []
+    if (endpoint.includes('/reviews?')) {
+      const page = new URL(endpoint).searchParams.get('page')
+      return page === '1'
+        ? [
+            {
+              id: 2,
+              user: { login: 'carol' },
+              body: 'Older rejection',
+              state: 'REQUEST_CHANGES',
+              commit_id: sha,
+              official: true,
+            },
+          ]
+        : page === '2'
+          ? [{ id: 3, user: { login: 'carol' }, body: 'Approved', state: 'APPROVED', commit_id: sha, official: true }]
+          : []
+    }
+    if (endpoint.includes('/statuses/')) {
+      const page = new URL(endpoint).searchParams.get('page')
+      return page === '1'
+        ? [{ id: 9, context: 'build', status: 'success', target_url: '' }]
+        : page === '2'
+          ? [{ id: 8, context: 'build', status: 'failure', target_url: '' }]
+          : []
+    }
+    return next(args)
+  })
+  const result = (await f.rpc()).value.request
+  assert.equal(result.detailsError, undefined)
+  assert.equal(result.url, parentRequest.html_url)
+  assert.equal(result.reviewDecision, 'APPROVED')
+  assert.deepEqual(result.checks, [{ name: 'build', status: 'success', url: '' }])
+  assert.equal(result.reviews.length, 2)
+  assert.equal((await f.action({ requestUrl: parentRequest.html_url, action: 'merge' })).ok, true)
+  assert.ok(f.calls.at(-1).argv.at(-1).includes('/api/v1/repos/upstream/project/pulls/23/merge'))
+})
+
+await test('self-managed GitLab uses the configured provider, HTTPS port and nested namespace for reads and writes', async (t) => {
+  const f = await fixture(t, 'https://user:secret@gitlab.example:8443/team/sub/project.git', 'gitlab')
+  const requestUrl = 'https://gitlab.example:8443/team/sub/project/-/merge_requests/8'
+  f.setRows([
+    {
+      iid: 8,
+      title: 'Self-managed MR',
+      web_url: requestUrl,
+      author: { username: 'alice' },
+      source_branch: 'feat/sidebar',
+      target_branch: 'release',
+      state: 'opened',
+      source_project_id: 41,
+      target_project_id: 41,
+    },
+  ])
+  assert.equal((await f.rpc()).value.request.detailsError, undefined)
+  assert.equal((await f.action({ requestUrl, action: 'comment', body: 'Review' })).ok, true)
+  for (const { argv } of f.calls) {
+    if (argv.includes('--hostname')) assert.equal(argv[argv.indexOf('--hostname') + 1], 'gitlab.example:8443')
+    if (argv.includes('--repo'))
+      assert.equal(argv[argv.indexOf('--repo') + 1], 'https://gitlab.example:8443/team/sub/project')
+    assert.ok(!argv.some((arg) => arg.includes('user:secret')))
+  }
 })

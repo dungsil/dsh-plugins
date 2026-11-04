@@ -35,6 +35,9 @@ async function mount(operation, language = 'en') {
   const jsx = (type, props) => ({ type, props })
   runInNewContext(bundle, {
     AbortController,
+    // The sidebar's Markdown decoder initializes a DOM node on module load;
+    // these composer tests do not invoke that decoder or mount the sidebar.
+    document: { createElement: () => ({}) },
     MutationObserver: class {
       observe() {}
       disconnect() {}
@@ -64,6 +67,7 @@ async function mount(operation, language = 'en') {
       inject: (_slot, setup) => setup(),
       register: (_options, render) => (registered = render),
     },
+    plugin() {},
     effect() {},
   })
   const session = { openState: 'open', pendingSubmissions: [] }
