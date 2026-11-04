@@ -95,6 +95,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   let Component
   let SettingsComponent
   let ProgressComponent
+  let progressDefinition
   let settingsOptions
   let language = 'ko'
   const calls = []
@@ -120,6 +121,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       register: (definition) => {
         assert.equal(definition.kind, 'dungsil-worktree-progress')
         assert.equal(definition.target, 'chat')
+        progressDefinition = definition
         return () => {}
       },
     },
@@ -1080,6 +1082,28 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assertNoSettingsButtons()
     }
     assert.equal(calls.length, before, 'locale changes and invalid drafts must not write settings')
+  })
+
+  await t.test('ready worktree joins the host work-details group while setup and failures remain visible', () => {
+    const location = { kind: 'turn', turn: { status: 'open' } }
+    const progress = {
+      id: 'worktree-details',
+      step: 3,
+      status: 'completed',
+      updatedAt: 1_700_000_000_000,
+      durations: [125, 1250, 250, 75],
+      branch: 'fix/details',
+    }
+    for (const status of ['running', 'completed', 'failed', 'cancelled']) {
+      const event = { type: 'plugin:dungsil/ui-worktree/progress', seq: 12, data: { ...progress, status } }
+      const match = { event, location, ...progressDefinition.match(event) }
+      const state = progressDefinition.start({}, match)
+      const node = progressDefinition.buildViewNode({ key: 'progress', id: progress.id, start: match, state })
+      assert.equal(node.groupTree, status === 'completed' ? undefined : 'turn')
+      assert.equal(node.location, location, 'completion must stay in the same turn as the streaming response')
+      assert.equal(node.anchorSeq, 12)
+      assert.equal(node.data.status, status)
+    }
   })
 
   await t.test('chat progress renders ordered timed steps, completion, and safe failure guidance', async () => {
