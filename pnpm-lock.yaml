@@ -338,6 +338,30 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
+  packages/preset-ui:
+    dependencies:
+      '@dungsil/dsh-plugin-locale-ko':
+        specifier: workspace:*
+        version: link:../locale-ko
+      '@dungsil/dsh-plugin-ui-model-picker':
+        specifier: workspace:*
+        version: link:../ui-model-picker
+      '@dungsil/dsh-plugin-ui-model-settings':
+        specifier: workspace:*
+        version: link:../ui-model-settings
+      '@dungsil/dsh-plugin-ui-setting-skills':
+        specifier: workspace:*
+        version: link:../ui-setting-skills
+      '@dungsil/dsh-plugin-ui-sidebar-inbox':
+        specifier: workspace:*
+        version: link:../ui-sidebar-inbox
+      '@dungsil/dsh-plugin-ui-turn-rail-left':
+        specifier: workspace:*
+        version: link:../ui-turn-rail-left
+      '@dungsil/dsh-plugin-ui-worktree':
+        specifier: workspace:*
+        version: link:../ui-worktree
+
   packages/tool-diff-note:
     dependencies:
       '@deepseek-ai/dsh-client-ui-primitives':
