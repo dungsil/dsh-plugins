@@ -13,6 +13,7 @@ export {
   SegmentedTabs,
   StateDot,
   Switch,
+  Tag,
   focusWithoutRing,
   useDismissOnOutsidePointer,
   writeClipboard,

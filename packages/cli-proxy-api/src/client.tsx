@@ -7,6 +7,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import {
+  Button,
+  Input,
   IconPluginPinwheelOutlineRegular,
   SegmentedTabs,
   SettingsPicker,
@@ -41,17 +43,14 @@ declare module '@deepseek-ai/cordis' {
 
 const styles = `${settingsStyles}${quotaStyles}
 .dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
-.dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 32px max(24px, var(--dsh-frame-leading-clearance, 0px)); }
+.dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
 .dsh-cli-proxy-page > .dsh-cli-proxy { max-width: 960px; margin: 0 auto; }
-.dsh-cli-proxy h1 { font-size: 24px; line-height: 32px; margin: 0 0 16px; }
+.dsh-cli-proxy h1 { font-size: 20px; line-height: 28px; font-weight: 500; margin: 0 0 24px; }
 .dsh-cli-proxy h3 { margin: 24px 0 0; font: inherit; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-proxy .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 65%; }
-.dsh-cli-proxy input, .dsh-cli-proxy .button { box-sizing: border-box; height: 36px; max-width: 100%; min-width: 0; padding: 0 14px; border: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; }
-.dsh-cli-proxy input { width: 280px; }
-.dsh-cli-proxy .button { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; }
-.dsh-cli-proxy .button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
-.dsh-cli-proxy :disabled { opacity: .5; cursor: default; }
-.dsh-cli-proxy input:focus-visible, .dsh-cli-proxy .button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
+.dsh-cli-proxy .controls > span:has(> input) { box-sizing: border-box; width: 280px; min-width: 0; max-width: 100%; }
+.dsh-cli-proxy .controls > button { max-width: 100%; }
+.dsh-cli-proxy .oauth-link { color: var(--dsw-alias-state-business-primary); }
 .dsh-cli-proxy .hint { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; margin: 8px 0; }
 .dsh-cli-proxy [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-cli-proxy p, .dsh-cli-proxy .dsh-plugin-settings-text { overflow-wrap: anywhere; }
@@ -65,7 +64,7 @@ const styles = `${settingsStyles}${quotaStyles}
 @container (max-width: 480px) {
   .dsh-cli-proxy .dsh-plugin-settings-row { flex-direction: column; align-items: stretch; gap: 12px; }
   .dsh-cli-proxy .controls { width: 100%; max-width: 100%; justify-content: flex-start; }
-  .dsh-cli-proxy input, .dsh-cli-proxy .dsh-plugin-settings-picker, .dsh-cli-proxy .dsh-plugin-settings-selector { width: 100%; }
+  .dsh-cli-proxy .controls > span:has(> input), .dsh-cli-proxy .dsh-plugin-settings-picker, .dsh-cli-proxy .dsh-plugin-settings-selector { width: 100%; }
   .dsh-cli-proxy .dsh-plugin-settings-selector { justify-content: space-between; }
 }
 `
@@ -162,12 +161,17 @@ function ProxyPage({
   )
 
   useEffect(() => {
-    if (settings) return
-    const dispose = ctx.on('cli-proxy-api/connection-changed', () => setConnectionVersion((version) => version + 1))
+    const dispose = settings
+      ? undefined
+      : ctx.on('cli-proxy-api/connection-changed', () => setConnectionVersion((version) => version + 1))
+    const unsubscribe = connection.generation.subscribe(() => {
+      if (connection.generation.getSnapshot()) setConnectionVersion((version) => version + 1)
+    })
     return () => {
-      dispose()
+      dispose?.()
+      unsubscribe()
     }
-  }, [ctx, settings])
+  }, [ctx, settings, connection])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -284,9 +288,9 @@ function ProxyPage({
     </SettingsRow>
   )
   const button = (label: string, onClick: () => void, disabled = busy) => (
-    <button type="button" className="button" disabled={disabled} onClick={onClick}>
+    <Button variant="outline" disabled={disabled} onClick={onClick}>
       {label}
-    </button>
+    </Button>
   )
   const mutate = (endpoint: string, payload: Record<string, unknown>) => {
     if (managementDisabled || (!management && !quotaAccounts)) return
@@ -318,13 +322,14 @@ function ProxyPage({
     <section className="dsh-cli-proxy" aria-label="CLIProxyAPI" aria-busy={busy}>
       {busy && <p role="status">{text.busy}</p>}
       {notice && <p role={notice === 'error' ? 'alert' : 'status'}>{text[notice]}</p>}
+      {!synchronized && !busy && button(text.refresh, () => setConnectionVersion((version) => version + 1))}
       {settings ? (
         <>
           <h3>{text.connection}</h3>
           <p className="hint">{text.serverHint}</p>
           {row(
             <label htmlFor={`${id}-url`}>{text.baseURL}</label>,
-            <input
+            <Input
               id={`${id}-url`}
               type="url"
               autoComplete="off"
@@ -337,7 +342,7 @@ function ProxyPage({
           {row(
             <label htmlFor={`${id}-api`}>{text.apiKey}</label>,
             <>
-              <input
+              <Input
                 id={`${id}-api`}
                 type="password"
                 autoComplete="off"
@@ -362,7 +367,7 @@ function ProxyPage({
           {row(
             <label htmlFor={`${id}-management`}>{text.managementKey}</label>,
             <>
-              <input
+              <Input
                 id={`${id}-management`}
                 type="password"
                 autoComplete="off"
@@ -386,32 +391,12 @@ function ProxyPage({
           )}
           <p className="hint">{text.keyHint}</p>
           {!synchronized && !busy && <p role="alert">{text.connectionLocked}</p>}
-          {row(
-            text.connection,
-            <>
-              {button(text.save, save, busy || !synchronized || !baseURL.trim())}
-              {button(text.refresh, () => {
-                void run(async (controller) => {
-                  await describe(controller)
-                })
-              })}
-            </>
-          )}
+          {row(text.connection, button(text.save, save, busy || !synchronized || !baseURL.trim()))}
           {draftChanged && <p className="hint">{text.draftHint}</p>}
         </>
       ) : (
         <>
-          <div className={page === 'quota' ? 'dsh-cli-quota-connection' : undefined}>
-            <p className="hint">{text.connectionSettingsHint}</p>
-            {button(page === 'quota' ? text.quotaRefreshConnection : text.refresh, () => {
-              void run(async (controller) => {
-                await describe(controller)
-                setSession(undefined)
-                setOAuthStatus(undefined)
-                setRedirectURL('')
-              })
-            })}
-          </div>
+          <p className="hint">{text.connectionSettingsHint}</p>
           {page === 'quota' && (
             <>
               {!view?.managementKeySaved && <p className="hint">{text.managementHint}</p>}
@@ -541,7 +526,7 @@ function ProxyPage({
               )}
               {row(
                 <label htmlFor={`${id}-group`}>{text.providerName}</label>,
-                <input
+                <Input
                   id={`${id}-group`}
                   value={groupName}
                   maxLength={256}
@@ -551,7 +536,7 @@ function ProxyPage({
               )}
               {row(
                 <label htmlFor={`${id}-upstream-url`}>{text.upstreamURL}</label>,
-                <input
+                <Input
                   id={`${id}-upstream-url`}
                   type="url"
                   value={upstreamURL}
@@ -562,7 +547,7 @@ function ProxyPage({
               )}
               {row(
                 <label htmlFor={`${id}-upstream-key`}>{text.providerKey}</label>,
-                <input
+                <Input
                   id={`${id}-upstream-key`}
                   type="password"
                   value={upstreamKey}
@@ -573,7 +558,7 @@ function ProxyPage({
               )}
               {row(
                 <label htmlFor={`${id}-model-ids`}>{text.modelIDs}</label>,
-                <input
+                <Input
                   id={`${id}-model-ids`}
                   value={modelIDs}
                   disabled={managementDisabled}
@@ -684,7 +669,7 @@ function ProxyPage({
                 <>
                   {oauthURL ? (
                     <p>
-                      <a className="button" href={oauthURL} target="_blank" rel="noopener noreferrer">
+                      <a className="oauth-link" href={oauthURL} target="_blank" rel="noopener noreferrer">
                         {text.open}
                       </a>
                     </p>
@@ -737,7 +722,7 @@ function ProxyPage({
                   {row(
                     <label htmlFor={`${id}-callback`}>{text.redirectURL}</label>,
                     <>
-                      <input
+                      <Input
                         id={`${id}-callback`}
                         type="password"
                         autoComplete="off"
@@ -786,7 +771,7 @@ function ProxyPage({
               )}
               {row(
                 <label htmlFor={`${id}-retry`}>{text.retry}</label>,
-                <input
+                <Input
                   id={`${id}-retry`}
                   type="number"
                   min="0"

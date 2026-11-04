@@ -1,58 +1,56 @@
 import { useId, useState } from 'react'
-import { SegmentedControl } from '@dungsil/dsh-ui'
-import { IconChevronDownOutlineRegular, IconRefreshOutlineRegular } from '@dungsil/dsh-ui/icons'
+import { Button, Input, SegmentedControl, Tag } from '@dungsil/dsh-ui'
+import {
+  IconChevronDownOutlineRegular,
+  IconRefreshOutlineRegular,
+  IconSearchOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
 import type { localizedCopy } from './copy.js'
 import type { QuotaAccount, QuotaResult } from './protocol.js'
 
 export const quotaStyles = `
-.dsh-cli-quota-connection { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 16px; }
-.dsh-cli-quota-connection .hint { flex: 1; min-width: 180px; }
-.dsh-cli-quota { margin-top: 24px; }
+.dsh-cli-quota { margin-top: 20px; }
 .dsh-cli-quota .quota-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-.dsh-cli-quota .quota-toolbar input { flex: 1; width: 260px; min-width: 160px; }
+.dsh-cli-quota .quota-search { box-sizing: border-box; flex: 1; min-width: 160px; }
 .dsh-cli-quota .quota-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.dsh-cli-quota .button { gap: 6px; flex-shrink: 0; }
 .dsh-cli-quota .quota-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.dsh-cli-quota .quota-card { display: flex; flex-direction: column; min-width: 0; padding: 20px; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg, 12px); }
+.dsh-cli-quota .quota-card { display: flex; flex-direction: column; min-width: 0; padding: 16px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); }
 .dsh-cli-quota .quota-card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
-.dsh-cli-quota .quota-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); font-weight: 600; text-transform: uppercase; }
 .dsh-cli-quota .quota-identity { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.dsh-cli-quota .quota-identity strong { display: block; font-size: 15px; }
+.dsh-cli-quota .quota-identity strong { display: block; font-weight: 500; }
 .dsh-cli-quota .quota-name { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
-.dsh-cli-quota .quota-badge { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 2px 8px; border-radius: var(--dsw-radius-md); font-size: 12px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
-.dsh-cli-quota .quota-badge[data-tone=warning] { color: var(--dsw-alias-state-warning-primary, #986100); }
-.dsh-cli-quota .quota-badge[data-tone=error] { color: var(--dsw-alias-state-error-primary, #b54424); }
+.dsh-cli-quota .quota-badge { flex-shrink: 0; }
 .dsh-cli-quota .quota-window { padding: 12px 0; border-top: 1px solid var(--dsw-alias-border-l2); }
 .dsh-cli-quota .quota-heading { gap: 4px 12px; font-size: 12px; }
 .dsh-cli-quota .quota-heading strong { font-weight: 500; }
 .dsh-cli-quota progress { height: 6px; margin: 10px 0; }
-.dsh-cli-quota [data-tone=warning] progress::-webkit-progress-value { background: var(--dsw-alias-state-warning-primary, #b98220); }
-.dsh-cli-quota [data-tone=error] progress::-webkit-progress-value { background: var(--dsw-alias-state-error-primary, #b54424); }
-.dsh-cli-quota [data-tone=warning] progress::-moz-progress-bar { background: var(--dsw-alias-state-warning-primary, #b98220); }
-.dsh-cli-quota [data-tone=error] progress::-moz-progress-bar { background: var(--dsw-alias-state-error-primary, #b54424); }
+.dsh-cli-quota [data-tone=warning] progress::-webkit-progress-value { background: var(--dsw-alias-state-warn-primary); }
+.dsh-cli-quota [data-tone=danger] progress::-webkit-progress-value { background: var(--dsw-alias-state-error-primary); }
+.dsh-cli-quota [data-tone=warning] progress::-moz-progress-bar { background: var(--dsw-alias-state-warn-primary); }
+.dsh-cli-quota [data-tone=danger] progress::-moz-progress-bar { background: var(--dsw-alias-state-error-primary); }
 .dsh-cli-quota .quota-card-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 16px; }
-.dsh-cli-quota .quota-table-scroll { overflow-x: auto; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg, 12px); }
+.dsh-cli-quota .quota-table-scroll { overflow-x: auto; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); }
+.dsh-cli-quota .quota-table-scroll button:not(.quota-expand) { white-space: nowrap; }
 .dsh-cli-quota table { width: 100%; min-width: 760px; border-collapse: collapse; text-align: start; font-size: 12px; }
 .dsh-cli-quota th { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); font-weight: 500; white-space: nowrap; }
 .dsh-cli-quota th, .dsh-cli-quota td { padding: 14px 12px; border-bottom: 1px solid var(--dsw-alias-border-l2); vertical-align: middle; }
 .dsh-cli-quota tbody:last-child tr:last-child td { border-bottom: 0; }
 .dsh-cli-quota .quota-table-account { max-width: 190px; }
-.dsh-cli-quota .quota-expand { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; text-align: start; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.dsh-cli-quota .quota-expand { max-width: 100%; height: auto; min-height: 28px; justify-content: flex-start; text-align: start; overflow-wrap: anywhere; }
 .dsh-cli-quota .quota-expand svg { flex: none; transform: rotate(-90deg); }
 .dsh-cli-quota .quota-expand[aria-expanded=true] svg { transform: none; }
-.dsh-cli-quota .quota-expand:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 4px; border-radius: 2px; }
 .dsh-cli-quota .quota-summary { min-width: 135px; }
 .dsh-cli-quota .quota-summary progress { width: 100%; margin: 6px 0; }
 .dsh-cli-quota .quota-table-detail { padding: 4px 12px 12px; }
 .dsh-cli-quota .quota-detail-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
 .dsh-cli-quota .quota-detail-windows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
-.dsh-cli-quota .quota-empty { padding: 36px 20px; text-align: center; border: 1px dashed var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg, 12px); }
+.dsh-cli-quota .quota-empty { padding: 32px 16px; text-align: center; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-quota .quota-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
 .dsh-cli-quota .quota-pagination > div { display: flex; gap: 8px; }
-.dsh-cli-quota .quota-note { margin-top: 20px; padding: 12px 16px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.dsh-cli-quota .quota-note { margin-top: 20px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 @container (max-width: 680px) {
   .dsh-cli-quota .quota-grid { grid-template-columns: minmax(0, 1fr); }
-  .dsh-cli-quota .quota-toolbar input { width: 100%; flex-basis: 100%; }
+  .dsh-cli-quota .quota-search { width: 100%; flex-basis: 100%; }
   .dsh-cli-quota .quota-toolbar-actions { width: 100%; justify-content: space-between; }
   .dsh-cli-quota .quota-card { padding: 16px; }
 }
@@ -113,7 +111,7 @@ export function QuotaPanel({
   const percent = (used: number) => `${Number(used.toFixed(1))}%`
   const date = (value: string) => new Date(value).toLocaleString(language)
   const tone = (used?: number) =>
-    used === undefined ? 'neutral' : used >= 100 ? 'error' : used >= 80 ? 'warning' : 'normal'
+    used === undefined ? 'neutral' : used >= 100 ? 'danger' : used >= 80 ? 'warning' : 'neutral'
 
   const renderAccount = (account: QuotaAccount, index: number) => {
     const key = JSON.stringify([account.name, account.authIndex])
@@ -136,34 +134,34 @@ export function QuotaPanel({
                 : highest >= 80
                   ? text.quotaWarning
                   : text.quotaAvailable
-    const statusTone = result === null ? 'error' : account.disabled || !account.supported ? 'neutral' : tone(highest)
+    const statusTone = result === null ? 'danger' : account.disabled || !account.supported ? 'neutral' : tone(highest)
     const badge = (
-      <span className="quota-badge" data-tone={statusTone}>
+      <Tag className="quota-badge" tone={statusTone}>
         {status}
-      </span>
+      </Tag>
     )
     const refresh = (
-      <button
-        type="button"
-        className="button"
+      <Button
+        variant="outline"
+        size={layout === 'table' ? 'sm' : 'md'}
+        icon={<IconRefreshOutlineRegular size={16} aria-hidden="true" />}
         aria-label={`${text.refreshQuota} · ${account.name}`}
         disabled={managementDisabled || !account.supported || !account.authIndex}
         onClick={() => onFetch(account)}
       >
-        <IconRefreshOutlineRegular size={14} aria-hidden="true" />
         {text.refreshQuota}
-      </button>
+      </Button>
     )
     const reset = (
-      <button
-        type="button"
-        className="button"
+      <Button
+        variant="ghost"
+        size={layout === 'table' ? 'sm' : 'md'}
         aria-label={`${text.quotaReset} · ${account.name}`}
         disabled={managementDisabled || !account.editable || !account.authIndex}
         onClick={() => onReset(account)}
       >
         {text.quotaReset}
-      </button>
+      </Button>
     )
     const details =
       !account.supported || account.disabled ? (
@@ -215,9 +213,6 @@ export function QuotaPanel({
       return (
         <article className="quota-card" key={key} aria-label={`${account.provider} · ${account.name}`}>
           <header className="quota-card-header">
-            <span className="quota-avatar" aria-hidden="true">
-              {account.provider.slice(0, 2)}
-            </span>
             <div className="quota-identity">
               <strong>{account.provider}</strong>
               <div className="quota-name">{account.name}</div>
@@ -237,8 +232,9 @@ export function QuotaPanel({
       <tbody key={key}>
         <tr>
           <td className="quota-table-account">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               className="quota-expand"
               aria-expanded={expanded.has(key)}
               aria-controls={detailId}
@@ -253,7 +249,7 @@ export function QuotaPanel({
             >
               <IconChevronDownOutlineRegular size={14} aria-hidden="true" />
               <span>{account.name}</span>
-            </button>
+            </Button>
           </td>
           <td>{account.provider}</td>
           <td className="quota-summary" data-tone={tone(first?.usedPercent)}>
@@ -300,7 +296,9 @@ export function QuotaPanel({
   return (
     <div className="dsh-cli-quota">
       <div className="quota-toolbar">
-        <input
+        <Input
+          className="quota-search"
+          icon={<IconSearchOutlineRegular size={16} aria-hidden="true" />}
           type="search"
           aria-label={text.searchAccounts}
           placeholder={text.searchAccounts}
@@ -321,9 +319,9 @@ export function QuotaPanel({
             ]}
             onChange={setLayout}
           />
-          <button
-            type="button"
-            className="button"
+          <Button
+            variant="outline"
+            icon={<IconRefreshOutlineRegular size={16} aria-hidden="true" />}
             disabled={busy || !canLoad}
             onClick={() => {
               setPage(0)
@@ -331,9 +329,8 @@ export function QuotaPanel({
               onLoad()
             }}
           >
-            <IconRefreshOutlineRegular size={14} aria-hidden="true" />
             {text.refreshQuotaAccounts}
-          </button>
+          </Button>
         </div>
       </div>
       {(['cards', 'table'] as const).map((value) => (
@@ -388,22 +385,12 @@ export function QuotaPanel({
           </span>
           {pages > 1 && (
             <div>
-              <button
-                type="button"
-                className="button"
-                disabled={currentPage === 0}
-                onClick={() => setPage(currentPage - 1)}
-              >
+              <Button variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
                 {text.previous}
-              </button>
-              <button
-                type="button"
-                className="button"
-                disabled={currentPage + 1 >= pages}
-                onClick={() => setPage(currentPage + 1)}
-              >
+              </Button>
+              <Button variant="outline" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}>
                 {text.next}
-              </button>
+              </Button>
             </div>
           )}
         </div>
