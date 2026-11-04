@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsPicker, SettingsRow } from '@dungsil/dsh-ui'
+import { useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, endpointPrefix, type WorktreeSettings, type WorktreeSettingsView } from './protocol.js'
 
 const copy = {
@@ -83,10 +84,7 @@ const sameSettings = (left: WorktreeSettings | undefined, right: WorktreeSetting
   JSON.stringify(left) === JSON.stringify(right)
 
 export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
-  const language = useSyncExternalStore(
-    (listener) => ctx.locale.subscribe(listener),
-    () => ctx.locale.getSnapshot().active
-  )
+  const { active: language } = useLocaleSnapshot(ctx.locale)
   const text = copy[languageKey(language)]
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle

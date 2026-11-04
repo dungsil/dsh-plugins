@@ -9,6 +9,7 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   IconChevronLeftOutlineRegular,
@@ -75,10 +76,7 @@ export function apply(ctx: Context) {
     directory,
   }: Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & { directory: ModelDirectory }) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
-    const locale = useSyncExternalStore(
-      (fn) => ctx.locale.subscribe(fn),
-      () => ctx.locale.getSnapshot().active
-    )
+    const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
     const [draft, setDraft] = useState(0)
@@ -424,10 +422,5 @@ export function apply(ctx: Context) {
         ) : null
     )
   )
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-model-picker: styles')
+  ctx.effect(() => installStyles(styles), 'ui-model-picker: styles')
 }

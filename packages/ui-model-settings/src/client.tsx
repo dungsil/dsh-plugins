@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
   endpointPrefix,
@@ -129,10 +130,7 @@ type Task = 'target' | 'worktree'
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
-  const locale = useSyncExternalStore(
-    (listener) => ctx.locale.subscribe(listener),
-    () => ctx.locale.getSnapshot()
-  )
+  const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
@@ -391,12 +389,7 @@ export function apply(ctx: Context) {
       '<circle cx="2.5" cy="8" r="1.75"/><path d="M4.25 8H5.5C8 8 7 3.5 10 3.5H11M5.5 8C8 8 7 12.5 10 12.5H11"/><rect x="11" y="1.75" width="3.5" height="3.5" rx=".6"/><rect x="11" y="10.75" width="3.5" height="3.5" rx=".6"/>'
     )
   )
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'model-settings: styles')
+  ctx.effect(() => installStyles(styles), 'model-settings: styles')
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       {

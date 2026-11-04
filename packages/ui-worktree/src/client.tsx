@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   Menu,
@@ -37,10 +38,9 @@ export function apply(ctx: Context) {
     )
   )
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const subscribeLocale = (listener: () => void) => ctx.locale.subscribe(listener)
   installProgress(ctx)
   function Picker({ sessionId, useSession }: Props) {
-    const language = useSyncExternalStore(subscribeLocale, () => ctx.locale.getSnapshot().active)
+    const { active: language } = useLocaleSnapshot(ctx.locale)
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
@@ -318,10 +318,5 @@ export function apply(ctx: Context) {
       WorktreeSettingsSection
     )
   )
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-worktree: composer styles')
+  ctx.effect(() => installStyles(styles), 'ui-worktree: composer styles')
 }
