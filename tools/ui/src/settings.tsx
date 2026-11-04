@@ -4,10 +4,9 @@ import { IconChevronDownOutlineRegular } from './icons.js'
 import { installStyles } from './client.js'
 
 /** The rc.5 settings shell has no icon slot, so decorate only the matching navigation rows. */
-export function installSettingsIcon(id: string, labels: readonly string[], artwork: string) {
+export function installSettingsIcon(id: string, labels: readonly string[], svg: string) {
   const attribute = 'data-dsh-settings-icon'
   const selector = `[${attribute}="${id}"]`
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="black" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${artwork}</svg>`
   const removeStyles = installStyles(`
 ${selector} > svg { display: none; }
 ${selector}::before { content: ''; display: block; flex: none; width: 16px; height: 16px; background: currentColor; mask: url("data:image/svg+xml,${encodeURIComponent(svg)}") center / contain no-repeat; }
