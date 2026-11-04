@@ -4,6 +4,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { Menu, IconChevronDownOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   channel,
   endpointPrefix,
@@ -21,11 +22,18 @@ const copy = {
     description:
       'Choose a model for each task without changing the conversation model. Changes are saved automatically.',
     title: 'Session title',
-    hint: 'Applies to future title generation across this profile. Existing titles and conversation models stay unchanged.',
+    hint: 'Applies to future titles.',
+    model: 'Model',
     worktree: 'Worktree branch name',
-    worktreeHint:
-      'Used only when Git Worktree UI generates a branch name from an empty name. Does not change the conversation model.',
+    worktreeHint: 'Used when the branch name is left empty.',
     inherit: 'Use conversation model',
+    effort: 'Reasoning effort',
+    automatic: 'Automatic',
+    automaticHint: 'Automatic (lowest supported effort)',
+    worktreeAutomaticHint: 'Automatic (model default)',
+    effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the existing behavior.',
+    noEfforts: 'This model does not offer reasoning effort settings.',
+    missingEffort: 'Saved effort (currently unavailable)',
     saving: 'Saving…',
     saved: 'Saved. The next request for this task will use this selection.',
     loading: 'Loading models…',
@@ -41,16 +49,24 @@ const copy = {
     error: 'Could not confirm the change. The change will not be retried automatically.',
     conflict: 'Settings changed elsewhere. Your change will not be retried automatically.',
     model_unavailable: 'This model is unavailable. Choose an available model after the settings check.',
+    reasoning_unavailable: 'This reasoning effort is unavailable. Choose a supported effort or Automatic.',
   },
   ko: {
     nav: '상황별 모델',
     description: '대화 모델을 바꾸지 않고 상황별로 사용할 모델을 지정합니다. 변경 사항은 자동으로 저장합니다.',
     title: '세션 제목',
-    hint: '이 프로필에서 이후 생성하는 제목에 적용합니다. 기존 제목과 대화 모델은 바뀌지 않습니다.',
+    hint: '이후 생성하는 제목에 적용합니다.',
+    model: '모델',
     worktree: '워크트리 브랜치 이름',
-    worktreeHint:
-      'Git Worktree UI에서 이름을 비워 브랜치 이름을 자동 생성할 때만 사용합니다. 대화 모델은 바뀌지 않습니다.',
+    worktreeHint: '이름을 비워 자동 생성할 때 사용합니다.',
     inherit: '대화 모델 따르기',
+    effort: '추론 수준',
+    automatic: '자동',
+    automaticHint: '자동 (지원하는 최저 수준)',
+    worktreeAutomaticHint: '자동 (모델 기본값)',
+    effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 기존 동작을 유지합니다.',
+    noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
+    missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
     saving: '저장 중…',
     saved: '저장했습니다. 이 작업의 다음 모델 요청부터 적용합니다.',
     loading: '모델을 불러오는 중입니다…',
@@ -65,15 +81,24 @@ const copy = {
     error: '변경 여부를 확인하지 못했습니다. 변경 사항은 자동으로 다시 저장하지 않습니다.',
     conflict: '다른 곳에서 설정을 변경했습니다. 선택한 값은 자동으로 다시 저장하지 않습니다.',
     model_unavailable: '사용할 수 없는 모델입니다. 설정 확인이 끝나면 다른 모델을 선택하세요.',
+    reasoning_unavailable: '사용할 수 없는 추론 수준입니다. 지원하는 수준이나 자동을 선택하세요.',
   },
   zh: {
     nav: '任务模型设置',
     description: '为各项任务选择模型，不更改对话模型。更改会自动保存。',
     title: '会话标题',
-    hint: '适用于当前配置中后续生成的标题。现有标题和对话模型保持不变。',
+    hint: '适用于后续生成的标题。',
+    model: '模型',
     worktree: '工作树分支名称',
-    worktreeHint: '仅在 Git Worktree 界面中的分支名称为空、需要自动生成名称时使用。不会更改对话模型。',
+    worktreeHint: '在分支名称为空、需要自动生成名称时使用。',
     inherit: '使用对话模型',
+    effort: '推理级别',
+    automatic: '自动',
+    automaticHint: '自动（支持的最低级别）',
+    worktreeAutomaticHint: '自动（模型默认值）',
+    effortHint: '指定模型后可选择推理级别。自动选项保留现有行为。',
+    noEfforts: '此模型不提供推理级别设置。',
+    missingEffort: '已保存的推理级别（当前不可用）',
     saving: '正在保存…',
     saved: '已保存。此任务的下一次模型请求将使用此选择。',
     loading: '正在加载模型…',
@@ -87,6 +112,7 @@ const copy = {
     error: '无法确认更改是否生效。不会自动重新保存此更改。',
     conflict: '设置已在其他位置更改。不会自动重新保存您选择的值。',
     model_unavailable: '此模型不可用。请在设置检查完成后选择可用模型。',
+    reasoning_unavailable: '此推理级别不可用。请选择支持的级别或自动选项。',
   },
 }
 
@@ -94,22 +120,87 @@ const localizedCopy = (language: string) =>
   copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
 
 const styles = `
-.dsh-model-settings { max-width: 680px; color: var(--dsw-alias-label-primary, #222); font: 14px/1.6 var(--dsw-font-family, system-ui); }
-.dsh-model-settings h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
-.dsh-model-settings p { margin: 0 0 24px; color: var(--dsw-alias-label-secondary, #666); }
-.dsh-model-settings label { display: block; margin-bottom: 8px; font-weight: 600; }
-.dsh-model-settings select { box-sizing: border-box; width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; font: inherit; }
-.dsh-model-settings small { display: block; margin: 8px 0 24px; color: var(--dsw-alias-label-secondary, #666); font-size: 13px; }
-.dsh-model-settings-field { margin-bottom: 24px; }
-.dsh-model-settings :disabled { opacity: .5; cursor: default; }
-.dsh-model-settings :focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
+.dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings-description { color: var(--dsw-alias-label-secondary); }
+.dsh-model-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-model-settings-text { flex: 1; min-width: 0; }
+.dsh-model-settings-hint { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
+.dsh-model-settings-picker { min-width: 0; }
+.dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
+.dsh-model-settings-selector { box-sizing: border-box; display: inline-flex; align-items: center; gap: 12px; max-width: 100%; height: 36px; padding: 0 14px; border: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; cursor: pointer; }
+.dsh-model-settings-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-model-settings-selector svg { flex: none; }
+.dsh-model-settings-selector:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dsh-model-settings-selector:disabled { opacity: .5; cursor: default; }
+.dsh-model-settings-selector:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
 .dsh-model-settings [role=status] { margin: 12px 0; }
+@container (max-width: 480px) {
+  .dsh-model-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .dsh-model-settings-controls { max-width: 100%; }
+}
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
 type Task = 'target' | 'worktree'
-type Notice = 'saved' | 'error' | 'conflict' | 'model_unavailable'
+type Notice = 'saved' | 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
+
+function Picker({
+  id,
+  label,
+  value,
+  title,
+  selectedId,
+  items,
+  disabled,
+  describedBy,
+  onSelect,
+}: {
+  id: string
+  label: string
+  value: string
+  title: string
+  selectedId: string
+  items: MenuEntry[]
+  disabled: boolean
+  describedBy?: string
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Menu
+      className="dsh-model-settings-picker"
+      open={open && !disabled}
+      onClose={() => setOpen(false)}
+      items={items}
+      selectedId={selectedId}
+      onSelect={(id) => {
+        setOpen(false)
+        onSelect(id)
+      }}
+      align="end"
+      portal
+      anchor={
+        <button
+          id={id}
+          type="button"
+          className="dsh-model-settings-selector"
+          aria-label={`${label}: ${title}`}
+          aria-describedby={describedBy}
+          aria-haspopup="menu"
+          aria-expanded={open && !disabled}
+          title={title}
+          disabled={disabled}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="dsh-model-settings-value">{value}</span>
+          <IconChevronDownOutlineRegular size={16} />
+        </button>
+      }
+    />
+  )
+}
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
@@ -121,6 +212,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
   const [drafts, setDrafts] = useState({ target: '', worktree: '' })
+  const [effortDrafts, setEffortDrafts] = useState({ target: '', worktree: '' })
   const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
   const [synchronized, setSynchronized] = useState(false)
   const [notice, setNotice] = useState<Notice>()
@@ -136,6 +228,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
+      setEffortDrafts({ target: next.target?.reasoningEffort ?? '', worktree: next.worktree?.reasoningEffort ?? '' })
       setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
       setSynchronized(true)
       return true
@@ -176,26 +269,47 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       provider.models.map((model) => ({
         route: { provider: provider.id, model: model.id },
         label: `${provider.name} / ${model.name}`,
+        name: model.name,
+        efforts: model.efforts,
       }))
     ) ?? []
+  const modelItems: MenuEntry[] = [
+    { id: '', label: text.inherit },
+    ...(view?.providers.flatMap((provider): MenuEntry[] =>
+      provider.models.length
+        ? [
+            { type: 'separator', id: `separator:${provider.id}` },
+            { type: 'label', id: `provider:${provider.id}`, text: provider.name },
+            ...provider.models.map((model) => ({
+              id: routeKey({ provider: provider.id, model: model.id }),
+              label: model.name,
+            })),
+          ]
+        : []
+    ) ?? []),
+  ]
 
-  const save = async (task: Task, draft: string) => {
+  const save = async (task: Task, draft: string, effort: string) => {
     const controller = lifetime.current
     const target = view?.[task]
-    const selected = options.find((option) => routeKey(option.route) === draft)?.route ?? null
+    const option = options.find((option) => routeKey(option.route) === draft)
+    const selected = option?.route ?? null
+    const missingEffort = effort !== '' && !option?.efforts.some((item) => item.id === effort)
     if (
       lock.current ||
       !controller ||
       controller.signal.aborted ||
       !target ||
       !synchronized ||
-      draft === routeKey(target.route) ||
-      (draft && !selected)
+      (draft === routeKey(target.route) && effort === (target.reasoningEffort ?? '')) ||
+      (draft && !selected) ||
+      missingEffort
     )
       return
     lock.current = true
     setBusy('saving')
     setDrafts((current) => ({ ...current, [task]: draft }))
+    setEffortDrafts((current) => ({ ...current, [task]: effort }))
     setNotice(undefined)
     setNoticeTask(task)
     setReadError(undefined)
@@ -205,7 +319,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
-        { id: target.id, revision: target.revision, route: selected },
+        { id: target.id, revision: target.revision, route: selected, reasoningEffort: effort || null },
         controller.signal
       )
       if (!active()) return
@@ -213,10 +327,12 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const saved = result.value as unknown as TitleTarget | null
         setView((current) => current && { ...current, [task]: saved })
         setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
+        setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
         setNotice('saved')
       } else {
         const code = result.error.code
-        failure = code === 'conflict' || code === 'model_unavailable' ? code : 'error'
+        failure =
+          code === 'conflict' || code === 'model_unavailable' || code === 'reasoning_unavailable' ? code : 'error'
       }
     } catch {
       if (!active()) return
@@ -242,8 +358,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-model-settings" aria-label={text.nav} aria-busy={!!busy}>
-      <h2>{text.nav}</h2>
-      <p>{text.description}</p>
+      <p className="dsh-model-settings-description">{text.description}</p>
       {busy === 'loading' && <p role="status">{text.loading}</p>}
       {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
       {notice && notice !== 'saved' && synchronized && !busy && <p role="status">{text.resynced}</p>}
@@ -252,35 +367,85 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       {(['target', 'worktree'] as const).map((task) => {
         const target = view?.[task]
         if (!target) return null
+        const title = task === 'target' ? text.title : text.worktree
         const draft = drafts[task]
+        const effort = effortDrafts[task]
         const current = routeKey(target.route)
         const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
+        const option = options.find((option) => routeKey(option.route) === draft)
+        const selected = option?.route ?? null
+        const efforts = option?.efforts ?? []
+        const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
+        const automaticHint = task === 'target' ? text.automaticHint : text.worktreeAutomaticHint
+        const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
+        const effortLabel =
+          efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
         const fieldId = `${id}-${task}`
         return (
           <div key={task} className="dsh-model-settings-field">
-            <label htmlFor={fieldId}>{task === 'target' ? text.title : text.worktree}</label>
-            <select
-              id={fieldId}
-              value={draft}
-              disabled={!!busy || !synchronized}
-              aria-describedby={`${fieldId}-hint`}
-              onChange={(event) => {
-                void save(task, event.target.value)
-              }}
-            >
-              <option value="">{text.inherit}</option>
-              {missing && (
-                <option value={current} disabled>
-                  {text.missing}: {target.route!.provider} / {target.route!.model}
-                </option>
-              )}
-              {options.map((option) => (
-                <option key={routeKey(option.route)} value={routeKey(option.route)}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <small id={`${fieldId}-hint`}>{task === 'target' ? text.hint : text.worktreeHint}</small>
+            <div className="dsh-model-settings-row">
+              <div className="dsh-model-settings-text">
+                <div>{title}</div>
+                <p className="dsh-model-settings-hint" id={`${fieldId}-hint`}>
+                  {task === 'target' ? text.hint : text.worktreeHint}
+                </p>
+              </div>
+              <div className="dsh-model-settings-controls">
+                <Picker
+                  id={fieldId}
+                  label={`${title} ${text.model}`}
+                  value={modelLabel}
+                  title={
+                    option?.label ??
+                    (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
+                  }
+                  selectedId={draft}
+                  items={
+                    missing
+                      ? [
+                          ...modelItems,
+                          {
+                            id: current,
+                            label: `${text.missing}: ${target.route!.provider} / ${target.route!.model}`,
+                            disabled: true,
+                          },
+                        ]
+                      : modelItems
+                  }
+                  disabled={!!busy || !synchronized}
+                  describedBy={`${fieldId}-hint`}
+                  onSelect={(value) => {
+                    void save(task, value, value === draft ? effort : '')
+                  }}
+                />
+                <Picker
+                  id={`${fieldId}-reasoning`}
+                  label={`${title} ${text.effort}`}
+                  value={effortLabel}
+                  title={
+                    !selected
+                      ? text.effortHint
+                      : efforts.length === 0
+                        ? text.noEfforts
+                        : effort
+                          ? effortLabel
+                          : automaticHint
+                  }
+                  selectedId={effort}
+                  items={[
+                    { id: '', label: automaticHint },
+                    ...(missingEffort
+                      ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
+                      : []),
+                    ...efforts.map((item) => ({ id: item.id, label: item.name })),
+                  ]}
+                  disabled={!!busy || !synchronized || !selected || (efforts.length === 0 && !effort)}
+                  onSelect={(value) => {
+                    void save(task, draft, value)
+                  }}
+                />
+              </div>
+            </div>
             {busy === 'saving' && noticeTask === task && <p role="status">{text.saving}</p>}
             {notice && noticeTask === task && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
           </div>

@@ -10,7 +10,12 @@ import { profileFixture } from '../../model-settings/test/profile.mjs'
 
 const pair = JSON.stringify(['auxiliary', 'title-small'])
 const otherPair = JSON.stringify(['conversation', 'chat-large'])
-const worktreeField = 'select[id$="-worktree"]'
+const allFields = 'button[aria-haspopup="menu"]'
+const modelFields = `${allFields}:not([id$="-reasoning"])`
+const titleField = 'button[id$="-target"]'
+const worktreeField = 'button[id$="-worktree"]'
+const titleEffortField = 'button[id$="-target-reasoning"]'
+const worktreeEffortField = 'button[id$="-worktree-reasoning"]'
 const failure = (code) => ({ ok: false, error: { code, message: code, details: {} } })
 await test('English, Korean and Chinese settings copies have complete, nonempty translation keys', async () => {
   const source = await readFile(new URL('../src/client.tsx', import.meta.url), 'utf8')
@@ -24,7 +29,8 @@ await test('English, Korean and Chinese settings copies have complete, nonempty 
     for (const key of keys) {
       assert.equal(typeof translations[language][key], 'string', `${language}.${key}`)
       assert.ok(translations[language][key].trim(), `${language}.${key} must not be empty`)
-      if (language === 'zh') assert.match(translations[language][key], /\p{Script=Han}/u, `zh.${key} must be translated`)
+      if (language === 'zh')
+        assert.match(translations[language][key], /\p{Script=Han}/u, `zh.${key} must be translated`)
     }
   }
 })
@@ -51,15 +57,49 @@ async function settingsUI(t, { worktree = false, strict = false, rpc, initialRou
   }
   for (const [key, value] of Object.entries(globals))
     Object.defineProperty(globalThis, key, { configurable: true, value })
-  const { createElement, act, StrictMode } = await import('react')
+  const { createElement, cloneElement, act, StrictMode } = await import('react')
   const { createRoot } = await import('react-dom/client')
   let client
   const require = createRequire(import.meta.url)
+  const primitives = {
+    IconChevronDownOutlineRegular: () => createElement('svg'),
+    Menu: ({ anchor, open, items, selectedId, onSelect }) =>
+      createElement(
+        'div',
+        {},
+        cloneElement(anchor, { 'data-value': selectedId }),
+        open &&
+          createElement(
+            'div',
+            { role: 'menu' },
+            items
+              .filter((item) => !item.type)
+              .map((item) =>
+                createElement(
+                  'button',
+                  {
+                    key: item.id,
+                    type: 'button',
+                    role: 'menuitem',
+                    'data-value': item.id,
+                    disabled: item.disabled,
+                    onClick: () => onSelect(item.id),
+                  },
+                  item.label
+                )
+              )
+          )
+      ),
+  }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) => {
       assert.equal(id, '@dungsil/dsh-plugin-ui-model-settings')
       client = factory((specifier) => {
-        assert.ok(['react', 'react/jsx-runtime'].includes(specifier), `Unexpected host dependency: ${specifier}`)
+        assert.ok(
+          ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'].includes(specifier),
+          `Unexpected host dependency: ${specifier}`
+        )
+        if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return primitives
         return require(specifier)
       })
     },
@@ -143,13 +183,32 @@ async function settingsUI(t, { worktree = false, strict = false, rpc, initialRou
       root.render(null)
     })
   }
-  const select = async (value, selector = 'select') => {
+  const toggle = async (selector) => {
     await act(async () => {
       const element = container.querySelector(selector)
       assert.ok(element, `Missing field: ${selector}`)
-      element.value = value
-      element.dispatchEvent(new window.Event('change', { bubbles: true }))
+      element.click()
     })
+  }
+  const menuItems = async (selector = titleField) => {
+    await toggle(selector)
+    const items = [...container.querySelectorAll('[role=menuitem]')].map((item) => ({
+      value: item.dataset.value,
+      label: item.textContent,
+      disabled: item.disabled,
+    }))
+    await toggle(selector)
+    return items
+  }
+  const select = async (value, selector = titleField) => {
+    await toggle(selector)
+    if (container.querySelector(selector).disabled) return
+    await act(async () => {
+      const item = [...container.querySelectorAll('[role=menuitem]')].find((item) => item.dataset.value === value)
+      assert.ok(item, `Missing option: ${value}`)
+      item.click()
+    })
+    assert.equal(container.querySelector('[role=menu]'), null, 'selection closes the picker')
   }
   const setLocale = async (active) => {
     await act(async () => {
@@ -157,9 +216,10 @@ async function settingsUI(t, { worktree = false, strict = false, rpc, initialRou
       for (const listener of listeners) listener()
     })
   }
-  const ready = () => waitFor(() => container.querySelector('select') && !container.querySelector('select').disabled)
+  const ready = () =>
+    waitFor(() => container.querySelector(modelFields) && !container.querySelector(modelFields).disabled)
   const saved = () =>
-    waitFor(() => container.textContent.includes('저장했습니다') && !container.querySelector('select').disabled)
+    waitFor(() => container.textContent.includes('저장했습니다') && !container.querySelector(modelFields).disabled)
   await mount()
   return {
     h,
@@ -168,6 +228,7 @@ async function settingsUI(t, { worktree = false, strict = false, rpc, initialRou
     calls,
     waitFor,
     select,
+    menuItems,
     setLocale,
     ready,
     saved,
@@ -188,19 +249,19 @@ for (const worktree of [false, true]) {
     const { container, window, h, calls } = ui
     assert.equal(calls.length, 1, 'opening settings automatically reads the view')
     assert.equal(calls[0].endpoint, 'describe')
-    assert.equal(container.querySelectorAll('select').length, worktree ? 2 : 1)
+    assert.equal(container.querySelectorAll(modelFields).length, worktree ? 2 : 1)
     assert.equal(container.textContent.includes('워크트리 브랜치 이름'), worktree)
-    assert.equal(container.querySelector('button, form'), null)
-    const selectElement = container.querySelector('select')
-    assert.equal(window.document.getElementById(selectElement.getAttribute('aria-describedby')).tagName, 'SMALL')
-    assert.equal(container.querySelector('label').htmlFor, selectElement.id)
-    assert.equal(selectElement.value, '')
+    assert.equal(container.querySelector('form, footer, button[type=submit]'), null)
+    const selectElement = container.querySelector(modelFields)
+    assert.equal(window.document.getElementById(selectElement.getAttribute('aria-describedby')).tagName, 'P')
+    assert.ok(selectElement.getAttribute('aria-label').startsWith('세션 제목 모델:'))
+    assert.equal(selectElement.dataset.value, '')
     await ui.select('')
     assert.equal(calls.length, 1, 'selecting the saved value must not write')
     await ui.select(pair)
     await ui.saved()
     assert.deepEqual((await h.rpc('describe')).value.target.route, { provider: 'auxiliary', model: 'title-small' })
-    assert.equal(selectElement.value, pair)
+    assert.equal(selectElement.dataset.value, pair)
     assert.equal(calls.filter(({ endpoint }) => endpoint === 'save').length, 1)
     await ui.select('')
     await ui.saved()
@@ -213,21 +274,189 @@ for (const worktree of [false, true]) {
       const view = (await h.rpc('describe')).value
       assert.deepEqual(view.worktree.route, { provider: 'auxiliary', model: 'title-small' })
       assert.deepEqual(view.target.route, { provider: 'conversation', model: 'chat-large' })
-      assert.equal(container.querySelector('select').value, otherPair, 'saving worktree preserves the title selection')
+      assert.equal(
+        container.querySelector(modelFields).dataset.value,
+        otherPair,
+        'saving worktree preserves the title selection'
+      )
       await ui.select('', worktreeField)
       await ui.saved()
       assert.equal((await h.rpc('describe')).value.worktree.route, null)
     }
     await ui.setLocale('en')
-    assert.equal(container.querySelector('label').textContent, 'Session title')
+    assert.ok(container.querySelector(modelFields).getAttribute('aria-label').startsWith('Session title Model:'))
     assert.equal(ui.registration.label(), 'Models by task')
     assert.equal(container.textContent.includes('Changes are saved automatically.'), true)
     assert.equal(container.textContent.includes('Reload settings'), false)
-    assert.equal(container.querySelector('button'), null)
+    assert.equal(container.querySelector('footer, button[type=submit]'), null)
   })
 }
 
-await test('saving locks both inputs immediately and never queues rapid changes', async (t) => {
+await test('model and reasoning pickers react to English, Korean and Chinese locale changes', async (t) => {
+  const ui = await settingsUI(t, { worktree: true })
+  await ui.ready()
+  await ui.select(pair)
+  await ui.saved()
+  for (const [language, nav, title, effort, automatic] of [
+    [
+      'en',
+      'Models by task',
+      'Session title Model:',
+      'Session title Reasoning effort:',
+      'Automatic (lowest supported effort)',
+    ],
+    ['ko', '상황별 모델', '세션 제목 모델:', '세션 제목 추론 수준:', '자동 (지원하는 최저 수준)'],
+    ['zh-CN', '任务模型设置', '会话标题 模型:', '会话标题 推理级别:', '自动（支持的最低级别）'],
+  ]) {
+    await ui.setLocale(language)
+    assert.equal(ui.registration.label(), nav)
+    assert.ok(ui.container.querySelector(titleField).getAttribute('aria-label').startsWith(title))
+    assert.ok(ui.container.querySelector(titleEffortField).getAttribute('aria-label').startsWith(effort))
+    assert.equal((await ui.menuItems(titleEffortField))[0].label, automatic)
+  }
+})
+
+await test('an unavailable saved effort stays visible and can be reset to Automatic', async (t) => {
+  const ui = await settingsUI(t, {
+    initialRoute: { provider: 'auxiliary', model: 'title-small' },
+    rpc: async (call, next) => {
+      const result = await next()
+      return call.endpoint === 'describe'
+        ? { ...result, value: { ...result.value, target: { ...result.value.target, reasoningEffort: 'retired' } } }
+        : result
+    },
+  })
+  await ui.ready()
+  const effort = ui.container.querySelector(titleEffortField)
+  assert.equal(effort.dataset.value, 'retired')
+  assert.equal(effort.disabled, false)
+  assert.ok(effort.textContent.includes('저장된 추론 수준'))
+  assert.equal((await ui.menuItems(titleEffortField)).find((item) => item.value === 'retired').disabled, true)
+  assert.equal(ui.calls.length, 1, 'reading an unavailable effort must not overwrite it')
+  await ui.select('', titleEffortField)
+  await ui.saved()
+  const target = (await ui.h.rpc('describe')).value.target
+  assert.deepEqual(target.route, { provider: 'auxiliary', model: 'title-small' })
+  assert.equal(target.reasoningEffort, null)
+})
+
+for (const task of ['target', 'worktree']) {
+  await test(`${task} reasoning effort saves immediately, survives remount and clears on model changes`, async (t) => {
+    const ui = await settingsUI(t, { worktree: task === 'worktree' })
+    await ui.ready()
+    const field = task === 'target' ? titleField : worktreeField
+    const effortField = task === 'target' ? titleEffortField : worktreeEffortField
+    const effort = () => ui.container.querySelector(effortField)
+    const writes = () => ui.calls.filter(({ endpoint }) => endpoint === 'save')
+    const snapshot = async () => (await ui.h.rpc('describe')).value[task]
+    const models = (await ui.h.rpc('describe')).value.providers.find((provider) => provider.id === 'auxiliary').models
+    assert.deepEqual(models.find((model) => model.id === 'title-small').efforts, [
+      { id: 'quick', name: 'Quick' },
+      { id: 'thorough', name: 'Thorough' },
+    ])
+    assert.deepEqual(models.find((model) => model.id === 'chat-large').efforts, [])
+    assert.ok(effort())
+    assert.equal(effort().disabled, true, 'inheriting the conversation model cannot set an explicit effort')
+    assert.equal(writes().length, 0)
+    await ui.select(pair, field)
+    await ui.saved()
+    assert.equal(effort().disabled, false)
+    assert.equal(effort().dataset.value, '')
+    const items = await ui.menuItems(effortField)
+    assert.deepEqual(
+      items.map((item) => item.value),
+      ['', 'quick', 'thorough']
+    )
+    assert.equal(items[0].label, task === 'target' ? '자동 (지원하는 최저 수준)' : '자동 (모델 기본값)')
+    assert.ok(effort().getAttribute('aria-label').includes('추론 수준:'), 'reasoning picker has an accessible name')
+    assert.equal(writes().length, 1)
+    await ui.select('thorough', effortField)
+    await ui.saved()
+    assert.equal(writes().length, 2, 'an effort-only change writes without a submit button')
+    assert.deepEqual(writes().at(-1).payload.route, { provider: 'auxiliary', model: 'title-small' })
+    assert.equal(writes().at(-1).payload.reasoningEffort, 'thorough')
+    assert.equal((await snapshot()).reasoningEffort, 'thorough')
+    assert.equal(effort().dataset.value, 'thorough')
+    assert.equal(ui.container.querySelector('form, footer, button[type=submit]'), null)
+    await ui.select(ui.container.querySelector(field).dataset.value, field)
+    await ui.select('thorough', effortField)
+    assert.equal(effort().dataset.value, 'thorough', 'reselecting the same model preserves its effort')
+    assert.equal(writes().length, 2, 'reselecting either saved value must not write')
+    await ui.unmount()
+    await ui.mount()
+    await ui.ready()
+    assert.equal(effort().dataset.value, 'thorough', 'a fresh read restores the saved effort')
+    await ui.select('', effortField)
+    await ui.saved()
+    assert.equal((await snapshot()).reasoningEffort, null)
+    assert.equal(ui.container.querySelector(field).dataset.value, pair, 'Automatic keeps the existing model pair key')
+    assert.equal(writes().length, 3, 'clearing only the effort also saves immediately')
+    await ui.select('thorough', effortField)
+    await ui.saved()
+    await ui.select(JSON.stringify(['conversation', 'title-small']), field)
+    await ui.saved()
+    assert.equal((await snapshot()).reasoningEffort, null, 'changing provider also clears the previous effort')
+    assert.equal(effort().dataset.value, '')
+    assert.equal(effort().disabled, false, 'the new model still supports reasoning')
+    await ui.select('thorough', effortField)
+    await ui.saved()
+    await ui.select(otherPair, field)
+    await ui.saved()
+    assert.equal((await snapshot()).reasoningEffort, null)
+    assert.equal(writes().at(-1).payload.reasoningEffort, null)
+    assert.equal(effort().dataset.value, '')
+    assert.equal(effort().disabled, true, 'models without reasoning support cannot choose an effort')
+    await ui.select(pair, field)
+    await ui.saved()
+    await ui.select('quick', effortField)
+    await ui.saved()
+    await ui.select('', field)
+    await ui.saved()
+    assert.equal((await snapshot()).route, null)
+    assert.equal((await snapshot()).reasoningEffort, null)
+    assert.equal(writes().at(-1).payload.route, null)
+    assert.equal(writes().at(-1).payload.reasoningEffort, null)
+    assert.equal(effort().dataset.value, '')
+    assert.equal(effort().disabled, true)
+  })
+}
+
+await test('title and worktree effort changes preserve each other’s saved model and effort', async (t) => {
+  const ui = await settingsUI(t, { worktree: true })
+  await ui.ready()
+  const titlePair = JSON.stringify(['conversation', 'title-small'])
+  await ui.select(titlePair)
+  await ui.saved()
+  await ui.select('thorough', titleEffortField)
+  await ui.saved()
+  await ui.select(pair, worktreeField)
+  await ui.saved()
+  await ui.select('quick', worktreeEffortField)
+  await ui.saved()
+  let view = (await ui.h.rpc('describe')).value
+  assert.deepEqual(view.target.route, { provider: 'conversation', model: 'title-small' })
+  assert.equal(view.target.reasoningEffort, 'thorough')
+  assert.deepEqual(view.worktree.route, { provider: 'auxiliary', model: 'title-small' })
+  assert.equal(view.worktree.reasoningEffort, 'quick')
+  assert.equal(ui.container.querySelector(titleEffortField).dataset.value, 'thorough')
+  await ui.select('quick', titleEffortField)
+  await ui.saved()
+  assert.equal(ui.container.querySelector(worktreeEffortField).dataset.value, 'quick')
+  await ui.select('thorough', worktreeEffortField)
+  await ui.saved()
+  view = (await ui.h.rpc('describe')).value
+  assert.equal(view.target.reasoningEffort, 'quick')
+  assert.equal(view.worktree.reasoningEffort, 'thorough')
+  await ui.select('', worktreeField)
+  await ui.saved()
+  view = (await ui.h.rpc('describe')).value
+  assert.equal(view.worktree.route, null)
+  assert.equal(view.worktree.reasoningEffort, null)
+  assert.equal(view.target.reasoningEffort, 'quick')
+  assert.equal(ui.container.querySelector(titleEffortField).dataset.value, 'quick')
+})
+
+await test('saving locks every model and reasoning input immediately and never queues rapid changes', async (t) => {
   const gate = deferred()
   const ui = await settingsUI(t, { worktree: true })
   await ui.ready()
@@ -236,11 +465,13 @@ await test('saving locks both inputs immediately and never queues rapid changes'
   assert.equal(ui.container.textContent.includes('저장 중'), true)
   assert.equal(ui.container.querySelector('section').getAttribute('aria-busy'), 'true')
   assert.equal(
-    [...ui.container.querySelectorAll('select')].every((element) => element.disabled),
+    [...ui.container.querySelectorAll(allFields)].every((element) => element.disabled),
     true
   )
   await ui.select(otherPair)
   await ui.select(pair, worktreeField)
+  await ui.select('thorough', titleEffortField)
+  await ui.select('quick', worktreeEffortField)
   assert.equal(ui.calls.filter(({ endpoint }) => endpoint === 'save').length, 1)
   await ui.act(async () => {
     gate.resolve()
@@ -249,9 +480,107 @@ await test('saving locks both inputs immediately and never queues rapid changes'
   const view = (await ui.h.rpc('describe')).value
   assert.deepEqual(view.target.route, { provider: 'auxiliary', model: 'title-small' })
   assert.equal(view.worktree.route, null)
-  assert.equal(ui.container.querySelector('select').value, pair)
-  assert.equal(ui.container.querySelector(worktreeField).value, '')
+  assert.equal(ui.container.querySelector(modelFields).dataset.value, pair)
+  assert.equal(ui.container.querySelector(worktreeField).dataset.value, '')
+  assert.equal(view.target.reasoningEffort, null)
+  assert.equal(view.worktree.reasoningEffort, null)
+  assert.equal(ui.container.querySelector(titleEffortField).dataset.value, '')
+  assert.equal(ui.container.querySelector(worktreeEffortField).dataset.value, '')
   assert.equal(ui.container.querySelector('section').getAttribute('aria-busy'), 'false')
+})
+
+await test('an effort-only save locks every input and ignores changes until its response arrives', async (t) => {
+  const ui = await settingsUI(t, { worktree: true })
+  await ui.ready()
+  await ui.select(pair)
+  await ui.saved()
+  await ui.select(pair, worktreeField)
+  await ui.saved()
+  const gate = deferred()
+  ui.intercept((call, next) => (call.endpoint === 'save' ? gate.promise.then(next) : next()))
+  await ui.select('thorough', titleEffortField)
+  assert.equal(ui.container.querySelectorAll(allFields).length, 4)
+  assert.equal(
+    [...ui.container.querySelectorAll(allFields)].every((element) => element.disabled),
+    true
+  )
+  await ui.select('quick', titleEffortField)
+  await ui.select('quick', worktreeEffortField)
+  await ui.select(otherPair, worktreeField)
+  assert.equal(ui.calls.filter(({ endpoint }) => endpoint === 'save').length, 3)
+  await ui.act(async () => {
+    gate.resolve()
+  })
+  await ui.saved()
+  const view = (await ui.h.rpc('describe')).value
+  assert.equal(view.target.reasoningEffort, 'thorough')
+  assert.equal(view.worktree.reasoningEffort, null)
+  assert.deepEqual(view.worktree.route, { provider: 'auxiliary', model: 'title-small' })
+  assert.equal(ui.container.querySelector(titleEffortField).dataset.value, 'thorough')
+  assert.equal(ui.container.querySelector(worktreeEffortField).dataset.value, '')
+})
+
+await test('an effort conflict automatically restores the latest effort without retrying the write', async (t) => {
+  const ui = await settingsUI(t, { initialRoute: { provider: 'auxiliary', model: 'title-small' } })
+  await ui.ready()
+  const target = (await ui.h.rpc('describe')).value.target
+  const result = await ui.h.rpc('save', { ...target, reasoningEffort: 'thorough' })
+  assert.equal(result.ok, true)
+  const latest = result.value
+  await ui.select('quick', titleEffortField)
+  await ui.ready()
+  assert.deepEqual(
+    ui.calls.map(({ endpoint }) => endpoint),
+    ['describe', 'save', 'describe']
+  )
+  assert.equal(ui.container.querySelector(titleEffortField).dataset.value, 'thorough')
+  assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('다른 곳'), true)
+  assert.equal((await ui.h.rpc('describe')).value.target.reasoningEffort, 'thorough')
+  await ui.select('', titleEffortField)
+  await ui.saved()
+  assert.equal(ui.calls[3].payload.revision, latest.revision)
+  assert.equal(ui.calls[3].payload.reasoningEffort, null)
+  assert.equal((await ui.h.rpc('describe')).value.target.reasoningEffort, null)
+})
+
+await test('an unavailable effort remains visible after automatic catalog recovery without retrying', async (t) => {
+  const ui = await settingsUI(t, { initialRoute: { provider: 'auxiliary', model: 'title-small' } })
+  await ui.ready()
+  ui.intercept(async (call, next) => {
+    if (call.endpoint === 'save') return failure('reasoning_unavailable')
+    const result = await next()
+    return {
+      ...result,
+      value: {
+        ...result.value,
+        providers: result.value.providers.map((provider) => ({
+          ...provider,
+          models: provider.models.map((model) => ({
+            ...model,
+            efforts: model.efforts.filter((effort) => effort.id !== 'thorough'),
+          })),
+        })),
+      },
+    }
+  })
+  await ui.select('thorough', titleEffortField)
+  await ui.ready()
+  assert.deepEqual(
+    ui.calls.map(({ endpoint }) => endpoint),
+    ['describe', 'save', 'describe']
+  )
+  assert.equal(ui.container.querySelector(titleEffortField).dataset.value, '')
+  assert.equal(
+    (await ui.menuItems(titleEffortField)).some((item) => item.value === 'thorough'),
+    false
+  )
+  assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('사용할 수 없는 추론 수준'), true)
+  assert.equal((await ui.h.rpc('describe')).value.target.reasoningEffort, null)
+  ui.intercept(undefined)
+  await ui.select('quick', titleEffortField)
+  await ui.saved()
+  assert.equal(ui.calls.length, 4, 'only a subsequent user change may write again')
+  assert.equal((await ui.h.rpc('describe')).value.target.reasoningEffort, 'quick')
 })
 
 await test('a conflict automatically reads the latest values without retrying the write', async (t) => {
@@ -266,12 +595,12 @@ await test('a conflict automatically reads the latest values without retrying th
   await ui.waitFor(() => ui.calls.length === 3)
   assert.equal(ui.container.textContent.includes('다른 곳'), true)
   assert.equal(ui.container.textContent.includes('저장된 설정을 확인하는 중'), true)
-  assert.equal(ui.container.querySelector('select').disabled, true)
+  assert.equal(ui.container.querySelector(modelFields).disabled, true)
   await ui.act(async () => {
     gate.resolve()
   })
   await ui.ready()
-  assert.equal(ui.container.querySelector('select').value, otherPair)
+  assert.equal(ui.container.querySelector(modelFields).dataset.value, otherPair)
   assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('다른 곳'), true)
   assert.equal(ui.container.textContent.includes('저장된 설정을 다시 불러왔습니다'), true)
   assert.equal(ui.container.textContent.includes('확인하는 중'), false)
@@ -305,11 +634,11 @@ for (const committed of [false, true]) {
       ui.calls.map(({ endpoint }) => endpoint),
       ['describe', 'save', 'describe']
     )
-    assert.equal(ui.container.querySelector('select').value, committed ? pair : '')
+    assert.equal(ui.container.querySelector(modelFields).dataset.value, committed ? pair : '')
     assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('변경 여부'), true)
     assert.equal(ui.container.textContent.includes('저장했습니다'), false)
     assert.equal(ui.container.textContent.includes('새로고침'), false)
-    assert.equal(ui.container.querySelector('button'), null)
+    assert.equal(ui.container.querySelector('footer, button[type=submit]'), null)
     ui.intercept(undefined)
     await ui.select(committed ? '' : pair)
     await ui.saved()
@@ -338,8 +667,12 @@ for (const code of ['model_unavailable', 'save_failed']) {
     })
     await ui.select(pair)
     await ui.ready()
-    assert.equal(ui.container.querySelector('select').value, '')
-    if (code === 'model_unavailable') assert.equal(ui.container.querySelector(`option[value='${pair}']`), null)
+    assert.equal(ui.container.querySelector(modelFields).dataset.value, '')
+    if (code === 'model_unavailable')
+      assert.equal(
+        (await ui.menuItems()).some((item) => item.value === pair),
+        false
+      )
     assert.equal(
       ui.container
         .querySelector('[role=alert]')
@@ -364,7 +697,7 @@ for (const throws of [false, true]) {
     })
     await ui.select(pair)
     await ui.waitFor(() => ui.container.textContent.includes('변경을 잠갔습니다'))
-    assert.equal(ui.container.querySelector('select').disabled, true)
+    assert.equal(ui.container.querySelector(modelFields).disabled, true)
     assert.equal(ui.container.textContent.includes('다른 곳'), true)
     await ui.select(otherPair)
     assert.equal(ui.calls.length, 3, 'recovery failure cannot start a stale write or repeated read')
@@ -372,7 +705,7 @@ for (const throws of [false, true]) {
     await ui.unmount()
     await ui.mount()
     await ui.ready()
-    assert.equal(ui.container.querySelector('select').value, '')
+    assert.equal(ui.container.querySelector(modelFields).dataset.value, '')
     assert.equal(ui.container.querySelector('[role=alert]'), null)
     assert.equal(ui.calls[3].signal.aborted, false)
   })
@@ -409,8 +742,8 @@ await test('missing saved models and partial catalogs still allow immediate inhe
     },
   })
   await ui.ready()
-  assert.equal(ui.container.querySelector('select').value, pair)
-  assert.equal(ui.container.querySelector(`option[value='${pair}']`).disabled, true)
+  assert.equal(ui.container.querySelector(modelFields).dataset.value, pair)
+  assert.equal((await ui.menuItems()).find((item) => item.value === pair).disabled, true)
   assert.equal(ui.container.textContent.includes('현재 목록에 없음'), true)
   assert.equal(ui.container.textContent.includes('일부 모델 목록'), true)
   assert.equal(ui.container.textContent.includes('새로고침'), false)
@@ -429,15 +762,17 @@ await test('a removed title target leaves its error visible and the worktree set
   await titleEntry.fiber.dispose()
   await ui.select(pair)
   await ui.ready()
-  assert.equal(ui.container.querySelectorAll('select').length, 1)
-  assert.equal(ui.container.querySelector('select').id.endsWith('-worktree'), true)
+  assert.equal(ui.container.querySelectorAll(modelFields).length, 1)
+  assert.equal(ui.container.querySelector(modelFields).id.endsWith('-worktree'), true)
   assert.equal(ui.container.querySelector('[role=alert]').textContent.includes('변경 여부'), true)
   assert.equal(ui.container.textContent.includes('지원하는 제목 생성기'), true)
   await ui.select(pair, worktreeField)
   await ui.saved()
   assert.deepEqual((await ui.h.rpc('describe')).value.worktree.route, { provider: 'auxiliary', model: 'title-small' })
   await ui.setLocale('en')
-  assert.equal(ui.container.querySelector('label').textContent, 'Worktree branch name')
+  assert.ok(
+    ui.container.querySelector(modelFields).getAttribute('aria-label').startsWith('Worktree branch name Model:')
+  )
 })
 
 for (const rejects of [false, true]) {
@@ -462,7 +797,7 @@ for (const rejects of [false, true]) {
         })
       }
     })
-    assert.equal(ui.container.querySelector('select').value, '')
+    assert.equal(ui.container.querySelector(modelFields).dataset.value, '')
     assert.equal(ui.container.querySelector('[role=alert]'), null)
     await ui.select(pair)
     await ui.saved()
@@ -495,7 +830,7 @@ for (const rejects of [false, true]) {
           },
         })
     })
-    assert.equal(ui.container.querySelector('select').value, '')
+    assert.equal(ui.container.querySelector(modelFields).dataset.value, '')
     assert.equal(ui.container.querySelector('[role=alert]'), null)
     assert.equal(ui.calls.length, 4)
     await ui.select(pair)
@@ -528,14 +863,14 @@ for (const outcome of ['success', 'failure', 'rejection']) {
         )
     })
     assert.equal(ui.calls.length, 3, 'an unmounted write never triggers recovery or another write')
-    assert.equal(ui.container.querySelector('select'), null)
+    assert.equal(ui.container.querySelector(modelFields), null)
     assert.equal(ui.container.textContent.includes('모델을 불러오는 중'), true)
     assert.equal(ui.container.querySelector('[role=alert]'), null)
     await ui.act(async () => {
       current.resolve()
     })
     await ui.ready()
-    assert.equal(ui.container.querySelector('select').value, '')
+    assert.equal(ui.container.querySelector(modelFields).dataset.value, '')
     ui.intercept(undefined)
     await ui.select(pair)
     await ui.saved()

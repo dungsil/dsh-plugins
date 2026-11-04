@@ -123,22 +123,25 @@ function versionRecords(name, document) {
   if (versions === null || typeof versions !== 'object' || Array.isArray(versions))
     throw new Error(`${name}: the npm registry document has no versions map`)
   const time = document.time === null || typeof document.time !== 'object' ? {} : document.time
-  const records = Object.keys(versions).map((version) => {
-    if (semver.valid(version) === null) throw new Error(`${name}@${version}: the npm registry lists an invalid version`)
-    const published = time[version]
-    const timestamp = typeof published === 'string' ? Date.parse(published) : Number.NaN
-    if (!Number.isFinite(timestamp))
-      throw new Error(`${name}@${version}: the npm registry document has no publish time`)
-    const dsh = versions[version]?.engines?.dsh
-    if (dsh !== undefined && (typeof dsh !== 'string' || dsh.trim() === ''))
-      throw new Error(`${name}@${version}: engines.dsh must be a non-empty string`)
-    return {
-      version,
-      publishTimestamp: Math.floor(timestamp / 1000),
-      source: { type: 'npm' },
-      ...(dsh === undefined ? {} : { engines: { dsh } }),
-    }
-  })
+  const records = Object.keys(versions)
+    .filter((version) => version !== '0.0.0-stage')
+    .map((version) => {
+      if (semver.valid(version) === null)
+        throw new Error(`${name}@${version}: the npm registry lists an invalid version`)
+      const published = time[version]
+      const timestamp = typeof published === 'string' ? Date.parse(published) : Number.NaN
+      if (!Number.isFinite(timestamp))
+        throw new Error(`${name}@${version}: the npm registry document has no publish time`)
+      const dsh = versions[version]?.engines?.dsh
+      if (dsh !== undefined && (typeof dsh !== 'string' || dsh.trim() === ''))
+        throw new Error(`${name}@${version}: engines.dsh must be a non-empty string`)
+      return {
+        version,
+        publishTimestamp: Math.floor(timestamp / 1000),
+        source: { type: 'npm' },
+        ...(dsh === undefined ? {} : { engines: { dsh } }),
+      }
+    })
   // Format 1 requires descending SemVer precedence; the same value serializes the same file.
   return records.sort(compareVersions)
 }
@@ -231,7 +234,10 @@ export function recordRelease({ index, packages, packageName, publishTimestamp =
   if (!manifest) throw new Error(`Unknown public package: ${packageName}`)
   if (manifest.market === false)
     return { ...index, plugins: index.plugins.filter((plugin) => plugin.name !== packageName) }
-  const versions = index.plugins.find((plugin) => plugin.name === packageName)?.versions ?? []
+  if (manifest.version === '0.0.0-stage') return index
+  const versions = (index.plugins.find((plugin) => plugin.name === packageName)?.versions ?? []).filter(
+    (entry) => entry.version !== '0.0.0-stage'
+  )
   const published = versions.find((entry) => entry.version === manifest.version) ?? {
     version: manifest.version,
     publishTimestamp,
