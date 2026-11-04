@@ -39,6 +39,9 @@ export function installHeadings(
       position: sticky; z-index: 1; background: var(--dsw-specific-sidebar-fill);
       bottom: var(--dsh-inbox-bottom, 0px);
     }
+    /* A footer stack taller than the viewport overlaps its own heading and
+       pins rows in place even while scrolling. Let the native list scroll it. */
+    [data-dsh-inbox-overflow] > [data-dsh-inbox-footer] { position: static; }
     [data-dsh-inbox-first] { margin-top: auto !important; }
     /* Closed rows keep their box at zero height, so a heading press animates in
        both directions without moving or cloning React-owned rows. */
@@ -85,6 +88,7 @@ export function installHeadings(
         const height = wrapper.offsetHeight
         if (height > 0) bottom += height + 2
       }
+      tree.toggleAttribute('data-dsh-inbox-overflow', Math.max(0, bottom - 2) > tree.clientHeight)
     }
   }
   const resize = new ResizeObserver(positionFooters)
@@ -99,7 +103,10 @@ export function installHeadings(
       const wanted = new Map<HTMLElement, FooterSection>()
       const foldable = archivedCollapsible()
       resize.disconnect()
-      for (const tree of trees) delete tree.dataset.dshInboxTree
+      for (const tree of trees) {
+        delete tree.dataset.dshInboxTree
+        delete tree.dataset.dshInboxOverflow
+      }
       trees.clear()
       for (const wrapper of wrappers) clearWrapper(wrapper)
       wrappers.clear()
@@ -205,7 +212,10 @@ export function installHeadings(
       resize.disconnect()
       for (const heading of headings.values()) heading.remove()
       headings.clear()
-      for (const tree of trees) delete tree.dataset.dshInboxTree
+      for (const tree of trees) {
+        delete tree.dataset.dshInboxTree
+        delete tree.dataset.dshInboxOverflow
+      }
       for (const wrapper of wrappers) clearWrapper(wrapper)
       style.remove()
     },

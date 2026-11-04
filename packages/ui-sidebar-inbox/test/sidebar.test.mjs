@@ -192,12 +192,18 @@ function setup(options = {}) {
   const locale = localeService()
   let dispose
   let plugin
+  let resize
   runInNewContext(source, {
     document: browser.document,
     localStorage: browser.localStorage,
     Element: browser.Element,
     MutationObserver: browser.MutationObserver,
-    ResizeObserver: browser.ResizeObserver,
+    ResizeObserver: class extends browser.ResizeObserver {
+      constructor(callback) {
+        super(callback)
+        resize = callback
+      }
+    },
     queueMicrotask,
     window: {
       addEventListener: browser.addEventListener.bind(browser),
@@ -272,6 +278,7 @@ function setup(options = {}) {
     original,
     locale,
     tree,
+    resize: () => resize(),
     dispose: () => dispose(),
     accounts,
     order,
@@ -417,6 +424,45 @@ void test('the all-conversations view folds archived rows into a collapsed botto
   // Native view options were only read, never rewritten by the plugin.
   assert.equal(app.view.getSnapshot().orderBy, agentActivity)
   assert.equal(app.view.getSnapshot().archivedFilter, 'show')
+})
+
+void test('oversized footer sections scroll normally and dock again when they fit', async (t) => {
+  const app = setup({ view: { orderBy: agentActivity, archivedFilter: 'show' } })
+  t.after(app.dispose)
+  await app.paint()
+  let viewport = 106
+  Object.defineProperty(app.tree, 'clientHeight', { get: () => viewport })
+  // happy-dom has no layout: supply native 32px rows and 36px headings.
+  const footers = [app.row('running').parentElement, app.row('archived').parentElement]
+  for (const wrapper of footers) {
+    Object.defineProperty(wrapper, 'offsetHeight', {
+      get: () => 36 + (app.browser.getComputedStyle(wrapper.lastElementChild).visibility === 'hidden' ? 0 : 32),
+    })
+  }
+  const positions = () => footers.map((wrapper) => app.browser.getComputedStyle(wrapper).position)
+  app.resize()
+  assert.deepEqual(positions(), ['sticky', 'sticky'], 'an exact fit still docks')
+  viewport -= 1
+  app.resize()
+  assert.deepEqual(positions(), ['static', 'static'], 'even one overflowing pixel must remain scrollable')
+
+  viewport = 138
+  app.toggles()[1].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.deepEqual(positions(), ['sticky', 'sticky'], 'both expanded sections fit exactly')
+  viewport -= 1
+  app.resize()
+  assert.deepEqual(positions(), ['static', 'static'], 'the combined footer height determines overflow')
+  app.toggles()[0].click()
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.deepEqual(positions(), ['sticky', 'sticky'], 'folding restores docking without resizing the sidebar')
+
+  viewport = 60
+  app.resize()
+  assert.deepEqual(positions(), ['static', 'static'])
+  app.view.set({ ...app.view.getSnapshot(), orderBy: 'updated' })
+  await app.browser.happyDOM.waitUntilComplete()
+  assert.equal(app.tree.hasAttribute('data-dsh-inbox-overflow'), false, 'opting out restores the native tree')
 })
 
 void test('flat list labels Working and Archived only while the mode owns the order', async (t) => {
