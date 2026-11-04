@@ -9,7 +9,7 @@ import {
   IconStopFillRegular,
   IconLoadingOutlineRegular,
   IconClockOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@dungsil/dsh-ui/icons'
 import { isWorktreeProgress, progressRecord, type WorktreeProgress } from './protocol.js'
 
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {

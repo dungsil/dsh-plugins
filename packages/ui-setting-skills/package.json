@@ -40,6 +40,7 @@
     "@deepseek-ai/dsh-skill-filesystem": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
     "react": "18.3.1",
     "tsdown": "0.23.4"
