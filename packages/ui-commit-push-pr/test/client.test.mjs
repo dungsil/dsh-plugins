@@ -23,12 +23,25 @@ await test('commit action submits to its own session without touching the draft'
   const { createRoot } = await import('react-dom/client')
   const require = createRequire(import.meta.url)
   let plugin
-  window.__ModuleLoader__ = { load: ({ factory }) => (plugin = factory(require)) }
+  window.__ModuleLoader__ = {
+    load: ({ factory }) =>
+      (plugin = factory((specifier) =>
+        specifier === '@deepseek-ai/dsh-client-ui-primitives'
+          ? {
+              Pill: (props) => createElement('button', { type: 'button', ...props }),
+              IconBranchOutlineRegular: (props) => createElement('svg', props),
+            }
+          : require(specifier)
+      )),
+  }
   runInThisContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'))
   const ctx = new Context()
   let Component
   ctx.provide('slots', {
-    inject: (_name, register) => register(),
+    inject: (name, register) => {
+      assert.equal(name, 'conversation.input.dock')
+      return register()
+    },
     register: (_options, component) => {
       Component = component
       return () => {}
@@ -61,7 +74,15 @@ await test('commit action submits to its own session without touching the draft'
         createElement(Component, {
           sessionId: 'session-a',
           useSession: (selector) =>
-            selector({ running: false, removed: false, openState: 'open', pendingSubmissions: [], ...overrides }),
+            selector({
+              blank: false,
+              awaitingFirstTurn: false,
+              running: false,
+              removed: false,
+              openState: 'open',
+              pendingSubmissions: [],
+              ...overrides,
+            }),
           useAccess: () => true,
           ...overrides,
         })
@@ -76,6 +97,22 @@ await test('commit action submits to its own session without touching the draft'
       if (previous[key]) Object.defineProperty(globalThis, key, previous[key])
       else delete globalThis[key]
     }
+  })
+
+  await t.test('the first page and unready sessions have no commit action', async () => {
+    for (const overrides of [
+      { blank: true },
+      { blank: false, awaitingFirstTurn: true },
+      { openState: 'loading' },
+      { removed: true },
+    ]) {
+      await render(overrides)
+      assert.equal(button(), null)
+      assert.equal(container.textContent, '')
+    }
+    await render()
+    assert.equal(button().textContent, 'Commit & Push & PR')
+    assert.equal(requests.length, 0)
   })
 
   await t.test('one request preserves an unrelated composer draft and blocks double clicks', async () => {
@@ -100,14 +137,8 @@ await test('commit action submits to its own session without touching the draft'
     assert.equal(draft.value, 'Unsent task with @file references')
   })
 
-  await t.test('running, loading, removed, pending and read-only sessions cannot submit', async () => {
-    for (const overrides of [
-      { running: true },
-      { openState: 'opening' },
-      { removed: true },
-      { pendingSubmissions: [{}] },
-      { useAccess: () => false },
-    ]) {
+  await t.test('running, pending and read-only sessions cannot submit', async () => {
+    for (const overrides of [{ running: true }, { pendingSubmissions: [{}] }, { useAccess: () => false }]) {
       await render(overrides)
       assert.equal(button().disabled, true)
       await act(async () => button().click())
@@ -119,10 +150,12 @@ await test('commit action submits to its own session without touching the draft'
     await render()
     await act(async () => button().click())
     const old = finish
-    await render({ sessionId: 'session-b' })
-    assert.equal(button().disabled, false)
+    await render({ sessionId: 'session-b', blank: true })
+    assert.equal(button(), null)
     await act(async () => old.reject(new Error('Disconnected after admission')))
     assert.equal(container.querySelector('[role=alert]'), null)
+    await render({ sessionId: 'session-b' })
+    assert.equal(button().disabled, false)
     await act(async () => button().click())
     assert.equal(requests.at(-1).sessionId, 'session-b')
     await act(async () => finish.reject(new Error('Disconnected')))

@@ -8,7 +8,7 @@ export default defineConfig([
     format: 'cjs',
     platform: 'browser',
     inputOptions: { platform: 'browser' },
-    deps: { neverBundle: ['react', 'react/jsx-runtime'] },
+    deps: { neverBundle: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'] },
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),
     dts: false,

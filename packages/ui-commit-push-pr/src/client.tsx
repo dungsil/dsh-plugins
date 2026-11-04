@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { IconBranchOutlineRegular, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 
 export const name = 'dungsil-ui-commit-push-pr'
 export const inject = ['slots', 'locale', 'sessions', 'conversation']
@@ -42,13 +43,14 @@ const copy = {
 }
 
 export function apply(ctx: Context) {
-  function Action({ sessionId, useSession, useAccess }: PropsRuntime<'conversation.input.left'>) {
+  function Action({ sessionId, useSession, useAccess }: PropsRuntime<'conversation.input.dock'>) {
     const language = useSyncExternalStore(
       (listener) => ctx.locale.subscribe(listener),
       () => ctx.locale.getSnapshot().active
     )
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
     const canPrompt = useAccess('session.prompt')
+    const hidden = useSession((s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open')
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
@@ -75,10 +77,11 @@ export function apply(ctx: Context) {
       }
     }
 
+    if (hidden) return null
+
     return (
-      <span className="dsh-commit-push-pr">
-        <button
-          type="button"
+      <div className="dsh-commit-push-pr">
+        <Pill
           className="dsh-commit-push-pr-trigger"
           disabled={disabled}
           title={text.hint}
@@ -86,34 +89,33 @@ export function apply(ctx: Context) {
           aria-busy={status === 'sending'}
           onClick={() => void send()}
         >
+          <IconBranchOutlineRegular aria-hidden="true" />
           {status === 'sending' ? text.sending : text.label}
-        </button>
+        </Pill>
         <span id={statusId} role={status === 'error' ? 'alert' : 'status'} className="dsh-commit-push-pr-status">
           {status === 'error' ? text.error : status === 'sent' ? text.sent : ''}
         </span>
-      </span>
+      </div>
     )
   }
 
-  ctx.slots.inject('conversation.input.left', () =>
-    ctx.slots.register({ name: 'conversation.input.left', id: name, order: 100 }, (props) => (
+  ctx.slots.inject('conversation.input.dock', () =>
+    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: 100 }, (props) => (
       <Action key={props.sessionId} {...props} />
     ))
   )
   ctx.effect(() => {
     const style = document.createElement('style')
     style.textContent = `
-.dsh-commit-push-pr { display: inline-flex; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; }
-.dsh-commit-push-pr-trigger { height: 28px; max-width: 100%; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
-.dsh-commit-push-pr-trigger:disabled { color: var(--dsw-alias-label-dimmed); cursor: default; }
+.dsh-commit-push-pr { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance)); max-width: var(--dsh-composer-card-max-width); margin: 0 auto; padding-bottom: 8px; }
+.dsh-commit-push-pr-trigger { height: 28px; max-width: 100%; padding: 0 10px; border: 1px solid var(--dsw-alias-border-l2); font: inherit; font-size: 12px; line-height: 18px; }
+.dsh-commit-push-pr-trigger svg { flex: none; width: 14px; height: 14px; }
+.dsh-commit-push-pr-trigger:disabled { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-dimmed); cursor: default; }
 .dsh-commit-push-pr-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
 .dsh-commit-push-pr-status { flex-basis: 100%; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .dsh-commit-push-pr-status:empty { display: none; }
 .dsh-commit-push-pr-status[role=status] { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .dsh-commit-push-pr-status[role=alert] { color: var(--dsw-alias-state-error-primary); }
-@media (hover: hover) {
-  .dsh-commit-push-pr-trigger:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
-}
 `
     document.head.append(style)
     return () => style.remove()
