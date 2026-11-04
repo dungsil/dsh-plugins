@@ -92,6 +92,12 @@ async function fixture(t, options = {}, config = {}) {
 
 await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit } = await fixture(t)
+  agent.inject(
+    createUserMessage({
+      content: [{ type: 'text', text: 'The approval policy changed from "ask" to "never" (changed by the user).' }],
+      source: { kind: 'user-approval' },
+    })
+  )
   const initial = await rpc('describe')
   assert.equal(initial.ok, true)
   assert.deepEqual(initial.value, {
@@ -300,6 +306,10 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
   assert.equal((await rpc('create', { name: 'missing-cwd' })).error.code, 'invalid')
   assert.equal((await rpc('create', { cwd: repo, name: 42 })).error.code, 'invalid')
   assert.equal((await rpc('describe', { sessionId: 'missing' })).error.code, 'session/not-found')
+  const queued = createUserMessage({ content: [{ type: 'text', text: 'Queued task' }], source: { kind: 'user' } })
+  agent.inbox.append('next-turn', queued)
+  assert.equal((await rpc('create', { cwd: repo, name: 'queued-task' })).error.code, 'busy')
+  agent.inbox.remove(queued.id)
   let finish
   const maintenance = agent.runMaintenance(
     () =>

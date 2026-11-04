@@ -204,9 +204,9 @@ export function apply(ctx: Context, config: Config = {}) {
           error: { code: resolved.error.code, message: resolved.error.message, details: {} },
         }
       const { agent } = resolved
-      // Directory changes inject non-waking notices for the next model step; they must not prevent another switch.
+      // Directory and approval changes leave non-waking notices, not queued work.
       const queued = [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some(
-        (message) => message.source.kind !== 'working-directory'
+        (message) => !['working-directory', 'user-approval'].includes(message.source.kind)
       )
       if (agent.status !== 'idle' || queued) return failure('busy')
       return await agent.runMaintenance(async (maintenanceSignal) => {
