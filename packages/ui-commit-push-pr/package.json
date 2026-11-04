@@ -1,0 +1,88 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-commit-push-pr",
+  "version": "0.0.0",
+  "description": "Ask the session agent to commit, push, and create or update a pull request, writing the messages itself.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-commit-push-pr"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-store": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@types/react": "18.3.31",
+    "happy-dom": "21.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session"
+      ]
+    }
+  },
+  "market": {
+    "order": 11,
+    "title": {
+      "en": "Commit & Push & PR",
+      "ko": "Commit & Push & PR",
+      "zh": "提交、推送与 PR"
+    },
+    "description": {
+      "en": "Ask the agent to write commit and PR messages, commit changes, push, and create or update a pull request.",
+      "ko": "에이전트가 커밋 메시지와 PR을 작성하고 변경 사항을 커밋·푸시한 뒤 PR을 생성하거나 업데이트합니다.",
+      "zh": "让智能体编写提交信息和 PR，提交并推送更改，然后创建或更新拉取请求。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "git",
+      "commit",
+      "push",
+      "pull-request",
+      "composer"
+    ]
+  }
+}
