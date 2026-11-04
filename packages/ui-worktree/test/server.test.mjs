@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -1036,4 +1036,80 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     { provider: 'test', model: 'test-model' }
   )
   assert.ok(requests.every((request) => request.provider === 'test' && request.model === 'test-model'))
+})
+
+await test('destination-only conditional checkout filters cannot execute', async (t) => {
+  const { repo, home, git, rpc, submit } = await fixture(t)
+  await writeFile(join(repo, '.gitattributes'), '*.txt filter=linked\n')
+  await writeFile(join(repo, 'tracked.txt'), 'unchanged\n')
+  git('add', '.gitattributes', 'tracked.txt')
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'content')
+  const marker = join(home, 'filter-executed')
+  const included = join(home, 'linked-config')
+  await writeFile(included, `[filter "linked"]\n smudge = "touch '${marker}'; cat"\n required = true\n`)
+  git('config', `includeIf.gitdir:${gitPath(repo)}/.git/worktrees/.path`, included)
+  assert.equal(git('config', '--get-regexp', '^includeIf\\.').includes('linked-config'), true)
+  assert.equal((await rpc('create', { cwd: repo, name: 'linked-safe' })).ok, true)
+  await submit()
+  const result = await rpc('describe')
+  assert.notEqual(result.value.cwd, repo)
+  assert.equal(await readFile(join(result.value.cwd, 'tracked.txt'), 'utf8'), 'unchanged\n')
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
+})
+
+await test('repository symlinks cannot redirect pool or branch-prefix allocation', async (t) => {
+  for (const component of ['.agents', '.agents/worktrees', '.agents/worktrees/fix']) {
+    await t.test(component, async (t) => {
+      const { repo, home, git, rpc, submit } = await fixture(t)
+      const outside = join(home, 'outside')
+      await mkdir(outside)
+      const parts = component.split('/')
+      if (parts.length > 1) await mkdir(join(repo, ...parts.slice(0, -1)), { recursive: true })
+      await symlink(outside, join(repo, component), 'dir')
+      await rpc('create', { cwd: repo, name: 'fix/escape' })
+      await submit()
+      assert.equal((await rpc('describe')).value.cwd, repo)
+      assert.equal(git('branch', '--list', 'fix/escape'), '')
+      await assert.rejects(readFile(join(outside, 'escape/.git')), { code: 'ENOENT' })
+      assert.deepEqual(await (await import('node:fs/promises')).readdir(outside), [])
+    })
+  }
+})
+
+await test('stale or forged worktree metadata cannot switch to unrelated directories', async (t) => {
+  for (const replacement of ['plain', 'repository', 'forged-link', 'symlink-git']) {
+    await t.test(replacement, async (t) => {
+      const { ctx, agent, repo, other, git, rpc } = await fixture(t)
+      const link = await readFile(join(other, '.git'), 'utf8')
+      await rm(other, { recursive: true })
+      await mkdir(other)
+      if (replacement === 'repository') execFileSync('git', ['init', '-b', 'main', other])
+      if (replacement === 'forged-link' || replacement === 'symlink-git') {
+        const valid = join(repo, 'valid')
+        git('worktree', 'add', '--detach', valid)
+        if (replacement === 'symlink-git') await symlink(join(valid, '.git'), join(other, '.git'), 'file')
+        else await writeFile(join(other, '.git'), await readFile(join(valid, '.git')))
+        assert.notEqual(await readFile(join(other, '.git'), 'utf8'), link)
+      }
+      const response = await rpc('switch', { cwd: repo, path: gitPath(other) })
+      assert.equal(response.ok, false)
+      assert.equal(ctx.workingDirectory.get(agent.session), repo)
+    })
+  }
+})
+
+await test('explicit external pools retain owner-selected symlink ancestors', async (t) => {
+  const { repo, home, rpc, submit } = await fixture(t)
+  const external = join(home, 'external')
+  const alias = join(home, 'pool-alias')
+  await mkdir(external)
+  await symlink(external, alias, 'dir')
+  const current = (await rpc('settings')).value
+  assert.equal(
+    (await rpc('save-settings', { ...current, settings: { ...current.settings, directory: join(alias, 'pool') } })).ok,
+    true
+  )
+  await rpc('create', { cwd: repo, name: 'safe' })
+  await submit()
+  assert.equal((await rpc('describe')).value.cwd, join(external, 'pool/safe'))
 })

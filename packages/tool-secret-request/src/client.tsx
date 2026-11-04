@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -15,7 +15,9 @@ const copy = {
     title: 'Private secret input',
     value: 'Secret value',
     privacy: 'Your secret is not shown to the agent.',
-    replace: 'Saving replaces the existing credential.',
+    target: 'Credential storage reference',
+    context: 'Agent-provided description',
+    replace: 'Saving replaces the existing credential at this reference:',
     save: 'Save credential',
     saving: 'Saving…',
     decline: 'Decline',
@@ -33,7 +35,9 @@ const copy = {
     title: '비밀값 입력',
     value: '비밀값',
     privacy: '에이전트에게 비밀값을 보여주지 않습니다.',
-    replace: '저장하면 기존 비밀값을 대체합니다.',
+    target: '비밀값 저장 참조',
+    context: '에이전트가 제공한 설명',
+    replace: '저장하면 다음 참조의 기존 비밀값을 대체합니다:',
     save: '비밀값 저장',
     saving: '저장 중…',
     decline: '거절',
@@ -46,10 +50,31 @@ const copy = {
     timed_out: '입력 시간이 만료되었습니다.',
     unavailable: '비밀값 입력을 사용할 수 없습니다.',
   },
+  zh: {
+    title: '私密凭据输入',
+    value: '凭据值',
+    privacy: '凭据值不会显示给智能体。',
+    target: '凭据存储引用',
+    context: '智能体提供的说明',
+    replace: '保存将替换以下引用的现有凭据：',
+    save: '保存凭据',
+    saving: '正在保存…',
+    decline: '拒绝',
+    error: '无法确认是否保存，输入值已清除。重试前请检查连接和凭据存储。',
+    waiting: '正在等待私密输入…',
+    closed: '输入请求已结束。',
+    saved: '凭据已保存',
+    declined: '请求已拒绝',
+    cancelled: '请求已取消',
+    timed_out: '请求已过期',
+    unavailable: '私密输入不可用',
+  },
 }
 
 const styles = `
 .dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 6px 0; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 10px; color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: 13px/1.45 var(--dsw-font-family, system-ui); overflow-wrap: anywhere; }
+.dsh-secret-card bdi { unicode-bidi: isolate; }
+.dsh-secret-card .dsh-secret-context { unicode-bidi: plaintext; }
 .dsh-secret-card h3 { margin: 0; font-size: 14px; }
 .dsh-secret-card p { margin: 4px 0; }
 .dsh-secret-card small { display: block; margin-top: 6px; font-size: 12px; color: var(--dsw-alias-label-secondary, #666); }
@@ -137,13 +162,26 @@ function SecretForm({
       onKeyPress={(event) => event.stopPropagation()}
       onPaste={(event) => event.stopPropagation()}
     >
-      {request.configured && <p>{text.replace}</p>}
+      <p id={`secret-target-${request.id}`}>
+        <strong>{text.target}: </strong>
+        <code>
+          <bdi dir="ltr">{request.ref}</bdi>
+        </code>
+      </p>
+      {request.configured && (
+        <p>
+          {text.replace}{' '}
+          <code>
+            <bdi dir="ltr">{request.ref}</bdi>
+          </code>
+        </p>
+      )}
       <footer>
         <input
           ref={input}
           id={`secret-${request.id}`}
           aria-label={text.value}
-          aria-describedby={`secret-privacy-${request.id}`}
+          aria-describedby={`secret-target-${request.id} secret-privacy-${request.id}`}
           placeholder={text.value}
           type="password"
           autoComplete="off"
@@ -198,7 +236,10 @@ export function apply(ctx: Context) {
   function SecretCard(props: ToolCallViewProps) {
     const pending = useSyncExternalStore(subscribe, snapshot)
     const [submitted, setSubmitted] = useState<SecretStatus>()
-    const text = ctx.locale.getSnapshot().active.startsWith('ko') ? copy.ko : copy.en
+    const subscribeLocale = useCallback((listener: () => void) => ctx.locale.subscribe(listener), [])
+    const localeSnapshot = useCallback(() => ctx.locale.getSnapshot(), [])
+    const locale = useSyncExternalStore(subscribeLocale, localeSnapshot)
+    const text = locale.active.startsWith('ko') ? copy.ko : locale.active.startsWith('zh') ? copy.zh : copy.en
     // A card may only answer the live request for this exact session and call.
     const request = pending.find((item) => item.sessionId === props.sessionId && item.callId === props.callId)
     let status: string | undefined = submitted && text[submitted]
@@ -218,8 +259,10 @@ export function apply(ctx: Context) {
     }
     return (
       <section className="dsh-secret-card" aria-label={text.title}>
-        <h3>{request?.label ?? props.block.args.text('label') ?? props.block.args.text('ref') ?? text.title}</h3>
-        <p>{request?.reason ?? props.block.args.text('reason')}</p>
+        <h3>{text.title}</h3>
+        <small>{text.context}</small>
+        <p className="dsh-secret-context">{request?.label ?? props.block.args.text('label')}</p>
+        <p className="dsh-secret-context">{request?.reason ?? props.block.args.text('reason')}</p>
         {status ? (
           <p role="status">{status}</p>
         ) : request && connection.interactions === 'answer' ? (
