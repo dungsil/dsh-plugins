@@ -11,8 +11,7 @@
     "dist",
     "locale",
     "cordis.patch.yml",
-    "NOTICE",
-    "assets/fonts/*.txt"
+    "NOTICE"
   ],
   "type": "module",
   "exports": {

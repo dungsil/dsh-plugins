@@ -33,15 +33,24 @@ export const styles = `
 .dsh-worktree-dialog p { margin: 10px 0; color: var(--dsw-alias-label-secondary); }
 .dsh-worktree-dialog button { border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm); background: transparent; color: inherit; padding: 7px 10px; cursor: pointer; font: inherit; }
 .dsh-worktree-dialog header button { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 28px; height: 28px; border: 0; }
-.dsh-worktree-dialog form > label { display: block; font-weight: 500; margin: 14px 0 6px; }
-.dsh-worktree-dialog input[type=text] { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; }
-.dsh-worktree-dialog .dsh-worktree-hint { font-size: 12px; }
 .dsh-worktree-dialog footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.dsh-worktree-dialog .dsh-worktree-primary, .dsh-worktree-dialog .dsh-worktree-primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-fill); border-color: transparent; color: var(--dsw-alias-label-primary-foreground); }
-.dsh-worktree-dialog [role=alert] { color: var(--dsw-alias-state-error-primary); }
 .dsh-worktree-dialog button:disabled { opacity: .45; cursor: not-allowed; }
-.dsh-worktree-dialog button:focus-visible, .dsh-worktree-dialog input:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.dsh-worktree-dialog button:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dsh-worktree-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.dsh-worktree-progress { margin: 12px 0 20px; color: var(--dsw-alias-label-secondary); font: 13px/1.6 ui-monospace, monospace; }
+.dsh-worktree-progress > p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.dsh-worktree-progress ol { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--dsw-alias-border-l2); }
+.dsh-worktree-progress li { display: flex; align-items: center; gap: 10px; padding: 3px 4px; }
+.dsh-worktree-progress li[data-state=pending] { opacity: .4; }
+.dsh-worktree-progress-mark { box-sizing: border-box; display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; line-height: 1; }
+.dsh-worktree-progress li[data-state=running] .dsh-worktree-progress-mark { border-right-color: transparent; }
+.dsh-worktree-progress li[data-state=failed], .dsh-worktree-progress [role=alert] { color: var(--dsw-alias-state-error-primary); }
+.dsh-worktree-progress [role=alert] { margin-top: 10px; font: inherit; }
+.dsh-worktree-progress-time { margin-inline-start: auto; padding-inline-start: 8px; font-size: 11px; }
+@keyframes dsh-worktree-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .dsh-worktree-progress li[data-state=running] .dsh-worktree-progress-mark { animation: dsh-worktree-spin .8s linear infinite; }
+}
 .dsh-worktree-settings { width: 100%; color: var(--dsw-alias-label-primary); font: inherit; }
 .dsh-worktree-settings fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
 .dsh-worktree-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }

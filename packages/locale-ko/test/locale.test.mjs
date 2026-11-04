@@ -50,7 +50,7 @@ const imeSource = await readFile(new URL(import.meta.resolve('@dungsil/dsh-plugi
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
 
-await test('Korean text uses bundled Jetendard without changing custom, code or terminal fonts, and unloads cleanly', async () => {
+await test('locale changes and plugin reloads preserve host and custom fonts without injected styles', async () => {
   const browser = new Window()
   const { document } = browser
   const base = document.createElement('style')
@@ -72,30 +72,33 @@ await test('Korean text uses bundled Jetendard without changing custom, code or 
   const syncLanguage = () => (document.documentElement.lang = locale.getSnapshot().active)
   ctx.effect(() => locale.subscribe(syncLanguage))
   syncLanguage()
-  const font = () => browser.getComputedStyle(document.body).fontFamily
+  const head = document.head.innerHTML
+  const checkFonts = () => {
+    for (const language of ['en', 'ko', 'zh']) {
+      locale.setLocale(language)
+      assert.equal(document.documentElement.lang, language)
+      assert.equal(browser.getComputedStyle(document.body).fontFamily, 'Arial', language)
+      document.body.style.setProperty('--dsh-font-family-text', 'Georgia')
+      const custom = browser.getComputedStyle(document.body)
+      assert.equal(custom.fontFamily, 'Georgia', language)
+      assert.equal(custom.getPropertyValue('--ds-font-family-code'), 'monospace', language)
+      assert.equal(custom.getPropertyValue('--dsh-font-family-terminal'), 'Courier', language)
+      document.body.style.removeProperty('--dsh-font-family-text')
+      assert.equal(browser.getComputedStyle(document.body).fontFamily, 'Arial', language)
+      assert.equal(document.head.innerHTML, head, language)
+    }
+  }
   try {
     let fiber = ctx.plugin(loadClient(source, browser).exports)
     await fiber.await()
-    assert.equal(font(), 'Arial')
-    locale.setLocale('ko')
-    assert.match(font(), /Jetendard/)
-    assert.equal(browser.getComputedStyle(document.body).getPropertyValue('--ds-font-family-code'), 'monospace')
-    assert.equal(browser.getComputedStyle(document.body).getPropertyValue('--dsh-font-family-terminal'), 'Courier')
-    document.body.style.setProperty('--dsh-font-family-text', 'Georgia')
-    assert.match(font(), /^Georgia/)
-    assert.doesNotMatch(font(), /Jetendard/)
-    document.body.style.removeProperty('--dsh-font-family-text')
-    assert.match(font(), /Jetendard/)
-    locale.setLocale('en')
-    assert.equal(font(), 'Arial')
+    checkFonts()
     locale.setLocale('ko')
     await fiber.dispose()
-    assert.equal(font(), 'Arial')
-    assert.equal(document.querySelectorAll('style[data-plugin="dungsil-locale-ko"]').length, 0)
+    assert.equal(browser.getComputedStyle(document.body).fontFamily, 'Arial')
+    assert.equal(document.head.innerHTML, head)
     fiber = ctx.plugin(loadClient(source, browser).exports)
     await fiber.await()
-    assert.match(font(), /Jetendard/)
-    assert.equal(document.querySelectorAll('style[data-plugin="dungsil-locale-ko"]').length, 1)
+    checkFonts()
   } finally {
     await ctx.fiber.dispose()
     await browser.happyDOM.close()
