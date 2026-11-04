@@ -1,9 +1,9 @@
 /// <reference path="./svg.d.ts" />
 import { createElement } from 'react'
-import resetIconSvg from './icons/reset.svg'
+import resetIconSvg from './icons/rotate-ccw.svg'
 
-export { default as modelSettingsIconSvg } from './icons/model-settings.svg'
-export { default as worktreeSettingsIconSvg } from './icons/worktree-settings.svg'
+export { default as modelSettingsIconSvg } from './icons/circle-to-squares.svg'
+export { default as worktreeSettingsIconSvg } from './icons/git-branch.svg'
 
 export {
   IconBranchOutlineRegular,

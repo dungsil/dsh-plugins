@@ -23,6 +23,7 @@ export const styles = `${composerStyles}
 .dsh-codex-model > span { display: block; color: var(--dsw-alias-label-tertiary, #777); font-size: 12px; line-height: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-codex-model:hover, .dsh-codex-reset:hover, .dsh-codex-back:hover { background: var(--dsw-alias-interactive-bg-hover, #f2f2f2); }
 .dsh-codex-reset { display: grid; place-items: center; width: 24px; height: 24px; color: var(--dsw-alias-label-tertiary, #999); }
+.dsh-codex-reset svg { width: 16px; height: 16px; }
 .dsh-codex-back { padding: 4px 8px; color: var(--dsw-alias-label-tertiary, #777); }
 .dsh-codex-popover h2, .dsh-codex-provider { margin: 0; padding: 6px 10px; font-size: 12px; font-weight: 400; color: var(--dsw-alias-label-tertiary, #777); }
 .dsh-codex-provider { font-size: 11px; padding-top: 10px; }
