@@ -36,7 +36,7 @@ test('composer creates directly, preserves input, and keeps session delivery iso
   ctx.provide('connection', {
     rpc: {
       call: async (_channel, _method, payload) => {
-        if (fail) return { ok: false, error: { code: 'worktrees_unavailable' } }
+        if (fail) return { ok: false, error: { code: 'create_failed' } }
         creations.push(payload)
         await new Promise((resolve) => {
           settle = resolve
@@ -129,14 +129,14 @@ test('composer creates directly, preserves input, and keeps session delivery iso
   assert.equal(document.querySelector('button[type=submit]').disabled, true)
   await finish()
   assert.equal(document.querySelector('dialog').open, false)
-  assert.match(document.querySelector('[role=status]').textContent, /생성 및 전환 완료:.*feature\/한글/)
-  assert.match(document.querySelector('[role=status]').textContent, /\/repo\/\.worktrees\/new/)
+  assert.equal(document.querySelector('.dsh-worktree-name').textContent, 'feature/한글-"quote"')
+  assert.equal(document.querySelector('[role=status]').textContent, '')
 
   fail = true
   await click('.dsh-worktree-trigger')
   await input('retry-name')
   await submit()
-  assert.match(document.querySelector('[role=alert]').textContent, /Git worktrees를 켠 뒤/)
+  assert.match(document.querySelector('[role=alert]').textContent, /재시도 전에 작업 경로/)
   assert.equal(document.querySelector('input[type=text]').value, 'retry-name')
   fail = false
   await submit()
@@ -144,6 +144,7 @@ test('composer creates directly, preserves input, and keeps session delivery iso
   await finish()
   assert.equal(creations.at(-1).sessionId, 'session-a')
   assert.equal(document.querySelector('[role=status]').textContent, '')
+  assert.equal(document.querySelector('.dsh-worktree-name').textContent, 'Worktree')
   await render()
 
   await click('.dsh-worktree-trigger')
@@ -186,6 +187,7 @@ test('composer creates directly, preserves input, and keeps session delivery iso
   await submit()
   assert.deepEqual(creations.at(-1), { sessionId: 'session-b', name: '' })
   await finish()
+  assert.equal(document.querySelector('.dsh-worktree-name').textContent, 'generated-name')
   for (const state of [
     { ...snapshot, running: true },
     { ...snapshot, removed: true },

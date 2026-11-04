@@ -11,11 +11,8 @@ export const copy = {
     reuse: 'Reuse existing',
     branch: 'New branch name (optional)',
     path: 'Existing worktree path',
-    createHint:
-      'Leave the name empty for model naming. Enable Plugins → Official → Git worktrees first. Uncommitted changes stay in the source checkout.',
+    createHint: 'Leave the name empty for model naming. Uncommitted changes stay in the source checkout.',
     creating: 'Creating…',
-    created: 'Created and entered:',
-    enableWorktrees: 'Enable Plugins → Official → Git worktrees, then try again.',
     createError: 'Could not confirm creation. Check the working directory and worktree list before retrying.',
     reuseHint:
       'Uses working_directory after checking the path. If you do not know the path, ask the model to list worktrees.',
@@ -36,11 +33,8 @@ export const copy = {
     reuse: '기존 경로 사용',
     branch: '새 브랜치 이름 (선택)',
     path: '기존 worktree 경로',
-    createHint:
-      '이름을 비우면 모델이 이름을 정합니다. 먼저 플러그인 → 공식 → Git worktrees를 켜세요. 커밋하지 않은 변경은 원래 경로에 남습니다.',
+    createHint: '이름을 비우면 모델이 이름을 정합니다. 커밋하지 않은 변경은 원래 경로에 남습니다.',
     creating: '생성 중…',
-    created: '생성 및 전환 완료:',
-    enableWorktrees: '플러그인 → 공식 → Git worktrees를 켠 뒤 다시 시도하세요.',
     createError: '생성 여부를 확인하지 못했습니다. 재시도 전에 작업 경로와 worktree 목록을 확인하세요.',
     reuseHint: '경로 확인 후 working_directory를 사용합니다. 경로를 모르면 모델에게 목록을 요청하세요.',
     list: '목록 요청',

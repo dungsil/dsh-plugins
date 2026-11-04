@@ -30,6 +30,7 @@ export function apply(ctx: Context) {
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string>()
     const [notice, setNotice] = useState('')
+    const [worktree, setWorktree] = useState('')
     const [open, setOpen] = useState(false)
     const pending = useRef(false)
     const alive = useRef(true)
@@ -71,17 +72,15 @@ export function apply(ctx: Context) {
       setError(undefined)
       setNotice('')
       try {
-        let notice = text.sent
         if (action === 'create') {
           const connection = ctx.get('connection') as unknown as ConnectionHandle
           const result = await connection.rpc.call(channel, createMethod, { sessionId, name: value.trim() })
           if (!result.ok) {
-            if (alive.current)
-              setError(result.error.code === 'worktrees_unavailable' ? text.enableWorktrees : text.createError)
+            if (alive.current) setError(text.createError)
             return
           }
-          const created = result.value as { branch: string; path: string }
-          notice = `${text.created} ${created.branch} · ${created.path}`
+          const created = result.value as { branch: string }
+          if (alive.current) setWorktree(created.branch)
         } else {
           const sessions = ctx.get('sessions') as unknown as ISessions
           const session = sessions.binding(sessionId)?.session
@@ -94,7 +93,7 @@ export function apply(ctx: Context) {
           if (!result.ok) throw new Error('Request was not accepted')
         }
         if (!alive.current) return
-        setNotice(notice)
+        if (action !== 'create') setNotice(text.sent)
         setValue('')
         dialog.current?.close()
       } catch {
@@ -114,7 +113,7 @@ export function apply(ctx: Context) {
           disabled={disabled}
           aria-haspopup="dialog"
           aria-expanded={open}
-          title={unavailable ? text.wait : text.title}
+          title={unavailable ? text.wait : worktree || text.title}
           onClick={show}
         >
           <svg
@@ -131,12 +130,12 @@ export function apply(ctx: Context) {
             <circle cx="4" cy="13" r="1.5" />
             <path d="M4 4.5v7M12 5.5v1A3.5 3.5 0 0 1 8.5 10H4" />
           </svg>
-          <span>Worktree</span>
+          <span className="dsh-worktree-name">{worktree || 'Worktree'}</span>
           <span aria-hidden="true" className="dsh-worktree-chevron">
             ⌄
           </span>
         </button>
-        <span className={mode === 'create' ? 'dsh-worktree-result' : 'dsh-worktree-sr'} role="status" title={notice}>
+        <span className="dsh-worktree-sr" role="status">
           {notice}
         </span>
         <dialog

@@ -7,7 +7,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import { channel, createMethod } from './protocol.js'
 
 export const name = 'dungsil-ui-worktree'
-export const inject = ['connection', 'agents', 'llm']
+export const inject = ['connection', 'agents', 'llm', 'worktrees']
 
 export function apply(ctx: Context) {
   ctx.effect(
@@ -42,8 +42,6 @@ export function apply(ctx: Context) {
             return failure('invalid')
           const agent = ctx.agents.get(input.sessionId as SessionId)
           if (!agent) return failure('unavailable')
-          const worktrees = ctx.get('worktrees')
-          if (!worktrees) return failure('worktrees_unavailable')
           const requestedName = input.name.trim()
           try {
             const value = await agent.runMaintenance(async (maintenanceSignal) => {
@@ -92,7 +90,7 @@ export function apply(ctx: Context) {
                   throw new Error('Invalid generated branch name')
               }
               signal.throwIfAborted()
-              return worktrees.create(agent, { name: branch }, signal)
+              return ctx.worktrees.create(agent, { name: branch }, signal)
             })
             return reply({ ok: true, value })
           } catch {

@@ -467,6 +467,10 @@ importers:
         version: 0.23.4(typescript@7.0.2)
 
   packages/ui-worktree:
+    dependencies:
+      '@deepseek-ai/dsh-experimental-worktree':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(ac9707cc87a1af3f1e919988bc16c860)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5
@@ -498,9 +502,6 @@ importers:
       '@deepseek-ai/dsh-credentials-local':
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-atomic-write@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-credentials@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-home-paths@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-launch-environment@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
-      '@deepseek-ai/dsh-experimental-worktree':
-        specifier: 0.2.1-rc.5
-        version: 0.2.1-rc.5(ac9707cc87a1af3f1e919988bc16c860)
       '@deepseek-ai/dsh-llm':
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
