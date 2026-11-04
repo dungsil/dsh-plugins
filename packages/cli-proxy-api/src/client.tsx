@@ -6,7 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { IconPluginPinwheelOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPluginPinwheelOutlineRegular, SegmentedTabs } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
@@ -334,9 +334,6 @@ function ProxyPage({
 
   return (
     <section className="dsh-cli-proxy" aria-label="CLIProxyAPI" aria-busy={busy}>
-      {!settings && (
-        <h1>CLIProxyAPI{page === 'providers' ? ` · ${text.providers}` : page === 'quota' ? ` · ${text.quota}` : ''}</h1>
-      )}
       {busy && <p role="status">{text.busy}</p>}
       {notice && <p role={notice === 'error' ? 'alert' : 'status'}>{text[notice]}</p>}
       {settings ? (
@@ -939,6 +936,38 @@ function ProxyPage({
   )
 }
 
+function ProxyPanel({ ctx }: { ctx: Context }) {
+  const locale = useLocaleSnapshot(ctx.locale)
+  const text = localizedCopy(locale.active)
+  const id = useId()
+  const [page, setPage] = useState<'overview' | 'providers' | 'quota'>('overview')
+  const tabs = [
+    { value: 'overview', label: text.overview, id: `${id}-overview`, panelId: `${id}-overview-panel` },
+    { value: 'providers', label: text.providers, id: `${id}-providers`, panelId: `${id}-providers-panel` },
+    { value: 'quota', label: text.quota, id: `${id}-quota`, panelId: `${id}-quota-panel` },
+  ] as const
+  return (
+    <div className="dsh-cli-proxy-page">
+      <div className="dsh-cli-proxy">
+        <h1>CLIProxyAPI</h1>
+        <SegmentedTabs items={tabs} value={page} onChange={setPage} label="CLIProxyAPI" />
+        {tabs.map((tab) => (
+          <div
+            key={tab.value}
+            id={tab.panelId}
+            role="tabpanel"
+            aria-labelledby={tab.id}
+            hidden={page !== tab.value}
+            tabIndex={0}
+          >
+            {page === tab.value && <ProxyPage ctx={ctx} page={tab.value} />}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function apply(ctx: Context) {
   ctx.effect(() => installStyles(styles), 'cli-proxy-api: styles')
   ctx.slots.inject('settings.section', () =>
@@ -953,28 +982,15 @@ export function apply(ctx: Context) {
       (props) => <ProxyPage {...props} settings />
     )
   )
-  for (const page of ['overview', 'providers', 'quota'] as const) {
-    const panelId = page === 'overview' ? name : `${name}-${page}`
-    ctx.slots.inject('main', () =>
-      ctx.slots.register({ name: 'main', key: panelId as MainPanelId, inject: () => ({ ctx }) }, (props) => (
-        <div className="dsh-cli-proxy-page">
-          <ProxyPage {...props} page={page} />
-        </div>
-      ))
+  ctx.slots.inject('main', () =>
+    ctx.slots.register({ name: 'main', key: name as MainPanelId, inject: () => ({ ctx }) }, (props) => (
+      <ProxyPanel {...props} />
+    ))
+  )
+  ctx.slots.inject('sidebar.panellist', () =>
+    ctx.slots.register(
+      { name: 'sidebar.panellist', id: name as MainPanelId, order: 20, label: () => 'CLIProxyAPI' },
+      ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
     )
-    ctx.slots.inject('sidebar.panellist', () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar.panellist',
-          id: panelId as MainPanelId,
-          order: page === 'overview' ? 20 : page === 'providers' ? 21 : 22,
-          label: () =>
-            page === 'overview'
-              ? 'CLIProxyAPI'
-              : `CLIProxyAPI · ${localizedCopy(ctx.locale.getSnapshot().active)[page]}`,
-        },
-        ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
-      )
-    )
-  }
+  )
 }

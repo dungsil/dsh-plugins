@@ -1,5 +1,6 @@
 export const copy = {
   en: {
+    overview: 'Overview',
     providers: 'Providers',
     quota: 'Quota',
     quotaHint:
@@ -103,6 +104,7 @@ export const copy = {
     saveRouting: 'Save routing',
   },
   ko: {
+    overview: '개요',
     providers: '공급자',
     quota: '할당량',
     quotaHint:
@@ -204,6 +206,7 @@ export const copy = {
     saveRouting: '라우팅 저장',
   },
   zh: {
+    overview: '概览',
     providers: '提供商',
     quota: '配额',
     quotaHint: '加载账户后逐个刷新配额。重置冷却时间仅解除代理路由限制，不会补充配额。不会使用付费推理或重置额度。',
