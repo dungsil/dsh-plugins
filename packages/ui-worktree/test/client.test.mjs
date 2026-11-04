@@ -57,6 +57,17 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   }
   const hostPrimitives = {
     Menu: HostMenu,
+    Button: ({ variant, children, ...props }) => createElement('button', props, children),
+    Input: ({ className, ...props }) => createElement('span', { className }, createElement('input', props)),
+    Switch: ({ checked, onChange, label, disabled }) =>
+      createElement('button', {
+        type: 'button',
+        role: 'switch',
+        'aria-checked': checked,
+        'aria-label': label,
+        disabled,
+        onClick: () => onChange(!checked),
+      }),
     IconPlusOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'plus' }),
     IconRefreshOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'refresh' }),
     IconCloseOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'close' }),
@@ -549,6 +560,11 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     })
   const directory = () => document.querySelector('input[id$="-directory"]')
   const prefix = () => document.querySelector('input[id$="-prefix"]')
+  const remoteSwitch = () => document.querySelector('[role=switch]')
+  const chooseNaming = async (id) => {
+    await act(async () => document.querySelector('.dsh-worktree-settings-selector').click())
+    await act(async () => document.querySelector(`[data-menu-id="${id}"]`).click())
+  }
   const reloadSettings = async () => act(async () => document.querySelector('footer button[type=button]').click())
   const editSettings = async (element, value) =>
     act(async () => {
@@ -582,21 +598,25 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.equal(calls.at(-1), initial)
       await resolve(initial, defaults)
       assert.equal(directory().value, '.agents/worktrees')
-      assert.equal(document.querySelector('input[type=checkbox]').checked, false)
-      assert.equal(document.querySelector('select').value, 'semantic')
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'false')
+      assert.equal(remoteSwitch().getAttribute('aria-label'), '추적 중인 원격 브랜치 사용')
+      assert.equal(document.querySelector('input[type=checkbox]'), null)
+      assert.equal(document.querySelector('h2'), null, 'General settings uses rows without a duplicate heading')
+      assert.equal(menuProps.selectedId, 'semantic')
       assert.equal(prefix(), null)
       assert.equal(submitButton().disabled, true)
       assert.match(document.querySelector('section').textContent, /원본 저장소 루트/)
       assert.match(document.querySelector('section').textContent, /자동으로 fetch하지 않습니다/)
       assert.match(document.querySelector('section').textContent, /브랜치 입력을 비운 경우에만/)
       await editSettings(directory(), '../worktrees with space')
-      await act(async () => document.querySelector('input[type=checkbox]').click())
-      await editSettings(document.querySelector('select'), 'custom')
+      await act(async () => remoteSwitch().click())
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true')
+      await chooseNaming('custom')
       assert.ok(prefix())
       await editSettings(prefix(), 'team/')
-      await editSettings(document.querySelector('select'), 'dsh')
+      await chooseNaming('dsh')
       assert.equal(prefix(), null)
-      await editSettings(document.querySelector('select'), 'custom')
+      await chooseNaming('custom')
       assert.equal(prefix().value, 'team/', 'switching naming modes must preserve the custom draft')
       const before = calls.length
       await act(async () => {
@@ -613,6 +633,9 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       assert.deepEqual(saving.payload, { ...saved, revision: 'initial' })
       assert.match(document.querySelector('[role=status]').textContent, /저장 중/)
       assert.equal(document.querySelector('fieldset').disabled, true)
+      assert.equal(remoteSwitch().disabled, true)
+      await act(async () => remoteSwitch().click())
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true', 'a saving switch must not change the draft')
       await reloadSettings()
       await submit()
       assert.equal(calls.at(-1), saving)
@@ -624,7 +647,10 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       await resolve(calls.at(-1), saved)
       assert.equal(directory().value, saved.settings.directory)
       assert.equal(prefix().value, 'team/')
-      assert.equal(document.querySelector('input[type=checkbox]').checked, true)
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true')
+      await act(async () => remoteSwitch().click())
+      assert.equal(remoteSwitch().getAttribute('aria-checked'), 'false')
+      await act(async () => remoteSwitch().click())
       await editSettings(directory(), '/absolute/worktrees')
       await submit()
       assert.equal(calls.at(-1).payload.revision, 'saved-1', 'later saves must use the server revision')
@@ -675,7 +701,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       language = 'en'
       for (const listener of locale.listeners) listener()
     })
-    assert.equal(document.querySelector('h2').textContent, 'Worktrees')
+    assert.equal(document.querySelector('section').getAttribute('aria-label'), 'Worktrees')
     assert.equal(settingsOptions.label(), 'Worktrees')
     assert.match(document.querySelector('section').textContent, /locally fetched remote reference/)
     assert.match(document.querySelector('section').textContent, /branch input is left empty/)

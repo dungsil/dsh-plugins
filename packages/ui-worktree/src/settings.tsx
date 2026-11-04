@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import { Button, Input, Menu, Switch, IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { channel, endpointPrefix, type WorktreeSettings, type WorktreeSettingsView } from './protocol.js'
 
 const copy = {
   ko: {
     nav: '워크트리',
-    description: '새 워크트리의 저장 위치와 브랜치 생성 방식을 설정합니다.',
     directory: '워크트리 풀 디렉터리',
     directoryHint: '원본 저장소 루트 기준 상대 경로 또는 절대 경로를 입력하세요.',
     remote: '추적 중인 원격 브랜치 사용',
@@ -28,7 +28,6 @@ const copy = {
   },
   en: {
     nav: 'Worktrees',
-    description: 'Configure where new worktrees are stored and how their branches are named.',
     directory: 'Worktree pool directory',
     directoryHint: 'Enter a path relative to the source repository root, or an absolute path.',
     remote: 'Use tracked remote branch',
@@ -64,6 +63,7 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
   const [draft, setDraft] = useState<WorktreeSettings>()
   const [operation, setOperation] = useState<'loading' | 'saving' | undefined>('loading')
   const [notice, setNotice] = useState<'saved' | 'error' | 'conflict'>()
+  const [namingOpen, setNamingOpen] = useState(false)
   const pending = useRef(false)
   const needsReload = useRef(false)
   const lifetime = useRef<AbortController | null>(null)
@@ -75,6 +75,7 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
     if (!controller || controller.signal.aborted || pending.current) return
     if (save && (!view || !draft || needsReload.current)) return
     pending.current = true
+    setNamingOpen(false)
     setOperation(save ? 'saving' : 'loading')
     setNotice(undefined)
     try {
@@ -120,8 +121,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
   const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(view?.settings)
   return (
     <section className="dsh-worktree-settings" aria-label={text.nav} aria-busy={busy}>
-      <h2>{text.nav}</h2>
-      <p>{text.description}</p>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -130,45 +129,79 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
       >
         {draft && (
           <fieldset disabled={busy}>
-            <label htmlFor={`${id}-directory`}>{text.directory}</label>
-            <input
-              id={`${id}-directory`}
-              type="text"
-              value={draft.directory}
-              required
-              maxLength={4096}
-              autoComplete="off"
-              spellCheck={false}
-              aria-describedby={`${id}-directory-hint`}
-              onChange={(event) => setDraft({ ...draft, directory: event.target.value })}
-            />
-            <small id={`${id}-directory-hint`}>{text.directoryHint}</small>
-            <label className="dsh-worktree-settings-check">
-              <input
-                type="checkbox"
-                checked={draft.remote}
-                aria-describedby={`${id}-remote-hint`}
-                onChange={(event) => setDraft({ ...draft, remote: event.target.checked })}
+            <div className="dsh-worktree-settings-row">
+              <div className="dsh-worktree-settings-text">
+                <label htmlFor={`${id}-directory`}>{text.directory}</label>
+                <p id={`${id}-directory-hint`}>{text.directoryHint}</p>
+              </div>
+              <Input
+                className="dsh-worktree-settings-input"
+                id={`${id}-directory`}
+                type="text"
+                value={draft.directory}
+                required
+                maxLength={4096}
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby={`${id}-directory-hint`}
+                onChange={(event) => setDraft({ ...draft, directory: event.target.value })}
               />
-              {text.remote}
-            </label>
-            <small id={`${id}-remote-hint`}>{text.remoteHint}</small>
-            <label htmlFor={`${id}-naming`}>{text.naming}</label>
-            <select
-              id={`${id}-naming`}
-              value={draft.naming}
-              aria-describedby={`${id}-naming-hint`}
-              onChange={(event) => setDraft({ ...draft, naming: event.target.value as WorktreeSettings['naming'] })}
-            >
-              <option value="semantic">{text.semantic}</option>
-              <option value="dsh">{text.dsh}</option>
-              <option value="custom">{text.custom}</option>
-            </select>
-            <small id={`${id}-naming-hint`}>{text.namingHint}</small>
+            </div>
+            <div className="dsh-worktree-settings-row">
+              <div className="dsh-worktree-settings-text">
+                <div className="dsh-worktree-settings-title">{text.remote}</div>
+                <p>{text.remoteHint}</p>
+              </div>
+              <Switch
+                label={text.remote}
+                checked={draft.remote}
+                disabled={busy}
+                onChange={(remote) => setDraft({ ...draft, remote })}
+              />
+            </div>
+            <div className="dsh-worktree-settings-row">
+              <div className="dsh-worktree-settings-text">
+                <div id={`${id}-naming`} className="dsh-worktree-settings-title">
+                  {text.naming}
+                </div>
+                <p id={`${id}-naming-hint`}>{text.namingHint}</p>
+              </div>
+              <Menu
+                open={namingOpen}
+                align="end"
+                portal
+                selectedId={draft.naming}
+                items={(['semantic', 'dsh', 'custom'] as const).map((id) => ({ id, label: text[id] }))}
+                onClose={() => setNamingOpen(false)}
+                onSelect={(naming) => {
+                  setNamingOpen(false)
+                  if (!busy) setDraft({ ...draft, naming: naming as WorktreeSettings['naming'] })
+                }}
+                anchor={
+                  <button
+                    type="button"
+                    className="dsh-worktree-settings-selector"
+                    disabled={busy}
+                    aria-labelledby={`${id}-naming`}
+                    aria-describedby={`${id}-naming-hint`}
+                    aria-haspopup="menu"
+                    aria-expanded={namingOpen}
+                    onClick={() => setNamingOpen((open) => !open)}
+                  >
+                    <span>{text[draft.naming]}</span>
+                    <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                  </button>
+                }
+              />
+            </div>
             {draft.naming === 'custom' && (
-              <>
-                <label htmlFor={`${id}-prefix`}>{text.prefix}</label>
-                <input
+              <div className="dsh-worktree-settings-row">
+                <div className="dsh-worktree-settings-text">
+                  <label htmlFor={`${id}-prefix`}>{text.prefix}</label>
+                  <p id={`${id}-prefix-hint`}>{text.prefixHint}</p>
+                </div>
+                <Input
+                  className="dsh-worktree-settings-input"
                   id={`${id}-prefix`}
                   type="text"
                   value={draft.prefix}
@@ -180,20 +213,19 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                   spellCheck={false}
                   onChange={(event) => setDraft({ ...draft, prefix: event.target.value })}
                 />
-                <small id={`${id}-prefix-hint`}>{text.prefixHint}</small>
-              </>
+              </div>
             )}
           </fieldset>
         )}
         <p role="status">{operation ? text[operation] : notice === 'saved' ? text.saved : ''}</p>
         {(notice === 'error' || notice === 'conflict') && <p role="alert">{text[notice]}</p>}
         <footer>
-          <button type="button" disabled={busy} onClick={() => void request()}>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void request()}>
             {text.refresh}
-          </button>
-          <button type="submit" disabled={busy || !view || !dirty || needsReload.current}>
+          </Button>
+          <Button type="submit" variant="primary" disabled={busy || !view || !dirty || needsReload.current}>
             {operation === 'saving' ? text.saving : text.save}
-          </button>
+          </Button>
         </footer>
       </form>
     </section>
