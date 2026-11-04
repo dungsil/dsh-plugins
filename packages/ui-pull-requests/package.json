@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-pull-requests",
   "version": "0.1.0",
-  "description": "Show the current branch's GitHub PR or GitLab MR in the right sidebar using gh and glab.",
+  "description": "Review and merge the current branch's GitHub PR or GitLab MR in the right sidebar using gh and glab.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -83,9 +83,9 @@
       "zh": "拉取请求"
     },
     "description": {
-      "en": "Show the PR or MR pushed from the current branch in the right sidebar with gh / glab.",
-      "ko": "gh / glab으로 현재 작업 브랜치에서 푸시한 PR 또는 MR을 오른쪽 사이드바에서 확인합니다.",
-      "zh": "使用 gh / glab 在右侧栏查看从当前工作分支推送的 PR 或 MR。"
+      "en": "Review the current branch's PR or MR, inspect CI and changes, and merge with gh / glab in the right sidebar.",
+      "ko": "오른쪽 사이드바에서 현재 브랜치의 PR/MR 본문, CI와 변경 내용을 검토하고 gh / glab으로 병합합니다.",
+      "zh": "在右侧栏查看当前分支 PR/MR 的描述、CI 和变更，使用 gh / glab 审查并合并。"
     },
     "category": "ui",
     "labels": [],

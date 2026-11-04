@@ -11,6 +11,19 @@ import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
+const sha = 'a'.repeat(40)
+const details = {
+  body: 'Description <script>text only</script>',
+  headSha: sha,
+  mergeable: 'MERGEABLE',
+  reviewDecision: 'REVIEW_REQUIRED',
+  checks: [{ name: 'test', status: 'SUCCESS', url: 'https://ci.example/job/1' }],
+  files: [{ path: 'src/main.ts', additions: 1, deletions: 1 }],
+  diff: 'diff --git a/src/main.ts b/src/main.ts\n@@ -1 +1 @@\n-old\n+new',
+  diffTruncated: false,
+  comments: [{ author: 'bob', body: 'Comment', url: 'https://github.com/team/project/pull/17#issuecomment-1' }],
+  reviews: [{ author: 'carol', body: 'Review', state: 'COMMENTED' }],
+}
 const github = {
   number: 17,
   title: 'A <request> & title',
@@ -38,7 +51,41 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
   let rows = github,
     exitCode = 0,
     missing = false
-  await writeFile(cli, `console.log(process.argv[2]); process.exit(Number(process.argv[3]))`)
+  const calls = []
+  let dispatch
+  const defaultDispatch = (args) => {
+    if (args[1] === 'status' || args[1] === 'list') return rows
+    if (args[1] === 'view' && args[0] === 'pr')
+      return {
+        ...rows,
+        body: details.body,
+        headRefOid: sha,
+        mergeable: details.mergeable,
+        reviewDecision: rows.reviewDecision ?? details.reviewDecision,
+        statusCheckRollup: [{ name: 'test', conclusion: 'SUCCESS', detailsUrl: 'https://ci.example/job/1' }],
+        changedFiles: details.files.length,
+        files: details.files,
+        comments: [{ author: { login: 'bob' }, body: 'Comment', url: details.comments[0].url }],
+        reviews: [{ author: { login: 'carol' }, body: 'Review', state: 'COMMENTED' }],
+      }
+    if (args[1] === 'diff') return details.diff
+    if (args[1] === 'view' && args[0] === 'mr')
+      return {
+        ...rows[0],
+        description: 'GitLab body',
+        sha,
+        detailed_merge_status: 'mergeable',
+      }
+    const endpoint = args.find((arg) => arg.startsWith('projects/')) ?? ''
+    if (endpoint.endsWith('/approvals')) return { approved: true, approved_by: [{ user: { username: 'carol' } }] }
+    if (endpoint.includes('/merge_requests/') && endpoint.includes('/pipelines?'))
+      return [{ id: 7, sha, status: 'success', web_url: 'https://ci.example/pipeline/7' }]
+    if (endpoint.includes('/jobs?')) return [{ name: 'build', status: 'success', web_url: 'https://ci.example/job/7' }]
+    if (endpoint.includes('/notes?')) return [{ id: 5, author: { username: 'bob' }, body: 'MR comment', system: false }]
+    if (endpoint.includes('/diffs?')) return [{ old_path: 'a.ts', new_path: 'b.ts', diff: '@@ -1 +1 @@\n-old\n+new' }]
+    return { completed: true, merged: true }
+  }
+  await writeFile(cli, `process.stdout.write(process.argv[2]); process.exit(Number(process.argv[3]))`)
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
   await ctx.plugin(SubprocessLocal)
@@ -50,7 +97,18 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
   }
   ctx.subprocess.spawn = (spec) => {
     if (['gh', 'glab'].includes(spec.argv[0])) {
-      return spawn({ ...spec, argv: [process.execPath, cli, JSON.stringify(rows), String(exitCode)] })
+      calls.push(spec)
+      const args = spec.argv.slice(1)
+      const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
+      return spawn({
+        ...spec,
+        argv: [
+          process.execPath,
+          cli,
+          typeof value === 'string' ? value : JSON.stringify(value),
+          String(value instanceof Error ? 1 : exitCode),
+        ],
+      })
     }
     return spawn(spec)
   }
@@ -58,20 +116,28 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
   ctx.provide('sessionController', {
     resolveAgent: async (id) => (id === 'test' ? { agent: { session: {} } } : { error: { code: 'missing' } }),
   })
-  ctx.provide('sandbox', {})
-  ctx.provide('sandboxPolicy', { resolve: () => ({ mode: 'danger-full-access' }) })
+  let mode = 'danger-full-access'
+  const confined = []
+  ctx.provide('sandbox', {
+    confine: async (argv) => {
+      confined.push(argv)
+      return { argv }
+    },
+  })
+  ctx.provide('sandboxPolicy', { resolve: () => ({ mode }) })
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (peer = owner, sessionId = 'test') => {
+  const rpc = async (peer = owner, sessionId = 'test', action) => {
+    const method = action === undefined ? 'dungsil-pull-requests/list' : 'dungsil-pull-requests/action'
     const response = await handler.fetch(
-      new Request('http://localhost/api/dungsil-pull-requests/list', {
+      new Request(`http://localhost/api/${method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'client-request',
           rpcId: 'test',
-          method: 'dungsil-pull-requests/list',
-          payload: { sessionId },
+          method,
+          payload: action === undefined ? { sessionId } : action,
         }),
       }),
       peer
@@ -80,6 +146,16 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
   }
   return {
     rpc,
+    action: (input = {}, peer = owner) =>
+      rpc(peer, 'test', { sessionId: 'test', requestUrl: github.url, headSha: sha, action: 'approve', ...input }),
+    calls,
+    confined,
+    confine: () => {
+      mode = 'workspace-write'
+    },
+    dispatch: (value) => {
+      dispatch = value
+    },
     git,
     setRows: (value) => {
       rows = value
@@ -110,6 +186,7 @@ await test('shows only the current branch PR and distinguishes absent requests, 
         target: 'release',
         draft: true,
         state: 'open',
+        ...details,
       },
     },
   })
@@ -159,6 +236,21 @@ await test('uses the tracked GitLab remote, preserves nested groups, and normali
     target: 'main',
     draft: true,
     state: 'open',
+    body: 'GitLab body',
+    headSha: sha,
+    mergeable: 'mergeable',
+    reviewDecision: 'APPROVED',
+    checks: [
+      { name: 'Pipeline #7', status: 'success', url: 'https://ci.example/pipeline/7' },
+      { name: 'build', status: 'success', url: 'https://ci.example/job/7' },
+    ],
+    files: [{ path: 'b.ts', additions: 1, deletions: 1 }],
+    diff: 'diff --git a/a.ts b/b.ts\n@@ -1 +1 @@\n-old\n+new',
+    diffTruncated: false,
+    comments: [
+      { author: 'bob', body: 'MR comment', url: 'https://gitlab.com/team/sub/project/-/merge_requests/8#note_5' },
+    ],
+    reviews: [{ author: 'carol', body: '', state: 'APPROVED' }],
   })
   f.setRows([])
   assert.equal((await f.rpc()).value.request, null)
@@ -207,4 +299,445 @@ await test('requires an explicit provider for enterprise hosts and never forward
   const enterprise = await fixture(t, remote, 'github')
   enterprise.setRows({ ...github, url: 'https://git.example.com/team/project/pull/17' })
   assert.equal((await enterprise.rpc()).value.repository, 'git.example.com/team/project')
+})
+
+await test('GitHub actions return completion only, pin reviews and merge to the fresh SHA, and never retry failures', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
+  for (const action of [
+    { action: 'comment', body: '--admin\n$(touch /tmp/nope)' },
+    { action: 'approve', body: 'Looks good' },
+    { action: 'request_changes', body: 'Please fix' },
+    { action: 'merge', strategy: 'squash' },
+    { action: 'merge', strategy: 'rebase' },
+    { action: 'merge', strategy: 'merge' },
+  ]) {
+    const before = f.calls.length
+    assert.deepEqual(await f.action(action), { ok: true, value: { completed: true } })
+    const calls = f.calls.slice(before).map((call) => call.argv)
+    assert.equal(calls[0][2], 'status')
+    assert.equal(calls[1][2], 'view')
+    const mutation = calls.at(-1)
+    if (action.action !== 'merge') {
+      assert.ok(mutation.includes('repos/team/project/pulls/17/reviews'))
+      assert.ok(mutation.includes(`commit_id=${sha}`))
+      assert.ok(
+        mutation.includes(
+          `event=${action.action === 'approve' ? 'APPROVE' : action.action === 'comment' ? 'COMMENT' : 'REQUEST_CHANGES'}`
+        )
+      )
+      assert.ok(mutation.includes(`body=${action.body}`))
+      assert.equal(mutation[mutation.indexOf('--hostname') + 1], 'github.com')
+    } else {
+      assert.ok(mutation.includes('repos/team/project/pulls/17/merge'))
+      assert.equal(mutation[mutation.indexOf('--method') + 1], 'PUT')
+      assert.ok(mutation.includes(`merge_method=${action.strategy}`))
+      assert.ok(mutation.includes(`sha=${sha}`))
+    }
+    for (const flag of ['--admin', '--auto', '--delete-branch', '--commit-id']) assert.ok(!mutation.includes(flag))
+  }
+  f.dispatch((args, next) => (args.includes('PUT') ? new Error('denied') : next(args)))
+  assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 4)
+})
+
+await test('rejects stale SHA, URL, changed source, absent requests and closed requests without a mutation', async (t) => {
+  const f = await fixture(t)
+  const mutations = () =>
+    f.calls.filter(
+      (call) => ['merge', 'comment', 'note', 'approve'].includes(call.argv[2]) || call.argv.includes('POST')
+    )
+  assert.equal((await f.action({ headSha: 'b'.repeat(40) })).error.code, 'stale_request')
+  assert.equal((await f.action({ requestUrl: 'https://github.com/team/other/pull/17' })).error.code, 'stale_request')
+  f.dispatch((args, next) => (args[1] === 'view' ? { ...next(args), headRefOid: 'b'.repeat(40) } : next(args)))
+  assert.equal((await f.action()).error.code, 'stale_request')
+  f.dispatch(undefined)
+  f.setRows({ ...github, headRefName: 'other' })
+  assert.equal((await f.action()).error.code, 'stale_request')
+  f.setRows(null)
+  assert.equal((await f.action()).error.code, 'stale_request')
+  f.setRows({ ...github, state: 'CLOSED' })
+  assert.equal((await f.action()).error.code, 'action_failed')
+  assert.equal(mutations().length, 0)
+})
+
+await test('validates action allowlist, lengths, URLs, strategy and owner access before invoking a CLI', async (t) => {
+  const f = await fixture(t)
+  for (const input of [
+    { action: 'delete' },
+    { action: 'merge', strategy: '--admin' },
+    { strategy: 'merge' },
+    { action: 'comment' },
+    { action: 'request_changes', body: '  ' },
+    { body: 'x'.repeat(60_001) },
+    { body: 'x\0y' },
+    { extra: true },
+    { headSha: '--help' },
+    { requestUrl: 'javascript:alert(1)' },
+    { requestUrl: 'https://user:pass@github.com/team/project/pull/17' },
+    { sessionId: 'x'.repeat(257) },
+    { action: 'merge', body: 'message' },
+  ])
+    assert.equal((await f.action(input)).error.code, 'invalid_payload')
+  const viewer = { principal: { kind: 'session', sessionId: 'test' }, interactions: 'answer' }
+  assert.equal((await f.action({}, viewer)).status, 403)
+  assert.equal((await f.action({ sessionId: 'unknown' })).error.code, 'unavailable')
+  assert.equal(f.calls.length, 0)
+})
+
+await test('detail failures and unsafe secondary links are explicit and prevent actions; large diffs are bounded', async (t) => {
+  const f = await fixture(t)
+  for (const dispatch of [
+    (args, next) => (args[1] === 'diff' ? new Error('failed diff') : next(args)),
+    (args, next) =>
+      args[1] === 'view'
+        ? { ...next(args), statusCheckRollup: [{ name: 'test', status: 'SUCCESS', detailsUrl: 'javascript:alert(1)' }] }
+        : next(args),
+    (args, next) =>
+      args[1] === 'view'
+        ? { ...next(args), comments: [{ author: { login: 'bob' }, body: 'bad', url: 'file:///tmp/x' }] }
+        : next(args),
+  ]) {
+    f.dispatch(dispatch)
+    assert.equal((await f.rpc()).value.request.detailsError, true)
+    assert.equal((await f.action()).error.code, 'action_failed')
+  }
+  assert.ok(!f.calls.some((call) => call.argv.includes('POST')))
+  f.dispatch((args, next) => (args[1] === 'diff' ? 'x'.repeat(130_000) : next(args)))
+  const item = (await f.rpc()).value.request
+  assert.equal(item.diff.length, 120_000)
+  assert.equal(item.diffTruncated, true)
+  assert.equal(item.detailsError, undefined)
+})
+
+await test('GitLab details and mutations use explicit nested repository and SHA; unsupported actions never write', async (t) => {
+  const f = await fixture(t, 'git@gitlab.com:team/sub/project.git')
+  const requestUrl = 'https://gitlab.com/team/sub/project/-/merge_requests/8'
+  f.setRows([
+    {
+      iid: 8,
+      title: 'MR',
+      web_url: requestUrl,
+      author: { username: 'alice' },
+      source_branch: 'feat/sidebar',
+      target_branch: 'main',
+      state: 'opened',
+      source_project_id: 41,
+      target_project_id: 41,
+    },
+  ])
+  assert.equal((await f.rpc()).value.request.checks[1].name, 'build')
+  for (const input of [
+    { action: 'comment', body: '--help; echo unsafe' },
+    { action: 'approve' },
+    { action: 'merge', strategy: 'merge' },
+    { action: 'merge', strategy: 'squash' },
+  ]) {
+    assert.deepEqual(await f.action({ ...input, requestUrl }), { ok: true, value: { completed: true } })
+    const args = f.calls.at(-1).argv
+    assert.equal(args[args.indexOf('--repo') + 1], 'https://gitlab.com/team/sub/project')
+    assert.ok(args.includes('8'))
+    if (input.action === 'comment') assert.equal(args[args.indexOf('--message') + 1], input.body)
+    else assert.equal(args[args.indexOf('--sha') + 1], sha)
+    if (input.action === 'merge') {
+      assert.ok(args.includes('--auto-merge=false'))
+      assert.ok(args.includes('--yes'))
+      assert.ok(args.includes(`--squash=${input.strategy === 'squash'}`))
+    }
+  }
+  const writes = () => f.calls.filter((call) => ['approve', 'merge', 'note'].includes(call.argv[2])).length
+  const count = writes()
+  assert.equal((await f.action({ requestUrl, action: 'merge', strategy: 'rebase' })).error.code, 'unsupported_action')
+  assert.equal(
+    (await f.action({ requestUrl, action: 'request_changes', body: 'Fix' })).error.code,
+    'unsupported_action'
+  )
+  assert.equal((await f.action({ requestUrl, body: 'Review text' })).error.code, 'unsupported_action')
+  assert.equal((await f.action({ requestUrl, headSha: 'b'.repeat(40) })).error.code, 'stale_request')
+  assert.equal(writes(), count)
+  for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
+    assert.equal(call.argv[call.argv.indexOf('--hostname') + 1], 'gitlab.com')
+    assert.ok(call.argv.some((arg) => arg.startsWith('projects/team%2Fsub%2Fproject/')))
+  }
+  f.dispatch((args, next) => (args[1] === 'approve' ? new Error('denied') : next(args)))
+  assert.equal((await f.action({ requestUrl })).error.code, 'action_failed')
+  for (const failed of ['/jobs?', '/notes?', '/approvals']) {
+    f.dispatch((args, next) => (args.some((arg) => arg.includes(failed)) ? new Error('read denied') : next(args)))
+    const partial = (await f.rpc()).value.request
+    assert.equal(partial.detailsError, true)
+    assert.equal(partial.body, 'GitLab body')
+    assert.ok(partial.diff.includes('+new'))
+    assert.deepEqual(partial.files, [{ path: 'b.ts', additions: 1, deletions: 1 }])
+    assert.equal(partial.checks[0].name, 'Pipeline #7')
+    if (failed !== '/approvals') assert.equal(partial.reviews[0].author, 'carol')
+    if (failed !== '/notes?') assert.equal(partial.comments[0].body, 'MR comment')
+    assert.equal((await f.action({ requestUrl })).error.code, 'action_failed')
+  }
+})
+
+await test('enterprise GitHub review APIs use the explicit upstream hostname and never remote credentials', async (t) => {
+  const f = await fixture(t, 'https://user:secret@git.example.com/team/project.git', 'github')
+  const requestUrl = 'https://git.example.com/upstream/project/pull/17'
+  f.setRows({ ...github, url: requestUrl, isDraft: false })
+  assert.deepEqual(await f.action({ requestUrl }), { ok: true, value: { completed: true } })
+  const args = f.calls.at(-1).argv
+  assert.ok(args.includes('repos/upstream/project/pulls/17/reviews'))
+  assert.equal(args[args.indexOf('--hostname') + 1], 'git.example.com')
+  assert.ok(!f.calls.some((call) => call.argv.some((arg) => arg.includes('user:secret'))))
+})
+
+await test('a moving GitHub or GitLab head marks the detail snapshot incomplete and prevents mutation', async (t) => {
+  for (const provider of ['github', 'gitlab']) {
+    const f = await fixture(
+      t,
+      provider === 'github' ? 'git@github.com:team/project.git' : 'git@gitlab.com:team/project.git'
+    )
+    const requestUrl = provider === 'github' ? github.url : 'https://gitlab.com/team/project/-/merge_requests/8'
+    if (provider === 'gitlab')
+      f.setRows([
+        {
+          iid: 8,
+          title: 'MR',
+          web_url: requestUrl,
+          source_branch: 'feat/sidebar',
+          target_branch: 'main',
+          state: 'opened',
+          source_project_id: 41,
+          target_project_id: 41,
+        },
+      ])
+    let views = 0
+    f.dispatch((args, next) => {
+      if (args[1] !== 'view') return next(args)
+      views++
+      return { ...next(args), ...(views % 2 === 0 ? { headRefOid: 'b'.repeat(40), sha: 'b'.repeat(40) } : {}) }
+    })
+    assert.equal((await f.rpc()).value.request.detailsError, true)
+    assert.equal((await f.action({ requestUrl, action: 'comment', body: 'Review' })).error.code, 'action_failed')
+    assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv[2] === 'note'))
+  }
+})
+
+await test('approval and merge reject drafts, truncated/absent diffs; merge rejects blocked checks, reviews and mergeability', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
+  for (const action of ['approve', 'merge']) {
+    for (const dispatch of [
+      (args, next) => (args[1] === 'view' ? { ...next(args), isDraft: true } : next(args)),
+      (args, next) => (args[1] === 'diff' ? 'x'.repeat(120_001) : next(args)),
+      (args, next) => (args[1] === 'diff' ? '' : next(args)),
+    ]) {
+      f.dispatch(dispatch)
+      assert.equal((await f.action({ action })).error.code, 'action_failed')
+    }
+  }
+  for (const change of [
+    ...['FAILURE', 'PENDING', 'IN_PROGRESS', 'UNKNOWN'].map((status) => ({
+      statusCheckRollup: [{ name: 'build', status, detailsUrl: '' }],
+    })),
+    ...['CHANGES_REQUESTED', 'REVIEW_REQUIRED', 'UNKNOWN'].map((reviewDecision) => ({ reviewDecision })),
+    ...['CONFLICTING', 'UNKNOWN'].map((mergeable) => ({ mergeable })),
+  ]) {
+    f.dispatch((args, next) => (args[1] === 'view' ? { ...next(args), ...change } : next(args)))
+    assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
+  }
+  assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
+  for (const status of ['SUCCESS', 'passed', 'NEUTRAL', 'SKIPPED']) {
+    f.dispatch((args, next) =>
+      args[1] === 'view'
+        ? { ...next(args), statusCheckRollup: [{ name: 'build', status, detailsUrl: '' }] }
+        : next(args)
+    )
+    assert.equal((await f.action({ action: 'merge' })).ok, true)
+  }
+  f.dispatch((args, next) => (args.includes('PUT') ? { merged: false, message: 'not merged' } : next(args)))
+  assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
+})
+
+await test('confines every CLI command and rejects simultaneous session actions without retrying', async (t) => {
+  const f = await fixture(t)
+  f.confine()
+  const input = { action: 'comment', body: '@private-file; $(echo no)' }
+  const results = await Promise.all([f.action(input), f.action(input)])
+  assert.equal(results.filter((result) => result.ok).length, 1)
+  assert.equal(results.find((result) => !result.ok).error.code, 'action_failed')
+  assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 1)
+  assert.ok(f.confined.some((argv) => argv.includes('symbolic-ref')))
+  for (const call of f.calls) {
+    assert.ok(f.confined.some((argv) => JSON.stringify(argv) === JSON.stringify(call.argv)))
+    for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GH_REPO', 'GH_HOST', 'GITLAB_REPO', 'GITLAB_HOST'])
+      assert.equal(call.env[key], undefined)
+  }
+  assert.equal((await f.action(input)).ok, true)
+  assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 2)
+})
+
+await test('GitLab detail pagination loads later comments and fails explicitly on malformed pages', async (t) => {
+  const f = await fixture(t, 'git@gitlab.com:team/project.git')
+  const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
+  f.setRows([
+    {
+      iid: 8,
+      title: 'MR',
+      web_url: requestUrl,
+      source_branch: 'feat/sidebar',
+      target_branch: 'main',
+      state: 'opened',
+      source_project_id: 41,
+      target_project_id: 41,
+    },
+  ])
+  f.dispatch((args, next) => {
+    const endpoint = args.find((arg) => arg.includes('/notes?'))
+    if (!endpoint) return next(args)
+    if (endpoint.includes('page=2'))
+      return [{ id: 101, author: { username: 'last' }, body: 'last comment', system: false }]
+    return Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      author: { username: 'first' },
+      body: 'comment',
+      system: false,
+    }))
+  })
+  const item = (await f.rpc()).value.request
+  assert.equal(item.detailsError, undefined)
+  assert.equal(item.comments.length, 101)
+  assert.equal(item.comments.at(-1).body, 'last comment')
+  f.dispatch((args, next) => (args.some((arg) => arg.includes('/notes?')) ? { error: 'not an array' } : next(args)))
+  assert.equal((await f.rpc()).value.request.detailsError, true)
+})
+
+await test('GitLab uses the newest head pipeline, keeps its status without jobs, and permits zero required approvals', async (t) => {
+  const f = await fixture(t, 'git@gitlab.com:team/project.git')
+  const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
+  f.setRows([
+    {
+      iid: 8,
+      title: 'MR',
+      web_url: requestUrl,
+      source_branch: 'feat/sidebar',
+      target_branch: 'main',
+      state: 'opened',
+      source_project_id: 41,
+      target_project_id: 41,
+    },
+  ])
+  let status = 'success'
+  let required = 0
+  f.dispatch((args, next) => {
+    if (args.some((arg) => arg.includes('/merge_requests/') && arg.includes('/pipelines?')))
+      return [
+        { id: 6, sha, status: 'failed', web_url: 'https://ci.example/pipeline/6' },
+        { id: 99, sha: 'b'.repeat(40), status: 'failed', web_url: 'https://ci.example/pipeline/99' },
+        { id: 7, sha, status, web_url: 'https://ci.example/pipeline/7' },
+      ]
+    if (args.some((arg) => arg.includes('/jobs?'))) return []
+    if (args.some((arg) => arg.endsWith('/approvals')))
+      return { approved: false, approvals_required: required, approvals_left: required, approved_by: [] }
+    return next(args)
+  })
+  const item = (await f.rpc()).value.request
+  assert.equal(item.detailsError, undefined)
+  assert.equal(item.reviewDecision, '')
+  assert.deepEqual(item.checks, [{ name: 'Pipeline #7', status: 'success', url: 'https://ci.example/pipeline/7' }])
+  assert.equal((await f.action({ requestUrl, action: 'merge' })).ok, true)
+  assert.ok(!f.calls.some((call) => call.argv.some((arg) => /\/pipelines\/(6|99)\/jobs/.test(arg))))
+  const writes = () => f.calls.filter((call) => call.argv[2] === 'merge').length
+  const count = writes()
+  for (status of ['failed', 'pending', 'running', 'unknown']) {
+    const blocked = (await f.rpc()).value.request
+    assert.equal(blocked.detailsError, undefined)
+    assert.equal(blocked.checks[0].status, status)
+    assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
+  }
+  status = 'success'
+  required = 1
+  assert.equal((await f.rpc()).value.request.reviewDecision, 'REVIEW_REQUIRED')
+  assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
+  assert.equal(writes(), count)
+})
+
+await test('GitLab merged-result CI verifies the current head pipeline commit parent and never trusts older merge results', async (t) => {
+  const f = await fixture(t, 'git@gitlab.com:team/project.git')
+  const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
+  const mergeSha = 'c'.repeat(40)
+  const pipeline = {
+    id: 10,
+    project_id: 41,
+    sha: mergeSha,
+    ref: 'refs/merge-requests/8/merge',
+    status: 'failed',
+    web_url: 'https://ci.example/pipeline/10',
+  }
+  const mr = {
+    iid: 8,
+    title: 'MR',
+    web_url: requestUrl,
+    source_branch: 'feat/sidebar',
+    target_branch: 'main',
+    state: 'opened',
+    source_project_id: 41,
+    target_project_id: 41,
+    head_pipeline: pipeline,
+  }
+  f.setRows([mr])
+  let parents = ['b'.repeat(40), sha]
+  let commitFailure = false
+  f.dispatch((args, next) => {
+    if (args.some((arg) => arg.includes('/repository/commits/')))
+      return commitFailure ? new Error('commit unavailable') : { id: mergeSha, parent_ids: parents }
+    if (args.some((arg) => arg.includes('/merge_requests/') && arg.includes('/pipelines?')))
+      return [
+        { ...pipeline, id: 9, status: 'success' },
+        { id: 7, sha, status: 'success', web_url: 'https://ci.example/pipeline/7' },
+      ]
+    if (args.some((arg) => arg.includes('/pipelines/10/jobs?')))
+      return [{ name: 'integration', status: pipeline.status, web_url: 'https://ci.example/job/10' }]
+    return next(args)
+  })
+  const item = (await f.rpc()).value.request
+  assert.equal(item.detailsError, undefined)
+  assert.deepEqual(item.checks, [
+    { name: 'Pipeline #10', status: 'failed', url: 'https://ci.example/pipeline/10' },
+    { name: 'integration', status: 'failed', url: 'https://ci.example/job/10' },
+  ])
+  assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
+  const commitCall = f.calls.find((call) => call.argv.some((arg) => arg.includes('/repository/commits/'))).argv
+  assert.ok(commitCall.includes(`projects/team%2Fproject/repository/commits/${mergeSha}`))
+  assert.equal(commitCall[commitCall.indexOf('--hostname') + 1], 'gitlab.com')
+  assert.ok(!f.calls.some((call) => call.argv.some((arg) => /\/pipelines\/(7|9)\/jobs/.test(arg))))
+
+  pipeline.status = 'success'
+  assert.equal((await f.action({ requestUrl, action: 'merge' })).ok, true)
+  const jobs = () => f.calls.filter((call) => call.argv.some((arg) => arg.includes('/jobs?'))).length
+  const count = jobs()
+  parents = ['d'.repeat(40), 'e'.repeat(40)]
+  const stale = (await f.rpc()).value.request
+  assert.equal(stale.detailsError, true)
+  assert.deepEqual(stale.checks, [])
+  assert.ok(stale.diff.includes('+new'))
+  assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
+  assert.equal(jobs(), count)
+
+  parents = ['b'.repeat(40), sha]
+  pipeline.project_id = 42
+  assert.equal((await f.rpc()).value.request.detailsError, true)
+  assert.equal(jobs(), count)
+  pipeline.project_id = 41
+  commitFailure = true
+  assert.equal((await f.rpc()).value.request.detailsError, true)
+  assert.equal(jobs(), count)
+
+  // Without this snapshot's merged-result head pipeline, historical /merge
+  // pipelines cannot be selected just because they were returned by the MR API.
+  mr.head_pipeline = null
+  f.dispatch((args, next) =>
+    args.some((arg) => arg.includes('/merge_requests/') && arg.includes('/pipelines?'))
+      ? [{ ...pipeline, id: 9, status: 'success' }]
+      : next(args)
+  )
+  const unrelated = (await f.rpc()).value.request
+  assert.equal(unrelated.detailsError, true)
+  assert.deepEqual(unrelated.checks, [])
+  assert.equal(jobs(), count)
 })
