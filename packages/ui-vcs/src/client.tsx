@@ -7,12 +7,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import {
-  IconBranchOutlineRegular,
-  IconChevronDownOutlineRegular,
-  Menu,
-  Pill,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { Menu, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
 
 export const name = 'dungsil-ui-vcs'

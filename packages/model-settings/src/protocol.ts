@@ -11,9 +11,11 @@ export interface TitleTarget {
   revision: string
   route: Route | null
   reasoningEffort: string | null
+  useAuxiliary?: boolean
 }
 
 export interface ModelSettingsView {
+  auxiliary: TitleTarget | null
   target: TitleTarget | null
   worktree?: TitleTarget | null
   providers: {

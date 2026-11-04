@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/settings.tsx",
     "./client": "./src/client.ts",
-    "./composer": "./src/composer.tsx"
+    "./composer": "./src/composer.tsx",
+    "./icons": "./src/icons.ts",
+    "./icons/dom": "./src/icons-dom.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -16,10 +16,9 @@ import {
   IconChevronRightOutlineRegular,
   IconCheckOutlineRegular,
   IconDataOutlineRegular,
-  MenuSurface,
-  focusWithoutRing,
-  useDismissOnOutsidePointer,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+  IconResetOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
+import { MenuSurface, focusWithoutRing, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-model-picker'
@@ -268,17 +267,7 @@ export function apply(ctx: Context) {
                       if (current) void select({ provider: current.provider, model: current.model })
                     }}
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      aria-hidden="true"
-                    >
-                      <path d="M3 4a5.5 5.5 0 1 1-1 6M3 1v3h3" />
-                    </svg>
+                    <IconResetOutlineRegular />
                   </button>
                 </header>
               )}

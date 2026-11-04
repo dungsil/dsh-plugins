@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { modelSettingsIconArtwork } from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
@@ -21,6 +22,7 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = {
   en: {
     nav: 'Models by task',
+    taskSettings: 'Task-specific settings',
     title: 'Session title',
     titleDescription: 'Choose the model and reasoning effort used to automatically generate session titles.',
     model: 'Model',
@@ -28,6 +30,9 @@ const copy = {
     worktreeDescription:
       'Choose the model and reasoning effort used to generate a branch name when creating a worktree without a name.',
     inherit: 'Use conversation model',
+    auxiliary: 'Auxiliary model',
+    useAuxiliary: 'Use auxiliary model',
+    auxiliaryHint: 'Uses the auxiliary model and its reasoning effort. If unset, uses the conversation model.',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
@@ -52,12 +57,16 @@ const copy = {
   },
   ko: {
     nav: '상황별 모델',
+    taskSettings: '작업별 설정',
     title: '세션 제목',
     titleDescription: '세션 제목을 자동으로 생성할 때 사용할 모델과 추론 수준을 설정합니다.',
     model: '모델',
     worktree: '워크트리 브랜치 이름',
     worktreeDescription: '이름을 입력하지 않고 워크트리를 만들 때 브랜치 이름을 생성할 모델과 추론 수준을 설정합니다.',
     inherit: '대화 모델 따르기',
+    auxiliary: '보조 모델',
+    useAuxiliary: '보조 모델 따르기',
+    auxiliaryHint: '보조 모델과 추론 수준을 따릅니다. 보조 모델을 지정하지 않으면 대화 모델을 따릅니다.',
     effort: '추론 수준',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
@@ -81,12 +90,16 @@ const copy = {
   },
   zh: {
     nav: '任务模型设置',
+    taskSettings: '各任务设置',
     title: '会话标题',
     titleDescription: '设置自动生成会话标题时使用的模型和推理级别。',
     model: '模型',
     worktree: '工作树分支名称',
     worktreeDescription: '设置创建未指定名称的工作树时用于生成分支名称的模型和推理级别。',
     inherit: '使用对话模型',
+    auxiliary: '辅助模型',
+    useAuxiliary: '使用辅助模型',
+    auxiliaryHint: '使用辅助模型及其推理级别。未指定辅助模型时使用对话模型。',
     effort: '推理级别',
     automatic: '自动',
     automaticHint: '自动（支持的最低级别）',
@@ -114,6 +127,8 @@ const localizedCopy = (language: string) =>
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings [data-task=auxiliary] .dsh-plugin-settings-row { border-bottom: none; }
+.dsh-model-settings-task-heading { margin: 32px 0 0; padding-bottom: 8px; border-bottom: .5px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
@@ -121,12 +136,16 @@ const styles = `${settingsStyles}
 .dsh-model-settings [role=status] { margin: 12px 0; }
 @container (max-width: 480px) {
   .dsh-model-settings .dsh-plugin-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .dsh-model-settings-controls { max-width: 100%; }
+  .dsh-model-settings-controls { flex-direction: column; align-items: stretch; width: 100%; max-width: 100%; }
+  .dsh-model-settings-controls .dsh-model-settings-picker { width: 100%; max-width: 100%; }
+  .dsh-model-settings-controls .dsh-plugin-settings-selector { width: 100%; justify-content: space-between; }
 }
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
-type Task = 'target' | 'worktree'
+const selectionKey = (target?: TitleTarget | null) =>
+  target?.useAuxiliary ? 'auxiliary' : routeKey(target?.route ?? null)
+type Task = 'auxiliary' | 'target' | 'worktree'
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
@@ -135,8 +154,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
-  const [drafts, setDrafts] = useState({ target: '', worktree: '' })
-  const [effortDrafts, setEffortDrafts] = useState({ target: '', worktree: '' })
+  const [drafts, setDrafts] = useState({ auxiliary: '', target: '', worktree: '' })
+  const [effortDrafts, setEffortDrafts] = useState({ auxiliary: '', target: '', worktree: '' })
   const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
   const [synchronized, setSynchronized] = useState(false)
   const [notice, setNotice] = useState<Notice>()
@@ -152,8 +171,16 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
-      setEffortDrafts({ target: next.target?.reasoningEffort ?? '', worktree: next.worktree?.reasoningEffort ?? '' })
-      setDrafts({ target: routeKey(next.target?.route ?? null), worktree: routeKey(next.worktree?.route ?? null) })
+      setEffortDrafts({
+        auxiliary: next.auxiliary?.reasoningEffort ?? '',
+        target: next.target?.reasoningEffort ?? '',
+        worktree: next.worktree?.reasoningEffort ?? '',
+      })
+      setDrafts({
+        auxiliary: selectionKey(next.auxiliary),
+        target: selectionKey(next.target),
+        worktree: selectionKey(next.worktree),
+      })
       setSynchronized(true)
       return true
     },
@@ -225,8 +252,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       controller.signal.aborted ||
       !target ||
       !synchronized ||
-      (draft === routeKey(target.route) && effort === (target.reasoningEffort ?? '')) ||
-      (draft && !selected) ||
+      (draft === selectionKey(target) && effort === (target.reasoningEffort ?? '')) ||
+      (draft && draft !== 'auxiliary' && !selected) ||
       missingEffort
     )
       return
@@ -243,14 +270,20 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       const result = await connection.rpc.call(
         channel,
         `${endpointPrefix}save`,
-        { id: target.id, revision: target.revision, route: selected, reasoningEffort: effort || null },
+        {
+          id: target.id,
+          revision: target.revision,
+          route: selected,
+          reasoningEffort: effort || null,
+          useAuxiliary: draft === 'auxiliary',
+        },
         controller.signal
       )
       if (!active()) return
       if (result.ok) {
         const saved = result.value as unknown as TitleTarget | null
         setView((current) => current && { ...current, [task]: saved })
-        setDrafts((current) => ({ ...current, [task]: routeKey(saved?.route ?? null) }))
+        setDrafts((current) => ({ ...current, [task]: selectionKey(saved) }))
         setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
       } else {
         const code = result.error.code
@@ -285,10 +318,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
       {readError && <p role="alert">{text[readError]}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
-      {(['target', 'worktree'] as const).map((task) => {
+      {(['auxiliary', 'target', 'worktree'] as const).map((task) => {
         const target = view?.[task]
         if (!target) return null
-        const title = task === 'target' ? text.title : text.worktree
+        const title = task === 'auxiliary' ? text.auxiliary : task === 'target' ? text.title : text.worktree
         const draft = drafts[task]
         const effort = effortDrafts[task]
         const current = routeKey(target.route)
@@ -298,28 +331,39 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const efforts = option?.efforts ?? []
         const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
         const automaticHint = task === 'target' ? text.automaticHint : text.worktreeAutomaticHint
-        const modelLabel = option?.name ?? (draft ? text.missing : text.inherit)
+        const modelLabel =
+          draft === 'auxiliary' ? text.useAuxiliary : (option?.name ?? (draft ? text.missing : text.inherit))
         const effortLabel =
           efforts.find((item) => item.id === effort)?.name ?? (effort ? text.missingEffort : text.automatic)
         const fieldId = `${id}-${task}`
         const modelTitle =
-          option?.label ??
+          (draft === 'auxiliary' ? text.auxiliaryHint : option?.label) ??
           (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
-        const effortTitle = !selected
-          ? text.effortHint
-          : efforts.length === 0
-            ? text.noEfforts
-            : effort
-              ? effortLabel
-              : automaticHint
+        const effortTitle =
+          draft === 'auxiliary'
+            ? text.auxiliaryHint
+            : !selected
+              ? text.effortHint
+              : efforts.length === 0
+                ? text.noEfforts
+                : effort
+                  ? effortLabel
+                  : automaticHint
         return (
-          <div key={task} className="dsh-model-settings-field">
+          <div key={task} className="dsh-model-settings-field" data-task={task}>
+            {(task === 'target' || (task === 'worktree' && !view?.target)) && (
+              <h3 className="dsh-model-settings-task-heading">{text.taskSettings}</h3>
+            )}
             <SettingsRow
               label={
                 <>
                   <div>{title}</div>
                   <div className="dsh-model-settings-description">
-                    {task === 'target' ? text.titleDescription : text.worktreeDescription}
+                    {task === 'auxiliary'
+                      ? text.auxiliaryHint
+                      : task === 'target'
+                        ? text.titleDescription
+                        : text.worktreeDescription}
                   </div>
                 </>
               }
@@ -332,8 +376,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   value={modelLabel}
                   title={modelTitle}
                   selectedId={draft}
-                  items={
-                    missing
+                  items={[
+                    ...(task === 'auxiliary' ? [] : [{ id: 'auxiliary', label: text.useAuxiliary }]),
+                    ...(missing
                       ? [
                           ...modelItems,
                           {
@@ -342,8 +387,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                             disabled: true,
                           },
                         ]
-                      : modelItems
-                  }
+                      : modelItems),
+                  ]}
                   disabled={!!busy || !synchronized}
                   onSelect={(value) => {
                     void save(task, value, value === draft ? effort : '')
@@ -386,7 +431,7 @@ export function apply(ctx: Context) {
     installSettingsIcon(
       name,
       Object.values(copy).map((text) => text.nav),
-      '<circle cx="2.5" cy="8" r="1.75"/><path d="M4.25 8H5.5C8 8 7 3.5 10 3.5H11M5.5 8C8 8 7 12.5 10 12.5H11"/><rect x="11" y="1.75" width="3.5" height="3.5" rx=".6"/><rect x="11" y="10.75" width="3.5" height="3.5" rx=".6"/>'
+      modelSettingsIconArtwork
     )
   )
   ctx.effect(() => installStyles(styles), 'model-settings: styles')
