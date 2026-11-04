@@ -38,4 +38,20 @@ export const styles = `
 .dsh-worktree-dialog button:disabled { opacity: .45; cursor: not-allowed; }
 .dsh-worktree-dialog button:focus-visible, .dsh-worktree-dialog input:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dsh-worktree-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.dsh-worktree-settings { max-width: 680px; color: var(--dsw-alias-label-primary); font: 14px/1.6 var(--dsw-font-family, system-ui); }
+.dsh-worktree-settings h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
+.dsh-worktree-settings p { margin: 12px 0 24px; color: var(--dsw-alias-label-secondary); }
+.dsh-worktree-settings fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.dsh-worktree-settings label { display: block; margin-bottom: 8px; font-weight: 600; }
+.dsh-worktree-settings input[type=text], .dsh-worktree-settings select { box-sizing: border-box; width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; }
+.dsh-worktree-settings .dsh-worktree-settings-check { display: flex; align-items: center; gap: 8px; }
+.dsh-worktree-settings input[type=checkbox] { accent-color: var(--dsw-alias-button-primary-fill); }
+.dsh-worktree-settings small { display: block; margin: 8px 0 24px; color: var(--dsw-alias-label-secondary); font-size: 13px; }
+.dsh-worktree-settings footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.dsh-worktree-settings button { min-height: 36px; padding: 6px 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm); color: inherit; background: transparent; font: inherit; cursor: pointer; }
+.dsh-worktree-settings button[type=submit] { color: var(--dsw-alias-label-primary-foreground); background: var(--dsw-alias-button-primary-fill); border-color: transparent; }
+.dsh-worktree-settings button:hover:not(:disabled) { filter: brightness(.85); }
+.dsh-worktree-settings :disabled { opacity: .5; cursor: default; }
+.dsh-worktree-settings :focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }
+.dsh-worktree-settings [role=alert] { color: var(--dsw-alias-state-error-primary); }
 `
