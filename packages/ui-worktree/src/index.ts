@@ -329,11 +329,11 @@ export function apply(ctx: Context, config: Config) {
               .map((block) => block.text)
               .join('\n')
               .slice(-12_000)
+            // The model default allows tokens for reasoning before the branch name.
             const call = await ctx.llm.prepareCall(
               {
                 provider: route.provider,
                 model: route.model,
-                maxTokens: 256,
                 reasoningEffort:
                   config.provider && config.model && config.reasoningEffort
                     ? ReasoningEffortId(config.reasoningEffort)
