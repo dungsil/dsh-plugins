@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-tool-diff-note
+      name: '@dungsil/dsh-plugin-tool-diff-note'
