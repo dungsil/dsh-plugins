@@ -109,8 +109,22 @@ await test('commit-driven releases preserve independent history, versions, tags 
   // Workspace discovery lists locale-ko before new. The production release loop
   // must bump the dependency first so the bundle's archive gets the new range.
   process.chdir(cwd)
+  await releaseWorkspace({ dryRun: true, npm: { publish: false }, github: { release: false } })
+  assert.equal(run('git', ['rev-parse', 'HEAD']), head)
+  assert.equal(run('git', ['status', '--porcelain']), '')
+  assert.equal(run('git', ['tag', '--list', '@fixture/new@*']), '')
   await releaseWorkspace({ npm: { publish: false }, github: { release: false } })
   assert.equal(process.cwd(), cwd)
+  assert.equal(run('git', ['rev-list', '--count', `${head.trim()}..HEAD`]).trim(), '1')
+  const releaseHead = run('git', ['rev-parse', 'HEAD'])
+  for (const tag of ['@fixture/new@0.1.0', '@dungsil/dsh-plugin-locale-ko@0.3.2']) {
+    assert.equal(run('git', ['rev-parse', `${tag}^{commit}`]), releaseHead)
+    assert.equal(run('git', ['--git-dir', join(directory, 'remote.git'), 'rev-parse', `${tag}^{commit}`]), releaseHead)
+  }
+  assert.equal(run('git', ['rev-parse', 'origin/main']), releaseHead)
+  assert.equal(run('git', ['status', '--porcelain']), '')
+  await releaseWorkspace({ npm: { publish: false }, github: { release: false } })
+  assert.equal(run('git', ['rev-parse', 'HEAD']), releaseHead)
   assert.equal(manifest('new').version, '0.1.0')
   assert.match(notes('new'), /first feature/)
   assert.doesNotMatch(notes('new'), /locale correction|0\.3\.1/)
