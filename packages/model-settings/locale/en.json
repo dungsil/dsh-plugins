@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Models by task",
-    "description": "Choose a separate model for session titles without changing the conversation model."
+    "title": "Models by task API",
+    "description": "Configure session title models through an owner-only API, without a settings UI."
   }
 }
