@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Commit & Push & PR",
-    "description": "Ask the agent to write commit and PR messages, commit changes, push, and create or update a pull request."
-  }
-}

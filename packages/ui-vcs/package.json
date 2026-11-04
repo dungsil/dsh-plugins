@@ -1,12 +1,12 @@
 {
-  "name": "@dungsil/dsh-plugin-ui-commit-push-pr",
+  "name": "@dungsil/dsh-plugin-ui-vcs",
   "version": "0.0.0",
-  "description": "Ask the session agent to commit, push, and create or update a pull request, writing the messages itself.",
+  "description": "Version control actions for the session agent, with Git commit, push, and pull request support.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dungsil/dsh-plugins.git",
-    "directory": "packages/ui-commit-push-pr"
+    "directory": "packages/ui-vcs"
   },
   "files": [
     "dist",
@@ -26,11 +26,14 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
     "prepack": "pnpm build"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-agent-loop-testkit": "0.2.1-rc.5",
     "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-store": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
@@ -38,13 +41,24 @@
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-subprocess-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/react": "18.3.31",
     "react": "18.3.1",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5"
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "^0.2.1-rc.5"
   },
   "engines": {
     "dsh": "^0.2.1-rc.5",
@@ -58,6 +72,7 @@
       "platform": "web",
       "immediately": true,
       "inject": [
+        "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-session"
@@ -67,14 +82,14 @@
   "market": {
     "order": 11,
     "title": {
-      "en": "Commit & Push & PR",
-      "ko": "Commit & Push & PR",
-      "zh": "提交、推送与 PR"
+      "en": "Version Control",
+      "ko": "버전 관리",
+      "zh": "版本控制"
     },
     "description": {
-      "en": "Ask the agent to write commit and PR messages, commit changes, push, and create or update a pull request.",
-      "ko": "에이전트가 커밋 메시지와 PR을 작성하고 변경 사항을 커밋·푸시한 뒤 PR을 생성하거나 업데이트합니다.",
-      "zh": "让智能体编写提交信息和 PR，提交并推送更改，然后创建或更新拉取请求。"
+      "en": "Git actions above the composer: push on the default branch, create or update a PR on other branches or worktrees, or commit only.",
+      "ko": "입력창 위에서 Git 작업을 요청합니다. 기본 브랜치에서는 푸시하고 다른 브랜치나 worktree에서는 PR을 생성·업데이트하며, 커밋만 선택할 수도 있습니다.",
+      "zh": "在输入框上方请求 Git 操作：默认分支推送，其他分支或 worktree 创建或更新 PR，也可选择仅提交。"
     },
     "category": "ui",
     "labels": [],
