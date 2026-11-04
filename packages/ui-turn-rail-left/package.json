@@ -1,0 +1,81 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-turn-rail-left",
+  "version": "0.1.0",
+  "description": "Move the official DeepSeek Harness turn rail to the left without replacing native navigation.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-turn-rail-left"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml",
+    "icon.svg"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    }
+  },
+  "market": {
+    "order": 9,
+    "title": {
+      "en": "Left Turn Rail",
+      "ko": "왼쪽 턴 레일"
+    },
+    "description": {
+      "en": "Move the official turn rail and its previews to the left side of Chat.",
+      "ko": "공식 턴 레일을 대화 화면 왼쪽으로 옮기고 미리보기를 오른쪽으로 펼칩니다."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "chat",
+      "turn",
+      "rail",
+      "navigation",
+      "left"
+    ]
+  }
+}

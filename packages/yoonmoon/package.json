@@ -57,11 +57,13 @@
     "order": 3,
     "title": {
       "en": "Yoonmoon",
-      "ko": "윤문"
+      "ko": "윤문",
+      "zh": "韩语润色"
     },
     "description": {
       "en": "Six Korean writing skills for proofreading, translation cleanup, AI-style removal, and style conversion.",
-      "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다."
+      "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다.",
+      "zh": "提供六项韩语写作技能，涵盖校对、翻译腔修正、AI 文风去除和文体转换。"
     },
     "category": "skills",
     "labels": [

@@ -112,10 +112,15 @@ await test('buildMarketIndex maps market metadata and npm registry versions to f
   const { index, warnings } = fixtureBuild()
 
   assert.equal(index.format, 1)
-  assert.deepEqual(index.title, { en: "DUNGSIL's DSH Plugins", ko: 'DUNGSIL의 DSH 플러그인' })
+  assert.deepEqual(index.title, {
+    en: "DUNGSIL's DSH Plugins",
+    ko: 'DUNGSIL의 DSH 플러그인',
+    zh: 'DUNGSIL 的 DSH 插件',
+  })
   assert.deepEqual(index.description, {
     en: 'Korean-focused DeepSeek Harness plugins: Korean UI, writing skills, sidebar inbox, and secret input.',
     ko: '한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다.',
+    zh: 'DUNGSIL 开发的 DeepSeek Harness 插件集，专注于韩语使用体验，包含韩语界面、写作技能、侧边栏收件箱和私密凭据输入。',
   })
   assert.deepEqual(index.metadata, { categories: CATEGORIES, labels: LABELS })
   assert.equal(Object.hasOwn(index.metadata, 'sortKeys'), false)
@@ -509,6 +514,8 @@ await test('committed market index is a valid format-1 index of this workspace',
     const manifest = local.get(plugin.name)
     assert.ok(manifest, `${plugin.name} must be a local non-private package`)
     assert.ok(manifest.market, `${plugin.name} must declare market metadata`)
+    assert.ok(plugin.title.zh.trim(), `${plugin.name} must have a Chinese title`)
+    assert.ok(plugin.description.zh.trim(), `${plugin.name} must have a Chinese description`)
     assert.deepEqual(plugin.title, manifest.market.title)
     assert.deepEqual(plugin.description, manifest.market.description)
     assert.equal(plugin.author, AUTHOR)
@@ -525,6 +532,9 @@ await test('committed market index is a valid format-1 index of this workspace',
 
   assert.deepEqual(Object.keys(parsed.metadata.categories).sort(), ['skills', 'tools', 'ui'])
   assert.deepEqual(Object.keys(parsed.metadata.labels).sort(), ['accessibility', 'korean'])
+  for (const group of [parsed.metadata.categories, parsed.metadata.labels]) {
+    for (const entry of Object.values(group)) assert.ok(entry.title.zh.trim())
+  }
 
   assert.equal(local.get('@dungsil/dsh-plugin-model-settings').market, false)
   assert.equal(parsedByName.has('@dungsil/dsh-plugin-model-settings'), false)

@@ -49,11 +49,13 @@
     "order": 2,
     "title": {
       "en": "Korean IME",
-      "ko": "한국어 IME"
+      "ko": "한국어 IME",
+      "zh": "韩语输入法"
     },
     "description": {
       "en": "Sends the message when Enter commits a Korean IME composition, without changing other key behavior.",
-      "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다."
+      "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다.",
+      "zh": "按 Enter 确认韩语输入法组字时发送消息，不改变其他按键行为。"
     },
     "category": "ui",
     "labels": [

@@ -23,25 +23,64 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   let plugin
   const require = createRequire(import.meta.url)
   const hostDependencies = new Set()
+  let menuProps
+  let hostMenuRenders = 0
+  // Invocation-only boundary: this stub does not implement or verify host Menu
+  // layout, portal placement, pointer dismissal, keyboard handling, or focus.
+  function HostMenu(props) {
+    menuProps = props
+    hostMenuRenders++
+    return createElement(
+      'div',
+      { 'data-unit-host-menu': true },
+      props.anchor,
+      props.open &&
+        createElement(
+          'div',
+          { 'data-unit-menu-items': true },
+          props.items.map((item) =>
+            createElement(
+              'button',
+              {
+                key: item.id,
+                type: 'button',
+                'data-menu-id': item.id,
+                disabled: item.disabled,
+                onClick: () => props.onSelect(item.id),
+              },
+              item.icon,
+              item.label
+            )
+          )
+        )
+    )
+  }
+  const hostPrimitives = {
+    Menu: HostMenu,
+    IconPlusOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'plus' }),
+    IconRefreshOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'refresh' }),
+    IconCloseOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'close' }),
+    IconBranchOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'branch' }),
+    IconChevronDownOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'chevron' }),
+  }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) => {
       assert.equal(id, '@dungsil/dsh-plugin-ui-worktree')
       plugin = factory((specifier) => {
         assert.ok(['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'].includes(specifier))
         hostDependencies.add(specifier)
-        // DSH supplies this module; its unrelated UI dependencies are not part
-        // of this plugin's unit-test runtime. Keep the actual built client.
-        if (specifier === '@deepseek-ai/dsh-client-ui-primitives')
-          return {
-            IconBranchOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'branch' }),
-            IconChevronDownOutlineRegular: (props) => createElement('svg', { ...props, 'data-host-icon': 'chevron' }),
-          }
+        // DSH supplies this module; keep the actual built client and replace
+        // only the dependency boundary for unit invocation tests.
+        if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return hostPrimitives
         return require(specifier)
       })
     },
   }
   runInThisContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'))
-  assert.ok(hostDependencies.has('@deepseek-ai/dsh-client-ui-primitives'), 'icons must be provided by the host')
+  assert.ok(
+    hostDependencies.has('@deepseek-ai/dsh-client-ui-primitives'),
+    'Menu and icons must be provided by the host'
+  )
   const ctx = new Context()
   let Component
   let language = 'ko'
@@ -73,7 +112,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
       },
     }),
   })
-  ctx.provide('connection', {
+  const connection = {
     rpc: {
       call: (channel, endpoint, payload, signal) =>
         new Promise((resolve, reject) => {
@@ -83,7 +122,8 @@ await test('built composer uses direct worktree RPC without touching prompts or 
           calls.push({ endpoint: endpoint.split('/')[1], payload, signal, resolve, reject })
         }),
     },
-  })
+  }
+  ctx.provide('connection', connection)
   await ctx.plugin(plugin)
   const document = window.document
   document.body.innerHTML =
@@ -114,15 +154,26 @@ await test('built composer uses direct worktree RPC without touching prompts or 
         })
       )
     })
-  const select = () => document.querySelector('select')
+  const trigger = () => document.querySelector('.dsh-worktree-trigger')
+  const branchName = () => document.querySelector('.dsh-worktree-name').textContent
   const dialog = () => document.querySelector('dialog')
   const field = () => document.querySelector('input[type=text]')
   const submitButton = () => document.querySelector('button[type=submit]')
-  const choose = async (value) =>
-    act(async () => {
-      select().value = value
-      select().dispatchEvent(new window.Event('change', { bubbles: true }))
-    })
+  const openMenu = async () => {
+    if (!menuProps.open) await act(async () => trigger().click())
+  }
+  const choose = async (id) => {
+    if (trigger().disabled) {
+      // A stale host callback must remain harmless even when its trigger is
+      // disabled; the unit mock deliberately does not enforce this for us.
+      await act(async () => menuProps.onSelect(id))
+      return
+    }
+    await openMenu()
+    const item = Array.from(document.querySelectorAll('[data-menu-id]')).find((button) => button.dataset.menuId === id)
+    assert.ok(item, `host Menu must expose item ${id}`)
+    await act(async () => item.click())
+  }
   const refresh = async () =>
     act(async () => {
       document.querySelector('.dsh-worktree-refresh').click()
@@ -162,85 +213,143 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     worktrees: [...original.worktrees, { path: '/repo/new', branch: 'feature/한글-"quote"' }],
   }
 
-  await t.test('mount, native options, current no-op, create, switch, duplicate prevention and refresh', async () => {
-    await render()
-    assert.equal(select().disabled, true)
-    assert.equal(select().getAttribute('aria-busy'), 'true')
-    assert.match(document.querySelector('[role=status]').textContent, /불러오는 중/)
-    assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-a' })
-    const initial = calls.at(-1)
-    await focus()
-    await refresh()
-    assert.equal(calls.at(-1), initial, 'loading must serialize refreshes')
-    await resolve(initial, original)
-    assert.equal(select().disabled, false)
-    assert.equal(select().options[0].textContent, 'main')
-    assert.equal(select().title, 'main')
-    assert.deepEqual(
-      Array.from(select().options, (option) => option.value),
-      ['current', 'create', 'path:/repo/worktrees/path with space', 'path:/repo/detached']
-    )
-    assert.equal(select().options[2].textContent, 'feature/한글')
-    assert.equal(select().options[3].textContent, '분리된 HEAD')
-    const count = calls.length
-    await choose('current')
-    assert.equal(calls.length, count)
-    await choose('create')
-    assert.equal(dialog().open, true)
-    assert.equal(select().value, 'current')
-    await input('feature/한글-"quote"')
-    for (const options of [{ isComposing: true }, { keyCode: 229 }]) {
+  await t.test(
+    'mount, host Menu contract, current no-op, create, switch, duplicate prevention and refresh',
+    async () => {
+      await render()
+      assert.ok(!document.querySelector('select'), 'worktree chooser must use the host Menu, not a native select')
+      assert.ok(hostMenuRenders > 0, 'built client must render the Menu exported by the host dependency')
+      assert.equal(hostPrimitives.Menu, HostMenu)
+      assert.equal(menuProps.anchor.type, 'button')
+      assert.ok(menuProps.anchor.ref, 'the host Menu anchor must retain the trigger ref')
+      assert.equal(menuProps.side, 'top')
+      assert.equal(menuProps.portal, true)
+      assert.equal(menuProps.open, false)
+      assert.equal(typeof menuProps.onSelect, 'function')
+      assert.equal(typeof menuProps.onClose, 'function')
+      assert.equal(trigger().disabled, true)
+      assert.equal(trigger().getAttribute('aria-haspopup'), 'menu')
+      assert.equal(trigger().getAttribute('aria-expanded'), 'false')
+      assert.equal(trigger().getAttribute('aria-busy'), 'true')
+      assert.equal(trigger().getAttribute('aria-label'), 'Git worktree')
+      assert.equal(document.querySelector('.dsh-worktree-icon').tagName, 'SPAN')
+      assert.equal(document.querySelector('.dsh-worktree-icon').getAttribute('aria-hidden'), 'true')
+      assert.ok(document.querySelector('.dsh-worktree-icon svg[data-host-icon=branch]'))
+      assert.ok(document.querySelector('.dsh-worktree-chevron svg[data-host-icon=chevron]'))
+      assert.equal(document.querySelector('.dsh-worktree-chevron').tagName, 'SPAN')
+      assert.ok(document.querySelector('.dsh-worktree-refresh > svg'), 'refresh must use an SVG icon')
+      assert.ok(
+        !document.querySelector('[data-unit-host-menu] .dsh-worktree-refresh'),
+        'refresh must remain outside Menu'
+      )
+      assert.equal(
+        trigger().closest('.dsh-worktree-controls'),
+        document.querySelector('.dsh-worktree-refresh').parentElement
+      )
+      assert.match(document.querySelector('[role=status]').textContent, /불러오는 중/)
+      assert.deepEqual(calls.at(-1).payload, { sessionId: 'session-a' })
+      const initial = calls.at(-1)
+      await focus()
+      await refresh()
+      assert.equal(calls.at(-1), initial, 'loading must serialize refreshes')
+      await resolve(initial, original)
+      assert.equal(trigger().disabled, false)
+      assert.equal(branchName(), 'main')
+      assert.equal(trigger().title, 'main')
+      assert.equal(trigger().getAttribute('aria-label'), 'Git worktree: main')
+      assert.equal(menuProps.selectedId, 'path:/repo')
+      assert.deepEqual(
+        menuProps.items.map((item) => item.id),
+        ['create', 'path:/repo', 'path:/repo/worktrees/path with space', 'path:/repo/detached']
+      )
+      assert.deepEqual(
+        menuProps.items.map((item) => item.label),
+        ['신규 워크트리…', 'main', 'feature/한글', '분리된 HEAD']
+      )
+      assert.equal(menuProps.items[0].icon.type, hostPrimitives.IconPlusOutlineRegular)
+      for (const item of menuProps.items.slice(1)) assert.equal(item.icon.type, hostPrimitives.IconBranchOutlineRegular)
+      await openMenu()
+      assert.equal(menuProps.open, true)
+      assert.equal(trigger().getAttribute('aria-expanded'), 'true')
+      await act(async () => menuProps.onClose())
+      assert.equal(menuProps.open, false, 'owner must honor host Menu dismissal')
+      const count = calls.length
+      await choose('path:/repo')
+      assert.equal(calls.length, count)
+      assert.equal(menuProps.open, false, 'current path selection must close without RPC')
+      await choose('create')
+      assert.equal(dialog().open, true)
+      assert.equal(menuProps.open, false, 'create must close Menu before opening the existing dialog')
+      assert.equal(menuProps.selectedId, 'path:/repo')
+      await input('feature/한글-"quote"')
+      for (const options of [{ isComposing: true }, { keyCode: 229 }]) {
+        await act(async () => {
+          const event = new window.KeyboardEvent('keydown', {
+            key: 'Enter',
+            bubbles: true,
+            cancelable: true,
+            ...options,
+          })
+          field().dispatchEvent(event)
+          assert.equal(event.defaultPrevented, true, 'IME Enter must not submit')
+        })
+      }
+      const beforeCreate = calls.length
       await act(async () => {
-        const event = new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...options })
-        field().dispatchEvent(event)
-        assert.equal(event.defaultPrevented, true, 'IME Enter must not submit')
+        for (let index = 0; index < 2; index++)
+          document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
       })
+      assert.equal(calls.length, beforeCreate + 1, 'same-tick double submission must be serialized')
+      const create = calls.at(-1)
+      assert.equal(create.endpoint, 'create')
+      assert.deepEqual(create.payload, { sessionId: 'session-a', cwd: '/repo', name: 'feature/한글-"quote"' })
+      await submit()
+      await choose('path:/repo/detached')
+      await focus()
+      await refresh()
+      assert.equal(calls.at(-1), create, 'one mutation only while busy')
+      assert.equal(submitButton().disabled, true)
+      await act(async () => {
+        const cancel = new window.Event('cancel', { cancelable: true })
+        dialog().dispatchEvent(cancel)
+        assert.equal(cancel.defaultPrevented, true, 'Escape must not hide an in-flight mutation')
+      })
+      await resolve(create, created)
+      assert.equal(dialog().open, false)
+      assert.equal(calls.at(-1).endpoint, 'describe', 'success must refresh the list')
+      await resolve(calls.at(-1), created)
+      assert.equal(field().value, '')
+      assert.equal(document.activeElement, trigger(), 'return focus after success refresh finishes')
+      assert.equal(branchName(), 'feature/한글-"quote"')
+      assert.equal(trigger().getAttribute('aria-label'), 'Git worktree: feature/한글-"quote"')
+      await choose(`path:${switched.cwd}`)
+      const change = calls.at(-1)
+      assert.equal(change.endpoint, 'switch')
+      assert.deepEqual(change.payload, { sessionId: 'session-a', cwd: '/repo/new', path: switched.cwd })
+      await resolve(change, switched)
+      await resolve(calls.at(-1), switched)
+      assert.equal(branchName(), 'feature/한글')
+      await focus()
+      assert.equal(calls.at(-1).endpoint, 'describe')
+      await resolve(calls.at(-1), switched)
+      assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
+      assert.equal(document.querySelector('[data-attachment]').textContent, 'file.txt')
+      assert.equal(prompts, 0)
+      const css = document.querySelector('style').textContent
+      assert.match(css, /\.dsh-worktree-trigger/)
+      assert.doesNotMatch(css, /\.dsh-worktree-select/)
+      assert.equal(document.querySelector('.dsh-worktree-chevron').getAttribute('aria-hidden'), 'true')
+      await openMenu()
+      assert.equal(menuProps.open, true)
+      await act(async () => window.dispatchEvent(new window.Event('resize')))
+      assert.equal(menuProps.open, false, 'resize must close the owner-controlled Menu')
+      await openMenu()
+      await refresh()
+      assert.equal(menuProps.open, false, 'loading must close Menu')
+      assert.equal(trigger().disabled, true)
+      await resolve(calls.at(-1), switched)
     }
-    const beforeCreate = calls.length
-    await act(async () => {
-      for (let index = 0; index < 2; index++)
-        document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
-    })
-    assert.equal(calls.length, beforeCreate + 1, 'same-tick double submission must be serialized')
-    const create = calls.at(-1)
-    assert.equal(create.endpoint, 'create')
-    assert.deepEqual(create.payload, { sessionId: 'session-a', cwd: '/repo', name: 'feature/한글-"quote"' })
-    await submit()
-    await choose('path:/repo/detached')
-    await focus()
-    await refresh()
-    assert.equal(calls.at(-1), create, 'one mutation only while busy')
-    assert.equal(submitButton().disabled, true)
-    await act(async () => {
-      const cancel = new window.Event('cancel', { cancelable: true })
-      dialog().dispatchEvent(cancel)
-      assert.equal(cancel.defaultPrevented, true, 'Escape must not hide an in-flight mutation')
-    })
-    await resolve(create, created)
-    assert.equal(dialog().open, false)
-    assert.equal(calls.at(-1).endpoint, 'describe', 'success must refresh the list')
-    await resolve(calls.at(-1), created)
-    assert.equal(field().value, '')
-    assert.equal(document.activeElement, select(), 'return focus after success refresh finishes')
-    assert.equal(select().options[0].textContent, 'feature/한글-"quote"')
-    await choose(`path:${switched.cwd}`)
-    const change = calls.at(-1)
-    assert.equal(change.endpoint, 'switch')
-    assert.deepEqual(change.payload, { sessionId: 'session-a', cwd: '/repo/new', path: switched.cwd })
-    await resolve(change, switched)
-    await resolve(calls.at(-1), switched)
-    assert.equal(select().options[0].textContent, 'feature/한글')
-    await focus()
-    assert.equal(calls.at(-1).endpoint, 'describe')
-    await resolve(calls.at(-1), switched)
-    assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
-    assert.equal(document.querySelector('[data-attachment]').textContent, 'file.txt')
-    assert.equal(prompts, 0)
-    const css = document.querySelector('style').textContent
-    assert.match(css, /appearance: none/)
-    assert.match(css, /pointer-events: none/)
-    assert.equal(document.querySelector('.dsh-worktree-chevron').getAttribute('aria-hidden'), 'true')
-  })
+  )
 
   await t.test('failures require explicit refresh, preserve branch drafts, and never retry automatically', async () => {
     await choose('create')
@@ -281,14 +390,14 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(calls.at(-1), created)
     await fail(calls.at(-1), 'operation_failed')
     assert.equal(dialog().open, false)
-    assert.ok(document.querySelector('.dsh-worktree-error'))
-    assert.equal(select().disabled, true, 'failed success-refresh must require explicit recovery')
+    assert.ok(document.querySelector('.dsh-worktree-error-trigger'))
+    assert.equal(trigger().disabled, true, 'failed success-refresh must require explicit recovery')
     await refresh()
     await resolve(calls.at(-1), created)
     await choose('path:/repo')
     const failedSwitch = calls.at(-1)
     await fail(failedSwitch, 'conflict')
-    assert.equal(select().value, 'current')
+    assert.equal(menuProps.selectedId, 'path:/repo/new')
     await focus()
     assert.equal(calls.at(-1), failedSwitch)
     await refresh()
@@ -305,7 +414,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     const other = { cwd: '/other', worktrees: [{ path: '/other', branch: 'other' }] }
     await resolve(newRead, other)
     await resolve(oldRead, original)
-    assert.equal(select().options[0].textContent, 'other')
+    assert.equal(branchName(), 'other')
     await choose('create')
     await input('old-session-branch')
     await submit()
@@ -319,7 +428,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(calls.length, count, 'stale mutation must not refresh the new session')
     assert.equal(dialog().open, false)
     assert.equal(field().value, '')
-    assert.equal(select().options[0].textContent, 'main')
+    assert.equal(branchName(), 'main')
     await choose('create')
     await submit()
     assert.equal(calls.at(-1).payload.sessionId, 'session-c')
@@ -330,18 +439,23 @@ await test('built composer uses direct worktree RPC without touching prompts or 
   await t.test('initial errors, empty lists, locale, idle restrictions, and dismissal remain accessible', async () => {
     await render('session-empty')
     await fail(calls.at(-1), 'forbidden')
-    assert.equal(select().disabled, true)
+    assert.equal(trigger().disabled, true)
     assert.equal(document.querySelector('.dsh-worktree-refresh').disabled, false)
     await refresh()
     await resolve(calls.at(-1), { cwd: '/not-git', worktrees: [] })
     assert.match(document.querySelector('[role=status]').textContent, /Git worktree가 없습니다/)
-    assert.equal(select().options[0].textContent, '브랜치 확인 불가')
-    assert.equal(select().options.length, 2)
+    assert.equal(branchName(), '브랜치 확인 불가')
+    assert.equal(menuProps.selectedId, undefined)
+    assert.deepEqual(
+      menuProps.items.map((item) => item.id),
+      ['create'],
+      'unavailable branch is a label, never a selectable synthetic item'
+    )
     await act(async () => {
       language = 'en'
       for (const listener of locale.listeners) listener()
     })
-    assert.equal(select().options[0].textContent, 'Branch unavailable')
+    assert.equal(branchName(), 'Branch unavailable')
     await choose('create')
     assert.equal(document.querySelector('h2').textContent, 'Create worktree')
     await input('retained-on-dismiss')
@@ -362,7 +476,7 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     ]) {
       snapshot = state
       await render('session-empty')
-      assert.equal(select().disabled, true)
+      assert.equal(trigger().disabled, true)
       assert.equal(submitButton().disabled, true)
       const count = calls.length
       await submit()
@@ -376,11 +490,157 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     assert.equal(dialog().open, false)
     await refresh()
     await resolve(calls.at(-1), { ...original, cwd: '/repo/detached' })
-    assert.equal(select().options[0].textContent, 'Detached HEAD')
+    assert.equal(branchName(), 'Detached HEAD')
     await refresh()
     await resolve(calls.at(-1), { ...original, cwd: '/repo/worktrees/path with space/src' })
-    assert.equal(select().options[0].textContent, 'feature/한글')
+    assert.equal(branchName(), 'feature/한글')
+    assert.equal(menuProps.selectedId, 'path:/repo/worktrees/path with space')
+    assert.deepEqual(
+      menuProps.items.map((item) => item.id),
+      ['create', ...original.worktrees.map((item) => `path:${item.path}`)]
+    )
+    const count = calls.length
+    await choose(menuProps.selectedId)
+    assert.equal(calls.length, count, 'a nested cwd must still identify the selected worktree as a no-op')
     assert.equal(prompts, 0)
     assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
+  })
+
+  await t.test('Windows cwd separators identify the current worktree without a redundant switch', async () => {
+    const windows = {
+      cwd: 'C:\\repo\\feature\\src',
+      worktrees: [
+        { path: 'C:/repo', branch: 'main' },
+        { path: 'C:/repo/feature', branch: 'windows-feature' },
+      ],
+    }
+    await render('session-windows')
+    await resolve(calls.at(-1), windows)
+    assert.equal(branchName(), 'windows-feature')
+    assert.equal(menuProps.selectedId, 'path:C:/repo/feature')
+    const count = calls.length
+    await choose(menuProps.selectedId)
+    assert.equal(calls.length, count)
+    await refresh()
+    await resolve(calls.at(-1), { ...windows, cwd: 'c:\\repo\\' })
+    assert.equal(branchName(), 'main')
+    await refresh()
+    await resolve(calls.at(-1), {
+      cwd: '\\\\server\\share\\repo\\src',
+      worktrees: [{ path: '//server/share/repo', branch: 'network-share' }],
+    })
+    assert.equal(branchName(), 'network-share')
+  })
+
+  await t.test('lookup errors use a compact details control without exposing raw server text', async () => {
+    await act(async () => {
+      language = 'ko'
+      for (const listener of locale.listeners) listener()
+    })
+    await render('session-error-details')
+    await fail(calls.at(-1), 'busy')
+    assert.ok(!document.querySelector('.dsh-worktree-error'), 'long errors must not appear in the composer toolbar')
+    const details = document.querySelector('.dsh-worktree-error-trigger')
+    assert.ok(details)
+    assert.equal(details.textContent, '조회 실패')
+    assert.equal(details.getAttribute('aria-haspopup'), 'dialog')
+    await act(async () => details.click())
+    const errorDialog = document.querySelector('.dsh-worktree-error-dialog')
+    assert.equal(errorDialog.open, true)
+    assert.match(errorDialog.textContent, /busy/)
+    assert.match(errorDialog.textContent, /작업/)
+    assert.doesNotMatch(errorDialog.textContent, /Server detail/)
+    await act(async () => errorDialog.querySelector('button[data-worktree-retry]').click())
+    assert.equal(calls.at(-1).endpoint, 'describe')
+    await resolve(calls.at(-1), original)
+    assert.equal(errorDialog.open, false)
+    assert.equal(document.querySelector('.dsh-worktree-error-trigger'), null)
+    assert.equal(branchName(), 'main')
+    assert.equal(document.activeElement, trigger())
+  })
+
+  await t.test(
+    'client and transport failures expose safe codes without raw details and remain recoverable',
+    async () => {
+      const warn = console.warn
+      const logs = []
+      console.warn = (...args) => logs.push(args)
+      const originalCall = connection.rpc.call
+      try {
+        connection.rpc.call = undefined
+        await render('session-no-rpc')
+        assert.equal(logs.at(-1)[1].code, 'client_unavailable')
+        assert.match(document.querySelector('.dsh-worktree-error-dialog').textContent, /client_unavailable/)
+        connection.rpc.call = originalCall
+        await refresh()
+        await resolve(calls.at(-1), original)
+        for (const [failure, expectedCode] of [
+          [new Error('private credential detail: HTTP 401'), 'auth_required'],
+          [{ code: 'private credential detail' }, 'operation_failed'],
+        ]) {
+          await refresh()
+          await act(async () => calls.at(-1).reject(failure))
+          assert.equal(logs.at(-1)[1].code, expectedCode)
+          const details = document.querySelector('.dsh-worktree-error-trigger')
+          await act(async () => details.click())
+          const errorDialog = document.querySelector('.dsh-worktree-error-dialog')
+          assert.equal(errorDialog.open, true)
+          assert.match(errorDialog.textContent, new RegExp(expectedCode))
+          assert.doesNotMatch(errorDialog.textContent, /private credential detail/)
+          await act(async () => errorDialog.querySelector('header button').click())
+          assert.equal(errorDialog.open, false)
+          assert.equal(document.activeElement, details)
+          await focus()
+          const failed = calls.at(-1)
+          await focus()
+          assert.equal(calls.at(-1), failed)
+          await refresh()
+          await resolve(calls.at(-1), original)
+        }
+        await refresh()
+        await resolve(calls.at(-1), { cwd: '/repo', worktrees: [null] })
+        assert.equal(logs.at(-1)[1].code, 'invalid_response')
+        assert.doesNotMatch(JSON.stringify(logs), /private credential detail/)
+        assert.ok(
+          logs.every(
+            ([prefix, detail]) =>
+              prefix === '[dungsil-ui-worktree]' && Object.keys(detail).join(',') === 'operation,code'
+          )
+        )
+        await refresh()
+        await resolve(calls.at(-1), original)
+      } finally {
+        connection.rpc.call = originalCall
+        console.warn = warn
+      }
+    }
+  )
+
+  await t.test('owner closes Menu on every session lock and rejects stale selections', async () => {
+    await render('session-empty')
+    await resolve(calls.at(-1), original)
+    for (const state of [
+      { ...ready, running: true },
+      { ...ready, removed: true },
+      { ...ready, openState: 'loading' },
+      { ...ready, pendingSubmissions: [{}] },
+    ]) {
+      snapshot = ready
+      await render('session-empty')
+      await openMenu()
+      assert.equal(menuProps.open, true)
+      snapshot = state
+      await render('session-empty')
+      assert.equal(trigger().disabled, true)
+      assert.equal(menuProps.open, false, 'a locked session must close the owner-controlled Menu')
+      assert.equal(trigger().getAttribute('aria-expanded'), 'false')
+      const count = calls.length
+      await choose('create')
+      await choose('path:/repo')
+      assert.equal(dialog().open, false, 'disabled create selection must not open a dialog')
+      assert.equal(calls.length, count, 'disabled switch selection must not call RPC')
+    }
+    snapshot = ready
+    await render('session-empty')
   })
 })

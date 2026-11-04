@@ -68,11 +68,13 @@
     "order": 7.1,
     "title": {
       "en": "Task Models UI",
-      "ko": "상황별 모델"
+      "ko": "상황별 모델",
+      "zh": "任务模型设置"
     },
     "description": {
       "en": "Choose a session title model in settings. Includes the task model configuration API.",
-      "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다."
+      "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다.",
+      "zh": "在设置中选择会话标题生成模型，同时安装任务模型配置 API。"
     },
     "category": "ui",
     "labels": [],

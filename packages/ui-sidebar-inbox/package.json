@@ -71,11 +71,13 @@
     "order": 5,
     "title": {
       "en": "Sidebar Inbox",
-      "ko": "사이드바 수신함"
+      "ko": "사이드바 수신함",
+      "zh": "侧边栏收件箱"
     },
     "description": {
       "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
-      "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다."
+      "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다.",
+      "zh": "将侧边栏会话分为收件箱、进行中和已归档列表，不改变现有侧边栏外观。"
     },
     "category": "ui",
     "labels": [],
