@@ -2,14 +2,14 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { SegmentedControl, Switch } from '@dungsil/dsh-ui'
+import { Button, SegmentedControl, Switch } from '@dungsil/dsh-ui'
 import { IconChevronRightOutlineRegular } from '@dungsil/dsh-ui/icons'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
-import { channel, method, saveMethod, type SkillsView } from './protocol.js'
+import { channel, method, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
@@ -42,6 +42,78 @@ const styles = `
 .dsh-skills-list-header { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 `
 
+function SkillDescription({
+  skill,
+  connection,
+  language,
+  available,
+  expanded,
+}: {
+  skill: SkillsView['skills'][number]
+  connection: ConnectionHandle
+  language: string
+  available: boolean
+  expanded: boolean
+}) {
+  const text = localizedCopy(language)
+  const [translated, setTranslated] = useState<string>()
+  const [original, setOriginal] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    setTranslated(undefined)
+    setOriginal(false)
+    setPending(false)
+    setFailed(false)
+    if (!expanded || !available || !skill.path || !skill.description) return
+    const request = new AbortController()
+    setPending(true)
+    void (async () => {
+      try {
+        const result = await connection.rpc.call(
+          channel,
+          translateMethod,
+          { path: skill.path, language },
+          request.signal
+        )
+        if (request.signal.aborted) return
+        if (!result.ok || typeof result.value !== 'string') throw new Error('Could not translate description')
+        setTranslated(result.value)
+      } catch {
+        if (!request.signal.aborted) setFailed(true)
+      } finally {
+        if (!request.signal.aborted) setPending(false)
+      }
+    })()
+    return () => request.abort()
+  }, [expanded, skill.description, skill.path, language, available, connection, retry])
+
+  return (
+    <>
+      <p>{original || translated === undefined ? skill.description : translated}</p>
+      {available && skill.path && skill.description && (
+        <>
+          {pending && <p role="status">{text.translating}</p>}
+          {translated !== undefined && (
+            <Button variant="ghost" size="sm" onClick={() => setOriginal((value) => !value)}>
+              {original ? text.translate : text.original}
+            </Button>
+          )}
+          {failed && (
+            <>
+              <p role="alert">{text.translationError}</p>
+              <Button variant="ghost" size="sm" onClick={() => setRetry((value) => value + 1)}>
+                {text.retry}
+              </Button>
+            </>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 function SkillsSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
     (listener) => ctx.locale.subscribe(listener),
@@ -56,6 +128,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const mounted = useRef(false)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [source, setSource] = useState<'user-agents' | 'user-dsh'>('user-agents')
   const groups = (['user-agents', 'user-dsh'] as const).map((value) => ({
     value,
@@ -105,6 +178,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   return (
     <section className="dsh-skills-settings" aria-label={text.nav} aria-busy={!view && !error}>
       <p className="dsh-skills-muted">{text.description}</p>
+      {view?.translationAvailable && <p className="dsh-skills-muted">{text.translationNotice}</p>}
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
       {saveError && <p role="alert">{text.saveError}</p>}
@@ -141,7 +215,12 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                   <ul>
                     {group.skills.map((skill) => (
                       <li key={skill.path ?? skill.name}>
-                        <details>
+                        <details
+                          onToggle={(event) => {
+                            const open = event.currentTarget.open
+                            setExpanded((current) => ({ ...current, [skill.path ?? skill.name]: open }))
+                          }}
+                        >
                           <summary aria-label={skill.name}>
                             <IconChevronRightOutlineRegular size={16} aria-hidden="true" />
                             <span className="dsh-skills-summary-text">
@@ -157,7 +236,13 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                             </span>
                           </summary>
                           <div className="dsh-skills-detail">
-                            <p>{skill.description}</p>
+                            <SkillDescription
+                              skill={skill}
+                              connection={connection}
+                              language={locale.active}
+                              available={view.translationAvailable && source === group.value}
+                              expanded={expanded[skill.path ?? skill.name] ?? false}
+                            />
                             {skill.path && (
                               <p className="dsh-skills-muted">
                                 <code>{skill.path}</code>

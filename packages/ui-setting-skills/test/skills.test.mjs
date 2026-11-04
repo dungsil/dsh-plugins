@@ -93,11 +93,14 @@ async function fixture(t, withRegistry = false) {
   await start()
   const fetch = (body, peer = owner) =>
     ctx.connection.createSharedFetchHandler('/api').fetch(
-      new Request(body?.method === 'dungsil-ui-setting-skills/save' ? `http://localhost/api/${body.method}` : url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: typeof body === 'string' ? body : JSON.stringify(body),
-      }),
+      new Request(
+        body?.method?.startsWith('dungsil-ui-setting-skills/') ? `http://localhost/api/${body.method}` : url,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+        }
+      ),
       peer
     )
   const request = { type: 'client-request', rpcId: 'skills-test', method, payload: {} }
@@ -155,6 +158,7 @@ await test('discovers both user roots without a global skill registry, including
     result: {
       ok: true,
       value: {
+        translationAvailable: false,
         disabled: ['not-installed'],
         complete: true,
         skills: [
@@ -184,13 +188,79 @@ await test('discovers both user roots without a global skill registry, including
 
 await test('returns empty missing roots and rereads additions and removals on the next request', async (t) => {
   const h = await fixture(t)
-  assert.deepEqual(await h.rpc(), { ok: true, value: { disabled: ['not-installed'], complete: true, skills: [] } })
+  const empty = { translationAvailable: false, disabled: ['not-installed'], complete: true, skills: [] }
+  assert.deepEqual(await h.rpc(), { ok: true, value: empty })
   const path = await h.skill(h.dsh, 'planning-work', 'New entry')
   assert.deepEqual((await h.rpc()).value.skills, [
     { name: 'planning-work', description: 'New entry', source: 'user-dsh', path },
   ])
   await rm(path)
-  assert.deepEqual(await h.rpc(), { ok: true, value: { disabled: ['not-installed'], complete: true, skills: [] } })
+  assert.deepEqual(await h.rpc(), { ok: true, value: empty })
+})
+
+await test('translates only discovered descriptions using accepted preferences without changing skills', async (t) => {
+  const h = await fixture(t)
+  const path = await h.skill(h.agents, 'planning-work', 'Plan the next task')
+  const before = await readFile(path, 'utf8')
+  const translate = async (payload, peer) => {
+    const response = await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/translate', payload }, peer)
+    return response.status === 200 ? (await response.json()).result : response.status
+  }
+  assert.equal((await translate({ path, language: 'ko' })).ok, false)
+  let targetLanguage = 'auto'
+  let selectedProvider = 'google'
+  let fail = false
+  const translator = {
+    limits: async () => ({ preferences: { provider: selectedProvider, targetLanguage } }),
+    translate: async (request, signal) => {
+      signal.throwIfAborted()
+      if (fail) throw new Error('Private provider error')
+      assert.deepEqual(request, {
+        text: 'Plan the next task',
+        provider: selectedProvider,
+        targetLanguage: targetLanguage === 'auto' ? 'ko' : targetLanguage,
+      })
+      return request.targetLanguage === 'ko' ? '다음 작업을 계획합니다' : '规划下一项任务'
+    },
+  }
+  h.ctx.provide('cotTranslation', translator)
+  assert.equal((await h.rpc()).value.translationAvailable, true)
+  assert.deepEqual(await translate({ path, language: 'ko', text: 'Untrusted replacement' }), {
+    ok: true,
+    value: '다음 작업을 계획합니다',
+  })
+  // Persisted results remain usable even when the provider is offline, including after restart.
+  fail = true
+  assert.deepEqual(await translate({ path, language: 'ko' }), { ok: true, value: '다음 작업을 계획합니다' })
+  await h.restart()
+  h.ctx.provide('cotTranslation', translator)
+  assert.deepEqual(await translate({ path, language: 'ko' }), { ok: true, value: '다음 작업을 계획합니다' })
+  fail = false
+  targetLanguage = 'zh'
+  assert.deepEqual(await translate({ path, language: 'ko' }), { ok: true, value: '规划下一项任务' })
+  assert.equal((await translate({ path: '/unknown', language: 'ko' })).ok, false)
+  for (const payload of [null, {}, { path, language: 42 }]) assert.equal(await translate(payload), 400)
+  for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
+    assert.equal(await translate({ path, language: 'ko' }, { principal, interactions: 'deny' }), 403)
+  }
+  fail = true
+  targetLanguage = 'en'
+  assert.deepEqual(await translate({ path, language: 'ko' }), {
+    ok: false,
+    error: { code: 'translation_failed', message: 'Could not translate skill description.', details: {} },
+  })
+  assert.equal(await readFile(path, 'utf8'), before)
+  assert.equal((await h.rpc()).value.skills[0].description, 'Plan the next task')
+  targetLanguage = 'auto'
+  selectedProvider = 'bing'
+  assert.equal((await translate({ path, language: 'ko' })).ok, false)
+  selectedProvider = 'google'
+  await h.skill(h.agents, 'planning-work', 'Changed description')
+  assert.equal((await translate({ path, language: 'ko' })).ok, false)
+  await h.skill(h.agents, 'planning-work', 'Plan the next task')
+  assert.equal((await translate({ path, language: 'ko' })).ok, true)
+  await h.fiber.dispose()
+  assert.equal(await translate({ path, language: 'ko' }), 404)
 })
 
 await test('persists DSH-only disabling across reloads without changing skill files, and restores lookup on re-enable', async (t) => {
