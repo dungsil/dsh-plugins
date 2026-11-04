@@ -207,9 +207,6 @@ export function apply(ctx: Context) {
             aria-controls={panel ? id : undefined}
             onClick={(event) => show(event.currentTarget)}
           >
-            <span className="dsh-codex-icon" aria-hidden="true">
-              ϟ
-            </span>
             <span className="dsh-codex-name">
               {panel ? (
                 text.choose
@@ -243,16 +240,6 @@ export function apply(ctx: Context) {
                 </button>
               ) : (
                 <header className="dsh-codex-header">
-                  <svg
-                    className="dsh-codex-bolt"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path d="M9.2 1.5 3 8.3a.7.7 0 0 0 .5 1.2h3.1l-.8 4.1a.5.5 0 0 0 .9.4L13 7.2a.7.7 0 0 0-.5-1.2H9.4l.7-4.1a.5.5 0 0 0-.9-.4Z" />
-                  </svg>
                   <button
                     type="button"
                     className="dsh-codex-model"
