@@ -4,14 +4,6 @@ packages:
   - packages/*
   - tools/*
 
-# The published store imports these at runtime but lists them as devDependencies.
-# Model-picker integration tests execute the real host directory/store.
-packageExtensions:
-  '@deepseek-ai/dsh-client-store@0.2.1-rc.5':
-    dependencies:
-      zustand: 4.5.7
-      immer: 10.1.1
-
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
