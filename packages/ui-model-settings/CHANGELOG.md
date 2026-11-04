@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-model-settings
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-settings%400.4.0...%40dungsil%2Fdsh-plugin-ui-model-settings%400.5.0) (2026-11-04)
+
+### Features
+
+- **model-settings:** 상황별 모델에 공통 보조 모델을 추가한다 ([#79](https://github.com/dungsil/dsh-plugins/issues/79)) ([ce1503e](https://github.com/dungsil/dsh-plugins/commit/ce1503efd9cdc93e8daed8afe108b49835e15429))
+
+### Bug Fixes
+
+- **model-settings:** 상황별 모델 설정에 용도 설명을 추가한다 ([#76](https://github.com/dungsil/dsh-plugins/issues/76)) ([b609bed](https://github.com/dungsil/dsh-plugins/commit/b609bed0a7b3a1b627157e2ce379f32f48979b3e))
+- **ui:** 상황별 모델과 워크트리 설정 아이콘을 구분한다 ([#78](https://github.com/dungsil/dsh-plugins/issues/78)) ([96c80d8](https://github.com/dungsil/dsh-plugins/commit/96c80d81d24b2b6ae1bbf7222b6d7f400a0519bc))
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-settings%400.3.0...%40dungsil%2Fdsh-plugin-ui-model-settings%400.4.0) (2026-11-04)
 
 ### Features

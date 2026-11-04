@@ -272,7 +272,7 @@ export function apply(ctx: Context, config: Config) {
     for (const record of output.split('\0\0')) {
       const fields = record.split('\0')
       const path = fields.find((field) => field.startsWith('worktree '))?.slice(9)
-      if (!path || fields.includes('bare')) continue
+      if (!path || fields.includes('bare') || fields.some((field) => /^prunable(?: |$)/.test(field))) continue
       const branch = fields.find((field) => field.startsWith('branch refs/heads/'))?.slice(18) ?? null
       worktrees.push({ path, branch })
     }
@@ -341,37 +341,89 @@ export function apply(ctx: Context, config: Config) {
     // Existing branches (including a conflicting namespace) are rejected before allocating paths.
     if (await git(['for-each-ref', '--format=%(refname)', `refs/heads/${branch}`]))
       throw new Error('Branch already exists')
-    const pool = ctx.fs.processPath(await ctx.fs.resolve(config.directory.trim(), { cwd: root, signal }))
-    const path = ctx.fs.processPath(await ctx.fs.resolve(branch, { cwd: pool, signal }))
-    // Directory allocation is exclusive and runs under the unchanged Session policy.
-    await run(
-      agent,
-      cwd,
-      [
-        '--input-type=module',
-        '-e',
-        `
-      import fs from 'node:fs/promises';
-      import path from 'node:path';
-      const [root, destination] = process.argv.slice(1);
-      await fs.mkdir(path.dirname(root), { recursive: true });
-      try {
-        await fs.mkdir(root);
-        await fs.writeFile(path.join(root, '.gitignore'), '*\\n', { flag: 'wx' });
-      } catch (error) { if (error.code !== 'EEXIST') throw error; }
-      await fs.mkdir(path.dirname(destination), { recursive: true });
-      await fs.mkdir(destination);
-    `,
-        pool,
-        path,
-      ],
-      signal,
-      'node'
-    )
+    // Keep paths lexical until the allocator has rejected every symlink component.
+    // Resolving through ctx.fs first would hide repository-controlled redirects.
+    const allocate = async (checkOnly = false) =>
+      JSON.parse(
+        await run(
+          agent,
+          cwd,
+          [
+            '--input-type=module',
+            '-e',
+            `
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          const [source, configured, branch, checkOnly] = process.argv.slice(1);
+          let pool = path.resolve(source, configured);
+          const fromSource = path.relative(source, pool);
+          // An explicitly configured external pool may use owner-selected symlinks.
+          // Repository-relative pools must be inspected before following links.
+          if (fromSource === '..' || fromSource.startsWith('..' + path.sep) || path.isAbsolute(fromSource)) {
+            async function canonicalParent(target) {
+              try { return await fs.realpath(target); }
+              catch (error) {
+                if (error.code !== 'ENOENT') throw error;
+                const parent = path.dirname(target);
+                if (parent === target) throw error;
+                return path.join(await canonicalParent(parent), path.basename(target));
+              }
+            }
+            pool = await canonicalParent(pool);
+          }
+          const destination = path.resolve(pool, branch);
+          const relative = path.relative(pool, destination);
+          if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative))
+            throw new Error('Invalid destination');
+          async function walk(target, create) {
+            let current = path.parse(target).root;
+            for (const component of target.slice(current.length).split(path.sep).filter(Boolean)) {
+              current = path.join(current, component);
+              if (create) {
+                try { await fs.mkdir(current); }
+                catch (error) { if (error.code !== 'EEXIST') throw error; }
+              }
+              const info = await fs.lstat(current);
+              if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe directory');
+            }
+            if (await fs.realpath(target) !== target) throw new Error('Directory changed');
+          }
+          await walk(path.dirname(pool), !checkOnly);
+          if (!checkOnly) {
+            try {
+              await fs.mkdir(pool);
+              await fs.writeFile(path.join(pool, '.gitignore'), '*\\n', { flag: 'wx' });
+            } catch (error) { if (error.code !== 'EEXIST') throw error; }
+          }
+          await walk(pool, false);
+          await walk(path.dirname(destination), !checkOnly);
+          if (!checkOnly) await fs.mkdir(destination);
+          await walk(destination, false);
+          process.stdout.write(JSON.stringify(destination));
+        `,
+            root,
+            config.directory.trim(),
+            branch,
+            checkOnly ? 'check' : '',
+          ],
+          signal,
+          'node'
+        )
+      ) as string
+    const path = await allocate()
     report(2)
+    await allocate(true)
     await git(['worktree', 'add', '--no-checkout', '-b', branch, '--', path, commit])
     // Disable checkout filters just as the host runtime does; never execute repository programs.
-    const filters = await git(['config', '--null', '--name-only', '--get-regexp', '^filter\\.'], undefined, [0, 1])
+    const filters = await run(
+      agent,
+      path,
+      ['--work-tree', path, 'config', '--null', '--name-only', '--get-regexp', '^filter\\.'],
+      signal,
+      'git',
+      {},
+      [0, 1]
+    )
     const drivers = new Set(
       filters.split('\0').flatMap((key) => {
         const separator = key.lastIndexOf('.')
@@ -387,6 +439,7 @@ export function apply(ctx: Context, config: Config) {
         env[`GIT_CONFIG_KEY_${index}`] = `filter.${driver}.${attribute}`
         env[`GIT_CONFIG_VALUE_${index++}`] = attribute === 'required' ? 'false' : ''
       }
+    await allocate(true)
     await run(
       agent,
       path,
@@ -473,7 +526,32 @@ export function apply(ctx: Context, config: Config) {
         } else {
           const view = await describe(agent, operationSignal)
           if (!view.worktrees.some((entry) => entry.path === input.path)) return failure('invalid')
-          await ctx.workingDirectory.set(agent, input.path as string, operationSignal)
+          const targetPath = input.path as string
+          const resolve = (path: string, cwd: string) => ctx.fs.resolve(path, { cwd, signal: operationSignal })
+          const sourceCwd = await ctx.workingDirectory.ensure(agent, operationSignal)
+          const rev = async (cwd: string, option: string) =>
+            (await run(agent, cwd, ['rev-parse', '--path-format=absolute', option], operationSignal)).replace(
+              /\r?\n$/,
+              ''
+            )
+          const target = await resolve(targetPath, sourceCwd)
+          const top = await resolve(await rev(targetPath, '--show-toplevel'), targetPath)
+          const common = await resolve(await rev(sourceCwd, '--git-common-dir'), sourceCwd)
+          const targetCommon = await resolve(await rev(targetPath, '--git-common-dir'), targetPath)
+          if (target.targetKey !== top.targetKey || common.targetKey !== targetCommon.targetKey)
+            return failure('invalid')
+          const admin = await resolve(await rev(targetPath, '--absolute-git-dir'), targetPath)
+          const dotGitInfo = await ctx.fs.lstat('.git', { cwd: targetPath }, operationSignal)
+          if (!dotGitInfo || !['file', 'directory'].includes(dotGitInfo.type)) return failure('invalid')
+          const dotGit = await resolve('.git', targetPath)
+          if (admin.targetKey !== common.targetKey) {
+            const backlink = await resolve('gitdir', ctx.fs.processPath(admin))
+            const bytes = await ctx.fs.readBytes(backlink, operationSignal, 8192)
+            const linkedPath = new TextDecoder().decode(bytes).replace(/\r?\n$/, '')
+            const linked = await resolve(linkedPath, ctx.fs.processPath(admin))
+            if (linked.targetKey !== dotGit.targetKey) return failure('invalid')
+          }
+          await ctx.workingDirectory.set(agent, ctx.fs.processPath(target), operationSignal)
           creations.delete(agent)
         }
         await ctx.sessions.flush(agent.session)

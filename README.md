@@ -22,6 +22,7 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-model-picker](./packages/ui-model-picker)         | 입력창 모델 메뉴와 추론 강도 슬라이더                                  |   MIT    |
 | [@dungsil/dsh-plugin-ui-turn-rail-left](./packages/ui-turn-rail-left)     | 공식 턴 레일을 대화 화면 왼쪽으로 옮기는 플러그인                      |   MIT    |
 | [@dungsil/dsh-plugin-ui-vcs](./packages/ui-vcs)                           | 브랜치에 맞는 Git 커밋·푸시·PR 작업을 에이전트에 요청하는 버전 관리 UI |   MIT    |
+| [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드       |   MIT    |
 | [@dungsil/dsh-plugin-cli-proxy-api](./packages/cli-proxy-api)             | CLIProxyAPI 공급자 등록과 OAuth 계정·할당량·라우팅 관리 UI             |   MIT    |
 
 ## CLIProxyAPI

@@ -4,9 +4,8 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
-import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
-import { modelSettingsIconArtwork } from '@dungsil/dsh-ui/icons'
+import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles, type MenuEntry } from '@dungsil/dsh-ui'
+import { modelSettingsIconSvg } from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
@@ -431,7 +430,7 @@ export function apply(ctx: Context) {
     installSettingsIcon(
       name,
       Object.values(copy).map((text) => text.nav),
-      modelSettingsIconArtwork
+      modelSettingsIconSvg
     )
   )
   ctx.effect(() => installStyles(styles), 'model-settings: styles')

@@ -6,8 +6,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { IconPluginPinwheelOutlineRegular, SegmentedTabs } from '@deepseek-ai/dsh-client-ui-primitives'
-import { SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import {
+  IconPluginPinwheelOutlineRegular,
+  SegmentedTabs,
+  SettingsPicker,
+  SettingsRow,
+  settingsStyles,
+} from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,

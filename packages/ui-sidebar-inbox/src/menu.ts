@@ -10,7 +10,7 @@
  * injected row keeps the shipped styling without naming any hashed class.
  */
 
-import { activityIconPath, checkIconPath, createIconGlyph } from '@dungsil/dsh-ui/icons/dom'
+import { activityIconSvg, checkIconSvg, createIconGlyph } from '@dungsil/dsh-ui/icons/dom'
 
 /** Localized copy and state read at render time by the injected row. */
 export interface SortOption {
@@ -102,7 +102,7 @@ function buildRow(
   if (iconTemplate !== undefined) {
     const icon = document.createElement('span')
     icon.className = iconTemplate.className
-    icon.append(createIconGlyph(activityIconPath))
+    icon.append(createIconGlyph(activityIconSvg))
     button.append(icon)
   }
   const labelTemplate = [...template.children].find(
@@ -137,7 +137,7 @@ function closeMenu() {
 function syncCheck(button: HTMLElement, active: boolean, check: Element | null) {
   const existing = [...button.children].find((child) => child.tagName === 'svg')
   if (active && existing === undefined)
-    button.append(check === null ? createIconGlyph(checkIconPath) : check.cloneNode(true))
+    button.append(check === null ? createIconGlyph(checkIconSvg) : check.cloneNode(true))
   else if (!active && existing !== undefined) existing.remove()
   if (active) button.setAttribute('aria-current', 'true')
   else button.removeAttribute('aria-current')

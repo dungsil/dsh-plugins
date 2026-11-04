@@ -8,6 +8,7 @@ export default defineConfig([
     format: 'cjs',
     platform: 'browser',
     inputOptions: { platform: 'browser' },
+    loader: { '.svg': 'text' },
     deps: {
       alwaysBundle: ['@dungsil/dsh-ui'],
       neverBundle: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'],

@@ -1,4 +1,8 @@
 import { createElement } from 'react'
+import resetIconSvg from './icons/rotate-ccw.svg'
+
+export { default as modelSettingsIconSvg } from './icons/circle-to-squares.svg'
+export { default as worktreeSettingsIconSvg } from './icons/git-branch.svg'
 
 export {
   IconBranchOutlineRegular,
@@ -10,29 +14,21 @@ export {
   IconClockOutlineRegular,
   IconCloseOutlineRegular,
   IconDataOutlineRegular,
+  IconCopyOutlineRegular,
+  IconGaugeOutlineRegular,
   IconLoadingOutlineRegular,
   IconPlusOutlineRegular,
+  IconRefreshOutlineRegular,
+  IconRightUpOutlineRegular,
   IconStopFillRegular,
+  IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 export function IconResetOutlineRegular() {
-  return createElement(
-    'svg',
-    {
-      width: '16',
-      height: '16',
-      viewBox: '0 0 16 16',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: '1.2',
-      'aria-hidden': 'true',
-    },
-    createElement('path', { d: 'M3 4a5.5 5.5 0 1 1-1 6M3 1v3h3' })
-  )
+  // Only trusted, build-time SVG assets are inserted as markup.
+  return createElement('span', {
+    style: { display: 'inline-flex' },
+    'aria-hidden': 'true',
+    dangerouslySetInnerHTML: { __html: resetIconSvg },
+  })
 }
-
-export const modelSettingsIconArtwork =
-  '<circle cx="2.5" cy="8" r="1.75"/><path d="M4.25 8H5.5C8 8 7 3.5 10 3.5H11M5.5 8C8 8 7 12.5 10 12.5H11"/><rect x="11" y="1.75" width="3.5" height="3.5" rx=".6"/><rect x="11" y="10.75" width="3.5" height="3.5" rx=".6"/>'
-
-export const worktreeSettingsIconArtwork =
-  '<circle cx="4" cy="2.5" r="1.75"/><circle cx="4" cy="13.5" r="1.75"/><circle cx="12" cy="5.5" r="1.75"/><path d="M4 4.25V11.75M4 9H7C10 9 12 9 12 7.25"/>'
