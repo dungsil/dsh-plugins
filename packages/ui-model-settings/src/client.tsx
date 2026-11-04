@@ -21,8 +21,11 @@ const copy = {
   en: {
     nav: 'Models by task',
     title: 'Session title',
+    titleDescription: 'Choose the model and reasoning effort used to automatically generate session titles.',
     model: 'Model',
     worktree: 'Worktree branch name',
+    worktreeDescription:
+      'Choose the model and reasoning effort used to generate a branch name when creating a worktree without a name.',
     inherit: 'Use conversation model',
     auxiliary: 'Auxiliary model',
     useAuxiliary: 'Use auxiliary model',
@@ -52,8 +55,10 @@ const copy = {
   ko: {
     nav: '상황별 모델',
     title: '세션 제목',
+    titleDescription: '세션 제목을 자동으로 생성할 때 사용할 모델과 추론 수준을 설정합니다.',
     model: '모델',
     worktree: '워크트리 브랜치 이름',
+    worktreeDescription: '이름을 입력하지 않고 워크트리를 만들 때 브랜치 이름을 생성할 모델과 추론 수준을 설정합니다.',
     inherit: '대화 모델 따르기',
     auxiliary: '보조 모델',
     useAuxiliary: '보조 모델 따르기',
@@ -82,8 +87,10 @@ const copy = {
   zh: {
     nav: '任务模型设置',
     title: '会话标题',
+    titleDescription: '设置自动生成会话标题时使用的模型和推理级别。',
     model: '模型',
     worktree: '工作树分支名称',
+    worktreeDescription: '设置创建未指定名称的工作树时用于生成分支名称的模型和推理级别。',
     inherit: '使用对话模型',
     auxiliary: '辅助模型',
     useAuxiliary: '使用辅助模型',
@@ -115,6 +122,7 @@ const localizedCopy = (language: string) =>
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
@@ -337,7 +345,20 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   : automaticHint
         return (
           <div key={task} className="dsh-model-settings-field">
-            <SettingsRow label={<div>{title}</div>}>
+            <SettingsRow
+              label={
+                <>
+                  <div>{title}</div>
+                  <div className="dsh-model-settings-description">
+                    {task === 'auxiliary'
+                      ? text.auxiliaryHint
+                      : task === 'target'
+                        ? text.titleDescription
+                        : text.worktreeDescription}
+                  </div>
+                </>
+              }
+            >
               <div className="dsh-model-settings-controls">
                 <SettingsPicker
                   className="dsh-model-settings-picker"
