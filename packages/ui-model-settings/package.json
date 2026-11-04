@@ -68,7 +68,7 @@
     "order": 7.1,
     "title": {
       "en": "Task Models UI",
-      "ko": "상황별 모델 UI"
+      "ko": "상황별 모델"
     },
     "description": {
       "en": "Choose a session title model in settings. Includes the task model configuration API.",
