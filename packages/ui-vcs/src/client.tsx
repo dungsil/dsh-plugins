@@ -13,9 +13,10 @@ import {
   Menu,
   Pill,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import * as PullRequests from './pull-requests-client.js'
 
 export const name = 'dungsil-ui-vcs'
-export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection']
+export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection', 'sidebarRightTabs']
 
 const instructions = {
   commit: 'Commit only the work completed in this session. Do not push, create or update a PR, or switch branches.',
@@ -69,6 +70,7 @@ const copy = {
 }
 
 export function apply(ctx: Context) {
+  ctx.plugin(PullRequests)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const sessions = ctx.get('sessions') as unknown as ISessions
   function Action({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {

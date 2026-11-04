@@ -128,7 +128,7 @@ async function fixture(t, remote = 'git@github.com:team/project.git', provider =
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
   const rpc = async (peer = owner, sessionId = 'test', action) => {
-    const method = action === undefined ? 'dungsil-pull-requests/list' : 'dungsil-pull-requests/action'
+    const method = action === undefined ? 'dungsil-vcs/pull-requests/list' : 'dungsil-vcs/pull-requests/action'
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',

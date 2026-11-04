@@ -8,9 +8,16 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
-import { actionMethod, channel, method, type RequestAction, type RequestItem, type RequestView } from './protocol.js'
+import {
+  actionMethod,
+  channel,
+  method,
+  type RequestAction,
+  type RequestItem,
+  type RequestView,
+} from './pull-requests-protocol.js'
 
-export const name = 'dungsil-ui-pull-requests'
+export const name = 'dungsil-vcs-pull-requests'
 export const inject = ['connection', 'sessionController', 'workingDirectory', 'subprocess', 'sandbox', 'sandboxPolicy']
 export const Config = z.object({ provider: z.union(['auto', 'github', 'gitlab']).default('auto') })
 export interface Config {

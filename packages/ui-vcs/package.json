@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-vcs",
   "version": "0.0.0",
-  "description": "Version control actions for the session agent, with Git commit, push, and pull request support.",
+  "description": "Git actions for the session agent above the composer, with GitHub PR and GitLab MR review and merge in the right sidebar.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
     "@deepseek-ai/dsh-agent-loop-testkit": "0.2.1-rc.5",
     "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
@@ -40,6 +41,7 @@
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
     "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
@@ -50,12 +52,14 @@
     "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
     "@deepseek-ai/dsh-subprocess-local": "0.2.1-rc.5",
     "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "~3.18.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/react": "18.3.31",
     "react": "18.3.1",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
     "@deepseek-ai/dsh-session": "^0.2.1-rc.5"
@@ -75,7 +79,8 @@
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-session"
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },
@@ -87,9 +92,9 @@
       "zh": "版本控制"
     },
     "description": {
-      "en": "Git actions above the composer: push on the default branch, create or update a PR on other branches or worktrees, or commit only.",
-      "ko": "입력창 위에서 Git 작업을 요청합니다. 기본 브랜치에서는 푸시하고 다른 브랜치나 worktree에서는 PR을 생성·업데이트하며, 커밋만 선택할 수도 있습니다.",
-      "zh": "在输入框上方请求 Git 操作：默认分支推送，其他分支或 worktree 创建或更新 PR，也可选择仅提交。"
+      "en": "Request Git commits, pushes, or PR creation and updates above the composer, and review CI, changes, and GitHub PRs or GitLab MRs before merging with gh / glab in the right sidebar.",
+      "ko": "입력창 위에서 Git 커밋·푸시·PR 생성과 업데이트를 요청하고, 오른쪽 사이드바에서 GitHub PR/GitLab MR의 CI와 변경 내용을 검토한 뒤 gh / glab으로 병합합니다.",
+      "zh": "在输入框上方请求 Git 提交、推送或创建和更新 PR，并在右侧栏审查 GitHub PR/GitLab MR 的 CI 与变更，使用 gh / glab 合并。"
     },
     "category": "ui",
     "labels": [],
@@ -98,7 +103,11 @@
       "commit",
       "push",
       "pull-request",
-      "composer"
+      "composer",
+      "github",
+      "gitlab",
+      "mr",
+      "sidebar"
     ]
   }
 }

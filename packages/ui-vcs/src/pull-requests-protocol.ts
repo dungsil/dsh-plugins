@@ -1,6 +1,6 @@
 export const channel = '/api'
-export const method = 'dungsil-pull-requests/list'
-export const actionMethod = 'dungsil-pull-requests/action'
+export const method = 'dungsil-vcs/pull-requests/list'
+export const actionMethod = 'dungsil-vcs/pull-requests/action'
 
 export interface RequestAction {
   sessionId: string

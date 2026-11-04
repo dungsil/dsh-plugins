@@ -24,10 +24,10 @@ import {
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
-import { actionMethod, channel, method, type RequestAction, type RequestView } from './protocol.js'
-import { styles } from './styles.js'
+import { actionMethod, channel, method, type RequestAction, type RequestView } from './pull-requests-protocol.js'
+import { styles } from './pull-requests-styles.js'
 
-export const name = 'dungsil-ui-pull-requests'
+export const name = 'dungsil-vcs-pull-requests'
 export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs']
 
 type ReviewAction = Exclude<RequestAction['action'], 'merge'>
@@ -103,11 +103,13 @@ export function apply(ctx: Context) {
     const [body, setBody] = useState('')
     const [reviewAction, setReviewAction] = useState<ReviewAction>('comment')
     const [strategy, setStrategy] = useState<Strategy>('squash')
+    const [strategyOpen, setStrategyOpen] = useState(false)
     const [confirmation, setConfirmation] = useState<RequestAction>()
     const [notice, setNotice] = useState<'completed' | 'action_failed' | 'stale_request'>()
     const [pending, setPending] = useState(false)
     const submitting = useRef(false)
     const active = useRef<AbortController | null>(null)
+    const content = useRef<HTMLDivElement | null>(null)
     const tabsId = useId()
     const item = view?.request
     const labels = useMemo(
@@ -139,6 +141,7 @@ export function apply(ctx: Context) {
       active.current = controller
       const signal = AbortSignal.any([controller.signal, tab.signal])
       setLoading(true)
+      setStrategyOpen(false)
       setError(undefined)
       setConfirmation(undefined)
       setNotice(undefined)
@@ -166,6 +169,8 @@ export function apply(ctx: Context) {
       setConfirmation(undefined)
       setNotice(undefined)
       setPage('overview')
+      setStrategy('squash')
+      setStrategyOpen(false)
     }, [sessionId])
 
     useEffect(() => {
@@ -189,6 +194,7 @@ export function apply(ctx: Context) {
 
     const prepare = (action: RequestAction['action']) => {
       if (!item || !canReview || confirmation || (action === 'merge' && !canMerge) || submitting.current) return
+      setStrategyOpen(false)
       setNotice(undefined)
       setConfirmation({
         sessionId,
@@ -228,6 +234,30 @@ export function apply(ctx: Context) {
         return { label: state === 'skipped' ? copy.skipped : copy.cancelled, state: 'idle' }
       return { label: `${copy.pending_check} · ${value}`, state: 'ongoing' }
     }
+    const checkStates = item?.checks.map((check) => checkStatus(check.status).state) ?? []
+    const checksState: StateDotState =
+      checkStates.some((state) => state === 'error') ||
+      item?.checks.some((check) => ['cancelled', 'canceled'].includes(check.status.toLowerCase()))
+        ? 'error'
+        : item?.detailsError || !checkStates.length
+          ? 'warning'
+          : checkStates.some((state) => state === 'ongoing')
+            ? 'ongoing'
+            : checkStates.every((state) => state === 'done')
+              ? 'done'
+              : 'idle'
+    const checksLabel = {
+      done: copy.success,
+      error: copy.failure,
+      warning: copy.checks_unknown,
+      ongoing: copy.pending_check,
+      idle: copy.checks_complete,
+    }[checksState]
+    const strategies = [
+      { id: 'squash', label: copy.squash },
+      { id: 'merge', label: copy.merge_commit },
+      ...(view?.provider === 'github' ? [{ id: 'rebase', label: copy.rebase }] : []),
+    ]
 
     return (
       <section className="dsh-pr-panel" aria-label={copy.title}>
@@ -237,11 +267,15 @@ export function apply(ctx: Context) {
             <strong>{view ? (view.provider === 'github' ? 'GitHub' : 'GitLab') : copy.title}</strong>
             {view && (
               <>
-                <span className="dsh-pr-repository">{view.repository}</span>
-                <span className="dsh-pr-branch">
-                  <IconBranchOutlineRegular aria-hidden="true" />
-                  {view.branch || 'HEAD'}
+                <span className="dsh-pr-repository" title={view.repository}>
+                  {view.repository}
                 </span>
+                {!item && (
+                  <span className="dsh-pr-branch">
+                    <IconBranchOutlineRegular aria-hidden="true" />
+                    {view.branch || 'HEAD'}
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -259,34 +293,45 @@ export function apply(ctx: Context) {
             <IconRefreshOutlineRegular aria-hidden="true" />
           </Button>
         </header>
-        <div className="dsh-pr-content" aria-busy={loading}>
+        <div ref={content} className="dsh-pr-content" aria-busy={loading}>
           {loading && <p role="status">{copy.loading}</p>}
           {error && <p role="alert">{copy[error] as string}</p>}
           {notice && <p role={notice === 'completed' ? 'status' : 'alert'}>{copy[notice]}</p>}
           {view &&
             (item ? (
               <article className="dsh-pr-request">
-                <a className="dsh-pr-summary" href={item.url} target="_blank" rel="noopener noreferrer">
-                  <span className="dsh-pr-title">
-                    {item.title}
-                    <IconLinkOutlineRegular aria-hidden="true" />
-                  </span>
+                <div className="dsh-pr-summary">
+                  <h2 className="dsh-pr-title">
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      {item.title}{' '}
+                      <span className="dsh-pr-number">
+                        {view.provider === 'github' ? '#' : '!'}
+                        {item.number}
+                      </span>
+                      <IconLinkOutlineRegular aria-hidden="true" />
+                    </a>
+                  </h2>
                   <span className="dsh-pr-meta">
-                    {view.provider === 'github' ? '#' : '!'}
-                    {item.number} · {item.author}
                     <Tag className="dsh-pr-status" tone={item.state === 'open' && !item.draft ? 'success' : 'neutral'}>
                       {item.state === 'open' && item.draft ? copy.draft : copy[item.state]}
                     </Tag>
+                    <span>{item.author}</span>
                   </span>
                   <span className="dsh-pr-refs">
-                    {item.source} → {item.target}
+                    <IconBranchOutlineRegular aria-hidden="true" />
+                    <code>{item.source}</code>
+                    <span aria-hidden="true">→</span>
+                    <code>{item.target}</code>
                   </span>
-                </a>
+                </div>
                 <div className="dsh-pr-tabs">
                   <SegmentedTabs
                     label={copy.title}
                     value={page}
-                    onChange={setPage}
+                    onChange={(page) => {
+                      setPage(page)
+                      content.current?.scrollTo({ top: 0 })
+                    }}
                     items={[
                       {
                         value: 'overview',
@@ -317,14 +362,16 @@ export function apply(ctx: Context) {
                 <div role="tabpanel" id={`${tabsId}-${page}-panel`} aria-labelledby={`${tabsId}-${page}`} tabIndex={0}>
                   {page === 'overview' && (
                     <>
-                      <section className="dsh-pr-section dsh-pr-description" aria-label={copy.body} tabIndex={0}>
-                        <h3>{copy.body}</h3>
-                        <MarkdownText text={item.body || copy.no_body} labels={labels} variant="compact" />
-                      </section>
-                      <section className="dsh-pr-section" aria-label={copy.checks}>
-                        <h3>
-                          {copy.checks} <span>{item.checks.length}</span>
-                        </h3>
+                      <details className="dsh-pr-ci">
+                        <summary>
+                          <StateDot state={checksState} appearance="step" />
+                          <span>{copy.checks}</span>
+                          <Tag tone="neutral">{item.checks.length}</Tag>
+                          <span className="dsh-pr-check-result" data-state={checksState}>
+                            {checksLabel}
+                          </span>
+                          <IconChevronDownOutlineRegular aria-hidden="true" />
+                        </summary>
                         {!item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
                         <ul className="dsh-pr-checks">
                           {item.checks.map((check, index) => {
@@ -346,9 +393,14 @@ export function apply(ctx: Context) {
                             )
                           })}
                         </ul>
-                      </section>
-                      <section className="dsh-pr-section" aria-label={copy.merge}>
-                        <h3>{item.state === 'merged' ? copy.merged : copy.merge}</h3>
+                      </details>
+                      <details className="dsh-pr-readiness">
+                        <summary>
+                          <StateDot state={canMerge || item.state === 'merged' ? 'done' : 'idle'} appearance="step" />
+                          <span>{copy.mergeable}</span>
+                          <code>{item.mergeable || '—'}</code>
+                          <IconChevronDownOutlineRegular aria-hidden="true" />
+                        </summary>
                         <dl className="dsh-pr-facts">
                           <dt>{copy.mergeable}</dt>
                           <dd>{item.mergeable || '—'}</dd>
@@ -360,44 +412,35 @@ export function apply(ctx: Context) {
                           </dd>
                         </dl>
                         <p>{copy.merge_hint}</p>
-                        <div className="dsh-pr-actions">
-                          <Choice
-                            label={copy.strategy}
-                            value={strategy}
-                            disabled={!canMerge}
-                            onChange={setStrategy}
-                            items={[
-                              { id: 'squash', label: copy.squash },
-                              { id: 'merge', label: copy.merge_commit },
-                              ...(view.provider === 'github' ? [{ id: 'rebase' as const, label: copy.rebase }] : []),
-                            ]}
-                          />
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            disabled={!canMerge}
-                            onClick={() => prepare('merge')}
-                          >
-                            {copy.merge}
-                          </Button>
-                        </div>
                         {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
+                      </details>
+                      <section className="dsh-pr-section dsh-pr-description" aria-label={copy.body}>
+                        <h3>{copy.body}</h3>
+                        <MarkdownText text={item.body || copy.no_body} labels={labels} variant="compact" />
                       </section>
                     </>
                   )}
                   {page === 'changes' && (
                     <section className="dsh-pr-section" aria-label={copy.changes}>
-                      <h3>{copy.files}</h3>
+                      <h3>
+                        {copy.files} <Tag tone="neutral">{item.files.length}</Tag>
+                      </h3>
                       <ul className="dsh-pr-files">
-                        {item.files.map((file, index) => (
-                          <li key={`${file.path}-${index}`}>
-                            <code>{file.path}</code>
-                            <span>
-                              +{file.additions} −{file.deletions}
-                            </span>
-                          </li>
-                        ))}
+                        {item.files.map((file, index) => {
+                          const basename = file.path.lastIndexOf('/') + 1
+                          return (
+                            <li key={`${file.path}-${index}`}>
+                              <code>
+                                <span className="dsh-pr-directory">{file.path.slice(0, basename)}</span>
+                                {file.path.slice(basename)}
+                              </code>
+                              <span className="dsh-pr-file-count">
+                                <span className="dsh-pr-additions">+{file.additions}</span>
+                                <span className="dsh-pr-deletions">−{file.deletions}</span>
+                              </span>
+                            </li>
+                          )
+                        })}
                       </ul>
                       <details open className="dsh-pr-diff">
                         <summary>{copy.diff}</summary>
@@ -539,6 +582,43 @@ export function apply(ctx: Context) {
               <p role="status">{copy.empty}</p>
             ))}
         </div>
+        {item && (
+          <footer className="dsh-pr-merge-footer">
+            <Menu
+              open={strategyOpen && !pending && !loading}
+              portal
+              compact
+              side="top"
+              minWidthFromAnchor
+              className="dsh-pr-merge-menu"
+              selectedId={strategy}
+              items={strategies}
+              onClose={() => setStrategyOpen(false)}
+              onSelect={(id) => {
+                if (strategies.some((option) => option.id === id)) setStrategy(id as Strategy)
+                setStrategyOpen(false)
+              }}
+              anchor={
+                <div className="dsh-pr-merge-button">
+                  <Button type="button" variant="primary" disabled={!canMerge} onClick={() => prepare('merge')}>
+                    {strategies.find((option) => option.id === strategy)?.label}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    aria-label={copy.strategy}
+                    aria-haspopup="menu"
+                    aria-expanded={strategyOpen && !pending && !loading}
+                    disabled={pending || loading}
+                    onClick={() => setStrategyOpen(!strategyOpen)}
+                  >
+                    <IconChevronDownOutlineRegular aria-hidden="true" />
+                  </Button>
+                </div>
+              }
+            />
+          </footer>
+        )}
         {(error === 'cli_missing' || error === 'command_failed') && (
           <footer>
             <p>{copy.hint}</p>
