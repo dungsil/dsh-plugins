@@ -167,7 +167,7 @@ export function apply(ctx: Context) {
             aria-label={text.title}
             aria-describedby={status}
             aria-busy={loading || busy}
-            title={view ? `${text.current}: ${branch} — ${view.cwd}` : text.title}
+            title={view ? branch : text.title}
             onChange={(event) => {
               const selected = event.target.value
               event.target.value = 'current'
@@ -175,15 +175,13 @@ export function apply(ctx: Context) {
               else if (selected.startsWith('path:')) void change('switch', selected.slice(5))
             }}
           >
-            <option value="current">
-              {view ? `${text.current}: ${branch} — ${view.cwd}` : loading ? text.loading : text.title}
-            </option>
+            <option value="current">{view ? branch : loading ? text.loading : text.title}</option>
             <option value="create">{text.create}</option>
             {view?.worktrees
               .filter((item) => item.path !== view.cwd)
               .map((item) => (
                 <option key={item.path} value={`path:${item.path}`}>
-                  {item.branch ?? text.detached} — {item.path}
+                  {item.branch ?? text.detached}
                 </option>
               ))}
           </select>

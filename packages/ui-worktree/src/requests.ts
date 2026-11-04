@@ -1,7 +1,6 @@
 export const copy = {
   en: {
     title: 'Git worktree',
-    current: 'Current checkout',
     detached: 'Detached HEAD',
     unknown: 'Branch unavailable',
     create: 'New worktree…',
@@ -20,7 +19,6 @@ export const copy = {
   },
   ko: {
     title: 'Git worktree',
-    current: '현재 체크아웃',
     detached: '분리된 HEAD',
     unknown: '브랜치 확인 불가',
     create: '신규 워크트리…',
