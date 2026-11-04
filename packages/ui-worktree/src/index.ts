@@ -9,10 +9,17 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, appendPluginRecord } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
-import { channel, endpointPrefix, type WorktreeSettings, type WorktreeView } from './protocol.js'
+import {
+  channel,
+  endpointPrefix,
+  progressRecord,
+  type WorktreeProgress,
+  type WorktreeSettings,
+  type WorktreeView,
+} from './protocol.js'
 
 export const name = 'dungsil-ui-worktree'
 export const inject = [
@@ -105,7 +112,24 @@ export function apply(ctx: Context, config: Config) {
     creation.failed = true
     const operationSignal = AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(60_000)])
     pending.add(agent.id)
+    const progress: WorktreeProgress = {
+      id: submitted[0]!.id,
+      step: 0,
+      status: 'running',
+      updatedAt: Date.now(),
+      durations: [0, 0, 0, 0],
+    }
+    const report = (step: number, status: WorktreeProgress['status'] = 'running', branch?: string) => {
+      const now = Date.now()
+      progress.durations[progress.step]! += Math.max(0, now - progress.updatedAt)
+      progress.step = step
+      progress.status = status
+      progress.updatedAt = now
+      if (branch) progress.branch = branch
+      appendPluginRecord(agent.session, progressRecord, progress)
+    }
     try {
+      report(0)
       if (ctx.workingDirectory.get(agent.session) !== creation.cwd) throw new Error('Working directory changed')
       let branch = creation.name
       if (!branch) {
@@ -166,11 +190,13 @@ export function apply(ctx: Context, config: Config) {
         }
       }
       operationSignal.throwIfAborted()
-      await create(agent, branch, operationSignal)
+      await create(agent, branch, operationSignal, report)
       creations.delete(agent)
       await ctx.sessions.flush(agent.session)
+      report(3, 'completed', branch)
       return decision
     } catch {
+      report(progress.step, signal.aborted || lifetime.signal.aborted ? 'cancelled' : 'failed')
       throw new Error(
         'Worktree creation could not be confirmed. Refresh the list and select a worktree before retrying.'
       )
@@ -267,7 +293,8 @@ export function apply(ctx: Context, config: Config) {
     }
   }
 
-  const create = async (agent: Agent, branch: string, signal: AbortSignal) => {
+  const create = async (agent: Agent, branch: string, signal: AbortSignal, report: (step: number) => void) => {
+    report(1)
     // Resolve against the source worktree root, never a nested Session directory.
     const cwd = await ctx.workingDirectory.ensure(agent, signal)
     const git = (args: string[], env?: Record<string, string>, allowed?: number[]) =>
@@ -316,6 +343,7 @@ export function apply(ctx: Context, config: Config) {
       signal,
       'node'
     )
+    report(2)
     await git(['worktree', 'add', '--no-checkout', '-b', branch, '--', path, commit])
     // Disable checkout filters just as the host runtime does; never execute repository programs.
     const filters = await git(['config', '--null', '--name-only', '--get-regexp', '^filter\\.'], undefined, [0, 1])
@@ -342,6 +370,7 @@ export function apply(ctx: Context, config: Config) {
       'git',
       env
     )
+    report(3)
     await ctx.workingDirectory.set(agent, path, signal)
   }
 

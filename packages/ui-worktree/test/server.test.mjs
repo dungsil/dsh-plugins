@@ -13,7 +13,7 @@ import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, pluginRecordOf } from '@deepseek-ai/dsh-session'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
@@ -140,6 +140,11 @@ async function fixture(t, options = {}, settings = {}) {
 
 await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit } = await fixture(t)
+  const progress = []
+  ctx.on('session/event', (session, event) => {
+    const record = pluginRecordOf(event)
+    if (session === agent.session && record?.type === 'plugin:dungsil/ui-worktree/progress') progress.push(event)
+  })
   agent.inject(
     createUserMessage({
       content: [{ type: 'text', text: 'The approval policy changed from "ask" to "never" (changed by the user).' }],
@@ -162,6 +167,7 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.deepEqual(reserved.value, { ...initial.value, pendingCreation: { name: 'fix/login-ui', failed: false } })
   assert.equal(ctx.workingDirectory.get(agent.session), repo)
   assert.equal(requests.length, 0, 'reserving must not call a model')
+  assert.equal(progress.length, 0, 'reserving must not display setup as started')
   assert.equal(git('branch', '--list', 'fix/login-ui'), '', 'reserving must not create a branch')
   assert.deepEqual((await rpc('describe')).value, reserved.value, 'reloading must retain the reservation')
   await submit('Fix the login UI')
@@ -172,6 +178,23 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(created.value.cwd, path)
   assert.ok(created.value.worktrees.some((entry) => entry.path === gitPath(path) && entry.branch === 'fix/login-ui'))
   assert.equal(ctx.workingDirectory.get(agent.session), path)
+  assert.deepEqual([...new Set(progress.map((event) => event.data.step))], [0, 1, 2, 3])
+  assert.equal(progress.at(-1).data.status, 'completed')
+  assert.equal(progress.at(-1).data.branch, 'fix/login-ui')
+  assert.ok(
+    progress.slice(0, -1).every((event) => event.data.branch === undefined),
+    'hide names until setup completes'
+  )
+  assert.ok(
+    progress.every((event) => event.ignorable === true),
+    'progress must be safe for readers without the plugin'
+  )
+  const restored = Session.create(agent.session.id, agent.session.snapshotEvents())
+  assert.deepEqual(
+    restored.deriveMessages(),
+    agent.session.deriveMessages(),
+    'progress must not alter replayed model history'
+  )
   assert.ok(requests.length > 0)
   assert.ok(
     requests.every((request) => request.cwd === path),
@@ -291,7 +314,7 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   assert.equal(requests.length, 0, 'a supplied name must not incur a model request')
   await submit()
   assert.ok(
-    requests.every((request) => request.maxTokens !== 256),
+    requests.every((request) => !request.system?.startsWith('Return only a short')),
     'a supplied name bypasses naming'
   )
   const mainPath = named.value.worktrees.find((entry) => entry.branch === 'main').path
@@ -350,6 +373,13 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
     await submit()
     assert.equal(requests.length, before + 1, 'an invalid generated name must never start work')
     assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
+    const progress = agent.session
+      .snapshotEvents()
+      .filter((event) => event.type === 'plugin:dungsil/ui-worktree/progress')
+    assert.equal(progress.at(-1).data.status, 'failed')
+    assert.equal(progress.at(-1).data.step, 0)
+    assert.equal(progress.at(-1).data.branch, undefined)
+    assert.doesNotMatch(JSON.stringify(progress.at(-1)), /git worktree add \/tmp\/evil|\.\.\/escape/)
     await submit()
     assert.equal(requests.length, before + 1, 'failed naming must not automatically retry')
   }

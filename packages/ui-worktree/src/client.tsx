@@ -20,25 +20,26 @@ import { copy } from './requests.js'
 import { settingsLabel, WorktreeSettingsSection } from './settings.js'
 import { styles } from './styles.js'
 import { installSidebarLabel } from './sidebar.js'
+import { installProgress } from './progress.js'
 
 export const name = 'dungsil-ui-worktree'
-export const inject = ['slots', 'locale', 'connection']
+export const inject = ['slots', 'locale', 'connection', 'uiConversation']
 
 type Props = PropsRuntime<'conversation.input.left'>
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const subscribeLocale = (listener: () => void) => ctx.locale.subscribe(listener)
+  installProgress(ctx)
   function Picker({ sessionId, useSession }: Props) {
     const language = useSyncExternalStore(subscribeLocale, () => ctx.locale.getSnapshot().active)
-    const text = copy[language.startsWith('ko') ? 'ko' : 'en']
+    const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
     const running = useSession((s) => s.running)
     const wasRunning = useRef(running)
     const [view, setView] = useState<WorktreeView>()
-    const [value, setValue] = useState('')
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<WorktreeFailure>()
@@ -48,13 +49,10 @@ export function apply(ctx: Context) {
     const needsRefresh = useRef(false)
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
-    const dialog = useRef<HTMLDialogElement>(null)
     const errorDialog = useRef<HTMLDialogElement>(null)
     const errorTrigger = useRef<HTMLButtonElement>(null)
-    const title = useId()
     const errorTitle = useId()
     const errorDescription = useId()
-    const field = useId()
     const status = useId()
     const disabled = unavailable || loading || busy || !!error || !view
     const creation = view?.pendingCreation
@@ -111,7 +109,6 @@ export function apply(ctx: Context) {
       }
       const resize = () => {
         setOpen(false)
-        dialog.current?.close()
       }
       window.addEventListener('focus', focus)
       window.addEventListener('resize', resize)
@@ -131,18 +128,6 @@ export function apply(ctx: Context) {
       if (disabled) setOpen(false)
     }, [disabled])
 
-    const show = () => {
-      const element = dialog.current
-      const button = trigger.current
-      if (disabled || pending.current || !element || !button) return
-      if (creation) setValue(creation.name)
-      element.showModal()
-      const anchor = button.getBoundingClientRect()
-      const box = element.getBoundingClientRect()
-      element.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - box.width - 8))}px`
-      element.style.top = `${Math.max(8, anchor.top - box.height - 8)}px`
-    }
-
     const change = async (endpoint: 'create' | 'switch', path?: string) => {
       const controller = lifetime.current
       if (disabled || pending.current || needsRefresh.current || !view || !controller || controller.signal.aborted)
@@ -151,20 +136,13 @@ export function apply(ctx: Context) {
       setBusy(true)
       setChanged(false)
       try {
-        const payload =
-          endpoint === 'create'
-            ? { sessionId, cwd: view.cwd, ...(value.trim() ? { name: value.trim() } : {}) }
-            : { sessionId, cwd: view.cwd, path }
+        const payload = endpoint === 'create' ? { sessionId, cwd: view.cwd } : { sessionId, cwd: view.cwd, path }
         // ConnectionHandle exposes no authenticated principal. Owner-only access
         // is enforced by the server, not by unrelated session/prompt permission.
         const nextView = await request(endpoint, payload, controller.signal)
         if (controller.signal.aborted) return
         setView(nextView)
         setChanged(true)
-        if (endpoint === 'create') {
-          setValue('')
-          dialog.current?.close()
-        }
         pending.current = false
         await load()
       } catch (cause) {
@@ -178,7 +156,7 @@ export function apply(ctx: Context) {
     }
 
     useEffect(() => {
-      if (!busy && changed && !dialog.current?.open) trigger.current?.focus()
+      if (!busy && changed) trigger.current?.focus()
     }, [busy, changed])
 
     useEffect(() => {
@@ -201,7 +179,7 @@ export function apply(ctx: Context) {
     const branch = creation
       ? creation.failed
         ? text.mutationError
-        : `${text.reserved}${creation.name ? `: ${creation.name}` : ''}`
+        : text.create
       : current
         ? (current.branch ?? text.detached)
         : text.unknown
@@ -244,8 +222,9 @@ export function apply(ctx: Context) {
             onSelect={(id) => {
               setOpen(false)
               if (disabled || pending.current) return
-              if (id === 'create') show()
-              else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
+              if (id === 'create') {
+                if (!creation || creation.failed) void change('create')
+              } else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
                 void change('switch', id.slice(5))
             }}
             anchor={
@@ -294,71 +273,6 @@ export function apply(ctx: Context) {
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>
-        <dialog
-          ref={dialog}
-          className="dsh-worktree-dialog"
-          aria-labelledby={title}
-          onClose={() => trigger.current?.focus()}
-          onCancel={(event) => {
-            if (pending.current) event.preventDefault()
-          }}
-          onClick={(event) => {
-            const box = event.currentTarget.getBoundingClientRect()
-            const outside =
-              event.clientX < box.left ||
-              event.clientX > box.right ||
-              event.clientY < box.top ||
-              event.clientY > box.bottom
-            if (event.target === event.currentTarget && outside && !pending.current) event.currentTarget.close()
-          }}
-        >
-          <header>
-            <h2 id={title}>{text.createTitle}</h2>
-            <button type="button" aria-label={text.close} disabled={busy} onClick={() => dialog.current?.close()}>
-              <IconCloseOutlineRegular aria-hidden="true" />
-            </button>
-          </header>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void change('create')
-            }}
-          >
-            <label htmlFor={field}>{text.branch}</label>
-            <input
-              id={field}
-              type="text"
-              value={value}
-              disabled={busy}
-              maxLength={200}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="fix-login"
-              onChange={(event) => setValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229))
-                  event.preventDefault()
-              }}
-            />
-            <p className="dsh-worktree-hint">{text.hint}</p>
-            {error && (
-              <div role="alert">
-                <p>{error.uncertain ? text.error : text.readError}</p>
-                <p>{text.reasons[error.code]}</p>
-                <code>{error.code}</code>
-              </div>
-            )}
-            {unavailable && <p role="status">{text.wait}</p>}
-            <footer>
-              <button type="button" disabled={loading || busy} onClick={() => void load(true)}>
-                {text.refresh}
-              </button>
-              <button type="submit" className="dsh-worktree-primary" disabled={disabled}>
-                {busy ? text.busy : text.submit}
-              </button>
-            </footer>
-          </form>
-        </dialog>
         <dialog
           ref={errorDialog}
           className="dsh-worktree-dialog dsh-worktree-error-dialog"
