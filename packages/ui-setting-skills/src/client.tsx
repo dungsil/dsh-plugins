@@ -1,15 +1,15 @@
-import { useEffect, useId, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import { SegmentedControl, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { IconChevronRightOutlineRegular } from '@dungsil/dsh-ui/icons'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
-import { channel, method, type SkillsView } from './protocol.js'
+import { channel, method, saveMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
@@ -37,6 +37,7 @@ const styles = `
 .dsh-skills-settings details[open] .dsh-skills-preview { display: none; }
 .dsh-skills-settings details[open] .dsh-skills-summary-text strong { max-width: 100%; }
 .dsh-skills-detail { padding: 0 0 16px 28px; overflow-wrap: anywhere; }
+.dsh-skills-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
 @container (max-width: 480px) {
   .dsh-skills-summary-text { align-items: stretch; flex-direction: column; gap: 2px; }
   .dsh-skills-summary-text strong { max-width: 100%; }
@@ -53,6 +54,10 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<SkillsView>()
   const [error, setError] = useState(false)
+  const [saveError, setSaveError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const pending = useRef(false)
+  const mounted = useRef(false)
   const [source, setSource] = useState<'user-agents' | 'user-dsh'>('user-agents')
   const groups = (['user-agents', 'user-dsh'] as const).map((value) => ({
     value,
@@ -62,6 +67,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
 
   useEffect(() => {
     const controller = new AbortController()
+    mounted.current = true
     setView(undefined)
     setError(false)
     void (async () => {
@@ -74,14 +80,36 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
         if (!controller.signal.aborted) setError(true)
       }
     })()
-    return () => controller.abort()
+    return () => {
+      mounted.current = false
+      controller.abort()
+    }
   }, [connection])
+
+  async function save(name: string, disabled: boolean) {
+    if (pending.current) return
+    pending.current = true
+    setBusy(true)
+    setSaveError(false)
+    try {
+      const result = await connection.rpc.call(channel, saveMethod, { name, disabled })
+      if (!result.ok) throw new Error('Could not save skills')
+      const value = result.value as unknown as { disabled: string[] }
+      if (mounted.current) setView((current) => current && { ...current, disabled: value.disabled })
+    } catch {
+      if (mounted.current) setSaveError(true)
+    } finally {
+      pending.current = false
+      if (mounted.current) setBusy(false)
+    }
+  }
 
   return (
     <section className="dsh-skills-settings" aria-label={text.nav} aria-busy={!view && !error}>
       <p className="dsh-skills-muted">{text.description}</p>
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
+      {saveError && <p role="alert">{text.saveError}</p>}
       {view && !view.complete && <p role="alert">{text.incomplete}</p>}
       {view && (
         <>
@@ -113,6 +141,9 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                           <IconChevronRightOutlineRegular size={16} aria-hidden="true" />
                           <span className="dsh-skills-summary-text">
                             <strong>{skill.name}</strong>
+                            {view.disabled.includes(skill.name) && (
+                              <span className="dsh-skills-muted">{text.disabled}</span>
+                            )}
                             <span className="dsh-skills-preview dsh-skills-muted" aria-hidden="true">
                               {skill.description}
                             </span>
@@ -125,6 +156,18 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                               <code>{skill.path}</code>
                             </p>
                           )}
+                          <div className="dsh-skills-toggle">
+                            <div>
+                              <div>{text.disable}</div>
+                              <p className="dsh-skills-muted">{text.disableDescription}</p>
+                            </div>
+                            <Switch
+                              label={`${text.disable}: ${skill.name}`}
+                              checked={view.disabled.includes(skill.name)}
+                              disabled={busy || saveError}
+                              onChange={(disabled) => void save(skill.name, disabled)}
+                            />
+                          </div>
                         </div>
                       </details>
                     </li>

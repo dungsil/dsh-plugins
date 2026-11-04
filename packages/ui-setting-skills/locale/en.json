@@ -11,6 +11,10 @@
     "loading": "Loading skills…",
     "empty": "No loaded skills from this source.",
     "error": "Could not load skills. Close and reopen this settings section to try again.",
-    "incomplete": "Some skill sources could not be loaded. This list may be incomplete."
+    "incomplete": "Some skill sources could not be loaded. This list may be incomplete.",
+    "disable": "Disable in DSH only",
+    "disabled": "Disabled in DSH",
+    "disableDescription": "Applies to all skills with this name in DSH. Saved in cordis.patch.yml; skill files and directories are not changed.",
+    "saveError": "Could not save the setting. Close and reopen this section to check the saved state before trying again."
   }
 }
