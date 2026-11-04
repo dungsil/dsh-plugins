@@ -18,7 +18,7 @@ import {
   IconDataOutlineRegular,
   IconResetOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
-import { MenuSurface, focusWithoutRing, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
+import { MenuSurface, focusWithoutRing, useDismissOnOutsidePointer } from '@dungsil/dsh-ui'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-model-picker'

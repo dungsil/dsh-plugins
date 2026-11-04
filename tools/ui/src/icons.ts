@@ -15,9 +15,14 @@ export {
   IconClockOutlineRegular,
   IconCloseOutlineRegular,
   IconDataOutlineRegular,
+  IconCopyOutlineRegular,
+  IconGaugeOutlineRegular,
   IconLoadingOutlineRegular,
   IconPlusOutlineRegular,
+  IconRefreshOutlineRegular,
+  IconRightUpOutlineRegular,
   IconStopFillRegular,
+  IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 export function IconResetOutlineRegular() {
