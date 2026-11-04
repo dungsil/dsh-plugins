@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
   "version": "0.1.0",
-  "description": "Request Git worktree creation or reuse through existing tools from the DeepSeek Harness composer.",
+  "description": "Create Git worktrees automatically from the DeepSeek Harness composer, using the model only for branch naming.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -31,12 +31,17 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
     "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-experimental-worktree": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@types/react": "18.3.31",
@@ -44,6 +49,12 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-agent": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5"
   },
   "engines": {
     "dsh": "^0.2.1-rc.5",
@@ -57,6 +68,7 @@
       "platform": "web",
       "immediately": true,
       "inject": [
+        "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-session"
@@ -70,8 +82,8 @@
       "ko": "Git Worktree UI"
     },
     "description": {
-      "en": "Ask the model to create or reuse a Git worktree using existing tools, next to the composer permission selector.",
-      "ko": "입력창의 권한 선택 옆에서 기존 도구를 통한 Git worktree 생성·재사용을 모델에 요청합니다."
+      "en": "Create Git worktrees automatically next to the composer permission selector. The model only names branches; reuse requests use existing tools.",
+      "ko": "입력창의 권한 선택 옆에서 Git worktree를 자동으로 생성합니다. 모델은 브랜치 이름만 정하며, 재사용은 기존 도구로 요청합니다."
     },
     "category": "ui",
     "labels": [],

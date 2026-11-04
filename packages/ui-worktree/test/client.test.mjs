@@ -5,7 +5,7 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { Window } from 'happy-dom'
 
-test('composer requests existing tools, preserves input, and keeps session delivery isolated', async (t) => {
+test('composer creates directly, preserves input, and keeps session delivery isolated', async (t) => {
   const window = new Window()
   const previous = Object.getOwnPropertyDescriptors(globalThis)
   const globals = {
@@ -30,8 +30,21 @@ test('composer requests existing tools, preserves input, and keeps session deliv
   let Component
   let language = 'ko'
   const messages = []
+  const creations = []
   let settle
   let fail = false
+  ctx.provide('connection', {
+    rpc: {
+      call: async (_channel, _method, payload) => {
+        if (fail) return { ok: false, error: { code: 'worktrees_unavailable' } }
+        creations.push(payload)
+        await new Promise((resolve) => {
+          settle = resolve
+        })
+        return { ok: true, value: { branch: payload.name || 'generated-name', path: '/repo/.worktrees/new' } }
+      },
+    },
+  })
   ctx.provide('slots', {
     inject: (_slot, callback) => callback(),
     register: (_options, component) => {
@@ -109,17 +122,29 @@ test('composer requests existing tools, preserves input, and keeps session deliv
   await input('feature/한글-"quote"')
   await submit()
   await submit()
-  assert.equal(messages.length, 1, 'double submission must produce only one prompt')
-  assert.equal(messages[0].sessionId, 'session-a')
-  assert.match(messages[0].text, /create_worktree/)
-  assert.ok(messages[0].text.includes('{"name":"feature/한글-\\"quote\\""}'))
-  assert.match(messages[0].text, /도구가 없으면 중단/)
-  assert.match(messages[0].text, /git worktree add로 대체하거나/)
+  assert.equal(creations.length, 1, 'double submission must create only once')
+  assert.deepEqual(creations[0], { sessionId: 'session-a', name: 'feature/한글-"quote"' })
+  assert.equal(messages.length, 0, 'creation must not start an agent turn')
   assert.equal(document.querySelector('textarea').value, 'Keep my unsent draft @file')
   assert.equal(document.querySelector('button[type=submit]').disabled, true)
   await finish()
   assert.equal(document.querySelector('dialog').open, false)
-  assert.match(document.querySelector('[role=status]').textContent, /모델에 요청했습니다/)
+  assert.match(document.querySelector('[role=status]').textContent, /생성 및 전환 완료:.*feature\/한글/)
+  assert.match(document.querySelector('[role=status]').textContent, /\/repo\/\.worktrees\/new/)
+
+  fail = true
+  await click('.dsh-worktree-trigger')
+  await input('retry-name')
+  await submit()
+  assert.match(document.querySelector('[role=alert]').textContent, /Git worktrees를 켠 뒤/)
+  assert.equal(document.querySelector('input[type=text]').value, 'retry-name')
+  fail = false
+  await submit()
+  await render('session-b')
+  await finish()
+  assert.equal(creations.at(-1).sessionId, 'session-a')
+  assert.equal(document.querySelector('[role=status]').textContent, '')
+  await render()
 
   await click('.dsh-worktree-trigger')
   await click('input[type=radio]:not(:checked)')
@@ -156,10 +181,10 @@ test('composer requests existing tools, preserves input, and keeps session deliv
     for (const listener of locale.listeners) listener()
   })
   await click('.dsh-worktree-trigger')
-  assert.equal(document.querySelector('h2').textContent, 'Worktree request')
+  assert.equal(document.querySelector('h2').textContent, 'Git worktree')
+  assert.equal(document.querySelector('button[type=submit]').textContent, 'Create new')
   await submit()
-  assert.equal(messages.at(-1).sessionId, 'session-b')
-  assert.match(messages.at(-1).text, /with \{\} to create/)
+  assert.deepEqual(creations.at(-1), { sessionId: 'session-b', name: '' })
   await finish()
   for (const state of [
     { ...snapshot, running: true },
