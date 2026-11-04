@@ -19,9 +19,11 @@ import {
 
 export const name = 'dungsil-vcs-pull-requests'
 export const inject = ['connection', 'sessionController', 'workingDirectory', 'subprocess', 'sandbox', 'sandboxPolicy']
-export const Config = z.object({ provider: z.union(['auto', 'github', 'gitlab']).default('auto') })
+export const Config = z.object({
+  provider: z.union(['auto', 'github', 'gitlab', 'gitea', 'forgejo']).default('auto'),
+})
 export interface Config {
-  provider: 'auto' | 'github' | 'gitlab'
+  provider: 'auto' | 'github' | 'gitlab' | 'gitea' | 'forgejo'
 }
 
 function safeUrl(value: unknown): string {
@@ -108,6 +110,17 @@ export function apply(ctx: Context, config: Config) {
           GH_HOST: undefined,
           GITLAB_REPO: undefined,
           GITLAB_HOST: undefined,
+          TEA_LOGIN: undefined,
+          TEA_REPO: undefined,
+          ...(executable === 'tea'
+            ? {
+                GITEA_INSTANCE_URL: undefined,
+                GITEA_INSTANCE_SSH_HOST: undefined,
+                GITEA_INSTANCE_INSECURE: undefined,
+                GITEA_TOKEN: undefined,
+                GH_TOKEN: undefined,
+              }
+            : {}),
           GH_PROMPT_DISABLED: '1',
           GLAB_CHECK_UPDATE: 'false',
           NO_COLOR: '1',
@@ -119,6 +132,12 @@ export function apply(ctx: Context, config: Config) {
         signal.throwIfAborted()
         const output = child.collected!.stdout!.readFrom(0)
         if (outcome.exitCode === null || !allowed.includes(outcome.exitCode) || output.lossy) throw new Error(failure)
+        // tea 0.12's API command exits successfully even for HTTP errors.
+        // --include keeps the body on stdout and writes the HTTP status to stderr.
+        if (executable === 'tea' && args[0] === 'api') {
+          const headers = child.collected!.stderr!.readFrom(0)
+          if (headers.lossy || !/^HTTP\/[\d.]+ 2\d\d\b/m.test(headers.text)) throw new Error(failure)
+        }
         return trim ? output.text.trim() : output.text
       } finally {
         child.terminate()
@@ -139,7 +158,7 @@ export function apply(ctx: Context, config: Config) {
       throw new Error('unsupported')
     }
     if (!['https:', 'http:', 'ssh:'].includes(url.protocol)) throw new Error('unsupported')
-    const repository = url.pathname
+    let repository = url.pathname
       .replace(/^\//, '')
       .replace(/\.git\/?$/, '')
       .replace(/\/$/, '')
@@ -155,18 +174,102 @@ export function apply(ctx: Context, config: Config) {
           ? 'github'
           : url.hostname === 'gitlab.com'
             ? 'gitlab'
-            : undefined
+            : url.hostname === 'gitea.com'
+              ? 'gitea'
+              : url.hostname === 'codeberg.org'
+                ? 'forgejo'
+                : undefined
         : config.provider
     if (!provider) throw new Error('unsupported')
-    const host = url.hostname + (url.protocol !== 'ssh:' && url.port ? `:${url.port}` : '')
-    const origin = `${url.protocol === 'http:' ? 'http' : 'https'}://${host}`
+    const forge = provider === 'gitea' || provider === 'forgejo'
+    let host = url.hostname + (url.protocol !== 'ssh:' && url.port ? `:${url.port}` : '')
+    let origin = `${url.protocol === 'http:' ? 'http' : 'https'}://${host}`
+    let login = ''
+    if (forge) {
+      // Login metadata does not contain tokens. Never let tea fall back to its
+      // default instance or bind an ambient GitHub token to a remote's host.
+      const logins = JSON.parse(await run('tea', ['login', 'list', '--output', 'json']))
+      if (!Array.isArray(logins)) throw new Error('invalid_response')
+      const matches = logins.filter((entry) => {
+        const base = new URL(safeUrl(entry.url))
+        if (base.search || base.hash) throw new Error('invalid_response')
+        if (url.protocol === 'ssh:')
+          return (
+            new URL(`ssh://${string(entry.ssh_host)}`).hostname === url.hostname && repository.split('/').length === 2
+          )
+        const prefix = base.pathname.replace(/\/$/, '')
+        return (
+          base.protocol === url.protocol &&
+          base.host === url.host &&
+          url.pathname.startsWith(`${prefix}/`) &&
+          url.pathname
+            .slice(prefix.length + 1)
+            .replace(/\.git\/?$/, '')
+            .split('/').length === 2
+        )
+      })
+      if (matches.length !== 1) throw new Error('command_failed')
+      login = string(matches[0].name)
+      if (!login || login.startsWith('-')) throw new Error('invalid_response')
+      const base = new URL(safeUrl(matches[0].url))
+      host = base.host
+      origin = base.href.replace(/\/$/, '')
+      if (url.protocol !== 'ssh:')
+        repository = repository.slice(base.pathname.replace(/^\/|\/$/g, '').length).replace(/^\//, '')
+    }
     const view = { provider, repository: `${host}/${repository}`, branch, request: null }
     // Detached HEAD has no branch to associate; never fall back to a repository-wide request.
     if (!branch) return view
     const mergeRef = tracked ? await git(['config', '--get', `branch.${branch}.merge`], [0, 1]) : ''
     const pushedBranch = mergeRef.startsWith('refs/heads/') ? mergeRef.slice(11) : branch
-    const output =
-      provider === 'github'
+    const forgeApi = (endpoint: string, fields: string[] = [], trim = true) =>
+      run(
+        'tea',
+        ['api', '--login', login, '--include', '--output', '-', ...fields, `${origin}/api/v1/${endpoint}`],
+        fields.length ? 'action_failed' : 'command_failed',
+        [0],
+        trim
+      )
+    const forgePages = async (endpoint: string): Promise<any[]> => {
+      const rows: any[] = []
+      // Servers may cap page size below our requested limit. Only an empty page
+      // ends the list; a short page alone is not evidence of completeness.
+      for (let page = 1; page <= 20; page++) {
+        const data = JSON.parse(await forgeApi(`${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=50&page=${page}`))
+        if (data === null) return rows // An empty Go slice can be encoded as null.
+        if (!Array.isArray(data)) throw new Error('invalid_response')
+        if (!data.length) return rows
+        rows.push(...data)
+      }
+      throw new Error('invalid_response')
+    }
+    let forgeRow: any
+    let forgeRepository = repository
+    if (forge) {
+      const repo = JSON.parse(await forgeApi(`repos/${repository}`))
+      const targets = [repository]
+      if (repo.parent) {
+        const parent = string(repo.parent.full_name)
+        if (!/^[\w.-]+\/[\w.-]+$/.test(parent)) throw new Error('invalid_response')
+        targets.push(parent)
+      }
+      for (const target of targets) {
+        const rows = await forgePages(`repos/${target}/pulls?state=all&sort=recentupdate`)
+        forgeRow = rows.find(
+          (row) =>
+            row?.head?.ref === pushedBranch &&
+            row.head.repo?.full_name?.toLowerCase() === repository.toLowerCase() &&
+            row.base?.repo?.full_name?.toLowerCase() === target.toLowerCase()
+        )
+        if (forgeRow) {
+          forgeRepository = target
+          break
+        }
+      }
+    }
+    const output = forge
+      ? JSON.stringify(forgeRow ?? null)
+      : provider === 'github'
         ? await run('gh', [
             'pr',
             'status',
@@ -199,17 +302,17 @@ export function apply(ctx: Context, config: Config) {
     try {
       const data = JSON.parse(output || 'null')
       if (provider === 'gitlab' && (!Array.isArray(data) || data.length > 1)) throw new Error()
-      const row = provider === 'github' ? data : data[0]
+      const row = provider === 'gitlab' ? data[0] : data
       if (row == null) return view
-      const state = row.state === 'opened' ? 'open' : row.state?.toLowerCase()
+      const state = forge && row.merged ? 'merged' : row.state === 'opened' ? 'open' : row.state?.toLowerCase()
       if (!['open', 'closed', 'merged'].includes(state)) throw new Error()
       const item: RequestItem = {
-        number: provider === 'github' ? row.number : row.iid,
+        number: provider === 'gitlab' ? row.iid : row.number,
         title: row.title,
-        url: provider === 'github' ? row.url : row.web_url,
-        author: (provider === 'github' ? row.author?.login : row.author?.username) ?? '',
-        source: provider === 'github' ? row.headRefName : row.source_branch,
-        target: provider === 'github' ? row.baseRefName : row.target_branch,
+        url: forge ? row.html_url : provider === 'github' ? row.url : row.web_url,
+        author: (forge ? row.user?.login : provider === 'github' ? row.author?.login : row.author?.username) ?? '',
+        source: forge ? row.head.ref : provider === 'github' ? row.headRefName : row.source_branch,
+        target: forge ? row.base.ref : provider === 'github' ? row.baseRefName : row.target_branch,
         draft: provider === 'github' ? row.isDraft : (row.draft ?? row.work_in_progress ?? false),
         state,
         body: '',
@@ -234,14 +337,16 @@ export function apply(ctx: Context, config: Config) {
         throw new Error()
       const link = new URL(item.url)
       if (
-        link.origin !== origin ||
+        link.origin !== new URL(origin).origin ||
         link.username ||
         link.password ||
         link.search ||
         link.hash ||
-        !(provider === 'github'
-          ? /^\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(link.pathname) && link.pathname.endsWith(`/pull/${item.number}`)
-          : link.pathname === `/${repository}/-/merge_requests/${item.number}`)
+        !(forge
+          ? link.href === `${origin}/${forgeRepository}/pulls/${item.number}`
+          : provider === 'github'
+            ? /^\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(link.pathname) && link.pathname.endsWith(`/pull/${item.number}`)
+            : link.pathname === `/${repository}/-/merge_requests/${item.number}`)
       )
         throw new Error()
       // gh resolves the current branch's fork/upstream association itself. Verify its source,
@@ -287,6 +392,7 @@ export function apply(ctx: Context, config: Config) {
         throw new Error()
       }
       const endpoint = `projects/${encodeURIComponent(repository)}/merge_requests/${number}`
+      const forgeEndpoint = `repos/${forgeRepository}/pulls/${number}`
       const section = async (read: () => void | Promise<void>) => {
         try {
           await read()
@@ -295,7 +401,115 @@ export function apply(ctx: Context, config: Config) {
         }
       }
       try {
-        if (provider === 'github') {
+        if (forge) {
+          const detail = JSON.parse(await forgeApi(forgeEndpoint))
+          if (
+            detail.number !== item.number ||
+            detail.html_url !== item.url ||
+            detail.head?.ref !== item.source ||
+            detail.base?.ref !== item.target ||
+            detail.head.repo?.full_name?.toLowerCase() !== repository.toLowerCase() ||
+            detail.base.repo?.full_name?.toLowerCase() !== forgeRepository.toLowerCase() ||
+            !['open', 'closed'].includes(detail.state) ||
+            typeof detail.merged !== 'boolean' ||
+            typeof detail.draft !== 'boolean'
+          )
+            throw new Error()
+          item.headSha = string(detail.head.sha)
+          if (!/^[a-fA-F0-9]{40,64}$/.test(item.headSha)) throw new Error()
+          item.state = detail.merged ? 'merged' : detail.state
+          item.draft = detail.draft
+          await section(() => {
+            item.body = string(detail.body ?? '')
+          })
+          let protection: any
+          await section(async () => {
+            protection = JSON.parse(
+              await forgeApi(`repos/${forgeRepository}/branches/${encodeURIComponent(item.target)}`)
+            )
+            // Go APIs serialize an unset context list as null, including when checks are disabled.
+            protection.status_check_contexts ??= []
+            if (
+              protection.name !== item.target ||
+              typeof protection.user_can_merge !== 'boolean' ||
+              typeof protection.enable_status_check !== 'boolean' ||
+              !Number.isSafeInteger(protection.required_approvals) ||
+              protection.required_approvals < 0 ||
+              !Array.isArray(protection.status_check_contexts) ||
+              !protection.status_check_contexts.every((context: unknown) => typeof context === 'string')
+            )
+              throw new Error()
+            item.mergeable = detail.mergeable === true && protection.user_can_merge ? 'MERGEABLE' : 'BLOCKED'
+          })
+          await section(async () => {
+            const reviews = await forgePages(`${forgeEndpoint}/reviews`)
+            item.reviews = reviews.map((review) => ({
+              author: string(review.user?.login ?? ''),
+              body: string(review.body),
+              state: string(review.state),
+            }))
+            const votes = new Map<string, any>()
+            for (const review of reviews) {
+              if (!Number.isSafeInteger(review.id) || review.id <= 0) throw new Error()
+              if (!['APPROVED', 'REQUEST_CHANGES'].includes(review.state)) continue
+              const author = string(review.user?.login)
+              if (!votes.has(author) || votes.get(author).id < review.id) votes.set(author, review)
+            }
+            const activeVotes = [...votes.values()].filter((review) => !review.dismissed && !review.stale)
+            const approvals = activeVotes.filter(
+              (review) =>
+                review.state === 'APPROVED' &&
+                review.commit_id === item.headSha &&
+                review.official &&
+                review.user.login !== item.author
+            ).length
+            item.reviewDecision = activeVotes.some((review) => review.state === 'REQUEST_CHANGES')
+              ? 'CHANGES_REQUESTED'
+              : approvals < protection.required_approvals
+                ? 'REVIEW_REQUIRED'
+                : protection.required_approvals
+                  ? 'APPROVED'
+                  : ''
+          })
+          await section(async () => {
+            const statuses = await forgePages(`repos/${forgeRepository}/statuses/${item.headSha}?sort=highestindex`)
+            const latest = new Map<string, any>()
+            for (const status of statuses) {
+              if (!Number.isSafeInteger(status.id) || status.id <= 0) throw new Error()
+              const context = string(status.context)
+              if (!latest.has(context) || latest.get(context).id < status.id) latest.set(context, status)
+            }
+            item.checks = [...latest.values()].map((status) => ({
+              name: string(status.context),
+              status: string(status.status),
+              url: safeUrl(status.target_url ?? ''),
+            }))
+            if (protection.enable_status_check) {
+              for (const name of protection.status_check_contexts)
+                if (!latest.has(name)) item.checks.push({ name, status: 'pending', url: '' })
+            }
+          })
+          await section(async () => {
+            const comments = JSON.parse(await forgeApi(`repos/${forgeRepository}/issues/${number}/comments`))
+            item.comments = comments.map((comment: any) => ({
+              author: string(comment.user?.login ?? ''),
+              body: string(comment.body),
+              url: safeUrl(comment.html_url),
+            }))
+          })
+          await section(async () => {
+            const files = await forgePages(`${forgeEndpoint}/files`)
+            item.files = files.map((file) => ({
+              path: string(file.filename),
+              additions: file.additions,
+              deletions: file.deletions,
+            }))
+            if (detail.changed_files !== item.files.length) throw new Error()
+          })
+          await section(async () => {
+            item.diff = await forgeApi(`${forgeEndpoint}.diff`, [], false)
+          })
+        } else if (provider === 'github') {
           const detail = JSON.parse(
             await run('gh', [
               'pr',
@@ -499,11 +713,19 @@ export function apply(ctx: Context, config: Config) {
         // Diff endpoints follow a moving MR/PR head. Never show an old SHA next to
         // a newer diff or authorize a review of that inconsistent snapshot.
         const latest = JSON.parse(
-          await (provider === 'github'
-            ? run('gh', ['pr', 'view', item.url, '--repo', targetRepo, '--json', 'headRefOid'])
-            : run('glab', ['mr', 'view', number, '--repo', targetRepo, '--output', 'json']))
+          await (forge
+            ? forgeApi(forgeEndpoint)
+            : provider === 'github'
+              ? run('gh', ['pr', 'view', item.url, '--repo', targetRepo, '--json', 'headRefOid'])
+              : run('glab', ['mr', 'view', number, '--repo', targetRepo, '--output', 'json']))
         )
-        if ((provider === 'github' ? latest.headRefOid : (latest.sha ?? latest.diff_refs?.head_sha)) !== item.headSha)
+        if (
+          (forge
+            ? latest.head?.sha
+            : provider === 'github'
+              ? latest.headRefOid
+              : (latest.sha ?? latest.diff_refs?.head_sha)) !== item.headSha
+        )
           throw new Error()
       } catch {
         item.detailsError = true
@@ -522,14 +744,65 @@ export function apply(ctx: Context, config: Config) {
             (check) => !['success', 'passed', 'neutral', 'skipped'].includes(check.status.toLowerCase())
           ) ||
             !['', 'APPROVED'].includes(item.reviewDecision) ||
-            !(provider === 'github'
+            !(provider !== 'gitlab'
               ? item.mergeable === 'MERGEABLE'
               : ['mergeable', 'can_be_merged'].includes(item.mergeable)))
         )
           throw new Error('action_failed')
         if ((await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1])) !== branch)
           throw new Error('stale_request')
-        if (provider === 'github') {
+        if (forge) {
+          if (action.action === 'merge') {
+            const repo = JSON.parse(await forgeApi(`repos/${forgeRepository}`))
+            const strategy = action.strategy ?? 'merge'
+            if (
+              !(strategy === 'merge'
+                ? repo.allow_merge_commits
+                : strategy === 'squash'
+                  ? repo.allow_squash_merge
+                  : repo.allow_rebase)
+            )
+              throw new Error('unsupported_action')
+            await forgeApi(`${forgeEndpoint}/merge`, [
+              '--method',
+              'POST',
+              '-f',
+              `Do=${strategy}`,
+              '-f',
+              `head_commit_id=${action.headSha}`,
+              '-F',
+              'force_merge=false',
+              '-F',
+              'merge_when_checks_succeed=false',
+              '-F',
+              'delete_branch_after_merge=false',
+            ])
+          } else {
+            const fields = ['--method', 'POST', '-f', `body=${action.body ?? ''}`]
+            if (action.action !== 'comment')
+              fields.push(
+                '-f',
+                `commit_id=${action.headSha}`,
+                '-f',
+                `event=${action.action === 'approve' ? 'APPROVED' : 'REQUEST_CHANGES'}`
+              )
+            const response = JSON.parse(
+              await forgeApi(
+                action.action === 'comment'
+                  ? `repos/${forgeRepository}/issues/${number}/comments`
+                  : `${forgeEndpoint}/reviews`,
+                fields
+              )
+            )
+            if (
+              !Number.isSafeInteger(response.id) ||
+              response.id <= 0 ||
+              (action.action !== 'comment' &&
+                (response.commit_id !== action.headSha || response.stale || response.dismissed))
+            )
+              throw new Error('action_failed')
+          }
+        } else if (provider === 'github') {
           if (action.action !== 'merge') {
             const base = [
               'api',
