@@ -50,6 +50,58 @@ const imeSource = await readFile(new URL(import.meta.resolve('@dungsil/dsh-plugi
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
 
+await test('Korean text uses bundled Jetendard without changing custom, code or terminal fonts, and unloads cleanly', async () => {
+  const browser = new Window()
+  const { document } = browser
+  const base = document.createElement('style')
+  base.textContent = `
+    :root { --dsh-font-family-text-default: Arial; }
+    body {
+      --dsw-font-family: var(--dsh-font-family-text, var(--dsh-font-family-text-default));
+      --ds-font-family-code: monospace;
+      --dsh-font-family-terminal: Courier;
+      font-family: var(--dsw-font-family);
+    }
+  `
+  document.head.append(base)
+  const { LocaleRuntime } = loadClient(upstreamSource, browser).exports
+  const ctx = new Context()
+  const locale = new LocaleRuntime(ctx)
+  ctx.provide('locale', locale)
+  // The host locale presenter owns <html lang>; LocaleRuntime alone does not.
+  const syncLanguage = () => (document.documentElement.lang = locale.getSnapshot().active)
+  ctx.effect(() => locale.subscribe(syncLanguage))
+  syncLanguage()
+  const font = () => browser.getComputedStyle(document.body).fontFamily
+  try {
+    let fiber = ctx.plugin(loadClient(source, browser).exports)
+    await fiber.await()
+    assert.equal(font(), 'Arial')
+    locale.setLocale('ko')
+    assert.match(font(), /Jetendard/)
+    assert.equal(browser.getComputedStyle(document.body).getPropertyValue('--ds-font-family-code'), 'monospace')
+    assert.equal(browser.getComputedStyle(document.body).getPropertyValue('--dsh-font-family-terminal'), 'Courier')
+    document.body.style.setProperty('--dsh-font-family-text', 'Georgia')
+    assert.match(font(), /^Georgia/)
+    assert.doesNotMatch(font(), /Jetendard/)
+    document.body.style.removeProperty('--dsh-font-family-text')
+    assert.match(font(), /Jetendard/)
+    locale.setLocale('en')
+    assert.equal(font(), 'Arial')
+    locale.setLocale('ko')
+    await fiber.dispose()
+    assert.equal(font(), 'Arial')
+    assert.equal(document.querySelectorAll('style[data-plugin="dungsil-locale-ko"]').length, 0)
+    fiber = ctx.plugin(loadClient(source, browser).exports)
+    await fiber.await()
+    assert.match(font(), /Jetendard/)
+    assert.equal(document.querySelectorAll('style[data-plugin="dungsil-locale-ko"]').length, 1)
+  } finally {
+    await ctx.fiber.dispose()
+    await browser.happyDOM.close()
+  }
+})
+
 await test('bundle exposes three enabled, independently loadable and localized components', async () => {
   const patch = parse(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8'))
   assert.deepEqual(patch, [
