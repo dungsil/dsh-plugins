@@ -1,5 +1,3 @@
-import './svg.d.ts'
-
 /** Stroke glyphs in the shipped icon grid for DOM-injected native menu rows. */
 export { default as activityIconSvg } from './icons/activity.svg'
 /** Fallback check, used only when no selected native row exists to copy. */

@@ -1,4 +1,3 @@
-import './svg.d.ts'
 import { createElement } from 'react'
 import resetIconSvg from './icons/rotate-ccw.svg'
 
