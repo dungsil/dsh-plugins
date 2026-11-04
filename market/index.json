@@ -507,6 +507,49 @@
           }
         }
       ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-turn-rail-left",
+      "title": {
+        "en": "Left Turn Rail",
+        "ko": "왼쪽 턴 레일",
+        "zh": "左侧轮次导航栏"
+      },
+      "description": {
+        "en": "Move the official turn rail and its previews to the left side of Chat.",
+        "ko": "공식 턴 레일을 대화 화면 왼쪽으로 옮기고 미리보기를 오른쪽으로 펼칩니다.",
+        "zh": "将官方轮次导航栏移至对话界面左侧，预览向右展开。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-turn-rail-left"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["chat", "turn", "rail", "navigation", "left"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793774725,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0-stage",
+          "publishTimestamp": 1793774494,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
     }
   ]
 }
