@@ -965,4 +965,39 @@ await test('built composer uses direct worktree RPC without touching prompts or 
     await resolve(saving, saveResult(saving, 'strict-save'))
     assert.equal(remoteSwitch().getAttribute('aria-checked'), 'true')
   })
+
+  await t.test('settings labels, validation and status use English, Korean and Chinese', async () => {
+    const before = calls.length
+    for (const [active, nav, label, invalid, saved] of [
+      ['en', 'Worktrees', 'Worktree pool directory', /custom prefix cannot be empty/, /Settings saved/],
+      ['ko', '워크트리', '워크트리 풀 디렉터리', /접두사는 비워 둘 수 없습니다/, /설정을 저장했습니다/],
+      ['zh', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/],
+      ['zh-CN', '工作树', '工作树池目录', /自定义前缀不能为空/, /设置已保存/],
+    ]) {
+      await act(async () => {
+        language = active
+        for (const listener of locale.listeners) listener()
+      })
+      assert.equal(settingsOptions.label(), nav)
+      assert.equal(document.querySelector('section').getAttribute('aria-label'), nav)
+      assert.equal(document.querySelector(`label[for="${directory().id}"]`).textContent, label)
+      await chooseNaming('custom')
+      assert.match(document.querySelector('[role=alert]').textContent, invalid)
+      await chooseNaming('semantic')
+      assert.match(document.querySelector('[role=status]').textContent, saved)
+      assertNoSettingsButtons()
+    }
+    assert.equal(calls.length, before, 'locale changes and invalid drafts must not write settings')
+  })
+})
+
+await test('worktree settings dictionaries contain the same nonempty keys for all three languages', async () => {
+  const source = await readFile(new URL('../src/settings.tsx', import.meta.url), 'utf8')
+  const dictionaries = runInThisContext(`(${source.match(/const copy = (\{[\s\S]*?\n\})/)[1]})`)
+  for (const language of ['ko', 'zh']) {
+    assert.deepEqual(Object.keys(dictionaries[language]).sort(), Object.keys(dictionaries.en).sort())
+  }
+  for (const dictionary of Object.values(dictionaries)) {
+    assert.ok(Object.values(dictionary).every((value) => typeof value === 'string' && value.trim().length > 0))
+  }
 })

@@ -29,6 +29,29 @@ const copy = {
     invalidDirectory: '공백이 아닌 경로를 4096자 이내로 입력하세요. 줄바꿈은 사용할 수 없습니다.',
     invalidPrefix: '올바른 접두사를 100자 이내로 입력하세요. 사용자 지정 접두사는 비워 둘 수 없습니다.',
   },
+  zh: {
+    nav: '工作树',
+    directory: '工作树池目录',
+    directoryHint: '请输入相对于源仓库根目录的路径，或绝对路径。',
+    remote: '使用跟踪的远程分支',
+    remoteHint: '使用已获取到本地的远程引用，不会自动执行 fetch。',
+    naming: '自动分支命名格式',
+    namingHint: '仅在创建工作树时未填写分支名称的情况下生效。',
+    semantic: '语义化（feat/… 或 fix/…）',
+    dsh: 'DSH（dsh/*）',
+    custom: '自定义前缀',
+    prefix: '分支前缀',
+    prefixHint: '可使用英文字母、数字、连字符、下划线和 /，例如 team/、task-。',
+    loading: '正在加载设置…',
+    saving: '正在保存…',
+    saved: '设置已保存，将在下次创建工作树时生效。',
+    resynced: '已重新加载保存的设置。',
+    error: '无法确认更改结果，请检查已保存的值后再进行更改。',
+    conflict: '设置已在其他位置更改，请检查已保存的值后再进行更改。',
+    unavailable: '无法加载设置，请检查连接后重新打开此设置页面。',
+    invalidDirectory: '请输入不超过 4096 个字符的非空路径，不能包含换行符。',
+    invalidPrefix: '请输入不超过 100 个字符的有效前缀，自定义前缀不能为空。',
+  },
   en: {
     nav: 'Worktrees',
     directory: 'Worktree pool directory',
@@ -54,7 +77,8 @@ const copy = {
   },
 }
 
-export const settingsLabel = (language: string) => copy[language.startsWith('ko') ? 'ko' : 'en'].nav
+const languageKey = (language: string) => language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en'
+export const settingsLabel = (language: string) => copy[languageKey(language)].nav
 
 const validDirectory = (value: string) => value.trim().length > 0 && value.length <= 4096 && !/[\0\r\n]/.test(value)
 const validPrefix = (value: string) =>
@@ -71,7 +95,7 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
     (listener) => ctx.locale.subscribe(listener),
     () => ctx.locale.getSnapshot().active
   )
-  const text = copy[language.startsWith('ko') ? 'ko' : 'en']
+  const text = copy[languageKey(language)]
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [draft, setDraft] = useState<WorktreeSettings>()
