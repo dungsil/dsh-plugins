@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "CLIProxyAPI",
+    "description": "连接 CLIProxyAPI 模型并管理 OAuth 账户和路由。需要 CLIProxyAPI v8。"
+  }
+}

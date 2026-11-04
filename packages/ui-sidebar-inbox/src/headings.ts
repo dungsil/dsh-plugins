@@ -33,7 +33,7 @@ export function installHeadings(
   const trees = new Set<HTMLElement>()
   const wrappers = new Set<HTMLElement>()
   const originalSlots = new Map<HTMLElement, string | null>()
-  const panes = new Map<HTMLElement, { root: ShadowRoot; footer: HTMLElement }>()
+  const panes = new Map<HTMLElement, { root: ShadowRoot; footer: HTMLElement; stopScrolling: () => void }>()
   const archiveAnimations = new Map<HTMLElement, () => void>()
   /** Each footer opens independently; a reload resets to these defaults. */
   const open: Record<FooterSection, boolean> = { Working: true, Archived: false }
@@ -93,6 +93,7 @@ export function installHeadings(
     archiveAnimations.get(tree)?.()
     const pane = panes.get(tree)
     if (!pane) return
+    pane.stopScrolling()
     // A shadow root cannot detach. A default slot restores the native layout.
     const slot = document.createElement('slot')
     slot.dataset.dshInboxNative = ''
@@ -123,7 +124,14 @@ export function installHeadings(
       ::-webkit-scrollbar-thumb:hover { background-color: var(--dsh-scrollbar-thumb-hover); }
       ::-webkit-scrollbar-corner { background: transparent; }
       .main { flex: 1; }
-      .footer { flex: none; max-block-size: 50%; }
+      .footer {
+        flex: none; max-block-size: 50%;
+        --dsh-scrollbar-thumb: transparent; --dsh-scrollbar-thumb-hover: transparent;
+      }
+      .footer[data-scrolling] {
+        --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+        --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+      }
       @media (prefers-reduced-motion: reduce) { .footer { transition: none !important; } }
       ::slotted(*) { display: block; }
     `
@@ -138,10 +146,20 @@ export function installHeadings(
     footer.append(slot)
     // Shadow scroll events do not reach the native portal position listeners.
     const notifyScroll = () => tree.dispatchEvent(new Event('scroll'))
+    let scrollTimeout: ReturnType<typeof setTimeout> | undefined
+    const stopScrolling = () => {
+      clearTimeout(scrollTimeout)
+      delete footer.dataset.scrolling
+    }
     main.addEventListener('scroll', notifyScroll)
-    footer.addEventListener('scroll', notifyScroll)
+    footer.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout)
+      footer.dataset.scrolling = ''
+      scrollTimeout = setTimeout(stopScrolling, 150)
+      notifyScroll()
+    })
     root.replaceChildren(sheet, main, footer)
-    panes.set(tree, { root, footer })
+    panes.set(tree, { root, footer, stopScrolling })
   }
   const sizeFooters = () => {
     for (const [tree, { footer }] of panes) {

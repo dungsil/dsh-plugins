@@ -5,6 +5,7 @@ export {
   Button,
   CodeBlock,
   FileTypeIcon,
+  IconPluginPinwheelOutlineRegular,
   Input,
   MarkdownText,
   Menu,
