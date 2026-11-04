@@ -18,6 +18,8 @@ const styles = `
 .dsh-diff-note-header h3 { margin: 0; font-size: inherit; font-weight: 600; }
 .dsh-diff-note-diff { margin: 0 8px; }
 .dsh-diff-note p { margin: 0; padding: 10px 14px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.dsh-diff-note .dsh-diff-note-bubble { position: relative; box-sizing: border-box; width: fit-content; max-width: calc(100% - 28px); margin: 10px 14px 12px; padding: 8px 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1); }
+.dsh-diff-note-bubble::before { content: ''; position: absolute; top: -6px; left: 12px; width: 12px; height: 6px; background: inherit; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
 .dsh-diff-note .dsh-diff-note-snapshot { padding-top: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 `
 
@@ -51,7 +53,7 @@ export function apply(ctx: Context) {
               labels={labels}
               maxLines={8}
             />
-            <p>{note.note}</p>
+            <p className="dsh-diff-note-bubble">{note.note}</p>
             <p className="dsh-diff-note-snapshot">{text.snapshot}</p>
           </>
         ) : (
