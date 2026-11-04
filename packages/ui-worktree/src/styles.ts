@@ -1,7 +1,6 @@
 export const styles = `
 .dsh-worktree-sidebar-name { flex: 0 1 auto; min-width: 0; max-width: 88px; margin-inline: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-caption); font-size: 10px; line-height: 16px; }
 .dsh-worktree { display: inline-flex; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); font: inherit; }
-.dsh-worktree-controls { display: inline-flex; flex-wrap: nowrap; align-items: center; min-width: 0; max-width: 100%; }
 .dsh-worktree-picker { display: inline-flex; min-width: 0; max-width: 100%; }
 .dsh-worktree-trigger { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 220px; height: 28px; padding: 0 4px 0 8px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
 .dsh-worktree-icon, .dsh-worktree-chevron { display: inline-flex; flex: none; }
@@ -18,10 +17,8 @@ export const styles = `
   .dsh-worktree-chevron { transition: transform .12s; }
 }
 @media (hover: hover) {
-  .dsh-worktree-trigger:hover:not(:disabled), .dsh-worktree-error-trigger:hover, .dsh-worktree-dialog button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+  .dsh-worktree-trigger:hover:not(:disabled), .dsh-worktree-dialog button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 }
-.dsh-worktree-error-trigger { flex: 0 0 auto; min-height: 28px; padding: 2px 6px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 20px; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.dsh-worktree-error-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
 .dsh-worktree-dialog.dsh-worktree-error-dialog { inset: 0; margin: auto; }
 .dsh-worktree-error-dialog dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; }
 .dsh-worktree-error-dialog dt { color: var(--dsw-alias-label-secondary); }
