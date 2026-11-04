@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -24,6 +24,7 @@ import {
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import { splitMarkdownSections, type MarkdownSection } from './markdown-sections.js'
 import { actionMethod, channel, method, type RequestAction, type RequestView } from './pull-requests-protocol.js'
 import { styles } from './pull-requests-styles.js'
 
@@ -32,6 +33,33 @@ export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs']
 
 type ReviewAction = Exclude<RequestAction['action'], 'merge'>
 type Strategy = NonNullable<RequestAction['strategy']>
+
+function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>, 'text' | 'labels'>) {
+  const { introduction, sections, definitions } = useMemo(() => splitMarkdownSections(text), [text])
+  const render = (items: MarkdownSection[]) =>
+    items.map((section, index) => (
+      <details key={index} className="dsh-pr-heading" open={section === sections[0]}>
+        <summary>
+          <IconChevronDownOutlineRegular aria-hidden="true" />
+          <MarkdownText text={`${section.heading}\n\n${definitions}`} labels={labels} variant="compact" />
+        </summary>
+        <div className="dsh-pr-heading-content">
+          {section.content.trim() && (
+            <MarkdownText text={`${section.content}\n\n${definitions}`} labels={labels} variant="compact" />
+          )}
+          {render(section.children)}
+        </div>
+      </details>
+    ))
+  return (
+    <>
+      {introduction.trim() && (
+        <MarkdownText text={`${introduction}\n\n${definitions}`} labels={labels} variant="compact" />
+      )}
+      {render(sections)}
+    </>
+  )
+}
 
 function Choice<Value extends string>({
   label,
@@ -104,6 +132,7 @@ export function apply(ctx: Context) {
     const [reviewAction, setReviewAction] = useState<ReviewAction>('comment')
     const [strategy, setStrategy] = useState<Strategy>('squash')
     const [strategyOpen, setStrategyOpen] = useState(false)
+    const [checksOpen, setChecksOpen] = useState(false)
     const [confirmation, setConfirmation] = useState<RequestAction>()
     const [notice, setNotice] = useState<'completed' | 'action_failed' | 'stale_request'>()
     const [pending, setPending] = useState(false)
@@ -171,6 +200,7 @@ export function apply(ctx: Context) {
       setPage('overview')
       setStrategy('squash')
       setStrategyOpen(false)
+      setChecksOpen(false)
     }, [sessionId])
 
     useEffect(() => {
@@ -253,6 +283,9 @@ export function apply(ctx: Context) {
       ongoing: copy.pending_check,
       idle: copy.checks_complete,
     }[checksState]
+    const checksSummary = copy.checks_summary
+      .replace('{passed}', String(checkStates.filter((state) => state === 'done').length))
+      .replace('{total}', String(checkStates.length))
     const strategies = [
       { id: 'squash', label: copy.squash },
       { id: 'merge', label: copy.merge_commit },
@@ -311,18 +344,56 @@ export function apply(ctx: Context) {
                       <IconLinkOutlineRegular aria-hidden="true" />
                     </a>
                   </h2>
-                  <span className="dsh-pr-meta">
+                  <div className="dsh-pr-meta">
                     <Tag className="dsh-pr-status" tone={item.state === 'open' && !item.draft ? 'success' : 'neutral'}>
                       {item.state === 'open' && item.draft ? copy.draft : copy[item.state]}
                     </Tag>
-                    <span>{item.author}</span>
-                  </span>
-                  <span className="dsh-pr-refs">
-                    <IconBranchOutlineRegular aria-hidden="true" />
-                    <code>{item.source}</code>
-                    <span aria-hidden="true">→</span>
-                    <code>{item.target}</code>
-                  </span>
+                    <span className="dsh-pr-refs" title={`${item.source} → ${item.target}`}>
+                      <IconBranchOutlineRegular aria-hidden="true" />
+                      <code>{item.source}</code>
+                      <span aria-hidden="true">→</span>
+                      <code>{item.target}</code>
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="dsh-pr-ci-trigger"
+                      aria-label={`${copy.checks}: ${checksSummary} · ${checksLabel}`}
+                      aria-expanded={checksOpen}
+                      aria-controls={`${tabsId}-checks`}
+                      title={`${copy.checks}: ${checksLabel}`}
+                      onClick={() => setChecksOpen(!checksOpen)}
+                    >
+                      <StateDot state={checksState} appearance="step" />
+                      <span>{checksSummary}</span>
+                      <IconChevronDownOutlineRegular aria-hidden="true" />
+                    </Button>
+                  </div>
+                  {checksOpen && (
+                    <div id={`${tabsId}-checks`} className="dsh-pr-ci-results" role="region" aria-label={copy.checks}>
+                      {!item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
+                      <ul className="dsh-pr-checks">
+                        {item.checks.map((check, index) => {
+                          const status = checkStatus(check.status)
+                          return (
+                            <li key={`${check.name}-${index}`}>
+                              <StateDot state={status.state} appearance="step" />
+                              <span className="dsh-pr-check-name">
+                                {check.url ? (
+                                  <a href={check.url} target="_blank" rel="noopener noreferrer">
+                                    {check.name}
+                                  </a>
+                                ) : (
+                                  check.name
+                                )}
+                                <small>{status.label}</small>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <div className="dsh-pr-tabs">
                   <SegmentedTabs
@@ -362,61 +433,10 @@ export function apply(ctx: Context) {
                 <div role="tabpanel" id={`${tabsId}-${page}-panel`} aria-labelledby={`${tabsId}-${page}`} tabIndex={0}>
                   {page === 'overview' && (
                     <>
-                      <details className="dsh-pr-ci">
-                        <summary>
-                          <StateDot state={checksState} appearance="step" />
-                          <span>{copy.checks}</span>
-                          <Tag tone="neutral">{item.checks.length}</Tag>
-                          <span className="dsh-pr-check-result" data-state={checksState}>
-                            {checksLabel}
-                          </span>
-                          <IconChevronDownOutlineRegular aria-hidden="true" />
-                        </summary>
-                        {!item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
-                        <ul className="dsh-pr-checks">
-                          {item.checks.map((check, index) => {
-                            const status = checkStatus(check.status)
-                            return (
-                              <li key={`${check.name}-${index}`}>
-                                <StateDot state={status.state} appearance="step" />
-                                <span className="dsh-pr-check-name">
-                                  {check.url ? (
-                                    <a href={check.url} target="_blank" rel="noopener noreferrer">
-                                      {check.name}
-                                    </a>
-                                  ) : (
-                                    check.name
-                                  )}
-                                  <small>{status.label}</small>
-                                </span>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </details>
-                      <details className="dsh-pr-readiness">
-                        <summary>
-                          <StateDot state={canMerge || item.state === 'merged' ? 'done' : 'idle'} appearance="step" />
-                          <span>{copy.mergeable}</span>
-                          <code>{item.mergeable || '—'}</code>
-                          <IconChevronDownOutlineRegular aria-hidden="true" />
-                        </summary>
-                        <dl className="dsh-pr-facts">
-                          <dt>{copy.mergeable}</dt>
-                          <dd>{item.mergeable || '—'}</dd>
-                          <dt>{copy.review_decision}</dt>
-                          <dd>{item.reviewDecision || '—'}</dd>
-                          <dt>{copy.commit}</dt>
-                          <dd>
-                            <code>{item.headSha.slice(0, 12) || '—'}</code>
-                          </dd>
-                        </dl>
-                        <p>{copy.merge_hint}</p>
-                      </details>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
                       <section className="dsh-pr-section dsh-pr-description" aria-label={copy.body}>
                         <h3>{copy.body}</h3>
-                        <MarkdownText text={item.body || copy.no_body} labels={labels} variant="compact" />
+                        <Description key={item.body} text={item.body || copy.no_body} labels={labels} />
                       </section>
                     </>
                   )}
