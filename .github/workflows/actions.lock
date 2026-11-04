@@ -19,6 +19,8 @@ workflows:
         - 'actions/checkout@v4.4.0'
         - 'actions/setup-node@v4.4.0'
         - 'pnpm/action-setup@v4.3.0'
+    '.github/workflows/verify-lockfile.yml':
+        - 'actions/checkout@v4.4.0'
 dependencies:
     'actions/checkout@v4.4.0':
         ref: 'v4.4.0'

@@ -13,12 +13,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4.4.0
-      - name: Verify action lockfile
-        run: |
-          gh extension install github/gh-actions-lock --pin v0.4.1
-          gh actions-lock --verify
-        env:
-          GH_TOKEN: ${{ github.token }}
       - uses: pnpm/action-setup@v4.3.0
       - uses: actions/setup-node@v4.4.0
         with:
