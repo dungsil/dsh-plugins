@@ -249,6 +249,70 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 3)
 })
 
+await test('new-worktree default reserves once without side effects and respects cancellation across profile reloads', async (t) => {
+  const { agent, repo, git, rpc, requests, profile, submit } = await fixture(t, {}, { defaultSelection: 'new' })
+  const initial = await rpc('describe')
+  assert.equal(initial.ok, true)
+  assert.deepEqual(initial.value.pendingCreation, { name: '', failed: false })
+  assert.equal(initial.value.cwd, repo)
+  assert.equal(initial.value.worktrees.length, 2)
+  assert.equal(requests.length, 0)
+  assert.deepEqual((await rpc('describe')).value, initial.value)
+  const main = initial.value.worktrees.find((entry) => entry.branch === 'main').path
+  assert.equal((await rpc('switch', { cwd: repo, path: main })).value.pendingCreation, undefined)
+  const settings = (await rpc('settings')).value
+  const saved = await rpc('save-settings', {
+    ...settings,
+    settings: { ...settings.settings, directory: '../different-pool' },
+  })
+  assert.equal(saved.ok, true)
+  assert.equal(saved.value.settings.defaultSelection, 'new')
+  assert.match(await readFile(profile.patchPath, 'utf8'), /defaultSelection: new/)
+  assert.equal((await rpc('describe')).value.pendingCreation, undefined, 'reload must not undo cancellation')
+  await submit()
+  assert.equal((await rpc('describe')).value.cwd, repo)
+  assert.equal((await rpc('describe')).value.worktrees.length, 2)
+  assert.equal(git('branch', '--list').split('\n').length, 1)
+  const restored = Session.create(agent.session.id, agent.session.snapshotEvents())
+  assert.deepEqual(restored.deriveMessages(), agent.session.deriveMessages(), 'selection is not model context')
+})
+
+await test('new-worktree default creates on first prompt only and does not replace an existing conversation checkout', async (t) => {
+  const { ctx, repo, rpc, submit } = await fixture(
+    t,
+    {},
+    { defaultSelection: 'new', provider: 'naming', model: 'branch' }
+  )
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream() {
+      yield { type: 'text-delta', index: 0, text: 'feat/default-selection' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['naming'], new NamingAdapter())
+  assert.equal((await rpc('describe')).value.pendingCreation.failed, false)
+  await submit('Implement default selection')
+  const created = (await rpc('describe')).value
+  assert.equal(created.cwd, join(repo, '.agents/worktrees/feat/default-selection'))
+  assert.equal(created.worktrees.length, 3)
+  assert.equal(created.pendingCreation, undefined)
+  await submit('Continue in this checkout')
+  assert.deepEqual((await rpc('describe')).value, created)
+
+  const existing = await fixture(t)
+  await existing.submit('An existing conversation')
+  const view = (await existing.rpc('settings')).value
+  assert.equal(
+    (await existing.rpc('save-settings', { ...view, settings: { ...view.settings, defaultSelection: 'new' } })).ok,
+    true
+  )
+  assert.equal((await existing.rpc('describe')).value.pendingCreation, undefined)
+  assert.equal((await existing.rpc('describe')).value.cwd, existing.repo)
+})
+
 await test('reservations are session-local, cancellable, and refuse a source directory changed before submission', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit, harness } = await fixture(t)
   assert.equal((await rpc('create', { cwd: repo, name: 'cancelled-task' })).ok, true)
@@ -627,7 +691,13 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
 await test('persists settings through Loader reload and uses absolute paths and the tracked remote commit, not local HEAD', async (t) => {
   const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(t)
   const initial = (await rpc('settings')).value
-  assert.deepEqual(initial.settings, { directory: '.agents/worktrees', remote: false, naming: 'semantic', prefix: '' })
+  assert.deepEqual(initial.settings, {
+    defaultSelection: 'current',
+    directory: '.agents/worktrees',
+    remote: false,
+    naming: 'semantic',
+    prefix: '',
+  })
   const remoteCommit = git('rev-parse', 'HEAD')
   git('remote', 'add', 'origin', join(home, 'not-fetched'))
   git('update-ref', 'refs/remotes/origin/main', remoteCommit)
@@ -711,6 +781,7 @@ await test('saved DSH and custom prefixes affect generated names only; invalid s
   assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: gitPath(repo) })).ok, true)
   const view = (await rpc('settings')).value
   for (const change of [
+    { defaultSelection: 'other' },
     { directory: ' ' },
     { remote: 'yes' },
     { naming: 'other' },
@@ -753,7 +824,13 @@ await test('configured hooks and checkout filters do not execute while creating 
 })
 
 await test('task model and worktree settings coexist across profile reloads, reject stale writes and reset to the conversation model', async (t) => {
-  const initialSettings = { directory: '../naming pool', remote: true, naming: 'custom', prefix: 'team/' }
+  const initialSettings = {
+    defaultSelection: 'current',
+    directory: '../naming pool',
+    remote: true,
+    naming: 'custom',
+    prefix: 'team/',
+  }
   const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(
     t,
     { provider: 'fallback', model: 'large' },
