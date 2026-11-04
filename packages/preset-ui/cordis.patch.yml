@@ -1,0 +1,22 @@
+- insert:
+    - id: dungsil-locale-ko
+      name: '@dungsil/dsh-plugin-locale-ko'
+    - id: dungsil-korean-ime
+      name: '@dungsil/dsh-plugin-korean-ime'
+    - id: dungsil-yoonmoon
+      name: '@dungsil/dsh-plugin-yoonmoon'
+    - id: dungsil-sidebar-inbox
+      name: '@dungsil/dsh-plugin-ui-sidebar-inbox'
+    - id: dungsil-ui-model-settings
+      name: '@dungsil/dsh-plugin-ui-model-settings'
+    - id: dungsil-model-settings
+      name: '@dungsil/dsh-plugin-model-settings'
+    - id: dungsil-ui-setting-skills
+      name: '@dungsil/dsh-plugin-ui-setting-skills'
+    - id: dungsil-ui-worktree
+      name: '@dungsil/dsh-plugin-ui-worktree'
+    - id: dungsil-ui-model-picker
+      name: '@dungsil/dsh-plugin-ui-model-picker'
+    - id: dungsil-turn-rail-left
+      name: '@dungsil/dsh-plugin-ui-turn-rail-left'
+      config: {}
