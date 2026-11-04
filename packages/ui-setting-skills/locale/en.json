@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "title": "Skills Settings",
+    "description": "View loaded user skills in settings."
+  },
+  "ui": {
+    "nav": "Skills",
+    "description": "Skills loaded from your shared agent and DSH skill directories. Same-name skills are listed separately for each source.",
+    "agents": "Shared agent skills",
+    "dsh": "DSH skills",
+    "loading": "Loading skills…",
+    "empty": "No loaded skills from this source.",
+    "error": "Could not load skills. Close and reopen this settings section to try again.",
+    "incomplete": "Some skill sources could not be loaded. This list may be incomplete."
+  }
+}

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
-import { SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
   endpointPrefix,
@@ -21,8 +22,11 @@ const copy = {
   en: {
     nav: 'Models by task',
     title: 'Session title',
+    titleDescription: 'Choose the model and reasoning effort used to automatically generate session titles.',
     model: 'Model',
     worktree: 'Worktree branch name',
+    worktreeDescription:
+      'Choose the model and reasoning effort used to generate a branch name when creating a worktree without a name.',
     inherit: 'Use conversation model',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
@@ -49,8 +53,10 @@ const copy = {
   ko: {
     nav: '상황별 모델',
     title: '세션 제목',
+    titleDescription: '세션 제목을 자동으로 생성할 때 사용할 모델과 추론 수준을 설정합니다.',
     model: '모델',
     worktree: '워크트리 브랜치 이름',
+    worktreeDescription: '이름을 입력하지 않고 워크트리를 만들 때 브랜치 이름을 생성할 모델과 추론 수준을 설정합니다.',
     inherit: '대화 모델 따르기',
     effort: '추론 수준',
     automatic: '자동',
@@ -76,8 +82,10 @@ const copy = {
   zh: {
     nav: '任务模型设置',
     title: '会话标题',
+    titleDescription: '设置自动生成会话标题时使用的模型和推理级别。',
     model: '模型',
     worktree: '工作树分支名称',
+    worktreeDescription: '设置创建未指定名称的工作树时用于生成分支名称的模型和推理级别。',
     inherit: '使用对话模型',
     effort: '推理级别',
     automatic: '自动',
@@ -106,6 +114,7 @@ const localizedCopy = (language: string) =>
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
@@ -121,10 +130,7 @@ type Task = 'target' | 'worktree'
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
-  const locale = useSyncExternalStore(
-    (listener) => ctx.locale.subscribe(listener),
-    () => ctx.locale.getSnapshot()
-  )
+  const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
@@ -308,7 +314,16 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               : automaticHint
         return (
           <div key={task} className="dsh-model-settings-field">
-            <SettingsRow label={<div>{title}</div>}>
+            <SettingsRow
+              label={
+                <>
+                  <div>{title}</div>
+                  <div className="dsh-model-settings-description">
+                    {task === 'target' ? text.titleDescription : text.worktreeDescription}
+                  </div>
+                </>
+              }
+            >
               <div className="dsh-model-settings-controls">
                 <SettingsPicker
                   className="dsh-model-settings-picker"
@@ -367,12 +382,14 @@ function ModelSettings({ ctx }: { ctx: Context }) {
 }
 
 export function apply(ctx: Context) {
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'model-settings: styles')
+  ctx.effect(() =>
+    installSettingsIcon(
+      name,
+      Object.values(copy).map((text) => text.nav),
+      '<circle cx="2.5" cy="8" r="1.75"/><path d="M4.25 8H5.5C8 8 7 3.5 10 3.5H11M5.5 8C8 8 7 12.5 10 12.5H11"/><rect x="11" y="1.75" width="3.5" height="3.5" rx=".6"/><rect x="11" y="10.75" width="3.5" height="3.5" rx=".6"/>'
+    )
+  )
+  ctx.effect(() => installStyles(styles), 'model-settings: styles')
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       {

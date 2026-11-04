@@ -9,8 +9,9 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
-  IconChevronDownOutlineRegular,
   IconChevronLeftOutlineRegular,
   IconChevronRightOutlineRegular,
   IconCheckOutlineRegular,
@@ -75,13 +76,9 @@ export function apply(ctx: Context) {
     directory,
   }: Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & { directory: ModelDirectory }) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
-    const locale = useSyncExternalStore(
-      (fn) => ctx.locale.subscribe(fn),
-      () => ctx.locale.getSnapshot().active
-    )
+    const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
-    const [exiting, setExiting] = useState(false)
     const [draft, setDraft] = useState(0)
     const [failed, setFailed] = useState(false)
     const trigger = useRef<HTMLButtonElement | null>(null)
@@ -115,32 +112,11 @@ export function apply(ctx: Context) {
     }, [directory])
 
     const close = () => {
-      setExiting(true)
+      setPanel(null)
       if (trigger.current) focusWithoutRing(trigger.current)
     }
 
-    useDismissOnOutsidePointer(anchor, panel !== null && !exiting, () => setExiting(true), popup)
-
-    useLayoutEffect(() => {
-      if (!exiting || !popup.current) return
-      const element = popup.current
-      element.inert = true
-      let cancelled = false
-      // Keep the material (and the host's macOS backing) mounted until the
-      // shared fade finishes. Reduced motion produces no pending animations.
-      const animations = element.getAnimations({ subtree: true }).filter((animation) => {
-        const name = (animation as CSSAnimation).animationName
-        // Host CSS modules scope the shared keyframe name.
-        return name?.includes('dsh-context-menu-out') || name === 'dsh-codex-menu-out'
-      })
-      void Promise.all(animations.map((animation) => animation.finished.catch(() => {}))).then(() => {
-        if (!cancelled) setPanel(null)
-      })
-      return () => {
-        cancelled = true
-        element.inert = false
-      }
-    }, [exiting])
+    useDismissOnOutsidePointer(anchor, panel !== null, () => setPanel(null), popup)
 
     useLayoutEffect(() => {
       if (!panel || !popup.current || !anchor.current) return
@@ -194,12 +170,12 @@ export function apply(ctx: Context) {
     }, [panel])
 
     useEffect(() => {
-      if (locked) setExiting(true)
+      if (locked) setPanel(null)
     }, [locked])
     // /model and other clients share this selection. Never apply an old slider
     // draft to a newly projected route or effort.
     useEffect(() => {
-      setExiting(true)
+      setPanel(null)
     }, [current?.provider, current?.model, current?.reasoningEffort])
 
     const select = async (selection: ModelSelection) => {
@@ -219,11 +195,10 @@ export function apply(ctx: Context) {
     }
     const show = (button: HTMLButtonElement) => {
       trigger.current = button
-      if (panel && !exiting) {
+      if (panel) {
         close()
         return
       }
-      setExiting(false)
       setDraft(Math.max(0, effortIndex))
       setFailed(false)
       setPanel('effort')
@@ -242,22 +217,19 @@ export function apply(ctx: Context) {
     return (
       <>
         <div className="dsh-codex-picker" ref={anchor} aria-busy={busy}>
-          <button
-            type="button"
+          <ComposerTrigger
             className="dsh-codex-trigger"
+            icon={<IconDataOutlineRegular size={16} />}
+            label={model?.name ?? current?.model ?? text.model}
+            detail={effortLabel}
             disabled={disabled}
             aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
-            aria-expanded={panel !== null && !exiting}
-            aria-controls={panel && !exiting ? id : undefined}
+            aria-expanded={panel !== null}
+            aria-controls={panel ? id : undefined}
             onClick={(event) => show(event.currentTarget)}
-          >
-            <IconDataOutlineRegular className="dsh-codex-trigger-icon" size={16} />
-            <span className="dsh-codex-name">{model?.name ?? current?.model ?? text.model}</span>
-            {effortLabel && <span className="dsh-codex-effort">{effortLabel}</span>}
-            <IconChevronDownOutlineRegular className="dsh-codex-chevron" />
-          </button>
+          />
         </div>
         {panel &&
           createPortal(
@@ -265,9 +237,6 @@ export function apply(ctx: Context) {
               id={id}
               ref={popup}
               role="dialog"
-              aria-hidden={exiting || undefined}
-              data-picker-phase={exiting ? 'dismiss' : 'enter'}
-              {...{ phase: exiting ? 'dismiss' : 'enter' }}
               aria-label={panel === 'model' ? text.model : text.effort}
               className="dsh-codex-popover"
             >
@@ -453,10 +422,5 @@ export function apply(ctx: Context) {
         ) : null
     )
   )
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-model-picker: styles')
+  ctx.effect(() => installStyles(styles), 'ui-model-picker: styles')
 }

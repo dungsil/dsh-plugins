@@ -1,14 +1,18 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsPicker, SettingsRow } from '@dungsil/dsh-ui'
+import { useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, endpointPrefix, type WorktreeSettings, type WorktreeSettingsView } from './protocol.js'
 
 const copy = {
   ko: {
     nav: '워크트리',
+    defaultSelection: '기본 선택',
+    current: '현재 체크아웃',
+    new: '새 워크트리',
     directory: '워크트리 풀 디렉터리',
     remote: '추적 중인 원격 브랜치 사용',
     naming: '자동 브랜치 이름 형식',
@@ -26,6 +30,9 @@ const copy = {
   },
   zh: {
     nav: '工作树',
+    defaultSelection: '默认选择',
+    current: '当前检出',
+    new: '新工作树',
     directory: '工作树池目录',
     remote: '使用跟踪的远程分支',
     naming: '自动分支命名格式',
@@ -43,6 +50,9 @@ const copy = {
   },
   en: {
     nav: 'Worktrees',
+    defaultSelection: 'Default selection',
+    current: 'Current checkout',
+    new: 'New worktree',
     directory: 'Worktree pool directory',
     remote: 'Use tracked remote branch',
     naming: 'Automatic branch naming',
@@ -74,10 +84,7 @@ const sameSettings = (left: WorktreeSettings | undefined, right: WorktreeSetting
   JSON.stringify(left) === JSON.stringify(right)
 
 export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
-  const language = useSyncExternalStore(
-    (listener) => ctx.locale.subscribe(listener),
-    () => ctx.locale.getSnapshot().active
-  )
+  const { active: language } = useLocaleSnapshot(ctx.locale)
   const text = copy[languageKey(language)]
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
@@ -208,6 +215,25 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
       <form onSubmit={(event) => event.preventDefault()}>
         {draft && (
           <fieldset disabled={disabled}>
+            <SettingsRow
+              label={
+                <div id={`${id}-default-selection`} className="dsh-worktree-settings-title">
+                  {text.defaultSelection}
+                </div>
+              }
+            >
+              <SettingsPicker
+                className="dsh-worktree-settings-picker"
+                disabled={disabled}
+                aria-labelledby={`${id}-default-selection`}
+                value={text[draft.defaultSelection]}
+                selectedId={draft.defaultSelection}
+                items={(['current', 'new'] as const).map((id) => ({ id, label: text[id] }))}
+                onSelect={(defaultSelection) => {
+                  change({ defaultSelection: defaultSelection as WorktreeSettings['defaultSelection'] })
+                }}
+              />
+            </SettingsRow>
             <SettingsRow
               label={
                 <>

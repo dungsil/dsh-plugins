@@ -9,13 +9,14 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId, appendPluginRecord } from '@deepseek-ai/dsh-session'
+import { SessionId, appendPluginRecord, pluginRecordOf } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import {
   channel,
   endpointPrefix,
   progressRecord,
+  selectionRecord,
   type WorktreeProgress,
   type WorktreeSettings,
   type WorktreeView,
@@ -36,6 +37,7 @@ export const inject = [
 ]
 
 export const Config = z.object({
+  defaultSelection: z.union(['current', 'new']).default('current'),
   directory: z.string().default('.agents/worktrees'),
   remote: z.boolean().default(false),
   naming: z.union(['semantic', 'dsh', 'custom']).default('semantic'),
@@ -49,6 +51,7 @@ function validSettings(value: unknown): value is WorktreeSettings {
   if (!value || typeof value !== 'object') return false
   const input = value as WorktreeSettings
   return (
+    ['current', 'new'].includes(input.defaultSelection) &&
     typeof input.directory === 'string' &&
     input.directory.trim().length > 0 &&
     input.directory.length <= 4096 &&
@@ -273,6 +276,19 @@ export function apply(ctx: Context, config: Config) {
       const branch = fields.find((field) => field.startsWith('branch refs/heads/'))?.slice(18) ?? null
       worktrees.push({ path, branch })
     }
+    // Apply the default once, only to empty conversations. Persist the marker so
+    // cancelling a reservation survives profile reloads and host restarts.
+    if (!agent.session.snapshotEvents().some((event) => pluginRecordOf(event)?.type === selectionRecord)) {
+      if (
+        config.defaultSelection === 'new' &&
+        !creations.has(agent) &&
+        !agent.session.deriveMessages().some((message) => ['user', 'user-rpc'].includes(message.source.kind))
+      ) {
+        creations.set(agent, { cwd, name: '', failed: false })
+      }
+      appendPluginRecord(agent.session, selectionRecord, { initialized: true })
+      await ctx.sessions.flush(agent.session)
+    }
     const creation = creations.get(agent)
     return {
       cwd,
@@ -293,6 +309,7 @@ export function apply(ctx: Context, config: Config) {
         .update(JSON.stringify(current ?? {}))
         .digest('hex'),
       settings: {
+        defaultSelection: current?.defaultSelection ?? 'current',
         directory: current?.directory ?? '.agents/worktrees',
         remote: current?.remote ?? false,
         naming: current?.naming ?? 'semantic',
@@ -401,8 +418,8 @@ export function apply(ctx: Context, config: Config) {
         signal.throwIfAborted()
         await ctx.configEditor.edit(entry(), (current) => {
           if (snapshot().revision !== input.revision) throw new Error('conflict')
-          const { directory, remote, naming, prefix } = input.settings as WorktreeSettings
-          return { ...current, directory, remote, naming, prefix }
+          const { defaultSelection, directory, remote, naming, prefix } = input.settings as WorktreeSettings
+          return { ...current, defaultSelection, directory, remote, naming, prefix }
         })
         return { ok: true as const, value: snapshot() }
       } catch (error) {

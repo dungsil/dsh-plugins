@@ -1,6 +1,7 @@
 export const channel = '/api'
 export const endpointPrefix = 'dungsil-worktree/'
 export const progressRecord = 'plugin:dungsil/ui-worktree/progress'
+export const selectionRecord = 'plugin:dungsil/ui-worktree/selection'
 
 export interface WorktreeProgress {
   id: string
@@ -14,6 +15,7 @@ export interface WorktreeProgress {
 declare module '@deepseek-ai/dsh-session' {
   interface PluginRecordMap {
     'plugin:dungsil/ui-worktree/progress': WorktreeProgress
+    'plugin:dungsil/ui-worktree/selection': { initialized: true }
   }
 }
 
@@ -35,6 +37,7 @@ export function isWorktreeProgress(value: unknown): value is WorktreeProgress {
 }
 
 export interface WorktreeSettings {
+  defaultSelection: 'current' | 'new'
   directory: string
   remote: boolean
   naming: 'semantic' | 'dsh' | 'custom'

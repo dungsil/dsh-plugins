@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -7,13 +7,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   Menu,
   IconBranchOutlineRegular,
-  IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { installSettingsIcon } from '@dungsil/dsh-ui'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
@@ -28,11 +30,17 @@ export const inject = ['slots', 'locale', 'connection', 'uiConversation']
 type Props = PropsRuntime<'conversation.input.left'>
 
 export function apply(ctx: Context) {
+  ctx.effect(() =>
+    installSettingsIcon(
+      name,
+      ['en', 'ko', 'zh'].map(settingsLabel),
+      '<circle cx="4" cy="2.5" r="1.75"/><circle cx="4" cy="13.5" r="1.75"/><circle cx="12" cy="5.5" r="1.75"/><path d="M4 4.25V11.75M4 9H7C10 9 12 9 12 7.25"/>'
+    )
+  )
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const subscribeLocale = (listener: () => void) => ctx.locale.subscribe(listener)
   installProgress(ctx)
   function Picker({ sessionId, useSession }: Props) {
-    const language = useSyncExternalStore(subscribeLocale, () => ctx.locale.getSnapshot().active)
+    const { active: language } = useLocaleSnapshot(ctx.locale)
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
@@ -226,10 +234,11 @@ export function apply(ctx: Context) {
               void change('switch', id.slice(5))
           }}
           anchor={
-            <button
+            <ComposerTrigger
               ref={trigger}
-              type="button"
               className="dsh-worktree-trigger"
+              icon={<IconBranchOutlineRegular />}
+              label={label}
               disabled={detailError ? loading || busy : disabled}
               aria-label={`${text.title}: ${label}`}
               aria-haspopup={detailError ? 'dialog' : 'menu'}
@@ -247,15 +256,7 @@ export function apply(ctx: Context) {
                   setOpen(true)
                 }
               }}
-            >
-              <span className="dsh-worktree-icon" aria-hidden="true">
-                <IconBranchOutlineRegular className="dsh-worktree-branch" />
-              </span>
-              <span className="dsh-worktree-name">{label}</span>
-              <span className="dsh-worktree-chevron" aria-hidden="true">
-                <IconChevronDownOutlineRegular />
-              </span>
-            </button>
+            />
           }
         />
         <span id={status} className="dsh-worktree-sr" role="status">
@@ -317,10 +318,5 @@ export function apply(ctx: Context) {
       WorktreeSettingsSection
     )
   )
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-worktree: composer styles')
+  ctx.effect(() => installStyles(styles), 'ui-worktree: composer styles')
 }
