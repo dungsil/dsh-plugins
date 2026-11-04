@@ -13,6 +13,16 @@
 - UI는 기존 dsh와 같은 look and feel을 유지합니다.
 - 기존 dsh의 컴포넌트와 스타일을 우선 재사용하여 시각적 표현과 상호작용을 일관되게 구현합니다.
 
+## Implementation Completion Checklist
+
+구현을 마친 뒤 다음 항목을 확인합니다. 실제로 확인한 항목만 완료로 표시합니다.
+
+- [ ] 추가하거나 변경한 UI 문구에 영어, 한국어, 중국어 로케일이 모두 있는지 확인합니다. 각 로케일의 번역 키와 번역문이 빠지지 않았는지 검사합니다.
+- [ ] 최신 구현으로 플러그인을 빌드하고 실제 dsh 세션에 설치하거나 갱신한 뒤 활성화합니다. 해당 세션이 최신 빌드 결과를 불러왔는지 확인합니다.
+- [ ] 실제 dsh 세션에서 변경한 기능을 실행하여 화면과 동작을 확인합니다. UI 변경은 기존 dsh의 look and feel과 일치하는지도 확인합니다.
+- [ ] 영어, 한국어, 중국어로 각각 전환하여 변경한 UI 문구가 올바르게 표시되는지 확인합니다.
+- [ ] 검증에 사용한 dsh 버전, 세션, 확인 절차와 결과를 기록합니다. 확인하지 못한 항목은 사유와 함께 남기며, 자동 테스트 통과만으로 실제 세션 검증을 완료했다고 표시하지 않습니다.
+
 ## Commit Message Convention
 
 <!-- Adapted from https://www.conventionalcommits.org/en/v1.0.0/ (Conventional Commits contributors, CC BY 3.0: https://creativecommons.org/licenses/by/3.0/). Korean project-specific rules were added. -->
