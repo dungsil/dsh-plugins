@@ -43,6 +43,7 @@
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "react": "18.3.1",

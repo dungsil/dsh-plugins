@@ -1,25 +1,17 @@
-export const styles = `
+import { composerStyles } from '@dungsil/dsh-ui/composer'
+
+export const styles = `${composerStyles}
 .dsh-codex-picker { display: flex; align-items: center; min-width: 0; }
-.dsh-codex-trigger { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: min(360px, 45cqw); height: 28px; padding: 0 4px 0 8px; border: none; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font-family: inherit; font-size: 13px; font-weight: 400; line-height: 20px; cursor: pointer; outline: none; }
+.dsh-codex-trigger { max-width: min(360px, 45cqw); font-weight: 400; outline: none; }
 .dsh-codex-trigger:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 .dsh-codex-trigger:focus-visible:not([data-dsh-automatic-focus]) { box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); }
-.dsh-codex-trigger:disabled { color: var(--dsw-alias-label-dimmed); cursor: default; }
-.dsh-codex-trigger-icon { display: var(--dsh-composer-model-icon-display, none); flex: none; }
-.dsh-codex-chevron { color: var(--dsw-alias-label-caption); flex: none; transition: transform .12s; }
-.dsh-codex-trigger[aria-expanded=true] .dsh-codex-chevron { transform: rotate(180deg); }
-.dsh-codex-name, .dsh-codex-effort { display: var(--dsh-composer-model-text-display, block); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-codex-effort { color: var(--dsw-alias-label-caption); flex-shrink: 1000; }
+.dsh-codex-trigger .dsh-plugin-composer-icon { display: var(--dsh-composer-model-icon-display, none); }
+.dsh-codex-trigger .dsh-plugin-composer-chevron { transition: transform .12s; }
+.dsh-codex-trigger .dsh-plugin-composer-label, .dsh-codex-trigger .dsh-plugin-composer-detail { display: var(--dsh-composer-model-text-display, block); }
+.dsh-codex-trigger .dsh-plugin-composer-detail { flex-shrink: 1000; }
 .dsh-codex-popover { position: fixed; z-index: 1100; display: flex; flex-direction: column; inset: auto; margin: 0; box-sizing: border-box; width: 256px; max-width: calc(100vw - 32px); max-height: min(360px, calc(100dvh - 96px)); overflow: hidden; padding: 4px; border: 0; --dsw-elevation-stroke-color: var(--dsw-alias-border-l1); --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2); --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2); background: transparent; color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-elevation-prominent); font: 13px/20px var(--dsw-font-family, system-ui); }
-/* rc.5 has no MenuSurface phase API. Match the newer shared menu fades without
-   animating the container: container opacity would change its backdrop blur.
-   Old hosts forward phase to the div; newer hosts consume it for their own CSS. */
-.dsh-codex-popover[phase=enter] > * { animation: dsh-codex-menu-in 40ms ease-out; }
-.dsh-codex-popover[phase=dismiss] > * { animation: dsh-codex-menu-out 80ms ease-in both; }
-@keyframes dsh-codex-menu-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes dsh-codex-menu-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .dsh-codex-popover[data-picker-phase] > * { animation-duration: 0ms; }
-  .dsh-codex-chevron { transition: none; }
+  .dsh-codex-trigger .dsh-plugin-composer-chevron { transition: none; }
 }
 .dsh-codex-popover > :not([role=radiogroup]) { flex-shrink: 0; }
 .dsh-codex-popover [role=radiogroup] { min-height: 0; overflow-y: auto; }
