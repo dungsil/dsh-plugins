@@ -24,11 +24,48 @@ async function settingsUI(t, worktree) {
   const { createRoot } = await import('react-dom/client')
   let client
   const require = createRequire(import.meta.url)
+  // Only replace the host module boundary here; real Menu keyboard, portal and
+  // pointer behavior is exercised in the browser with the host implementation.
+  const primitives = {
+    Button: ({ variant: _variant, size: _size, ...props }) => createElement('button', props),
+    IconChevronDownOutlineRegular: () => createElement('svg'),
+    Menu: ({ anchor, open, items, onSelect }) =>
+      createElement(
+        'div',
+        {},
+        anchor,
+        open &&
+          createElement(
+            'div',
+            { role: 'menu' },
+            items
+              .filter((item) => !item.type)
+              .map((item) =>
+                createElement(
+                  'button',
+                  {
+                    key: item.id,
+                    type: 'button',
+                    role: 'menuitem',
+                    'data-value': item.id,
+                    disabled: item.disabled,
+                    onClick: () => onSelect(item.id),
+                  },
+                  item.label
+                )
+              )
+          )
+      ),
+  }
   window.__ModuleLoader__ = {
     load: ({ id, factory }) => {
       assert.equal(id, '@dungsil/dsh-plugin-ui-model-settings')
       client = factory((specifier) => {
-        assert.ok(['react', 'react/jsx-runtime'].includes(specifier), `Unexpected host dependency: ${specifier}`)
+        assert.ok(
+          ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'].includes(specifier),
+          `Unexpected host dependency: ${specifier}`
+        )
+        if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return primitives
         return require(specifier)
       })
     },
@@ -100,34 +137,79 @@ async function settingsUI(t, worktree) {
       container.querySelector(selector).click()
     })
   }
-  const select = async (value, selector = 'select') => {
+  const modelSelector = 'button[aria-label^="세션 제목 모델:"]'
+  const effortSelector = 'button[aria-label^="세션 제목 추론 수준:"]'
+  const refreshSelector = 'footer button[type=button]'
+  const select = async (value, selector = modelSelector) => {
+    await click(selector)
     await act(async () => {
-      const element = container.querySelector(selector)
-      element.value = value
-      element.dispatchEvent(new window.Event('change', { bubbles: true }))
+      const item = [...container.querySelectorAll('[role=menuitem]')].find((item) => item.dataset.value === value)
+      assert.ok(item, `Missing option ${value}`)
+      item.click()
     })
+    assert.equal(container.querySelector('[role=menu]'), null, 'selection closes the picker')
   }
   await act(async () => {
     root.render(createElement(Component, registration.inject()))
   })
   await waitFor(() => container.querySelector('[role=alert]'))
-  assert.equal(container.querySelector('select'), null)
+  assert.equal(container.querySelector(modelSelector), null)
   offline = false
-  await click('button[type=button]')
-  await waitFor(() => container.querySelector('select'))
-  assert.equal(container.querySelectorAll('select').length, worktree ? 2 : 1)
+  await click(refreshSelector)
+  await waitFor(() => container.querySelector(modelSelector))
+  assert.equal(container.querySelectorAll('form').length, worktree ? 2 : 1)
   assert.equal(container.textContent.includes('워크트리 브랜치 이름'), worktree)
-  const selectElement = container.querySelector('select')
-  assert.equal(window.document.getElementById(selectElement.getAttribute('aria-describedby')).tagName, 'SMALL')
-  assert.equal(container.querySelector('label').htmlFor, selectElement.id)
-  assert.equal(selectElement.value, '')
+  const selectElement = container.querySelector(modelSelector)
+  assert.equal(
+    window.document.getElementById(selectElement.getAttribute('aria-describedby')).textContent,
+    '이후 생성하는 제목에 적용합니다.'
+  )
+  assert.equal(selectElement.textContent, '대화 모델 따르기')
   assert.equal(container.querySelector('button[type=submit]').disabled, true)
   const pair = JSON.stringify(['auxiliary', 'title-small'])
+  assert.equal(container.querySelector(effortSelector).disabled, true)
   await select(pair)
+  const effortElement = container.querySelector(effortSelector)
+  assert.equal(effortElement.disabled, false)
+  await click(effortSelector)
+  assert.deepEqual(
+    [...container.querySelectorAll('[role=menuitem]')].map((item) => item.dataset.value),
+    ['', 'quick', 'thorough']
+  )
+  await click(effortSelector)
+  await select('thorough', effortSelector)
+  await select(pair)
+  assert.equal(
+    container.querySelector(effortSelector).textContent,
+    'Thorough',
+    'reselecting the same model must keep its effort'
+  )
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=status]'))
   assert.deepEqual((await h.rpc('describe')).value.target.route, { provider: 'auxiliary', model: 'title-small' })
-  assert.equal(container.querySelector('select').value, pair)
+  assert.ok(container.querySelector(modelSelector).getAttribute('aria-label').includes('auxiliary / Title Small'))
+  assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
+  await click(refreshSelector)
+  await waitFor(() => !container.querySelector(refreshSelector).disabled)
+  assert.equal(container.querySelector(effortSelector).textContent, 'Thorough')
+  assert.equal(container.querySelector('button[type=submit]').disabled, true)
+  await select('', effortSelector)
+  assert.equal(container.querySelector('button[type=submit]').disabled, false, 'effort-only changes must be saveable')
+  await click('button[type=submit]')
+  await waitFor(() => container.querySelector('[role=status]'))
+  assert.equal((await h.rpc('describe')).value.target.reasoningEffort, null)
+
+  await select('thorough', effortSelector)
+  await select(JSON.stringify(['auxiliary', 'chat-large']))
+  assert.equal(container.querySelector(effortSelector).textContent, '자동')
+  assert.equal(container.querySelector(effortSelector).disabled, true)
+  assert.ok(
+    container
+      .querySelector(effortSelector)
+      .getAttribute('aria-label')
+      .includes('이 모델은 추론 수준 설정을 제공하지 않습니다.')
+  )
+  await select(pair)
 
   const target = (await h.rpc('describe')).value.target
   await h.rpc('save', { ...target, route: { provider: 'conversation', model: 'chat-large' } })
@@ -135,35 +217,65 @@ async function settingsUI(t, worktree) {
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=alert]')?.textContent.includes('다른 곳'))
   assert.deepEqual((await h.rpc('describe')).value.target.route, { provider: 'conversation', model: 'chat-large' })
-  await click('button[type=button]')
-  await waitFor(() => container.querySelector('select').value === JSON.stringify(['conversation', 'chat-large']))
+  await click(refreshSelector)
+  await waitFor(() =>
+    container.querySelector(modelSelector).getAttribute('aria-label').includes('conversation / Chat Large')
+  )
   await select('')
   await click('button[type=submit]')
   await waitFor(() => container.querySelector('[role=status]'))
   assert.equal((await h.rpc('describe')).value.target.route, null)
   if (worktree) {
-    const field = 'select[id$="-worktree"]'
-    const submit = 'form:has(select[id$="-worktree"]) button[type=submit]'
+    const field = 'button[aria-label^="워크트리 브랜치 이름 모델:"]'
+    const effortField = 'button[aria-label^="워크트리 브랜치 이름 추론 수준:"]'
+    const submit = 'form[aria-label="워크트리 브랜치 이름"] button[type=submit]'
     const titleDraft = JSON.stringify(['conversation', 'title-small'])
+    assert.equal(container.querySelector(effortField).disabled, true)
     await select(titleDraft)
+    await select('thorough', effortSelector)
     await select(pair, field)
+    assert.ok(container.querySelector(effortField).getAttribute('aria-label').includes('자동 (모델 기본값)'))
+    await select('quick', effortField)
+    await select(pair, field)
+    assert.equal(container.querySelector(effortField).textContent, 'Quick')
     await click(submit)
     await waitFor(() => container.querySelector('[role=status]'))
     assert.deepEqual((await h.rpc('describe')).value.worktree.route, { provider: 'auxiliary', model: 'title-small' })
+    assert.equal((await h.rpc('describe')).value.worktree.reasoningEffort, 'quick')
     assert.equal((await h.rpc('describe')).value.target.route, null)
-    assert.equal(container.querySelector('select').value, titleDraft, 'saving worktree must preserve the title draft')
-    await click('button[type=button]')
-    await waitFor(() => !container.querySelector('button[type=button]').disabled)
-    assert.equal(container.querySelector(field).value, pair)
+    assert.ok(container.querySelector(modelSelector).getAttribute('aria-label').includes('conversation / Title Small'))
+    assert.equal(container.querySelector(effortSelector).textContent, 'Thorough', 'preserve the title effort draft')
+    await select('thorough', effortField)
+    await click('form[aria-label="세션 제목"] button[type=submit]')
+    await waitFor(() => container.querySelector('[role=status]'))
+    assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
+    assert.deepEqual((await h.rpc('describe')).value.worktree.route, { provider: 'auxiliary', model: 'title-small' })
+    assert.equal(container.querySelector(effortField).textContent, 'Thorough', 'preserve the worktree effort draft')
+    assert.equal(container.querySelector(submit).disabled, false, 'worktree effort-only changes are saveable')
+    await click(submit)
+    await waitFor(() => container.querySelector('[role=status]'))
+    assert.equal((await h.rpc('describe')).value.worktree.reasoningEffort, 'thorough')
+    await click(refreshSelector)
+    await waitFor(() => !container.querySelector(refreshSelector).disabled)
+    assert.ok(container.querySelector(field).getAttribute('aria-label').includes('auxiliary / Title Small'))
+    assert.equal(container.querySelector(effortField).textContent, 'Thorough')
+    await select(JSON.stringify(['auxiliary', 'chat-large']), field)
+    assert.equal(container.querySelector(effortField).textContent, '자동')
+    assert.equal(container.querySelector(effortField).disabled, true)
+    await select(pair, field)
+    await select('quick', effortField)
     await select('', field)
     await click(submit)
     await waitFor(() => container.querySelector('[role=status]'))
     assert.equal((await h.rpc('describe')).value.worktree.route, null)
+    assert.equal((await h.rpc('describe')).value.worktree.reasoningEffort, null)
+    assert.equal(container.querySelector(effortField).disabled, true)
+    assert.equal((await h.rpc('describe')).value.target.reasoningEffort, 'thorough')
     const titleEntry = h.ctx.configEditor.entries().find((entry) => entry.options.id === 'custom-title-entry')
     await titleEntry.fiber.dispose()
-    await click('button[type=button]')
-    await waitFor(() => container.querySelectorAll('select').length === 1)
-    assert.equal(container.querySelector('select').id.endsWith('-worktree'), true)
+    await click(refreshSelector)
+    await waitFor(() => !container.querySelector(modelSelector))
+    assert.ok(container.querySelector(field))
     await select(pair, field)
     await click(submit)
     await waitFor(() => container.textContent.includes('저장했습니다'))
@@ -173,7 +285,11 @@ async function settingsUI(t, worktree) {
     locale = { active: 'en' }
     for (const listener of listeners) listener()
   })
-  assert.equal(container.querySelector('label').textContent, worktree ? 'Worktree branch name' : 'Session title')
+  assert.ok(
+    container.querySelector(
+      worktree ? 'button[aria-label^="Worktree branch name Model:"]' : 'button[aria-label^="Session title Model:"]'
+    )
+  )
   assert.equal(registration.label(), 'Models by task')
 }
 

@@ -73,6 +73,7 @@ const alphaDocument = {
     '1.0.0': { name: alpha.name },
     '0.1.0': { name: alpha.name, engines: { dsh: '0.2.1-rc.2' } },
     '0.1.0-stage': { name: alpha.name },
+    '0.0.0-stage': { name: alpha.name },
   },
   time: {
     created: '2026-01-01T00:00:00.000Z',
@@ -254,6 +255,28 @@ await test('buildMarketIndex skips private packages and 404 registry entries', (
   )
   assert.equal(warnings.length, 1)
   assert.match(warnings[0], /@fixture\/unpublished/)
+})
+
+await test('stage-only packages stay out of the market and stage releases leave the index unchanged', () => {
+  const { index } = fixtureBuild([beta])
+  const stage = { ...alpha, version: '0.0.0-stage' }
+  const documents = new Map(registryDocuments)
+  documents.set(alpha.name, { versions: { '0.0.0-stage': {} } })
+  assert.deepEqual(fixtureBuild([stage, beta], documents).index, index)
+  assert.deepEqual(recordRelease({ index, packages: [stage, beta], packageName: stage.name }), index)
+
+  const mixed = fixtureBuild([alpha, beta]).index
+  mixed.plugins[1].versions.push({ version: '0.0.0-stage', publishTimestamp: 0, source: { type: 'npm' } })
+  const released = recordRelease({
+    index: mixed,
+    packages: [{ ...alpha, version: '0.3.0' }, beta],
+    packageName: alpha.name,
+    publishTimestamp: 1,
+  })
+  assert.deepEqual(
+    released.plugins[1].versions.map((entry) => entry.version),
+    ['1.0.0', '0.3.0', '0.2.0', '0.1.0', '0.1.0-stage']
+  )
 })
 
 await test('market false excludes a public package from generation and release indexing', async () => {

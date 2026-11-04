@@ -33,7 +33,22 @@ class RecordingAdapter extends LlmAdapter {
   }
   async resolveModel(provider, model) {
     if (!['chat-large', 'title-small'].includes(model)) throw new Error('Unavailable model')
-    return { provider, id: model, name: model }
+    return {
+      provider,
+      id: model,
+      name: model,
+      ...(model === 'title-small'
+        ? {
+            reasoning: {
+              efforts: [
+                { id: 'quick', name: 'Quick' },
+                { id: 'thorough', name: 'Thorough' },
+              ],
+              defaultEffort: 'thorough',
+            },
+          }
+        : {}),
+    }
   }
   async *stream(options) {
     this.requests.push(options)
@@ -66,6 +81,7 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
         insert: [
           { id: 'editor', name: 'cordis:editor' },
           { id: 'custom-title-entry', name: providerName, config: { ...titleConfig, ...initialRoute } },
+          { id: 'model-settings', name: '@dungsil/dsh-plugin-model-settings' },
           ...(worktreeConfig
             ? [{ id: 'custom-worktree-entry', name: '@dungsil/dsh-plugin-ui-worktree', config: worktreeConfig }]
             : []),
@@ -102,6 +118,7 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
         version: 'v2',
         import: async (specifier) => {
           if (specifier === providerName) return strategy === 'first-prompt' ? FirstPrompt : AllPrompts
+          if (specifier === '@dungsil/dsh-plugin-model-settings') return plugin
           // This fixture exercises config ownership and persistence; real worktree calls are tested by ui-worktree.
           if (specifier === '@dungsil/dsh-plugin-ui-worktree') return { apply() {} }
           throw new Error(`Unexpected import: ${specifier}`)
@@ -117,7 +134,6 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
       adapter = new RecordingAdapter()
       root.llm.registerAdapter(['conversation', 'auxiliary'], adapter)
     })
-    await ctx.plugin(plugin)
     handler = ctx.connection.createSharedFetchHandler('/api')
   }
   const close = async () => {

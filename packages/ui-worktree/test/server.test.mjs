@@ -559,7 +559,18 @@ await test('task model and worktree settings coexist across profile reloads, rej
   let answer = 'task'
   class NamingAdapter extends LlmAdapter {
     async resolveModel(provider, model) {
-      return { provider, id: model, name: model }
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: {
+          efforts: [
+            { id: 'quick', name: 'Quick' },
+            { id: 'thorough', name: 'Thorough' },
+          ],
+          defaultEffort: 'thorough',
+        },
+      }
     }
     async *stream(options) {
       const naming = options.maxTokens === 256
@@ -570,9 +581,11 @@ await test('task model and worktree settings coexist across profile reloads, rej
   }
   ctx.llm.registerAdapter(['naming', 'conversation', 'fallback'], new NamingAdapter())
   await ctx.plugin(ModelSettings)
-  installModelSelection(agent.ctx, { current: { provider: 'conversation', model: 'selected' } })
+  installModelSelection(agent.ctx, {
+    current: { provider: 'conversation', model: 'selected', reasoningEffort: 'quick' },
+  })
   agent.session.append('request/header', {
-    header: { config: { provider: 'conversation', model: 'selected' } },
+    header: { config: { provider: 'conversation', model: 'selected', reasoningEffort: 'quick' } },
     reason: 'initial',
   })
   git('remote', 'add', 'origin', join(home, 'not-fetched'))
@@ -583,7 +596,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
   const initial = (await rpc('dungsil-model-settings/describe')).value
   assert.equal(initial.target, null)
   const route = { provider: 'naming', model: 'small' }
-  const saved = await rpc('dungsil-model-settings/save', { ...initial.worktree, route })
+  const saved = await rpc('dungsil-model-settings/save', { ...initial.worktree, route, reasoningEffort: 'quick' })
   assert.equal(saved.ok, true)
   assert.deepEqual(saved.value.route, route)
   assert.deepEqual((await rpc('settings')).value.settings, initialSettings)
@@ -612,7 +625,8 @@ await test('task model and worktree settings coexist across profile reloads, rej
     assert.deepEqual(updated.value.settings, settings, 'the worktree API only reads and writes its own fields')
     const models = (await rpc('dungsil-model-settings/describe')).value
     assert.deepEqual(models.worktree.route, route, 'worktree edits must preserve the task model')
-    const stale = await rpc('dungsil-model-settings/save', { ...modelBeforeEdit, route: null })
+    assert.equal(models.worktree.reasoningEffort, 'quick', 'worktree edits must preserve the effort')
+    const stale = await rpc('dungsil-model-settings/save', { ...modelBeforeEdit, route: null, reasoningEffort: null })
     assert.equal(stale.error?.code, 'conflict', `${naming}: ${JSON.stringify(stale)}`)
     answer = generated
     assert.equal((await rpc('create', { cwd: repo })).ok, true)
@@ -625,20 +639,33 @@ await test('task model and worktree settings coexist across profile reloads, rej
     assert.equal((await rpc('switch', { cwd: created.value.cwd, path: repo })).ok, true)
   }
   assert.deepEqual(
-    requests.map(({ provider, model, tools }) => ({ provider, model, tools })),
-    Array.from({ length: 3 }, () => ({ ...route, tools: undefined }))
+    requests.map(({ provider, model, tools, reasoningEffort }) => ({ provider, model, tools, reasoningEffort })),
+    Array.from({ length: 3 }, () => ({ ...route, tools: undefined, reasoningEffort: 'quick' }))
   )
   assert.match(await readFile(profile.patchPath, 'utf8'), /provider: naming/)
   assert.match(await readFile(profile.patchPath, 'utf8'), /model: small/)
+  assert.match(await readFile(profile.patchPath, 'utf8'), /reasoningEffort: quick/)
+
+  const explicit = (await rpc('dungsil-model-settings/describe')).value.worktree
+  const automatic = await rpc('dungsil-model-settings/save', { ...explicit, reasoningEffort: null })
+  assert.equal(automatic.ok, true)
+  answer = 'automatic'
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  const autoNamed = await rpc('describe')
+  assert.equal(autoNamed.ok, true)
+  assert.equal(requests.at(-1).reasoningEffort, 'thorough', 'automatic uses the model default')
+  assert.equal((await rpc('switch', { cwd: autoNamed.value.cwd, path: repo })).ok, true)
+  assert.equal((await rpc('dungsil-model-settings/save', { ...automatic.value, reasoningEffort: 'quick' })).ok, true)
 
   const beforeReset = (await rpc('settings')).value
   const models = (await rpc('dungsil-model-settings/describe')).value
-  const reset = await rpc('dungsil-model-settings/save', { ...models.worktree, route: null })
+  const reset = await rpc('dungsil-model-settings/save', { ...models.worktree, route: null, reasoningEffort: null })
   assert.equal(reset.ok, true)
   assert.equal(reset.value.route, null)
   assert.deepEqual((await rpc('settings')).value.settings, beforeReset.settings)
   assert.equal((await rpc('save-settings', beforeReset)).error.code, 'conflict')
-  assert.doesNotMatch(await readFile(profile.patchPath, 'utf8'), /provider:|model:/)
+  assert.doesNotMatch(await readFile(profile.patchPath, 'utf8'), /provider:|model:|reasoningEffort:/)
   answer = 'inherited'
   assert.equal((await rpc('create', { cwd: repo })).ok, true)
   await submit()
@@ -647,5 +674,10 @@ await test('task model and worktree settings coexist across profile reloads, rej
   assert.equal(inherited.value.cwd, join(home, 'naming pool/team/inherited'))
   assert.equal(requests.at(-1).provider, 'conversation')
   assert.equal(requests.at(-1).model, 'selected')
-  assert.deepEqual(agent.session.requestHeader().config, { provider: 'conversation', model: 'selected' })
+  assert.equal(requests.at(-1).reasoningEffort, 'thorough', 'inheriting a model does not inherit conversation effort')
+  assert.deepEqual(agent.session.requestHeader().config, {
+    provider: 'conversation',
+    model: 'selected',
+    reasoningEffort: 'quick',
+  })
 })
