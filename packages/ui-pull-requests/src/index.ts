@@ -179,7 +179,8 @@ export function apply(ctx: Context, config: Config) {
       // not its base repository: a fork's PR may legitimately live in a different repository.
       if (
         item.source !== pushedBranch ||
-        (provider === 'github' && row.headRepository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase())
+        (provider === 'github' && row.headRepository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase()) ||
+        (provider === 'gitlab' && row.source_project_id !== row.target_project_id)
       )
         return view
       return { ...view, request: item }

@@ -142,6 +142,8 @@ await test('uses the tracked GitLab remote, preserves nested groups, and normali
       target_branch: 'main',
       work_in_progress: true,
       state: 'opened',
+      source_project_id: 41,
+      target_project_id: 41,
     },
   ])
   const result = await f.rpc()
@@ -159,6 +161,19 @@ await test('uses the tracked GitLab remote, preserves nested groups, and normali
     state: 'open',
   })
   f.setRows([])
+  assert.equal((await f.rpc()).value.request, null)
+  f.setRows([
+    {
+      iid: 9,
+      title: 'Another fork',
+      web_url: 'https://gitlab.com/team/sub/project/-/merge_requests/9',
+      source_branch: 'topic',
+      target_branch: 'main',
+      state: 'opened',
+      source_project_id: 42,
+      target_project_id: 41,
+    },
+  ])
   assert.equal((await f.rpc()).value.request, null)
 })
 

@@ -135,9 +135,11 @@ export function apply(ctx: Context) {
               <p role="status">{copy.empty}</p>
             ))}
         </div>
-        <footer>
-          <p>{copy.hint}</p>
-        </footer>
+        {(error === 'cli_missing' || error === 'command_failed') && (
+          <footer>
+            <p>{copy.hint}</p>
+          </footer>
+        )}
       </section>
     )
   }
