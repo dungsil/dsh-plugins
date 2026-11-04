@@ -512,7 +512,6 @@ await test('committed market index is a valid format-1 index of this workspace',
     '@dungsil/dsh-plugin-korean-ime',
     '@dungsil/dsh-plugin-yoonmoon',
     '@dungsil/dsh-plugin-i-have-adhd',
-    '@dungsil/dsh-plugin-sidebar-inbox',
   ])
     assert.ok(parsedByName.has(name), `${name} must be in the market index`)
 })

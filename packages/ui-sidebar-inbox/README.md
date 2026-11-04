@@ -1,6 +1,8 @@
-# @dungsil/dsh-plugin-sidebar-inbox
+# @dungsil/dsh-plugin-ui-sidebar-inbox
 
 DSH의 기존 사이드바 모양을 유지하면서, 프로젝트별 목록을 T3 Code Nightly처럼 상태별 목록으로 배치합니다. 기본 보기 옵션은 DSH 그대로 두고, 보기 옵션의 `[정렬 기준] > [에이전트 활동]`을 선택한 동안에만 상태별 배치를 사용합니다.
+
+기존 `@dungsil/dsh-plugin-sidebar-inbox`를 대체하는 패키지이며, 새 이름의 첫 버전은 `0.1.0`입니다. 기존 패키지의 모든 버전은 사용 중단(deprecated) 대상입니다. 기존 패키지를 비활성화하고 새 패키지를 설치·활성화합니다. 두 패키지를 동시에 활성화하지 마세요. 기존 정렬 선택과 이전 정렬 복원 설정은 유지됩니다.
 
 <img src="./assets/sidebar-preview.webp" alt="Sidebar Inbox 적용 예시: 상단의 고정·확인할 세션과 하단 Working 목록, 왼쪽은 Archived 접힘, 오른쪽은 펼침 상태" width="560" />
 
@@ -36,11 +38,17 @@ Pinned와 Inbox는 별도 제목 없이 위쪽 목록에 표시합니다. Workin
 
 ## 설치
 
-DSH `0.2.1-rc.5`와 `0.2.2-alpha.2`에서 검증했습니다. 지원 범위는 `^0.2.1-rc.5`입니다. 아직 npm에 배포하지 않았다면 저장소에서 패키지를 생성하여 설치합니다.
+DSH `0.2.1-rc.5`와 `0.2.2-alpha.2`에서 검증했습니다. 지원 범위는 `^0.2.1-rc.5`입니다. npm에서 설치합니다.
 
 ```bash
-pnpm --filter @dungsil/dsh-plugin-sidebar-inbox pack --pack-destination ../../release
-dsh plugin --profile web add ./release/dungsil-dsh-plugin-sidebar-inbox-0.1.0.tgz
+dsh plugin --profile web add @dungsil/dsh-plugin-ui-sidebar-inbox@0.1.0
+```
+
+배포 전에는 저장소에서 패키지를 생성하여 설치할 수 있습니다.
+
+```bash
+pnpm --filter @dungsil/dsh-plugin-ui-sidebar-inbox pack --pack-destination ../../release
+dsh plugin --profile web add ./release/dungsil-dsh-plugin-ui-sidebar-inbox-0.1.0.tgz
 ```
 
 DSH의 플러그인 관리 화면에서 **Sidebar Inbox / 사이드바 수신함**을 활성화합니다.
@@ -61,9 +69,9 @@ DSH의 플러그인 관리 화면에서 **Sidebar Inbox / 사이드바 수신함
 ## 검증
 
 ```bash
-pnpm --filter @dungsil/dsh-plugin-sidebar-inbox build
-pnpm --filter @dungsil/dsh-plugin-sidebar-inbox typecheck
-pnpm --filter @dungsil/dsh-plugin-sidebar-inbox test
+pnpm --filter @dungsil/dsh-plugin-ui-sidebar-inbox build
+pnpm --filter @dungsil/dsh-plugin-ui-sidebar-inbox typecheck
+pnpm --filter @dungsil/dsh-plugin-ui-sidebar-inbox test
 ```
 
 자동 테스트는 기본 보기 옵션을 건드리지 않는지, 정렬 항목 주입과 키보드 순서·선택 표시, 하나의 목록에서의 상태별 순서, 그룹 기준이 다를 때 정렬 항목 비활성화와 자동 해제, 보관한 세션의 하단 배치, 보관 필터별 표시, Working과 Archived의 기본 펼침·접힘과 제목 토글, 보관 해제 반영, UI 언어 전환에 따른 제목 갱신, 정렬 해제와 이전 정렬 복원을 확인합니다.
