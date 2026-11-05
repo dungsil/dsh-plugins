@@ -104,30 +104,43 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
         ...(version ? { increment: version } : {}),
         ...options,
         npm: { ...settings.npm, ...options.npm, ...(version ? { allowSameVersion: true } : {}) },
-        ...(!packageName
-          ? {
-              git: {
-                ...settings.git,
-                commit: false,
-                tag: false,
-                push: false,
-                requireCleanWorkingDir: releases.length === 0,
-              },
-              github: { ...settings.github, ...options.github, release: false },
-            }
-          : {}),
+        git: {
+          ...settings.git,
+          commit: false,
+          tag: false,
+          push: false,
+          requireCleanWorkingDir: releases.length === 0,
+        },
+        github: { ...settings.github, ...options.github, release: false },
       })
       if (result.version) releases.push({ pkg, settings, result })
     }
-    if (!packageName && !dryRun && releases.length > 0) {
+    if (!dryRun && releases.length > 0) {
       process.chdir(root)
       const git = (args) => execFileSync('git', args, { encoding: 'utf8' })
       git(['add', '--', ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`])])
-      git(['commit', '-m', 'chore(release): 전체 패키지를 릴리즈한다 [skip ci]'])
+      const message = packageName
+        ? `chore(release): ${packageName}@${releases[0].result.version} [skip ci]`
+        : 'chore(release): 전체 패키지를 릴리즈한다 [skip ci]'
+      git(['commit', '-m', message])
       for (const { pkg, result } of releases) {
         git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
       }
-      git(['push', '--follow-tags', '--atomic'])
+      // Merge instead of rebasing: tags must keep identifying the source that was published.
+      git(['fetch', 'origin', 'main'])
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const remoteHead = git(['rev-parse', 'origin/main']).trim()
+        git(['merge', '--no-edit', '-m', 'chore(release): 원격 변경을 통합한다 [skip ci]', 'origin/main'])
+        try {
+          git(['push', '--follow-tags', '--atomic'])
+          break
+        } catch (error) {
+          if (attempt === 2) throw error
+          git(['fetch', 'origin', 'main'])
+          // Retry only when main moved during the push, not on auth or tag errors.
+          if (git(['rev-parse', 'origin/main']).trim() === remoteHead) throw error
+        }
+      }
 
       // Publish immutable GitHub releases only after all tags reach the remote.
       for (const { pkg, settings, result } of releases) {
