@@ -15,7 +15,7 @@ await test('settings uses the native skill icon across locales, navigation remou
   Object.assign(globalThis, { window, document: window.document, IS_REACT_ACT_ENVIRONMENT: true })
   const disposers = []
   t.after(async () => {
-    await React.act(() =>
+    await React.act(async () =>
       disposers
         .splice(0)
         .reverse()
@@ -84,7 +84,7 @@ await test('settings uses the native skill icon across locales, navigation remou
   window.document.body.append(modal)
   await settle()
   assert.equal(skills.querySelectorAll('svg[data-icon="skill"]').length, 1)
-  await React.act(() =>
+  await React.act(async () =>
     disposers
       .splice(0)
       .reverse()

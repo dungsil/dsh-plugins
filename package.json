@@ -8,8 +8,8 @@
     "test": "turbo run test",
     "release": "node scripts/release.mjs",
     "market:index": "node scripts/market-index.mjs",
-    "lint": "oxlint .",
-    "lint:fix": "oxlint --fix .",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "prepare": "simple-git-hooks",
@@ -37,7 +37,7 @@
   },
   "lint-staged": {
     "*": [
-      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxlint --fix --deny-warnings --no-error-on-unmatched-pattern",
       "oxfmt --write --no-error-on-unmatched-pattern"
     ]
   },

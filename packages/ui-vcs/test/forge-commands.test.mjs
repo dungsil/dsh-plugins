@@ -83,7 +83,7 @@ function fixture(options = {}) {
   return { run, calls, state, makeReview, repository, origin, remoteUrl }
 }
 
-test('GitHub discovery pins explicit host/repository and reads existing title/body', async () => {
+void test('GitHub discovery pins explicit host/repository and reads existing title/body', async () => {
   const f = fixture()
   f.state.rows = [f.makeReview()]
   const context = await inspectForge(f.run, 'auto')
@@ -100,7 +100,7 @@ test('GitHub discovery pins explicit host/repository and reads existing title/bo
   }
 })
 
-test('self-managed GitLab keeps port and nested namespace, creates and updates MR', async () => {
+void test('self-managed GitLab keeps port and nested namespace, creates and updates MR', async () => {
   const f = fixture({ provider: 'gitlab' })
   const context = await inspectForge(f.run, 'gitlab')
   assert.equal(context.host, 'gitlab.internal:8443')
@@ -117,7 +117,7 @@ test('self-managed GitLab keeps port and nested namespace, creates and updates M
   assert.ok(writes[1].args.includes('PUT'))
 })
 
-test('Forgejo login selects exact URL prefix and non-default HTTP port', async () => {
+void test('Forgejo login selects exact URL prefix and non-default HTTP port', async () => {
   const f = fixture({ provider: 'forgejo' })
   const context = await inspectForge(f.run, 'forgejo')
   assert.equal(context.repository, 'owner/project')
@@ -131,7 +131,7 @@ test('Forgejo login selects exact URL prefix and non-default HTTP port', async (
   assert.ok(write.args.includes('body=@literal\n${literal}'))
 })
 
-test('Gitea uses tea, never default login or implicit repository', async () => {
+void test('Gitea uses tea, never default login or implicit repository', async () => {
   const f = fixture({
     provider: 'gitea',
     remoteUrl: 'https://gitea.com/owner/project.git',
@@ -147,7 +147,7 @@ test('Gitea uses tea, never default login or implicit repository', async () => {
   )
 })
 
-test('SSH alias resolves canonical hosting host without treating SSH port as API port', async () => {
+void test('SSH alias resolves canonical hosting host without treating SSH port as API port', async () => {
   const f = fixture({ remoteUrl: 'ssh://git@github-work:2222/owner/project.git' })
   const context = await inspectForge(f.run, 'auto')
   assert.equal(context.host, 'github.com')
@@ -155,7 +155,7 @@ test('SSH alias resolves canonical hosting host without treating SSH port as API
   assert.deepEqual(f.calls.find((call) => call.executable === 'ssh').args, ['-G', '-p', '2222', 'github-work'])
 })
 
-test('actual push URL and configured pushRemote take precedence over fetch upstream', async () => {
+void test('actual push URL and configured pushRemote take precedence over fetch upstream', async () => {
   const f = fixture({ config: { 'branch.feat/topic.pushRemote': 'fork', 'remote.pushDefault': 'other' } })
   const context = await discoverPush(f.run)
   assert.equal(context.remote, 'fork')
@@ -168,7 +168,7 @@ test('actual push URL and configured pushRemote take precedence over fetch upstr
   assert.ok(f.calls.every((call) => call.executable === 'git'))
 })
 
-test('default branch push requires no hosting CLI, default branch PR fails', async () => {
+void test('default branch push requires no hosting CLI, default branch PR fails', async () => {
   const f = fixture({ state: { branch: 'main' } })
   const context = await discoverPush(f.run)
   await pushBranch(f.run, context)
@@ -176,13 +176,13 @@ test('default branch push requires no hosting CLI, default branch PR fails', asy
   await assert.rejects(inspectForge(f.run, 'github'), /default_branch/)
 })
 
-test('detached HEAD fails before any hosting or push command', async () => {
+void test('detached HEAD fails before any hosting or push command', async () => {
   const f = fixture({ state: { branch: '' } })
   await assert.rejects(discoverPush(f.run), /detached_head/)
   assert.equal(f.calls.length, 1)
 })
 
-test('retry after successful create re-queries PR and updates instead of duplicate create', async () => {
+void test('retry after successful create re-queries PR and updates instead of duplicate create', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   await updateReview(f.run, context, { title: 'feat: first', body: 'first' })
@@ -194,7 +194,7 @@ test('retry after successful create re-queries PR and updates instead of duplica
   assert.equal(writes[1].args.at(-1), 'repos/owner/project/pulls/7')
 })
 
-test('changed branch or remote blocks writes', async () => {
+void test('changed branch or remote blocks writes', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   f.state.branch = 'feat/other'
@@ -205,13 +205,13 @@ test('changed branch or remote blocks writes', async () => {
   assert.equal(f.state.mutations, 0)
 })
 
-test('fork with no existing PR fails instead of choosing an uncertain target', async () => {
+void test('fork with no existing PR fails instead of choosing an uncertain target', async () => {
   const f = fixture({ metadata: { parent: { full_name: 'upstream/project' } } })
   await assert.rejects(inspectForge(f.run, 'github'), /ambiguous_target/)
   assert.equal(f.state.mutations, 0)
 })
 
-test('existing upstream fork PR preserves its explicit target', async () => {
+void test('existing upstream fork PR preserves its explicit target', async () => {
   const f = fixture({ metadata: { parent: { full_name: 'upstream/project' } } })
   const row = f.makeReview()
   row.base.repo.full_name = 'upstream/project'
@@ -229,7 +229,7 @@ test('existing upstream fork PR preserves its explicit target', async () => {
   assert.equal(context.existingReview.url, row.html_url)
 })
 
-test('multiple push URLs, mirror, refspecs and mismatched simple upstream fail safely', async () => {
+void test('multiple push URLs, mirror, refspecs and mismatched simple upstream fail safely', async () => {
   for (const options of [
     { state: { remoteUrl: 'https://github.com/owner/a.git\nhttps://github.com/owner/b.git' } },
     { config: { 'remote.origin.mirror': 'true' } },
@@ -242,7 +242,7 @@ test('multiple push URLs, mirror, refspecs and mismatched simple upstream fail s
   }
 })
 
-test('credential-bearing URL and arbitrary transport never reach a hosting CLI', async () => {
+void test('credential-bearing URL and arbitrary transport never reach a hosting CLI', async () => {
   for (const remoteUrl of [
     'https://user:secret@github.com/owner/project.git',
     'ext::something',
@@ -254,7 +254,7 @@ test('credential-bearing URL and arbitrary transport never reach a hosting CLI',
   }
 })
 
-test('unrecognized self-hosted auto and ambiguous tea logins fail closed', async () => {
+void test('unrecognized self-hosted auto and ambiguous tea logins fail closed', async () => {
   const unknown = fixture({ remoteUrl: 'https://custom.host/owner/project.git' })
   await assert.rejects(inspectForge(unknown.run, 'auto'), /unsupported/)
   const f = fixture({
@@ -267,14 +267,14 @@ test('unrecognized self-hosted auto and ambiguous tea logins fail closed', async
   await assert.rejects(inspectForge(f.run, 'forgejo'), /unsupported/)
 })
 
-test('review URLs and source repository identities are checked before mutation', async () => {
+void test('review URLs and source repository identities are checked before mutation', async () => {
   const f = fixture()
   f.state.rows = [{ ...f.makeReview(), html_url: 'https://evil.example/owner/project/pull/7' }]
   await assert.rejects(inspectForge(f.run, 'github'), /invalid_response/)
   assert.equal(f.state.mutations, 0)
 })
 
-test('baseRef is a verified local SHA for new PRs and existing provider reviews', async () => {
+void test('baseRef is a verified local SHA for new PRs and existing provider reviews', async () => {
   const fresh = fixture()
   assert.equal((await inspectForge(fresh.run, 'github')).baseRef, 'a'.repeat(40))
   for (const provider of ['github', 'gitlab', 'forgejo']) {
@@ -286,7 +286,7 @@ test('baseRef is a verified local SHA for new PRs and existing provider reviews'
   assert.equal((await inspectForge(missing.run, 'github')).baseRef, undefined)
 })
 
-test('changed existing review title or body blocks overwrite after generation', async () => {
+void test('changed existing review title or body blocks overwrite after generation', async () => {
   for (const field of ['title', 'body']) {
     const f = fixture()
     f.state.rows = [f.makeReview()]
@@ -297,7 +297,7 @@ test('changed existing review title or body blocks overwrite after generation', 
   }
 })
 
-test('already applied texts are idempotent after an ambiguous update response', async () => {
+void test('already applied texts are idempotent after an ambiguous update response', async () => {
   const f = fixture()
   f.state.rows = [f.makeReview()]
   const context = await inspectForge(f.run, 'github')
@@ -308,7 +308,7 @@ test('already applied texts are idempotent after an ambiguous update response', 
   assert.equal(f.state.mutations, 0)
 })
 
-test('upstream push mode uses explicitly tracked branch without force', async () => {
+void test('upstream push mode uses explicitly tracked branch without force', async () => {
   const f = fixture({ config: { 'push.default': 'upstream', 'branch.feat/topic.merge': 'refs/heads/review/topic' } })
   const context = await discoverPush(f.run)
   assert.equal(context.pushBranch, 'review/topic')
@@ -318,7 +318,7 @@ test('upstream push mode uses explicitly tracked branch without force', async ()
   assert.ok(!push.args.some((arg) => /force|merge/.test(arg)))
 })
 
-test('closed review and ambiguous duplicate reviews fail before mutation', async () => {
+void test('closed review and ambiguous duplicate reviews fail before mutation', async () => {
   for (const rows of [(f) => [{ ...f.makeReview(), state: 'closed' }], (f) => [f.makeReview(), f.makeReview()]]) {
     const f = fixture()
     f.state.rows = rows(f)
@@ -327,7 +327,7 @@ test('closed review and ambiguous duplicate reviews fail before mutation', async
   }
 })
 
-test('a PR created by another actor during generation is not overwritten', async () => {
+void test('a PR created by another actor during generation is not overwritten', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   f.state.rows = [f.makeReview('human title', 'human body')]
@@ -335,7 +335,7 @@ test('a PR created by another actor during generation is not overwritten', async
   assert.equal(f.state.mutations, 0)
 })
 
-test('a lost create reply is recovered without another mutation', async () => {
+void test('a lost create reply is recovered without another mutation', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   f.state.rows = [f.makeReview('feat: generated', 'generated')]

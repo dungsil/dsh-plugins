@@ -424,7 +424,7 @@ await test('CI pills show aggregate status in every locale and navigate directly
       })
       await mounted.focus()
       await mounted.refresh()
-      assert.equal(mounted.ci.children[1], `${prefix}: ${labels[index]}`)
+      assert.equal(mounted.ci.children[1], `${String(prefix)}: ${labels[index]}`)
     }
     mounted.ci.onClick()
     assert.equal(mounted.openedTabs[0].kind, 'dungsil-vcs-pull-requests')
