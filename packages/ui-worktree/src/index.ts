@@ -246,7 +246,11 @@ export function apply(ctx: Context, config: Config) {
     const selection = selections[0]
     const creation = selection?.creation
     if (creation?.failed) throw new Error('Worktree selection needs confirmation. Select a worktree before retrying.')
-    if (!selection || !creation) return decision
+    if (!selection || !creation) {
+      // A reservation saved after this input was admitted cannot move a later task either.
+      creations.delete(agent)
+      return decision
+    }
     // Mark the reservation before any side effect. A timeout or partial failure
     // must never create another checkout on the next prompt.
     creation.failed = true

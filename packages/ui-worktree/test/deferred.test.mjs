@@ -352,7 +352,7 @@ await test('실패한 생성 예약은 새 예약으로 교체하여 다시 생�
   assert.deepEqual(h.work, ['C:/repo/.agents/worktrees/fix/deferred'])
 })
 
-await test('현재 경로로 접수한 메시지는 뒤늦게 생성 예약이 생겨도 그 예약을 소비하지 않는다', async (t) => {
+await test('현재 경로로 접수한 작업이 시작되면 뒤늦게 저장된 생성 예약도 취소하고 위치를 고정한다', async (t) => {
   const h = fixture(t)
   const message = h.admit()
   // A host may move already-admitted input out of its public pending list before pre-step.
@@ -361,7 +361,13 @@ await test('현재 경로로 접수한 메시지는 뒤늦게 생성 예약이 �
   await h.enter([message])
   assert.deepEqual(h.commands, [])
   assert.deepEqual(h.work, ['C:/repo'])
-  assert.equal((await h.rpc('describe')).value.pendingCreation.failed, false)
+  const view = (await h.rpc('describe')).value
+  assert.equal(view.pendingCreation, undefined)
+  assert.equal(view.locked, true)
+  assert.equal((await h.rpc('select', { choice: 'new' })).error.code, 'conflict')
+  await h.enter([h.admit('Continue in the same checkout')])
+  assert.deepEqual(h.changes, [])
+  assert.deepEqual(h.work, ['C:/repo', 'C:/repo'])
 })
 
 await test('선택값의 형식과 기준 경로가 잘못되면 아무 작업 없이 거부한다', async (t) => {
