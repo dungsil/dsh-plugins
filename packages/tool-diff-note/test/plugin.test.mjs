@@ -11,7 +11,7 @@ import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
 
-await test('records exact historical fragments and rationale through the tool runtime, including additions and deletions', async (t) => {
+await test('도구 런타임을 통해 추가와 삭제를 포함한 정확한 과거 조각과 근거를 기록한다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(SystemPrompt)
@@ -66,7 +66,7 @@ await test('records exact historical fragments and rationale through the tool ru
   assert.equal((await run(args)).isError, false)
 })
 
-await test('English, Korean and Chinese provide all diff card labels', async () => {
+await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 있다', async () => {
   const locales = await Promise.all(
     ['en', 'ko', 'zh'].map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
@@ -80,7 +80,7 @@ await test('English, Korean and Chinese provide all diff card labels', async () 
   }
 })
 
-await test('the tool view keeps the explanation after the first changed block, including folded diffs', async () => {
+await test('도구 뷰는 접힌 차이를 포함해 첫 번째 변경 블록 뒤에 설명을 유지한다', async () => {
   const require = createRequire(import.meta.url)
   let client
   let View

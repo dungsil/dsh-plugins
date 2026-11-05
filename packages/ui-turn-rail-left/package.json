@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-turn-rail-left",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Move the official DeepSeek Harness turn rail to the left without replacing native navigation.",
   "license": "MIT",
   "repository": {
@@ -11,6 +11,7 @@
   "files": [
     "dist",
     "locale",
+    "assets",
     "cordis.patch.yml",
     "icon.svg"
   ],

@@ -1,5 +1,12 @@
 # @dungsil/dsh-plugin-ui-sidebar-inbox
 
+## [0.2.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.1...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.2) (2026-11-05)
+
+### Bug Fixes
+
+- **sidebar-inbox:** 하단 스크롤바를 실제 스크롤 중에만 표시한다 ([#99](https://github.com/dungsil/dsh-plugins/issues/99)) ([70d36c7](https://github.com/dungsil/dsh-plugins/commit/70d36c759db9f722936f65d1e97738d8cf5aa1c5))
+- **ui:** 턴 레일 호환성과 플러그인 미리보기를 보완한다 ([#109](https://github.com/dungsil/dsh-plugins/issues/109)) ([17e7094](https://github.com/dungsil/dsh-plugins/commit/17e7094351abd206fadceb9fcadde086351525e5))
+
 ## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.1) (2026-11-04)
 
 ### Bug Fixes

@@ -7,15 +7,19 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as PullRequests from './pull-requests.js'
+import * as Commands from './commands.js'
+import * as Settings from './settings.js'
+import type { GitContext } from './pull-requests-protocol.js'
 
-export { Config } from './pull-requests.js'
+export { Config } from './settings.js'
 
 export const name = 'dungsil-ui-vcs'
 export const inject = ['connection', 'sessionController', 'subprocess', 'sandbox', 'sandboxPolicy', 'workingDirectory']
 
-// These reads never fetch, run hooks, or change Git state. Writes remain owned by the agent.
-export function apply(ctx: Context, config: PullRequests.Config) {
+export function apply(ctx: Context, config: Settings.Config) {
   ctx.plugin(PullRequests, config)
+  ctx.plugin(Commands, config)
+  ctx.plugin(Settings)
   ctx.effect(
     () =>
       ctx.connection.fetch.register({
@@ -27,7 +31,7 @@ export function apply(ctx: Context, config: PullRequests.Config) {
             ok: false as const,
             error: { code: 'git_unavailable', message: 'Git context unavailable', details: {} },
           }
-          let result: { ok: true; value: 'push' | 'pr' } | typeof failure = failure
+          let result: { ok: true; value: GitContext } | typeof failure = failure
           let rpcId = ''
           try {
             const body = clientRequestSchema.parse(await request.json())
@@ -84,8 +88,8 @@ export function apply(ctx: Context, config: PullRequests.Config) {
             }
             const gitDir = await git(['rev-parse', '--path-format=absolute', '--git-dir'])
             const commonDir = await git(['rev-parse', '--path-format=absolute', '--git-common-dir'])
-            if (gitDir !== commonDir) result = { ok: true, value: 'pr' }
-            else {
+            let operation: GitContext['operation'] = 'pr'
+            if (gitDir === commonDir) {
               const branch = await git(['symbolic-ref', '--quiet', '--short', 'HEAD'])
               const upstream = await git(['for-each-ref', '--format=%(upstream:remotename)', `refs/heads/${branch}`])
               const remotes = (await git(['remote'])).split('\n').filter(Boolean)
@@ -99,8 +103,11 @@ export function apply(ctx: Context, config: PullRequests.Config) {
                       : undefined
               if (!remote) throw new Error('Default remote unknown')
               const head = await git(['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`])
-              result = { ok: true, value: head === `refs/remotes/${remote}/${branch}` ? 'push' : 'pr' }
+              operation = head === `refs/remotes/${remote}/${branch}` ? 'push' : 'pr'
             }
+            const headSha = await git(['rev-parse', 'HEAD'])
+            const dirty = !!(await git(['status', '--porcelain', '--untracked-files=normal']))
+            result = { ok: true, value: { operation, headSha, dirty } }
             if (ctx.workingDirectory.get(agent.session) !== cwd) throw new Error('Working directory changed')
           } catch {
             result = failure

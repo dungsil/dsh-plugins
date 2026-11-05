@@ -4,7 +4,104 @@ import test from 'node:test'
 import { profileFixture, titleConfig } from './profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
-  await test(`${strategy}: shared auxiliary defaults preserve provenance, explicit overrides and conversation opt-out across reloads`, async (t) => {
+  await test(`${strategy}: 편집 가능한 기본 프롬프트는 작업 지침을 대체하고 유지되며 대화 호출에는 포함되지 않는다`, async (t) => {
+    const h = await profileFixture(strategy, {}, { naming: 'semantic' }, {})
+    t.after(h.close)
+    const initial = (await h.rpc('describe')).value
+    assert.equal(initial.auxiliary.instructions, '')
+    assert.equal(initial.target.instructions, initial.target.defaultInstructions)
+    assert.ok(initial.target.instructions.includes('about 7 words in non-CJK languages or 13 CJK characters.'))
+    assert.ok(initial.worktree.instructions.startsWith('Return only a short lowercase ASCII semantic Git branch name'))
+    assert.ok(initial.yoonmoon.instructions.includes('{{skill}}'))
+    assert.ok(initial.yoonmoon.instructions.endsWith('{{resources}}'))
+    const session = await h.generate('default-title')
+    assert.equal(
+      h.adapter.requests.at(-1).system,
+      initial.target.instructions.split('\nAn existing title is supplied')[0]
+    )
+    if (strategy === 'all-prompts') {
+      await h.ctx.sessionTitle.refresh(session)
+      assert.equal(h.adapter.requests.at(-1).system, initial.target.instructions)
+    }
+    await h.write('default-writing')
+    const defaultWriting = h.adapter.requests.at(-1).system
+    const requestCount = h.adapter.requests.length
+    for (const task of ['auxiliary', 'target', 'worktree', 'yoonmoon']) {
+      const target = (await h.rpc('describe')).value[task]
+      const saved = await h.rpc('instructions', { ...target, instructions: `  Only ${task}.\nKeep it short.  ` })
+      assert.equal(saved.ok, true)
+      assert.equal(saved.value.instructions, `Only ${task}.\nKeep it short.`)
+      assert.deepEqual(saved.value.route, initial[task].route)
+      assert.equal((await h.rpc('instructions', { ...target, instructions: 'stale' })).error.code, 'conflict')
+    }
+    assert.equal(h.adapter.requests.length, requestCount)
+    await h.restart()
+    const restored = (await h.rpc('describe')).value
+    for (const task of ['auxiliary', 'target', 'worktree', 'yoonmoon']) {
+      assert.equal(restored[task].instructions, `Only ${task}.\nKeep it short.`)
+    }
+    await h.generate('instructions-title')
+    const titleSystem = h.adapter.requests.at(-1).system
+    assert.equal(titleSystem, 'Only target.\nKeep it short.\n\nOnly auxiliary.\nKeep it short.')
+    await h.write('instructions-yoonmoon')
+    const writingSystem = h.adapter.requests.at(-1).system
+    assert.equal(writingSystem, 'Only yoonmoon.\nKeep it short.\n\nOnly auxiliary.\nKeep it short.')
+    assert.ok(!writingSystem.includes('Only target.'))
+    const conversation = await h.ctx.llm.prepareCall({ provider: 'conversation', model: 'chat-large' })
+    for await (const _ of conversation.stream({ ...conversation.config, messages: [], system: 'Conversation only.' })) {
+    }
+    assert.equal(h.adapter.requests.at(-1).system, 'Conversation only.')
+    const own = await h.rpc('save', {
+      ...restored.target,
+      route: { provider: 'auxiliary', model: 'title-small' },
+      reasoningEffort: 'thorough',
+    })
+    assert.equal(own.ok, true)
+    assert.equal(own.value.instructions, restored.target.instructions)
+    await h.generate('instructions-own-route')
+    assert.ok(h.adapter.requests.at(-1).system.endsWith('Only target.\nKeep it short.'))
+    assert.ok(!h.adapter.requests.at(-1).system.includes('Only auxiliary.'))
+    const cleared = await h.rpc('instructions', { ...own.value, instructions: ' \n ' })
+    assert.equal(cleared.ok, true)
+    assert.equal(cleared.value.instructions, initial.target.defaultInstructions)
+    assert.deepEqual(cleared.value.route, own.value.route)
+    assert.equal(cleared.value.reasoningEffort, 'thorough')
+    await h.generate('instructions-cleared')
+    assert.ok(!h.adapter.requests.at(-1).system.includes('Only target.'))
+    assert.equal(
+      h.adapter.requests.at(-1).system,
+      initial.target.instructions.split('\nAn existing title is supplied')[0]
+    )
+    assert.equal(h.adapter.requests.at(-1).reasoningEffort, 'thorough')
+    assert.equal((await h.rpc('describe')).value.worktree.instructions, restored.worktree.instructions)
+    const writing = (await h.rpc('describe')).value.yoonmoon
+    const customWriting = initial.yoonmoon.defaultInstructions.replace(
+      'Preserve the input meaning.',
+      'Use a formal tone.'
+    )
+    assert.equal((await h.rpc('instructions', { ...writing, instructions: customWriting })).ok, true)
+    await h.write('template-writing')
+    assert.equal(
+      h.adapter.requests.at(-1).system,
+      `${defaultWriting.replace('Preserve the input meaning.', 'Use a formal tone.')}\n\nOnly auxiliary.\nKeep it short.`
+    )
+    const currentWriting = (await h.rpc('describe')).value.yoonmoon
+    assert.equal(
+      (await h.rpc('instructions', { ...currentWriting, instructions: currentWriting.defaultInstructions })).ok,
+      true
+    )
+    const titleEntry = h.ctx.configEditor.entries().find((entry) => entry.options.id === initial.target.id)
+    await h.ctx.configEditor.edit(titleEntry, (config) => ({ ...config, targetWords: 11, targetCjkCharacters: 19 }))
+    const updated = (await h.rpc('describe')).value.target
+    assert.ok(updated.instructions.includes('about 11 words in non-CJK languages or 19 CJK characters.'))
+    await h.generate('changed-title-defaults')
+    assert.equal(h.adapter.requests.at(-1).system, updated.instructions.split('\nAn existing title is supplied')[0])
+    await h.restart()
+    await h.write('restored-writing-default')
+    assert.equal(h.adapter.requests.at(-1).system, `${defaultWriting}\n\nOnly auxiliary.\nKeep it short.`)
+  })
+
+  await test(`${strategy}: 공유 보조 기본값은 재로드 후에도 출처, 명시적 재정의, 대화 미사용 선택을 보존한다`, async (t) => {
     const h = await profileFixture(strategy)
     t.after(h.close)
     const initial = (await h.rpc('describe')).value
@@ -47,7 +144,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     await check('auxiliary-reset', { provider: 'conversation', model: 'chat-large' }, undefined)
   })
 
-  await test(`${strategy}: persists reasoning effort and applies it before request logging without affecting conversation calls`, async (t) => {
+  await test(`${strategy}: 추론 강도를 유지하고 요청 로깅 전에 적용하며 대화 호출에는 영향을 주지 않는다`, async (t) => {
     const h = await profileFixture(strategy)
     t.after(h.close)
     const view = (await h.rpc('describe')).value
@@ -104,7 +201,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     await checkTitle('plugin-unloaded', 'quick')
   })
 
-  await test(`${strategy}: saves, reloads and resets the title route without changing conversation config`, async (t) => {
+  await test(`${strategy}: 대화 설정을 바꾸지 않고 제목 라우트를 저장하고 재로드하고 초기화한다`, async (t) => {
     const h = await profileFixture(strategy, { provider: 'conversation', model: 'title-small' })
     t.after(h.close)
     const initial = (await h.rpc('describe')).value
@@ -148,11 +245,40 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
   })
 }
 
-await test('refuses unauthorized, invalid, unavailable and stale writes without losing existing config', async (t) => {
+await test('설정이 없는 구형 윤문 플러그인이 활성화되어도 나머지 모델 설정을 불러오고 저장한다', async (t) => {
+  const h = await profileFixture(
+    'first-prompt',
+    {},
+    { naming: 'semantic' },
+    {},
+    {
+      yoonmoonPlugin: { name: 'yoonmoon', apply() {} },
+      omitYoonmoonConfig: true,
+    }
+  )
+  t.after(h.close)
+  const initial = await h.rpc('describe')
+  assert.equal(initial.ok, true)
+  assert.equal(initial.value.yoonmoon, null)
+  assert.ok(initial.value.auxiliary)
+  assert.ok(initial.value.target)
+  assert.ok(initial.value.worktree)
+  assert.ok(initial.value.providers.every((provider) => provider.models.length > 0))
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  const saved = await h.rpc('save', { ...initial.value.target, route })
+  assert.equal(saved.ok, true)
+  await h.restart()
+  const restored = await h.rpc('describe')
+  assert.equal(restored.ok, true)
+  assert.equal(restored.value.yoonmoon, null)
+  assert.deepEqual(restored.value.target.route, route)
+})
+
+await test('기존 설정을 잃지 않고 권한이 없거나 잘못되었거나 사용할 수 없거나 오래된 쓰기를 거부한다', async (t) => {
   const h = await profileFixture()
   t.after(h.close)
   const target = (await h.rpc('describe')).value.target
-  for (const endpoint of ['describe', 'save']) {
+  for (const endpoint of ['describe', 'save', 'instructions']) {
     assert.equal(
       (await h.rpc(endpoint, target, { principal: { kind: 'anonymous' }, interactions: 'deny' })).status,
       403
@@ -160,6 +286,9 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   }
   for (const route of [undefined, {}, { provider: 'auxiliary' }, { provider: '', model: 'title-small' }]) {
     assert.equal((await h.rpc('save', { ...target, route })).error.code, 'invalid')
+  }
+  for (const instructions of [undefined, null, 2, {}, []]) {
+    assert.equal((await h.rpc('instructions', { ...target, instructions })).error.code, 'invalid')
   }
   for (const reasoningEffort of ['', ' ', 2, {}, []]) {
     assert.equal(
@@ -216,7 +345,7 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'unavailable')
 })
 
-await test('an enabled worktree with no raw config can be described, configured and reloaded', async (t) => {
+await test('원본 설정이 없는 활성 워크트리도 조회하고 설정하고 다시 불러온다', async (t) => {
   const h = await profileFixture('first-prompt', {}, null)
   t.after(h.close)
   const initial = (await h.rpc('describe')).value.worktree
@@ -232,7 +361,7 @@ await test('an enabled worktree with no raw config can be described, configured 
   assert.equal(restored.reasoningEffort, 'thorough')
 })
 
-await test('worktree routes persist independently of titles, preserve other settings and reject stale writes', async (t) => {
+await test('워크트리 라우트는 제목과 독립적으로 유지되고 다른 설정을 보존하며 오래된 쓰기를 거부한다', async (t) => {
   const h = await profileFixture('first-prompt', {}, { namingStyle: 'semantic' })
   t.after(h.close)
   const initial = (await h.rpc('describe')).value
@@ -287,4 +416,48 @@ await test('worktree routes persist independently of titles, preserve other sett
   const worktreeEntry = h.ctx.configEditor.entries().find((item) => item.options.id === restored.id)
   await worktreeEntry.fiber.dispose()
   assert.equal((await h.rpc('describe')).value.worktree, null)
+})
+
+await test('Yoonmoon 모델과 추론 강도는 독립적으로 유지되고 보조 설정을 상속하며 대화는 바꾸지 않는다', async (t) => {
+  const h = await profileFixture('first-prompt', {}, undefined, {})
+  t.after(h.close)
+  const initial = (await h.rpc('describe')).value
+  assert.equal(initial.yoonmoon.id, 'custom-yoonmoon-entry')
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  const check = async (id, expectedRoute, effort) => {
+    const { result, config } = await h.write(id)
+    assert.equal(result.isError, false)
+    assert.equal(result.value, '모델 설정 구현')
+    const request = h.adapter.requests.at(-1)
+    assert.equal(request.provider, expectedRoute.provider)
+    assert.equal(request.model, expectedRoute.model)
+    assert.equal(request.reasoningEffort, effort)
+    assert.deepEqual(config, { provider: 'conversation', model: 'chat-large', reasoningEffort: 'quick' })
+  }
+  assert.equal((await h.rpc('save', { ...initial.auxiliary, route, reasoningEffort: 'thorough' })).ok, true)
+  await check('writing-auxiliary', route, 'thorough')
+  const target = (await h.rpc('describe')).value.yoonmoon
+  const saved = await h.rpc('save', { ...target, route, reasoningEffort: 'quick' })
+  assert.equal(saved.ok, true)
+  assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'conflict')
+  await check('writing-own', route, 'quick')
+  assert.deepEqual((await h.rpc('describe')).value.target, initial.target)
+  await h.restart()
+  const restored = (await h.rpc('describe')).value.yoonmoon
+  assert.deepEqual(restored.route, route)
+  assert.equal(restored.reasoningEffort, 'quick')
+  await check('writing-restored', route, 'quick')
+  const automatic = await h.rpc('save', { ...restored, reasoningEffort: null })
+  assert.equal(automatic.ok, true)
+  await check('writing-automatic', route, 'thorough')
+  const reset = await h.rpc('save', { ...automatic.value, route: null, reasoningEffort: null, useAuxiliary: false })
+  assert.equal(reset.ok, true)
+  await h.restart()
+  await check('writing-conversation', { provider: 'conversation', model: 'chat-large' }, undefined)
+  const current = (await h.rpc('describe')).value
+  assert.equal((await h.rpc('save', { ...current.yoonmoon, useAuxiliary: true })).ok, true)
+  await check('writing-inherit-again', route, 'thorough')
+  const entry = h.ctx.configEditor.entries().find((entry) => entry.options.id === current.yoonmoon.id)
+  await entry.fiber.dispose()
+  assert.equal((await h.rpc('describe')).value.yoonmoon, null)
 })

@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.4.0...%40dungsil%2Fdsh-plugin-model-settings%400.5.0) (2026-11-05)
+
+### Features
+
+- **model-settings:** 상황별 모델에 개별 지침 편집을 추가한다 ([#129](https://github.com/dungsil/dsh-plugins/issues/129)) ([1dcf04d](https://github.com/dungsil/dsh-plugins/commit/1dcf04d066b623aa2df5bc13f6731d90f7c5e3a2))
+- **model-settings:** 윤문 전용 모델 설정과 실행을 지원한다 ([#115](https://github.com/dungsil/dsh-plugins/issues/115)) ([2eb5d0f](https://github.com/dungsil/dsh-plugins/commit/2eb5d0f4ff06ffc6d294c367fcfd46c365a75b13))
+
+### Bug Fixes
+
+- **model-settings:** 기본 프롬프트를 표시하고 직접 수정하도록 한다 ([#130](https://github.com/dungsil/dsh-plugins/issues/130)) ([8831095](https://github.com/dungsil/dsh-plugins/commit/8831095538ca0fec6136481ab64500f6be10a3a6))
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.3.0...%40dungsil%2Fdsh-plugin-model-settings%400.4.0) (2026-11-04)
 
 ### Features

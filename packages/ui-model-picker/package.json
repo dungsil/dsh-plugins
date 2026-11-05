@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-picker",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Model and reasoning effort picker for the DeepSeek Harness composer.",
   "license": "MIT",
   "repository": {
@@ -28,6 +28,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
     "prepack": "pnpm build"
   },
   "devDependencies": {
@@ -45,6 +46,7 @@
     "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
+    "happy-dom": "21.0.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tsdown": "0.23.4"

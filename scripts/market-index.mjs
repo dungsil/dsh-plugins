@@ -344,14 +344,15 @@ export async function generateRegistryDocuments({
   return documents
 }
 
-async function generateIndex(releasePackage) {
+async function generateIndex(releasePackages = []) {
   const packages = readLocalPackages()
   const warnings = []
   const previousIndex = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : undefined
-  // Record the confirmed publish first so registry reconciliation cannot drop a pending release.
-  const recordedIndex = releasePackage
-    ? recordRelease({ index: previousIndex, packages, packageName: releasePackage })
-    : previousIndex
+  // Record every confirmed publish before reconciling registry history in a single pass.
+  const recordedIndex = releasePackages.reduce(
+    (index, packageName) => recordRelease({ index, packages, packageName }),
+    previousIndex
+  )
   const index = buildMarketIndex({
     packages,
     registryDocuments: await generateRegistryDocuments({
@@ -413,7 +414,7 @@ function driftMessage(committed, expected) {
 
 if (import.meta.main) {
   const { values } = parseArgs({
-    options: { check: { type: 'boolean', default: false }, release: { type: 'string' } },
+    options: { check: { type: 'boolean', default: false }, release: { type: 'string', multiple: true } },
   })
   try {
     const index = await generateIndex(values.release)

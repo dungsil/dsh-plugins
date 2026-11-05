@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-yoonmoon",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Korean writing skills for DeepSeek Harness, adapted from amondnet/yoonmoon.",
   "license": "MIT",
   "repository": {
@@ -36,14 +36,23 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
     "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tool-executor-native": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-skill": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "~3.18.5 || ~3.19.0"
   },
   "engines": {
     "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",

@@ -2,6 +2,7 @@ export const channel = '/api'
 export const endpointPrefix = 'dungsil-worktree/'
 export const progressRecord = 'plugin:dungsil/ui-worktree/progress'
 export const selectionRecord = 'plugin:dungsil/ui-worktree/selection'
+export const ownershipRecord = 'plugin:dungsil/ui-worktree/ownership'
 
 export interface WorktreeProgress {
   id: string
@@ -16,6 +17,7 @@ declare module '@deepseek-ai/dsh-session' {
   interface PluginRecordMap {
     'plugin:dungsil/ui-worktree/progress': WorktreeProgress
     'plugin:dungsil/ui-worktree/selection': { initialized: true }
+    'plugin:dungsil/ui-worktree/ownership': { path: string; source: string; branch: string; sessionId: string }
   }
 }
 
@@ -40,6 +42,7 @@ export interface WorktreeSettings {
   defaultSelection: 'current' | 'new'
   directory: string
   remote: boolean
+  deleteOnArchive: boolean
   naming: 'semantic' | 'dsh' | 'custom'
   prefix: string
 }
@@ -52,13 +55,16 @@ export interface WorktreeSettingsView {
 export interface WorktreeView {
   cwd: string
   worktrees: { path: string; branch: string | null }[]
+  needsInitialization?: boolean
   pendingCreation?: { name: string; failed: boolean }
 }
 
 function comparablePath(path: string) {
   const windows = /^[a-z]:[\\/]/i.test(path) || path.startsWith('\\\\') || path.startsWith('//')
   const value = windows ? path.replaceAll('\\', '/').replace(/^[A-Z]:/, (drive) => drive.toLowerCase()) : path
-  return value.replace(/\/+$/, '')
+  let end = value.length
+  while (end > 0 && value[end - 1] === '/') end--
+  return value.slice(0, end)
 }
 
 export function currentWorktree(view: WorktreeView | undefined) {
@@ -77,6 +83,7 @@ export function isWorktreeView(value: unknown): value is WorktreeView {
   const view = value as Partial<WorktreeView>
   return (
     typeof view.cwd === 'string' &&
+    (view.needsInitialization === undefined || typeof view.needsInitialization === 'boolean') &&
     (view.pendingCreation === undefined ||
       (view.pendingCreation !== null &&
         typeof view.pendingCreation.name === 'string' &&

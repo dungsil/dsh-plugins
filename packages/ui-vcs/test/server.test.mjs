@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -14,7 +14,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
-await test('Git action follows the remote default branch and linked worktree without changing the repository', async (t) => {
+await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜치와 연결된 워크트리를 따른다', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'dsh-git-action-'))
   const ctx = new Context()
   t.after(async () => {
@@ -30,7 +30,7 @@ await test('Git action follows the remote default branch and linked worktree wit
   git('symbolic-ref', 'refs/remotes/upstream/HEAD', 'refs/remotes/upstream/trunk')
   const initial = git('rev-parse', 'HEAD')
   await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
-  await ctx.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
+  await ctx.plugin(LocalCredentialProvider, { path: join(home, '.git', 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
   await ctx.plugin(SubprocessLocal)
   await ctx.plugin(SandboxLocal)
@@ -55,15 +55,24 @@ await test('Git action follows the remote default branch and linked worktree wit
     if (response.status !== 200) return { status: response.status }
     return (await response.json()).result
   }
-  assert.deepEqual(await read(), { ok: true, value: 'push' })
+  assert.deepEqual(await read(), { ok: true, value: { operation: 'push', headSha: initial, dirty: false } })
   git('switch', '-c', 'main') // A familiar name is not necessarily the default branch.
-  assert.deepEqual(await read(), { ok: true, value: 'pr' })
+  assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } })
+  await writeFile(join(home, 'change.txt'), 'new file')
+  assert.equal((await read()).value.dirty, true) // Untracked files need an update too.
+  git('add', 'change.txt')
+  assert.equal((await read()).value.dirty, true)
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'change')
+  assert.deepEqual((await read()).value, { operation: 'pr', headSha: git('rev-parse', 'HEAD'), dirty: false })
+  await writeFile(join(home, 'change.txt'), 'modified file')
+  assert.equal((await read()).value.dirty, true)
+  git('reset', '--hard', initial)
   const linked = join(home, 'linked')
   git('worktree', 'add', linked, 'trunk')
   await ctx.workingDirectory.set(agent, linked, new AbortController().signal)
-  assert.deepEqual(await read(), { ok: true, value: 'pr' }) // Worktree takes precedence over trunk.
+  assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } }) // Worktree takes precedence over trunk.
   git('-C', linked, 'checkout', '--detach')
-  assert.deepEqual(await read(), { ok: true, value: 'pr' })
+  assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } })
   await ctx.workingDirectory.set(agent, home, new AbortController().signal)
   git('symbolic-ref', '--delete', 'refs/remotes/upstream/HEAD')
   assert.equal((await read()).ok, false) // Do not guess a default when its metadata is absent.

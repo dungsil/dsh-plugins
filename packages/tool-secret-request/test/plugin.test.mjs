@@ -78,7 +78,7 @@ async function setup(t, provider) {
   return { ctx, fork, rpc, run, next, path }
 }
 
-await test('stores exact input privately and returns only reference/status through the tool runtime', async (t) => {
+await test('도구 런타임을 통해 입력을 비공개로 정확히 저장하고 참조와 상태만 반환한다', async (t) => {
   const h = await setup(t)
   assert.equal((await h.run()).value.status, 'unavailable')
   await h.rpc('pending')
@@ -116,7 +116,7 @@ await test('stores exact input privately and returns only reference/status throu
   assert.equal((await h.ctx.credentials.resolve(credentialRef(args.ref))).value, secret)
 })
 
-await test('rejects unauthorized, malformed and late answers; cancellation and timeout never write', async (t) => {
+await test('권한 없는 응답, 형식이 잘못된 응답, 늦은 응답을 거부하며 취소와 타임아웃은 절대 기록하지 않는다', async (t) => {
   const h = await setup(t)
   for (const peer of [
     { principal: { kind: 'session', sessionId: 'secret-test-session' }, interactions: 'answer' },
@@ -151,7 +151,7 @@ await test('rejects unauthorized, malformed and late answers; cancellation and t
   assert.equal((await unloaded).value.status, 'cancelled')
 })
 
-await test('sanitizes storage failures and admits only one concurrent save, including cancellation during a write', async (t) => {
+await test('저장 실패를 정제하고 쓰기 도중 취소를 포함해 동시 저장을 하나만 허용한다', async (t) => {
   const secret = 'synthetic-provider-error-secret'
   let release
   let stored

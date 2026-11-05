@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { splitMarkdownSections } from '../src/markdown-sections.ts'
 
-test('description sections preserve Markdown and nest headings without splitting code, quotes, tables or math', () => {
+await test('설명 섹션은 코드, 인용, 표, 수식을 분리하지 않고 Markdown을 보존하며 제목을 중첩한다', () => {
   const code = '```md\n# Not a section\n```'
   const quote = '> ## Quoted heading\n> Quoted text'
   const math = '$$\n# Not a section either\n$$'
@@ -23,7 +23,7 @@ test('description sections preserve Markdown and nest headings without splitting
   assert.deepEqual(result.sections[1].children, [])
 })
 
-test('setext headings, shared references and heading-free descriptions remain available', () => {
+await test('setext 제목, 공유 참조, 제목 없는 설명은 계속 사용할 수 있다', () => {
   const text =
     'Summary\n=======\n[Link][shared] and note[^note].\n\nReview\n------\nDone.\n\n[shared]: https://example.com/path\n[^note]: Shared footnote\n'
   const result = splitMarkdownSections(text)

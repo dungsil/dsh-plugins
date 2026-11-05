@@ -34,6 +34,32 @@ function safeUrl(value: unknown): string {
   return value
 }
 
+function lookupUrl(value: unknown): URL {
+  try {
+    if (
+      typeof value !== 'string' ||
+      !value ||
+      value.length > 4096 ||
+      value.includes('\\') ||
+      value.split('').some((character) => character <= ' ' || character === '\u007f')
+    )
+      throw new Error()
+    const url = new URL(value)
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.pathname !== value.match(/^https?:\/\/[^@/?#]+([^?#]*)/)?.[1]
+    )
+      throw new Error()
+    url.search = ''
+    url.hash = ''
+    return url
+  } catch {
+    throw new Error('unsupported')
+  }
+}
+
 function string(value: unknown): string {
   if (typeof value !== 'string') throw new Error('invalid_response')
   return value
@@ -76,7 +102,9 @@ export function apply(ctx: Context, config: Config) {
   const list = async (
     agent: Agent,
     signal: AbortSignal,
-    action?: RequestAction
+    action?: RequestAction,
+    requested?: URL,
+    summary = false
   ): Promise<RequestView | { completed: true }> => {
     const cwd = ctx.workingDirectory.get(agent.session)
     const run = async (executable: string, args: string[], failure = 'command_failed', allowed = [0], trim = true) => {
@@ -131,6 +159,20 @@ export function apply(ctx: Context, config: Config) {
         const outcome = await child.done
         signal.throwIfAborted()
         const output = child.collected!.stdout!.readFrom(0)
+        // gh pr view resolves the current branch without fetching assigned/created PRs.
+        // Only its explicit "no PR" result is empty; authentication/network failures still fail.
+        if (
+          executable === 'gh' &&
+          args[0] === 'pr' &&
+          args[1] === 'view' &&
+          !args.includes('--repo') &&
+          outcome.exitCode === 1 &&
+          !output.lossy &&
+          !output.text.trim()
+        ) {
+          const stderr = child.collected!.stderr!.readFrom(0)
+          if (!stderr.lossy && /^no pull requests found for branch "[^\n]+"\s*$/.test(stderr.text)) return 'null'
+        }
         if (outcome.exitCode === null || !allowed.includes(outcome.exitCode) || output.lossy) throw new Error(failure)
         // tea 0.12's API command exits successfully even for HTTP errors.
         // --include keeps the body on stdout and writes the HTTP status to stderr.
@@ -217,9 +259,45 @@ export function apply(ctx: Context, config: Config) {
       if (url.protocol !== 'ssh:')
         repository = repository.slice(base.pathname.replace(/^\/|\/$/g, '').length).replace(/^\//, '')
     }
+    let requestedNumber: string | undefined
+    let requestedUrl: string | undefined
+    if (requested) {
+      const prefix = `${new URL(origin).pathname.replace(/\/$/, '')}/${repository}`
+      const match = requested.pathname.match(
+        provider === 'github'
+          ? /^(.*)\/pull\/([1-9]\d*)(?:\/(?:files|commits|checks))?\/?$/
+          : forge
+            ? /^(.*)\/pulls\/([1-9]\d*)\/?$/
+            : /^(.*)\/-\/merge_requests\/([1-9]\d*)\/?$/
+      )
+      // The remote (and tea login metadata), never the clicked URL, owns CLI credentials.
+      if (
+        requested.origin !== new URL(origin).origin ||
+        (provider === 'github' && repository.split('/').length !== 2) ||
+        !match ||
+        !Number.isSafeInteger(Number(match[2]))
+      )
+        throw new Error('unsupported')
+      if (provider === 'github' ? match[1].toLowerCase() !== prefix.toLowerCase() : match[1] !== prefix) {
+        if (provider === 'gitlab') throw new Error('unsupported')
+        const associated = await list(agent, signal, undefined, undefined, summary)
+        const linkedUrl = `${requested.origin}${match[1]}/${provider === 'github' ? 'pull' : forge ? 'pulls' : '-/merge_requests'}/${match[2]}`
+        if (
+          'request' in associated &&
+          associated.request &&
+          (provider === 'github'
+            ? associated.request.url.toLowerCase() === linkedUrl.toLowerCase()
+            : associated.request.url === linkedUrl)
+        )
+          return associated
+        throw new Error('unsupported')
+      }
+      requestedNumber = match[2]
+      requestedUrl = `${origin}/${repository}/${provider === 'github' ? 'pull' : forge ? 'pulls' : '-/merge_requests'}/${requestedNumber}`
+    }
     const view = { provider, repository: `${host}/${repository}`, branch, request: null }
-    // Detached HEAD has no branch to associate; never fall back to a repository-wide request.
-    if (!branch) return view
+    // Detached HEAD has no branch to associate, but an explicit read needs no association.
+    if (!branch && !requested) return view
     const mergeRef = tracked ? await git(['config', '--get', `branch.${branch}.merge`], [0, 1]) : ''
     const pushedBranch = mergeRef.startsWith('refs/heads/') ? mergeRef.slice(11) : branch
     const forgeApi = (endpoint: string, fields: string[] = [], trim = true) =>
@@ -245,7 +323,9 @@ export function apply(ctx: Context, config: Config) {
     }
     let forgeRow: any
     let forgeRepository = repository
-    if (forge) {
+    if (forge && requestedNumber) {
+      forgeRow = JSON.parse(await forgeApi(`repos/${repository}/pulls/${requestedNumber}`))
+    } else if (forge) {
       const repo = JSON.parse(await forgeApi(`repos/${repository}`))
       const targets = [repository]
       if (repo.parent) {
@@ -269,41 +349,54 @@ export function apply(ctx: Context, config: Config) {
     }
     const output = forge
       ? JSON.stringify(forgeRow ?? null)
-      : provider === 'github'
-        ? await run('gh', [
-            'pr',
-            'status',
-            // --repo disables gh's currentBranch lookup. Only discovery uses cwd;
-            // every subsequent read/write is pinned to the validated repository/URL.
-            '--json',
-            'number,title,url,author,headRefName,baseRefName,isDraft,state,headRepository',
-            '--jq',
-            '.currentBranch',
-          ])
-        : await run('glab', [
-            'mr',
-            'list',
-            '--repo',
-            `${origin}/${repository}`,
-            '--source-branch',
-            pushedBranch,
-            '--all',
-            '--output',
-            'json',
-            '--per-page',
-            '1',
-            '--page',
-            '1',
-            '--order',
-            'updated_at',
-            '--sort',
-            'desc',
-          ])
+      : requestedNumber
+        ? provider === 'github'
+          ? await run('gh', [
+              'pr',
+              'view',
+              requestedNumber,
+              '--repo',
+              `${origin}/${repository}`,
+              '--json',
+              'number,title,url,author,headRefName,baseRefName,isDraft,state,headRepository,body',
+            ])
+          : await run('glab', ['mr', 'view', requestedNumber, '--repo', `${origin}/${repository}`, '--output', 'json'])
+        : provider === 'github'
+          ? await run('gh', [
+              'pr',
+              'view',
+              // --repo disables gh's currentBranch lookup. Only discovery uses cwd;
+              // every subsequent read/write is pinned to the validated repository/URL.
+              '--json',
+              'number,title,url,author,headRefName,baseRefName,isDraft,state,headRepository,body',
+            ])
+          : await run('glab', [
+              'mr',
+              'list',
+              '--repo',
+              `${origin}/${repository}`,
+              '--source-branch',
+              pushedBranch,
+              '--all',
+              '--output',
+              'json',
+              '--per-page',
+              '1',
+              '--page',
+              '1',
+              '--order',
+              'updated_at',
+              '--sort',
+              'desc',
+            ])
     try {
       const data = JSON.parse(output || 'null')
-      if (provider === 'gitlab' && (!Array.isArray(data) || data.length > 1)) throw new Error()
-      const row = provider === 'gitlab' ? data[0] : data
-      if (row == null) return view
+      if (provider === 'gitlab' && !requested && (!Array.isArray(data) || data.length > 1)) throw new Error()
+      const row = provider === 'gitlab' && !requested ? data[0] : data
+      if (row == null) {
+        if (requested) throw new Error()
+        return view
+      }
       const state = forge && row.merged ? 'merged' : row.state === 'opened' ? 'open' : row.state?.toLowerCase()
       if (!['open', 'closed', 'merged'].includes(state)) throw new Error()
       const item: RequestItem = {
@@ -335,6 +428,12 @@ export function apply(ctx: Context, config: Config) {
         typeof item.draft !== 'boolean'
       )
         throw new Error()
+      if (
+        requested &&
+        ((provider === 'github' ? item.url.toLowerCase() !== requestedUrl?.toLowerCase() : item.url !== requestedUrl) ||
+          String(item.number) !== requestedNumber)
+      )
+        throw new Error()
       const link = new URL(item.url)
       if (
         link.origin !== new URL(origin).origin ||
@@ -352,14 +451,21 @@ export function apply(ctx: Context, config: Config) {
       // gh resolves the current branch's fork/upstream association itself. Verify its source,
       // not its base repository: a fork's PR may legitimately live in a different repository.
       if (
-        item.source !== pushedBranch ||
-        (provider === 'github' && row.headRepository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase()) ||
-        (provider === 'gitlab' &&
-          (!Number.isSafeInteger(row.source_project_id) ||
-            row.source_project_id <= 0 ||
-            row.source_project_id !== row.target_project_id))
+        !requested &&
+        (item.source !== pushedBranch ||
+          (provider === 'github' && row.headRepository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase()) ||
+          (provider === 'gitlab' &&
+            (!Number.isSafeInteger(row.source_project_id) ||
+              row.source_project_id <= 0 ||
+              row.source_project_id !== row.target_project_id)))
       )
         return view
+      // Render the overview before fetching CI, discussions, files and the diff.
+      // Summary snapshots never authorize mutations; actions always reload full details.
+      if (summary && !action) {
+        item.body = string((provider === 'gitlab' ? row.description : row.body) ?? '')
+        return { ...view, request: item }
+      }
       // Resolve detail and mutation targets explicitly, including upstream fork PRs.
       const targetRepo =
         provider === 'github'
@@ -408,7 +514,8 @@ export function apply(ctx: Context, config: Config) {
             detail.html_url !== item.url ||
             detail.head?.ref !== item.source ||
             detail.base?.ref !== item.target ||
-            detail.head.repo?.full_name?.toLowerCase() !== repository.toLowerCase() ||
+            detail.head.repo?.full_name?.toLowerCase() !==
+              (requested ? row.head.repo?.full_name?.toLowerCase() : repository.toLowerCase()) ||
             detail.base.repo?.full_name?.toLowerCase() !== forgeRepository.toLowerCase() ||
             !['open', 'closed'].includes(detail.state) ||
             typeof detail.merged !== 'boolean' ||
@@ -525,7 +632,8 @@ export function apply(ctx: Context, config: Config) {
             detail.number !== item.number ||
             detail.url !== item.url ||
             detail.headRefName !== item.source ||
-            detail.headRepository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase()
+            detail.headRepository?.nameWithOwner?.toLowerCase() !==
+              (requested ? row.headRepository?.nameWithOwner?.toLowerCase() : repository.toLowerCase())
           )
             throw new Error()
           item.headSha = string(detail.headRefOid)
@@ -887,7 +995,7 @@ export function apply(ctx: Context, config: Config) {
               { type: 'server-response', rpcId: body.data.rpcId, result },
               { headers: { 'Cache-Control': 'no-store' } }
             )
-          const input = body.data.payload as { sessionId?: unknown } | null
+          const input = body.data.payload as { sessionId?: unknown; requestUrl?: unknown; summary?: unknown } | null
           if (!input || typeof input.sessionId !== 'string' || !input.sessionId)
             return reply({ ok: false, error: { code: 'unavailable', message: 'Invalid session', details: {} } })
           let inFlight: string | undefined
@@ -903,10 +1011,12 @@ export function apply(ctx: Context, config: Config) {
               actionsInFlight.add(action.sessionId)
               inFlight = action.sessionId
             }
+            const requested =
+              route === method && input.requestUrl !== undefined ? lookupUrl(input.requestUrl) : undefined
             const resolved = await ctx.sessionController.resolveAgent(SessionId(input.sessionId))
             if ('error' in resolved) throw new Error('unavailable')
             const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(20_000)])
-            const value = await list(resolved.agent, signal, action)
+            const value = await list(resolved.agent, signal, action, requested, input.summary === true)
             if (action && !('completed' in value)) throw new Error('stale_request')
             return reply({ ok: true, value })
           } catch (error) {

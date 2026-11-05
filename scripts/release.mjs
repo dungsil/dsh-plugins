@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import conventionalCommits from 'conventional-changelog-conventionalcommits'
 import release from 'release-it'
@@ -60,8 +60,6 @@ export function releaseOptions({ dryRun = false } = {}) {
         'pnpm exec oxfmt --write package.json CHANGELOG.md',
         `pnpm pack --pack-destination ${destination}`,
       ],
-      // npm has published by this point; record the confirmed version without waiting for registry propagation.
-      'before:git:release': [`pnpm --dir ../.. market:index --release ${name}`, 'git add ../../market/index.json'],
     },
   }
 }
@@ -71,6 +69,8 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     throw new Error('An exact version requires a package name and a valid semantic version')
   }
   const root = process.cwd()
+  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  const releaseHead = dryRun ? undefined : git(['rev-parse', 'HEAD']).trim()
   // Unlike `pnpm list`, recursive exec honors dependency order. Serial output
   // keeps that order intact before release-it bumps and packs each package.
   const packages = execFileSync(
@@ -95,8 +95,15 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
   const releases = []
   try {
     // Publish dependencies first, but defer workspace Git and GitHub releases
-    // until every manifest, changelog and market entry is ready for one commit.
+    // until the published manifests and changelogs are ready for one commit.
     for (const pkg of selected) {
+      if (!dryRun) {
+        const remoteHead = git(['ls-remote', '--exit-code', 'origin', 'refs/heads/main']).split(/\s/)[0]
+        if (remoteHead !== releaseHead) {
+          console.log(`main changed; stopping publication and finalizing ${releases.length} published packages.`)
+          break
+        }
+      }
       process.chdir(pkg.path)
       const settings = releaseOptions({ dryRun })
       const result = await release({
@@ -104,30 +111,42 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
         ...(version ? { increment: version } : {}),
         ...options,
         npm: { ...settings.npm, ...options.npm, ...(version ? { allowSameVersion: true } : {}) },
-        ...(!packageName
-          ? {
-              git: {
-                ...settings.git,
-                commit: false,
-                tag: false,
-                push: false,
-                requireCleanWorkingDir: releases.length === 0,
-              },
-              github: { ...settings.github, ...options.github, release: false },
-            }
-          : {}),
+        git: {
+          ...settings.git,
+          commit: false,
+          tag: false,
+          push: false,
+          requireCleanWorkingDir: releases.length === 0,
+        },
+        github: { ...settings.github, ...options.github, release: false },
       })
       if (result.version) releases.push({ pkg, settings, result })
     }
-    if (!packageName && !dryRun && releases.length > 0) {
+    if (!dryRun && releases.length > 0) {
       process.chdir(root)
-      const git = (args) => execFileSync('git', args, { encoding: 'utf8' })
       git(['add', '--', ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`])])
-      git(['commit', '-m', 'chore(release): 전체 패키지를 릴리즈한다 [skip ci]'])
+      const message = packageName
+        ? `chore(release): ${packageName}@${releases[0].result.version} [skip ci]`
+        : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
+      git(['commit', '-m', message])
       for (const { pkg, result } of releases) {
         git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
       }
-      git(['push', '--follow-tags', '--atomic'])
+      // Merge instead of rebasing: tags must keep identifying the source that was published.
+      git(['fetch', 'origin', 'main'])
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const remoteHead = git(['rev-parse', 'origin/main']).trim()
+        git(['merge', '--no-edit', '-m', 'chore(release): 원격 변경을 통합한다 [skip ci]', 'origin/main'])
+        try {
+          git(['push', '--follow-tags', '--atomic'])
+          break
+        } catch (error) {
+          if (attempt === 2) throw error
+          git(['fetch', 'origin', 'main'])
+          // Retry only when main moved during the push, not on auth or tag errors.
+          if (git(['rev-parse', 'origin/main']).trim() === remoteHead) throw error
+        }
+      }
 
       // Publish immutable GitHub releases only after all tags reach the remote.
       for (const { pkg, settings, result } of releases) {
@@ -147,6 +166,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
   } finally {
     process.chdir(root)
   }
+  return dryRun ? [] : releases.map(({ pkg }) => pkg.name)
 }
 
 if (import.meta.main) {
@@ -157,5 +177,12 @@ if (import.meta.main) {
       version: { type: 'string' },
     },
   })
-  await releaseWorkspace({ dryRun: values['dry-run'], packageName: values.package, version: values.version })
+  const packages = await releaseWorkspace({
+    dryRun: values['dry-run'],
+    packageName: values.package,
+    version: values.version,
+  })
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `packages=${JSON.stringify(packages)}\n`)
+  }
 }

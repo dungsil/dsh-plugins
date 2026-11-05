@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-model-picker
 
+## [0.2.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.2...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.3) (2026-11-05)
+
+### Bug Fixes
+
+- **model-picker:** 추론 미지원 모델에서 모델 선택 메뉴를 바로 표시한다 ([#124](https://github.com/dungsil/dsh-plugins/issues/124)) ([8b8019c](https://github.com/dungsil/dsh-plugins/commit/8b8019c0559488ff8004d196913714a91ff18217))
+
 ## [0.2.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.1...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.2) (2026-11-04)
 
 ### Bug Fixes

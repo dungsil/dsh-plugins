@@ -4,7 +4,11 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
+import Llm, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import SkillRegistry, { isModelInvocable, isUserInvocable, renderSkillContent } from '@deepseek-ai/dsh-skill'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
 
 const names = [
@@ -16,9 +20,12 @@ const names = [
   'restyling-korean',
 ]
 
-await test('DSH discovers all six skills and replaces their registrations on in-place reload', async (t) => {
+await test('DSH는 여섯 스킬을 모두 찾아내고 제자리 재로드 시 등록을 교체한다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Llm)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
   await ctx.plugin(SkillRegistry)
   const fork = ctx.plugin(plugin)
   await fork
@@ -41,7 +48,8 @@ await test('DSH discovers all six skills and replaces their registrations on in-
       assert.equal(skill.source, 'bundled')
       assert.equal(skill.resourceBase.kind, 'directory')
       const raw = await readFile(resolve(skill.resourceBase.path, 'SKILL.md'), 'utf8')
-      assert.equal(skill.content, raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, '').trim())
+      assert.ok(skill.content.endsWith(raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, '').trim()))
+      assert.ok(skill.content.includes(`yoonmoon tool with skill="${name}"`))
       contents.set(name, skill.content)
       assert.ok(skill.description.length > 0)
       const rendered = renderSkillContent(skill)
@@ -73,8 +81,12 @@ await test('DSH discovers all six skills and replaces their registrations on in-
   assert.deepEqual(await ctx.skills.list(), [])
 })
 
-await test('bundled instructions do not shadow a higher-priority custom skill', async () => {
+await test('번들 지침은 우선순위가 더 높은 사용자 지정 스킬을 가리지 않는다', async (t) => {
   const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Llm)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
   await ctx.plugin(SkillRegistry)
   const unregister = ctx.skills.register({
     name: 'humanizing-korean',
@@ -93,7 +105,89 @@ await test('bundled instructions do not shadow a higher-priority custom skill', 
   }
 })
 
-await test('pipeline skill names and local reference paths resolve within the bundle', async () => {
+await test('쓰기 도구는 선택된 모델과 입력만 사용하고 파이프라인 리소스를 포함하며 불완전한 출력을 거부한다', async (t) => {
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Llm)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
+  await ctx.plugin(SkillRegistry)
+  class WritingAdapter extends LlmAdapter {
+    requests = []
+    finish = 'stop'
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: {
+          efforts: [
+            { id: 'low', name: 'Low' },
+            { id: 'high', name: 'High' },
+          ],
+          defaultEffort: 'high',
+        },
+      }
+    }
+    async *stream(request) {
+      this.requests.push(request)
+      yield { type: 'text-delta', index: 0, text: '문장을 ' }
+      yield { type: 'text-delta', index: 0, text: '다듬었습니다.' }
+      yield { type: 'finish', reason: { kind: this.finish } }
+    }
+  }
+  const adapter = new WritingAdapter()
+  ctx.llm.registerAdapter(['writing'], adapter)
+  const fork = ctx.plugin(plugin, { provider: 'writing', model: 'editor' })
+  await fork
+  const run = async (args, signal = new AbortController().signal) => {
+    const batch = await ctx.tools.execute({
+      calls: [{ type: 'tool-call', id: 'writing', name: 'yoonmoon', arguments: JSON.stringify(args) }],
+      signal,
+    })
+    assert.equal(batch.results.length, 1)
+    assert.equal(batch.results[0].callId, 'writing')
+    return batch.results[0].result
+  }
+  for (const skill of names) {
+    const result = await run({ skill, text: '원문입니다.', instructions: '해요체로 바꾸세요.' })
+    assert.equal(result.isError, false)
+    assert.equal(result.value, '문장을 다듬었습니다.')
+    const request = adapter.requests.at(-1)
+    assert.equal(request.provider, 'writing')
+    assert.equal(request.model, 'editor')
+    assert.equal(request.reasoningEffort, 'high')
+    assert.equal(request.tools?.length ?? 0, 0)
+    assert.equal(request.messages.length, 1)
+    assert.deepEqual(JSON.parse(request.messages[0].content[0].text), {
+      text: '원문입니다.',
+      instructions: '해요체로 바꾸세요.',
+    })
+    assert.ok(request.system.includes(`# ${skill}\n`))
+    if (skill === 'polishing-korean') for (const name of names) assert.ok(request.system.includes(`# ${name}\n`))
+    assert.ok(request.system.includes('/references/'))
+  }
+  const count = adapter.requests.length
+  for (const args of [
+    { skill: '../../etc/passwd', text: '원문' },
+    { skill: names[0], text: ' ' },
+  ])
+    assert.equal((await run(args)).isError, true)
+  assert.equal((await run({ skill: names[0], text: '원문' }, AbortSignal.abort())).isError, true)
+  assert.equal(adapter.requests.length, count)
+  adapter.finish = 'max-tokens'
+  assert.equal((await run({ skill: names[0], text: '원문' })).isError, true)
+  t.mock.method(adapter, 'stream', async function* () {
+    yield { type: 'text-delta', index: 0, text: 'Partial result' }
+    await fork.dispose()
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  })
+  assert.equal((await run({ skill: names[0], text: '원문' })).isError, true)
+  assert.equal(ctx.tools.get('yoonmoon'), undefined)
+})
+
+await test('파이프라인 스킬 이름과 로컬 참조 경로는 번들 안에서 확인된다', async () => {
   const root = fileURLToPath(new URL('../skills/', import.meta.url))
   for await (const path of glob('**/*.md', { cwd: root })) {
     const absolute = resolve(root, path)

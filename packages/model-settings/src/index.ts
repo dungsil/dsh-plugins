@@ -4,6 +4,12 @@ import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-title'
+import {
+  renderYoonmoonInstructions,
+  titleInstructions,
+  worktreeInstructions,
+  yoonmoonInstructions,
+} from '@dungsil/dsh-task-prompts'
 import { channel, endpointPrefix, type Route, type TitleTarget } from './protocol.js'
 
 export const name = 'dungsil-model-settings'
@@ -22,18 +28,20 @@ export async function apply(ctx: Context) {
     editor
       .entries()
       .find((entry) => entry.options.name === '@dungsil/dsh-plugin-model-settings' && entry.fiber?.state === 2)
-  const targetEntry = (task: 'title' | 'worktree') => {
+  const targetEntry = (task: 'title' | 'worktree' | 'yoonmoon') => {
     const entries = editor
       .entries()
       .filter(
         (entry) =>
           (task === 'title'
             ? titlePlugins.has(entry.options.name)
-            : entry.options.name === '@dungsil/dsh-plugin-ui-worktree') && entry.fiber?.state === 2
+            : entry.options.name ===
+              (task === 'worktree' ? '@dungsil/dsh-plugin-ui-worktree' : '@dungsil/dsh-plugin-yoonmoon')) &&
+          entry.fiber?.state === 2
       )
     return entries.length === 1 ? entries[0] : undefined
   }
-  const snapshot = (task: 'title' | 'worktree' | 'auxiliary'): TitleTarget | null => {
+  const snapshot = (task: 'title' | 'worktree' | 'yoonmoon' | 'auxiliary'): TitleTarget | null => {
     const owner = settingsEntry()
     const entry = task === 'auxiliary' ? owner : targetEntry(task)
     if (!entry) return null
@@ -41,18 +49,39 @@ export async function apply(ctx: Context) {
     const config = (
       task === 'auxiliary'
         ? (owner?.options.config?.auxiliaryModel ?? {})
-        : (entry.fiber!.effectiveConfig ?? entry.fiber!.config ?? {})
-    ) as {
-      provider?: string
-      model?: string
-      reasoningEffort?: string
-    }
+        : (entry.fiber!.effectiveConfig ?? entry.fiber!.config)
+    ) as
+      | {
+          provider?: string
+          model?: string
+          reasoningEffort?: string
+          naming?: string
+          targetWords: number
+          targetCjkCharacters: number
+        }
+      | undefined
+    if (!config) return null
     const inheritance = owner?.options.config?.inheritAuxiliary as Record<string, boolean> | undefined
     const useAuxiliary =
       task !== 'auxiliary' && !config.provider && !config.model && (inheritance?.[entry.options.id] ?? true)
     const settings = (task === 'title' ? owner?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
+    const defaultInstructions =
+      task === 'title'
+        ? titleInstructions(
+            config.targetWords,
+            config.targetCjkCharacters,
+            entry.options.name === '@deepseek-ai/dsh-session-title-all-prompts-llm'
+          )
+        : task === 'worktree'
+          ? worktreeInstructions(config.naming ?? 'semantic')
+          : task === 'yoonmoon'
+            ? yoonmoonInstructions
+            : ''
+    const instructions =
+      (owner?.options.config?.instructions as Record<string, string> | undefined)?.[entry.options.id] ??
+      defaultInstructions
     return {
       id: entry.options.id,
       revision: createHash('sha256')
@@ -62,11 +91,15 @@ export async function apply(ctx: Context) {
             task === 'auxiliary' ? config : entry.options.config,
             settings,
             useAuxiliary,
+            instructions,
+            defaultInstructions,
           ])
         )
         .digest('hex'),
       route: config.provider && config.model ? { provider: config.provider, model: config.model } : null,
       useAuxiliary,
+      instructions,
+      defaultInstructions,
       reasoningEffort:
         task !== 'title'
           ? config.provider && config.model
@@ -90,7 +123,9 @@ export async function apply(ctx: Context) {
       ? 'title'
       : entry?.options.name === '@dungsil/dsh-plugin-ui-worktree' || consumer.fiber.name === 'dungsil-ui-worktree'
         ? 'worktree'
-        : null
+        : entry?.options.name === '@dungsil/dsh-plugin-yoonmoon' || consumer.fiber.name === 'yoonmoon'
+          ? 'yoonmoon'
+          : null
     if (!task) return next()
     if (service === 'sessionTitle') {
       if (task !== 'title') return next()
@@ -114,14 +149,31 @@ export async function apply(ctx: Context) {
       })
     }
     const llm = next() as Context['llm']
-    const prepareCall: Context['llm']['prepareCall'] = (config, signal, configure) => {
+    const prepareCall: Context['llm']['prepareCall'] = async (config, signal, configure) => {
       const target = snapshot(task)
       const auxiliary = target?.useAuxiliary ? snapshot('auxiliary') : null
       const effort = auxiliary?.route ? auxiliary.reasoningEffort : target?.reasoningEffort
-      return llm.prepareCall({ ...config, ...auxiliary?.route }, signal, (controls, model) => ({
+      const call = await llm.prepareCall({ ...config, ...auxiliary?.route }, signal, (controls, model) => ({
         ...(configure ? configure(controls, model) : controls),
         ...(typeof effort === 'string' ? { reasoningEffort: ReasoningEffortId(effort) } : {}),
       }))
+      const instructions = target?.instructions !== target?.defaultInstructions ? target?.instructions : undefined
+      if (!instructions && !auxiliary?.instructions) return call
+      return {
+        ...call,
+        stream: (options) => {
+          let system = instructions ?? options.system
+          if (instructions && task === 'yoonmoon') {
+            // Read variables from the owning plugin's unmodified prompt, never user text.
+            const original = /^Execute the (\S+) skill below\.[^\n]*\n\n([\s\S]*)$/u.exec(options.system ?? '')!
+            system = renderYoonmoonInstructions(instructions, original[1]!, original[2]!)
+          }
+          return call.stream({
+            ...options,
+            system: [system, auxiliary?.instructions].filter(Boolean).join('\n\n'),
+          })
+        },
+      }
     }
     return new Proxy(llm, {
       get: (target, key, receiver) => (key === 'prepareCall' ? prepareCall : Reflect.get(target, key, receiver)),
@@ -166,6 +218,7 @@ export async function apply(ctx: Context) {
           auxiliary: snapshot('auxiliary'),
           target: snapshot('title'),
           worktree: snapshot('worktree'),
+          yoonmoon: snapshot('yoonmoon'),
           providers,
           catalogError,
         },
@@ -178,8 +231,35 @@ export async function apply(ctx: Context) {
       route?: unknown
       reasoningEffort?: unknown
       useAuxiliary?: unknown
+      instructions?: unknown
     }
     if (typeof input.id !== 'string' || typeof input.revision !== 'string') return failure('invalid')
+    if (endpoint === 'instructions') {
+      if (typeof input.instructions !== 'string') return failure('invalid')
+      const owner = settingsEntry()
+      const task = (['auxiliary', 'title', 'worktree', 'yoonmoon'] as const).find(
+        (task) => snapshot(task)?.id === input.id
+      )
+      if (!owner || !task) return failure('unavailable')
+      const instructions = input.instructions.trim()
+      try {
+        signal.throwIfAborted()
+        await ctx.configEditor.edit(owner, (current) => {
+          if (snapshot(task)?.revision !== input.revision) throw new Error('conflict')
+          const next = { ...current }
+          const saved = { ...(current.instructions as Record<string, string> | undefined) }
+          if (instructions && instructions !== snapshot(task)?.defaultInstructions)
+            saved[input.id as string] = instructions
+          else delete saved[input.id as string]
+          if (Object.keys(saved).length) next.instructions = saved
+          else delete next.instructions
+          return next
+        })
+        return { ok: true, value: snapshot(task) }
+      } catch (error) {
+        return failure(error instanceof Error && error.message === 'conflict' ? 'conflict' : 'save_failed')
+      }
+    }
     if (input.useAuxiliary !== undefined && typeof input.useAuxiliary !== 'boolean') return failure('invalid')
     const useAuxiliary = input.route === null && input.useAuxiliary === true
     const reasoningEffort = input.reasoningEffort ?? null
@@ -210,9 +290,15 @@ export async function apply(ctx: Context) {
     }
     const owner = settingsEntry()
     const task =
-      owner?.options.id === input.id ? 'auxiliary' : snapshot('worktree')?.id === input.id ? 'worktree' : 'title'
+      owner?.options.id === input.id
+        ? 'auxiliary'
+        : snapshot('worktree')?.id === input.id
+          ? 'worktree'
+          : snapshot('yoonmoon')?.id === input.id
+            ? 'yoonmoon'
+            : 'title'
     const entry = task === 'auxiliary' ? owner : targetEntry(task)
-    if (!entry || (task !== 'worktree' && !owner)) return failure('unavailable')
+    if (!entry || (task === 'title' && !owner)) return failure('unavailable')
     if (task === 'auxiliary' && useAuxiliary) return failure('invalid')
     try {
       signal.throwIfAborted()
@@ -230,7 +316,7 @@ export async function apply(ctx: Context) {
           delete next.provider
           delete next.model
         }
-        if (task === 'worktree') {
+        if (task !== 'title') {
           if (route && reasoningEffort !== null) next.reasoningEffort = reasoningEffort
           else delete next.reasoningEffort
         }
@@ -268,7 +354,7 @@ export async function apply(ctx: Context) {
     }
   }
 
-  for (const endpoint of ['describe', 'save']) {
+  for (const endpoint of ['describe', 'save', 'instructions']) {
     ctx.effect(
       () =>
         ctx.connection.fetch.register({

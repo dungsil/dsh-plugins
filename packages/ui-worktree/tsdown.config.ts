@@ -2,7 +2,7 @@ import { clientConfig, defineConfig, nodeConfig } from '@dungsil/dsh-tsdown'
 import manifest from './package.json' with { type: 'json' }
 
 export default defineConfig([
-  nodeConfig,
+  { ...nodeConfig, deps: { alwaysBundle: ['@dungsil/dsh-task-prompts'] } },
   clientConfig(manifest.name, {
     entry: ['src/client.tsx'],
     deps: {

@@ -14,7 +14,12 @@ import { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { Session, SessionId, pluginRecordOf } from '@deepseek-ai/dsh-session'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
+import Storage from '@deepseek-ai/dsh-storage'
+import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
+import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
 
@@ -77,6 +82,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   }
   let agent, harness
   const requests = []
+  const resolutions = []
   ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
     root.provide('profileContext', profile)
     root.loader.builtins.editor = ConfigEditor
@@ -89,6 +95,11 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       },
     }
     await mountAgentLoopTestDependencies(root, { workingDirectory: true })
+    await root.plugin(Storage)
+    await root.plugin(StorageJson, { root: join(home, 'storage') })
+    await root.plugin(StorageDomain, { backend: 'json' })
+    await root.plugin(SessionPersistenceJsonl, { root: join(home, 'sessions') })
+    await root.plugin(WorkspaceRegistry)
     await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
     await root.plugin(Connection)
     await root.plugin(SubprocessLocal)
@@ -112,8 +123,10 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       { cwd: repo }
     )
     root.provide('sessionController', {
-      resolveAgent: async (id) =>
-        id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } },
+      resolveAgent: async (id) => {
+        resolutions.push(id)
+        return id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } }
+      },
     })
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -139,10 +152,38 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
     await agent.whenIdle()
   }
-  return { ctx, agent, repo, other, git, rpc, home, profile, requests, submit, harness }
+  const archive = async () => {
+    const maintenance = agent.runMaintenance.bind(agent)
+    let cleanup
+    agent.runMaintenance = (...args) => (cleanup = maintenance(...args))
+    try {
+      await ctx.workspaceRegistry.archiveSession(agent.id)
+      await new Promise((resolve) => setImmediate(resolve))
+      // Cleanup failures are intentionally contained by the archive observer.
+      // The assertions below check the resulting Git state, not its promise.
+      await cleanup?.catch(() => {})
+    } finally {
+      agent.runMaintenance = maintenance
+    }
+  }
+  return {
+    ctx,
+    agent,
+    repo,
+    other,
+    git,
+    rpc,
+    home,
+    profile,
+    requests,
+    submit,
+    harness,
+    archive,
+    resolutions,
+  }
 }
 
-await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
+await test('부작용 없이 예약하고, 프롬프트 작업 전에 생성하며, 기존 스위치는 즉시 동작하게 유지한다', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit } = await fixture(t)
   const progress = []
   ctx.on('session/event', (session, event) => {
@@ -159,6 +200,7 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(initial.ok, true)
   assert.deepEqual(initial.value, {
     cwd: repo,
+    needsInitialization: true,
     worktrees: [
       { path: gitPath(repo), branch: 'main' },
       { path: gitPath(other), branch: null },
@@ -168,7 +210,11 @@ await test('reserves without side effects, creates before prompt work, and keeps
   const otherPath = initial.value.worktrees.find((entry) => entry.branch === null).path
   const reserved = await rpc('create', { cwd: repo, name: 'fix/login-ui' })
   assert.equal(reserved.ok, true)
-  assert.deepEqual(reserved.value, { ...initial.value, pendingCreation: { name: 'fix/login-ui', failed: false } })
+  assert.deepEqual(reserved.value, {
+    cwd: repo,
+    worktrees: initial.value.worktrees,
+    pendingCreation: { name: 'fix/login-ui', failed: false },
+  })
   assert.equal(ctx.workingDirectory.get(agent.session), repo)
   assert.equal(requests.length, 0, 'reserving must not call a model')
   assert.equal(progress.length, 0, 'reserving must not display setup as started')
@@ -253,15 +299,25 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 3)
 })
 
-await test('new-worktree default reserves once without side effects and respects cancellation across profile reloads', async (t) => {
+await test('새 워크트리 기본값은 부작용 없이 한 번 예약하고 프로필을 다시 불러와도 취소를 존중한다', async (t) => {
   const { agent, repo, git, rpc, requests, profile, submit } = await fixture(t, {}, { defaultSelection: 'new' })
-  const initial = await rpc('describe')
+  const before = agent.session.snapshotEvents()
+  const lookup = await rpc('describe')
+  assert.equal(lookup.ok, true)
+  assert.equal(lookup.value.needsInitialization, true)
+  assert.equal(lookup.value.pendingCreation, undefined, 'A read must not reserve a default worktree')
+  assert.deepEqual(agent.session.snapshotEvents(), before, 'A read must not persist selection initialization')
+  const initial = await rpc('initialize', { cwd: repo })
   assert.equal(initial.ok, true)
+  assert.equal(initial.value.needsInitialization, undefined)
   assert.deepEqual(initial.value.pendingCreation, { name: '', failed: false })
   assert.equal(initial.value.cwd, repo)
   assert.equal(initial.value.worktrees.length, 2)
   assert.equal(requests.length, 0)
+  const initializedEvents = agent.session.snapshotEvents()
   assert.deepEqual((await rpc('describe')).value, initial.value)
+  assert.deepEqual((await rpc('initialize', { cwd: repo })).value, initial.value)
+  assert.deepEqual(agent.session.snapshotEvents(), initializedEvents, 'Initialization must be idempotent')
   const main = initial.value.worktrees.find((entry) => entry.branch === 'main').path
   assert.equal((await rpc('switch', { cwd: repo, path: main })).value.pendingCreation, undefined)
   const settings = (await rpc('settings')).value
@@ -281,7 +337,7 @@ await test('new-worktree default reserves once without side effects and respects
   assert.deepEqual(restored.deriveMessages(), agent.session.deriveMessages(), 'selection is not model context')
 })
 
-await test('new-worktree default creates on first prompt only and does not replace an existing conversation checkout', async (t) => {
+await test('새 워크트리 기본값은 첫 프롬프트에서만 생성하며 기존 대화의 체크아웃을 대체하지 않는다', async (t) => {
   const { ctx, repo, rpc, submit } = await fixture(
     t,
     {},
@@ -297,7 +353,7 @@ await test('new-worktree default creates on first prompt only and does not repla
     }
   }
   ctx.llm.registerAdapter(['naming'], new NamingAdapter())
-  assert.equal((await rpc('describe')).value.pendingCreation.failed, false)
+  assert.equal((await rpc('initialize', { cwd: repo })).value.pendingCreation.failed, false)
   await submit('Implement default selection')
   const created = (await rpc('describe')).value
   assert.equal(created.cwd, join(repo, '.agents/worktrees/feat/default-selection'))
@@ -317,7 +373,7 @@ await test('new-worktree default creates on first prompt only and does not repla
   assert.equal((await existing.rpc('describe')).value.cwd, existing.repo)
 })
 
-await test('reservations are session-local, cancellable, and refuse a source directory changed before submission', async (t) => {
+await test('예약은 세션에 한정되고 취소할 수 있으며 제출 전에 바뀐 소스 디렉터리를 거부한다', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit, harness } = await fixture(t)
   assert.equal((await rpc('create', { cwd: repo, name: 'cancelled-task' })).ok, true)
   const unrelated = await harness.create(
@@ -346,7 +402,7 @@ await test('reservations are session-local, cancellable, and refuse a source dir
   assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
 })
 
-await test('an empty reserved name uses the newly submitted prompt, not earlier history, only for naming', async (t) => {
+await test('예약된 이름이 비어 있으면 이전 기록이 아니라 새로 제출된 프롬프트를 이름 짓기에만 사용한다', async (t) => {
   const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'fallback', model: 'fallback-model' })
   const requests = []
   let answer = 'fix/session-isolation'
@@ -404,8 +460,12 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   const submitted = submit('Fix session isolation when switching worktrees')
   await started
   try {
+    const duringCreation = await rpc('describe')
+    assert.equal(duringCreation.ok, true, 'Naming and creation must not block a read')
+    assert.equal(duringCreation.value.pendingCreation.failed, false, 'Active creation is not a failed reservation')
+    assert.equal((await rpc('initialize', { cwd: repo })).error.code, 'busy')
     const settings = (await rpc('settings')).value
-    assert.equal((await rpc('save-settings', settings)).error.code, 'busy', 'settings cannot interrupt creation')
+    assert.equal((await rpc('save-settings', settings)).error.code, 'busy', 'A read must not release the creation lock')
   } finally {
     release()
   }
@@ -465,7 +525,7 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   ])
 })
 
-await test('automatic naming leaves room for reasoning before the branch name', async (t) => {
+await test('자동 이름 짓기는 브랜치 이름 앞에 추론할 여지를 남긴다', async (t) => {
   const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'reasoning', model: 'reasoner' })
   const requests = []
   class ReasoningAdapter extends LlmAdapter {
@@ -515,7 +575,7 @@ await test('automatic naming leaves room for reasoning before the branch name', 
   )
 })
 
-await test('automatic naming selects a supported non-off effort when the model has no default', async (t) => {
+await test('모델에 기본값이 없으면 자동 이름 짓기는 지원되는 off 이외의 추론 강도를 선택한다', async (t) => {
   const { ctx, agent, repo, git, rpc, submit } = await fixture(t, {
     provider: 'reasoning',
     model: 'no-default',
@@ -583,20 +643,20 @@ await test('automatic naming selects a supported non-off effort when the model h
   )
 })
 
-await test('naming preserves explicit efforts, model defaults and non-reasoning models', async (t) => {
+await test('이름 짓기는 명시적 추론 강도, 모델 기본값, 추론을 지원하지 않는 모델을 그대로 유지한다', async (t) => {
   for (const { label, configured, reasoning, expected } of [
     {
-      label: 'explicit task effort',
+      label: '명시적 작업 추론 강도',
       configured: 'high',
       reasoning: { efforts: ['off', 'low', 'high'].map((id) => ({ id, name: id })), defaultEffort: 'low' },
       expected: 'high',
     },
     {
-      label: 'model default',
+      label: '모델 기본값',
       reasoning: { efforts: ['off', 'low', 'medium'].map((id) => ({ id, name: id })), defaultEffort: 'medium' },
       expected: 'medium',
     },
-    { label: 'non-reasoning model', expected: undefined },
+    { label: '추론을 지원하지 않는 모델', expected: undefined },
   ]) {
     await t.test(label, async (t) => {
       const { ctx, repo, rpc, submit } = await fixture(
@@ -638,9 +698,79 @@ await test('naming preserves explicit efforts, model defaults and non-reasoning 
   }
 })
 
-await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
+await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지 않고 읽는다', async (t) => {
+  const { ctx, agent, repo, other, rpc, resolutions } = await fixture(t)
+  const id = SessionId('cold-worktree-read')
+  const cold = Session.create(id, agent.session.snapshotEvents(), { ...agent.session.header, id })
+  cold.append('working-directory/change', { cwd: other })
+  setSandboxMode(cold, 'read-only')
+  cold.append('turn/start', { turn: 1 })
+  cold.append('step/start', { turn: 1, step: 1 })
+  const events = cold.snapshotEvents()
+  const handle = await ctx.sessionPersistence.create(cold.header, { inheritedEventCount: cold.inheritedEventCount })
+  try {
+    await handle.append(events)
+  } finally {
+    await handle.close()
+  }
+  assert.equal(ctx.agents.get(id), undefined)
+  const result = await rpc('describe', { sessionId: id })
+  assert.equal(result.ok, true)
+  assert.equal(result.value.cwd, other, 'Use the recorded directory, not the original project')
+  assert.equal(cold.header.cwd, repo)
+  assert.equal(ctx.sandboxPolicy.resolve({ session: cold }).mode, 'read-only')
+  assert.equal(result.value.needsInitialization, true)
+  assert.ok(result.value.worktrees.some((entry) => entry.branch === 'main'))
+  assert.equal(ctx.agents.get(id), undefined, 'Reading a cold session must not publish an Agent')
+  assert.deepEqual(resolutions, [], 'Lookup must not call the activating resolver')
+  assert.deepEqual(cold.snapshotEvents(), events, 'Lookup must not close interrupted turns or initialize selection')
+})
+
+await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크아웃을 읽는다', async (t) => {
+  const { ctx, agent, repo, rpc, submit } = await fixture(t, { provider: 'paused', model: 'paused-model' })
+  const started = Promise.withResolvers()
+  const work = Promise.withResolvers()
+  class PausedWorkAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream() {
+      started.resolve()
+      await work.promise
+      yield { type: 'text-delta', index: 0, text: 'Finished' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['paused'], new PausedWorkAdapter())
+  assert.equal((await rpc('create', { cwd: repo, name: 'fix/navigation' })).ok, true)
+  const submitted = submit()
+  await started.promise
+  try {
+    const cwd = join(repo, '.agents/worktrees/fix/navigation')
+    assert.equal(ctx.workingDirectory.get(agent.session), cwd)
+    const before = agent.session.snapshotEvents()
+    const views = await Promise.all([rpc('describe'), rpc('describe')])
+    for (const view of views) {
+      assert.equal(view.ok, true, 'Running work must not block a read-only lookup')
+      assert.equal(view.value.cwd, cwd)
+      assert.ok(view.value.worktrees.some((entry) => entry.branch === 'fix/navigation'))
+    }
+    assert.deepEqual(agent.session.snapshotEvents(), before, 'Lookup must not append session records')
+    assert.equal((await rpc('create', { cwd, name: 'must-not-create' })).error.code, 'busy')
+    assert.equal((await rpc('switch', { cwd, path: gitPath(repo) })).error.code, 'busy')
+  } finally {
+    work.resolve()
+    await submitted
+  }
+  const restored = await rpc('describe')
+  assert.equal(restored.ok, true)
+  assert.equal(restored.value.cwd, join(repo, '.agents/worktrees/fix/navigation'))
+  assert.ok(restored.value.worktrees.some((entry) => entry.branch === 'fix/navigation'))
+})
+
+await test('소유자가 아닌 요청, 형식이 잘못된 입력, 동시 유지 보수, 읽기 전용 상태의 생성을 거부한다', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
-  for (const endpoint of ['describe', 'create', 'switch', 'settings', 'save-settings']) {
+  for (const endpoint of ['describe', 'initialize', 'create', 'switch', 'settings', 'save-settings']) {
     assert.equal(
       (
         await rpc(
@@ -657,6 +787,10 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
   assert.equal((await rpc('describe', { sessionId: 'missing' })).error.code, 'session/not-found')
   const queued = createUserMessage({ content: [{ type: 'text', text: 'Queued task' }], source: { kind: 'user' } })
   agent.inbox.append('next-turn', queued)
+  const queuedEvents = agent.session.snapshotEvents()
+  assert.equal((await rpc('describe')).ok, true, 'Queued prompts do not block a read')
+  assert.deepEqual(agent.session.snapshotEvents(), queuedEvents)
+  assert.equal((await rpc('initialize', { cwd: repo })).error.code, 'busy')
   assert.equal((await rpc('create', { cwd: repo, name: 'queued-task' })).error.code, 'busy')
   agent.inbox.remove(queued.id)
   let finish
@@ -666,10 +800,17 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
         finish = resolve
       })
   )
-  const refused = await rpc('create', { cwd: repo, name: 'busy' })
-  assert.equal(refused.ok, false)
-  finish()
-  await maintenance
+  try {
+    const beforeMaintenanceRead = agent.session.snapshotEvents()
+    assert.equal((await rpc('describe')).ok, true, 'Maintenance does not block a read')
+    assert.deepEqual(agent.session.snapshotEvents(), beforeMaintenanceRead)
+    const refused = await rpc('create', { cwd: repo, name: 'busy' })
+    assert.equal(refused.ok, false)
+    assert.equal((await rpc('initialize', { cwd: repo })).error.code, 'busy')
+  } finally {
+    finish()
+    await maintenance
+  }
   const results = await Promise.all([
     rpc('create', { cwd: repo, name: 'single-creation' }),
     rpc('create', { cwd: repo, name: 'must-not-create' }),
@@ -692,13 +833,14 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
   )
 })
 
-await test('persists settings through Loader reload and uses absolute paths and the tracked remote commit, not local HEAD', async (t) => {
+await test('Loader를 다시 불러와도 설정을 유지하고 로컬 HEAD가 아니라 절대 경로와 추적된 리모트 커밋을 사용한다', async (t) => {
   const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(t)
   const initial = (await rpc('settings')).value
   assert.deepEqual(initial.settings, {
     defaultSelection: 'current',
     directory: '.agents/worktrees',
     remote: false,
+    deleteOnArchive: false,
     naming: 'semantic',
     prefix: '',
   })
@@ -747,7 +889,7 @@ await test('persists settings through Loader reload and uses absolute paths and 
   assert.equal(await readFile(join(relative.value.cwd, 'local-only.txt'), 'utf8'), 'not on remote')
 })
 
-await test('saved DSH and custom prefixes affect generated names only; invalid settings and missing upstream never create branches', async (t) => {
+await test('저장된 DSH와 사용자 지정 접두사는 생성된 이름에만 영향을 주며, 잘못된 설정과 없는 업스트림은 절대 브랜치를 만들지 않는다', async (t) => {
   const { ctx, repo, git, rpc, submit } = await fixture(t, { provider: 'namer', model: 'small' })
   let modelCalls = 0
   class NamingAdapter extends LlmAdapter {
@@ -806,7 +948,7 @@ await test('saved DSH and custom prefixes affect generated names only; invalid s
   assert.equal((await rpc('describe')).value.cwd, repo)
 })
 
-await test('configured hooks and checkout filters do not execute while creating a worktree', async (t) => {
+await test('설정된 훅과 체크아웃 필터는 워크트리를 생성하는 동안 실행되지 않는다', async (t) => {
   const { repo, home, git, rpc, submit } = await fixture(t)
   await writeFile(join(repo, '.gitattributes'), '*.txt filter=unsafe\n')
   await writeFile(join(repo, 'tracked.txt'), 'original content\n')
@@ -827,11 +969,12 @@ await test('configured hooks and checkout filters do not execute while creating 
   await assert.rejects(readFile(marker), { code: 'ENOENT' })
 })
 
-await test('task model and worktree settings coexist across profile reloads, reject stale writes and reset to the conversation model', async (t) => {
+await test('작업 모델과 워크트리 설정은 프로필을 다시 불러와도 함께 유지되고, 오래된 쓰기를 거부하며 대화 모델로 되돌린다', async (t) => {
   const initialSettings = {
     defaultSelection: 'current',
     directory: '../naming pool',
     remote: true,
+    deleteOnArchive: false,
     naming: 'custom',
     prefix: 'team/',
   }
@@ -967,7 +1110,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
   })
 })
 
-await test('automatic worktree naming follows live auxiliary settings without changing conversation calls', async (t) => {
+await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않고 실시간 보조 설정을 따른다', async (t) => {
   const route = { provider: 'auxiliary', model: 'small' }
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(
     t,
@@ -978,6 +1121,7 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     }
   )
   const namingRequests = []
+  const customInstructions = 'Return only a short custom branch name. Worktree instructions.'
   class NamingAdapter extends LlmAdapter {
     async resolveModel(provider, model) {
       return {
@@ -1002,10 +1146,29 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     assert.equal(namingRequests.at(-1).provider, expected.provider)
     assert.equal(namingRequests.at(-1).model, expected.model)
     assert.equal(namingRequests.at(-1).reasoningEffort, effort)
+    assert.equal(
+      namingRequests.at(-1).system,
+      customInstructions + (expected.provider === 'auxiliary' ? '\n\nShared instructions.' : '')
+    )
     assert.equal((await rpc('switch', { cwd: created.cwd, path: gitPath(repo) })).ok, true)
   }
   const describe = async () => (await rpc('dungsil-model-settings/describe')).value
   const save = (payload) => rpc('dungsil-model-settings/save', payload)
+  const defaults = (await describe()).worktree
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(namingRequests.at(-1).system, defaults.instructions)
+  assert.equal(defaults.instructions, defaults.defaultInstructions)
+  assert.equal((await rpc('switch', { cwd: (await rpc('describe')).value.cwd, path: gitPath(repo) })).ok, true)
+  for (const [task, instructions] of [
+    ['auxiliary', 'Shared instructions.'],
+    ['worktree', customInstructions],
+  ]) {
+    assert.equal(
+      (await rpc('dungsil-model-settings/instructions', { ...(await describe())[task], instructions })).ok,
+      true
+    )
+  }
   assert.equal((await describe()).worktree.useAuxiliary, true)
   await check(route, 'quick')
   const nextRoute = { provider: 'auxiliary', model: 'updated' }
@@ -1022,6 +1185,21 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     true
   )
   await check(nextRoute, 'thorough')
+  const worktree = (await describe()).worktree
+  assert.equal((await rpc('dungsil-model-settings/instructions', { ...worktree, instructions: '' })).ok, true)
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(namingRequests.at(-1).system, `${defaults.defaultInstructions}\n\nShared instructions.`)
+  assert.equal((await rpc('switch', { cwd: (await rpc('describe')).value.cwd, path: gitPath(repo) })).ok, true)
+  assert.equal(
+    (
+      await rpc('dungsil-model-settings/instructions', {
+        ...(await describe()).worktree,
+        instructions: customInstructions,
+      })
+    ).ok,
+    true
+  )
   assert.equal(
     (await save({ ...(await describe()).worktree, route: null, reasoningEffort: null, useAuxiliary: false })).ok,
     true
@@ -1031,6 +1209,14 @@ await test('automatic worktree naming follows live auxiliary settings without ch
   await submit()
   assert.equal(namingRequests.length, auxiliaryCalls)
   assert.ok(requests.some((request) => request.system?.startsWith('Return only a short')))
+  const naming = requests.findLast((request) => request.system?.startsWith('Return only a short'))
+  assert.equal(naming.system, customInstructions)
+  assert.ok(!naming.system.includes('Shared instructions.'))
+  assert.ok(
+    requests
+      .filter((request) => request !== naming)
+      .every((request) => !request.system?.includes('Worktree instructions.'))
+  )
   assert.deepEqual(
     { provider: agent.options.provider, model: agent.options.model },
     { provider: 'test', model: 'test-model' }
@@ -1038,15 +1224,18 @@ await test('automatic worktree naming follows live auxiliary settings without ch
   assert.ok(requests.every((request) => request.provider === 'test' && request.model === 'test-model'))
 })
 
-await test('destination-only conditional checkout filters cannot execute', async (t) => {
-  const { repo, home, git, rpc, submit } = await fixture(t)
+await test('대상 디렉터리에만 적용되는 조건부 필터는 체크아웃이나 아카이브 정리 중에 실행될 수 없다', async (t) => {
+  const { repo, home, git, rpc, submit, archive } = await fixture(t, {}, { deleteOnArchive: true })
   await writeFile(join(repo, '.gitattributes'), '*.txt filter=linked\n')
   await writeFile(join(repo, 'tracked.txt'), 'unchanged\n')
   git('add', '.gitattributes', 'tracked.txt')
   git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'content')
   const marker = join(home, 'filter-executed')
   const included = join(home, 'linked-config')
-  await writeFile(included, `[filter "linked"]\n smudge = "touch '${marker}'; cat"\n required = true\n`)
+  await writeFile(
+    included,
+    `[filter "linked"]\n smudge = "touch '${marker}'; cat"\n clean = "touch '${marker}'; cat"\n required = true\n`
+  )
   git('config', `includeIf.gitdir:${gitPath(repo)}/.git/worktrees/.path`, included)
   assert.equal(git('config', '--get-regexp', '^includeIf\\.').includes('linked-config'), true)
   assert.equal((await rpc('create', { cwd: repo, name: 'linked-safe' })).ok, true)
@@ -1055,9 +1244,13 @@ await test('destination-only conditional checkout filters cannot execute', async
   assert.notEqual(result.value.cwd, repo)
   assert.equal(await readFile(join(result.value.cwd, 'tracked.txt'), 'utf8'), 'unchanged\n')
   await assert.rejects(readFile(marker), { code: 'ENOENT' })
+  await writeFile(join(result.value.cwd, 'tracked.txt'), 'unchanged\n')
+  await archive()
+  assert.equal(git('worktree', 'list', '--porcelain').includes(gitPath(result.value.cwd)), false)
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
 })
 
-await test('repository symlinks cannot redirect pool or branch-prefix allocation', async (t) => {
+await test('저장소 심볼릭 링크는 풀이나 브랜치 접두사 할당 경로를 다른 곳으로 돌릴 수 없다', async (t) => {
   for (const component of ['.agents', '.agents/worktrees', '.agents/worktrees/fix']) {
     await t.test(component, async (t) => {
       const { repo, home, git, rpc, submit } = await fixture(t)
@@ -1076,7 +1269,7 @@ await test('repository symlinks cannot redirect pool or branch-prefix allocation
   }
 })
 
-await test('stale or forged worktree metadata cannot switch to unrelated directories', async (t) => {
+await test('오래되었거나 위조된 워크트리 메타데이터로는 관련 없는 디렉터리로 전환할 수 없다', async (t) => {
   for (const replacement of ['plain', 'repository', 'forged-link', 'symlink-git']) {
     await t.test(replacement, async (t) => {
       const { ctx, agent, repo, other, git, rpc } = await fixture(t)
@@ -1098,7 +1291,7 @@ await test('stale or forged worktree metadata cannot switch to unrelated directo
   }
 })
 
-await test('explicit external pools retain owner-selected symlink ancestors', async (t) => {
+await test('명시적 외부 풀은 소유자가 선택한 심볼릭 링크 상위 경로를 유지한다', async (t) => {
   const { repo, home, rpc, submit } = await fixture(t)
   const external = join(home, 'external')
   const alias = join(home, 'pool-alias')
@@ -1112,4 +1305,95 @@ await test('explicit external pools retain owner-selected symlink ancestors', as
   await rpc('create', { cwd: repo, name: 'safe' })
   await submit()
   assert.equal((await rpc('describe')).value.cwd, join(external, 'pool/safe'))
+})
+
+await test('아카이브 정리는 선택해야 동작하고 다시 불러와도 유지되며, 체크아웃만 제거하고 소스 디렉터리를 복원한다', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit, archive, profile } = await fixture(t)
+  assert.equal((await rpc('create', { cwd: repo, name: 'feat/archived' })).ok, true)
+  await submit()
+  const path = ctx.workingDirectory.get(agent.session)
+  const settings = (await rpc('settings')).value
+  assert.equal(
+    (
+      await rpc('save-settings', {
+        ...settings,
+        settings: { ...settings.settings, deleteOnArchive: true },
+      })
+    ).ok,
+    true
+  )
+  assert.match(await readFile(profile.patchPath, 'utf8'), /deleteOnArchive: true/)
+  await archive()
+  assert.equal(git('worktree', 'list', '--porcelain').includes(gitPath(path)), false)
+  assert.equal(git('branch', '--list', 'feat/archived'), 'feat/archived')
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.ok(ctx.workspaceRegistry.archivedSessionIds.includes(agent.id))
+  await ctx.workspaceRegistry.unarchiveSession(agent.id)
+  assert.equal((await rpc('describe')).value.cwd, repo)
+  await submit('Continue from the source checkout')
+})
+
+await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된, 잠긴, 외부, 공유 체크아웃을 보존한다', async (t) => {
+  for (const scenario of [
+    'disabled',
+    'tracked',
+    'untracked',
+    'ignored',
+    'locked',
+    'foreign',
+    'shared-live',
+    'shared-stored',
+    'fork',
+  ]) {
+    await t.test(scenario, async (t) => {
+      const { ctx, agent, repo, other, git, rpc, submit, harness, archive } = await fixture(
+        t,
+        {},
+        {
+          deleteOnArchive: scenario !== 'disabled',
+        }
+      )
+      if (scenario === 'foreign') {
+        assert.equal((await rpc('switch', { cwd: repo, path: gitPath(other) })).ok, true)
+      } else {
+        await writeFile(join(repo, 'tracked.txt'), 'committed')
+        await writeFile(join(repo, '.gitignore'), 'ignored.txt\n')
+        git('add', 'tracked.txt', '.gitignore')
+        git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'tracked file')
+        assert.equal((await rpc('create', { cwd: repo, name: 'feat/preserve' })).ok, true)
+        await submit()
+      }
+      const path = ctx.workingDirectory.get(agent.session)
+      if (['tracked', 'untracked', 'ignored'].includes(scenario)) {
+        await writeFile(join(path, `${scenario}.txt`), 'must survive')
+      }
+      if (scenario === 'locked') git('worktree', 'lock', path)
+      if (scenario === 'shared-live') {
+        await harness.create(SessionId('shared-live'), { provider: 'test', model: 'test-model' }, { cwd: path })
+      }
+      if (scenario === 'fork') {
+        const fork = ctx.sessions.create(SessionId('forked'), {
+          seed: agent.session.snapshotEvents(),
+          meta: { cwd: repo },
+        })
+        assert.equal(ctx.workingDirectory.get(fork), path)
+      }
+      if (scenario === 'shared-stored') {
+        const stored = Session.create(SessionId('shared-stored'), [], {
+          ...agent.session.header,
+          id: SessionId('shared-stored'),
+        })
+        stored.append('working-directory/change', { cwd: path })
+        const handle = await ctx.sessionPersistence.create(stored.header)
+        await handle.append(stored.snapshotEvents())
+        await handle.close()
+      }
+      await archive()
+      assert.ok(git('worktree', 'list', '--porcelain').includes(gitPath(path)))
+      assert.equal(ctx.workingDirectory.get(agent.session), path)
+      if (['tracked', 'untracked', 'ignored'].includes(scenario)) {
+        assert.equal(await readFile(join(path, `${scenario}.txt`), 'utf8'), 'must survive')
+      }
+    })
+  }
 })

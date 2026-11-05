@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-settings",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Task model settings UI for DeepSeek Harness, backed by the model-settings plugin.",
   "license": "MIT",
   "repository": {
@@ -11,6 +11,7 @@
   "files": [
     "dist",
     "locale",
+    "assets",
     "cordis.patch.yml"
   ],
   "type": "module",

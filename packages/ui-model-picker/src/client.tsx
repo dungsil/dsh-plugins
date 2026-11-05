@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { ModelCatalogModel, ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
@@ -29,7 +29,6 @@ const copy = {
     model: '모델 선택',
     effort: '추론 강도',
     choose: '추론 수준 선택',
-    default: '제공자 기본값',
     reset: '기본값으로 재설정',
     loading: '모델을 불러오는 중입니다…',
     empty: '사용할 수 있는 모델이 없습니다.',
@@ -43,7 +42,6 @@ const copy = {
     model: 'Select model',
     effort: 'Reasoning effort',
     choose: 'Select reasoning effort',
-    default: 'Provider default',
     reset: 'Reset to default',
     loading: 'Loading models…',
     empty: 'No models available.',
@@ -57,7 +55,6 @@ const copy = {
     model: '选择模型',
     effort: '推理强度',
     choose: '选择推理级别',
-    default: '提供商默认值',
     reset: '重置为默认值',
     loading: '正在加载模型…',
     empty: '没有可用的模型。',
@@ -79,28 +76,36 @@ export function apply(ctx: Context) {
     const state = useSyncExternalStore(subscribe, getSnapshot)
     const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
-    const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
+    const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
+    // A model chosen from the list while its reasoning effort is still unset.
+    // It is staged only inside the popover; the selection changes when the
+    // effort is committed, so the real model never changes first.
+    const [staged, setStaged] = useState<{ provider: string; model: string } | null>(null)
     const [draft, setDraft] = useState(0)
     const [failed, setFailed] = useState(false)
     const trigger = useRef<HTMLButtonElement | null>(null)
     const anchor = useRef<HTMLDivElement>(null)
     const popup = useRef<HTMLDivElement>(null)
     const pending = useRef(false)
+    const sliderSelection = useRef<ModelSelection | null>(null)
     const mounted = useRef(true)
     const id = useId()
     const current = state.current
     const group = state.groups.find((item) => item.id === current?.provider)
     const model = group?.models.find((item) => item.id === current?.model)
     const reasoning = model?.reasoning
-    const efforts = reasoning?.efforts.length
-      ? [
-          ...(reasoning.defaultEffort === undefined ? [{ id: undefined, name: text.default }] : []),
-          ...reasoning.efforts,
-        ]
-      : []
+    const efforts = reasoning?.efforts ?? []
+    // The popover renders the staged model when the list queued one; otherwise
+    // it renders the committed selection.
+    const stagedGroup = staged ? state.groups.find((item) => item.id === staged.provider) : undefined
+    const stagedModel = staged ? stagedGroup?.models.find((item) => item.id === staged.model) : model
+    const stagedReasoning = stagedModel?.reasoning
+    const stagedEfforts = stagedReasoning?.efforts ?? []
+    const panel = requestedPanel === 'effort' && !stagedEfforts.length ? 'model' : requestedPanel
     const effective = current?.reasoningEffort ?? reasoning?.defaultEffort
     const effortIndex = efforts.findIndex((item) => item.id === effective)
-    const effortLabel = efforts[effortIndex]?.name ?? state.retainedEffort
+    const effortLabel = efforts.length ? (efforts[effortIndex]?.name ?? state.retainedEffort) : undefined
+    const stagedName = stagedModel?.name ?? (staged ? staged.model : current?.model) ?? text.model
     const busy = state.status === 'selecting'
     const disabled = locked || busy
 
@@ -113,11 +118,22 @@ export function apply(ctx: Context) {
     }, [directory])
 
     const close = () => {
+      sliderSelection.current = null
       setPanel(null)
+      setStaged(null)
       if (trigger.current) focusWithoutRing(trigger.current)
     }
 
-    useDismissOnOutsidePointer(anchor, panel !== null, () => setPanel(null), popup)
+    useDismissOnOutsidePointer(
+      anchor,
+      panel !== null,
+      () => {
+        sliderSelection.current = null
+        setPanel(null)
+        setStaged(null)
+      },
+      popup
+    )
 
     useLayoutEffect(() => {
       if (!panel || !popup.current || !anchor.current) return
@@ -171,24 +187,47 @@ export function apply(ctx: Context) {
     }, [panel])
 
     useEffect(() => {
-      if (locked) setPanel(null)
+      if (locked) {
+        sliderSelection.current = null
+        setPanel(null)
+        setStaged(null)
+      }
     }, [locked])
-    // /model and other clients share this selection. Never apply an old slider
-    // draft to a newly projected route or effort.
+    // Keep the slider mounted for its own committed selection, including when
+    // the shared projection arrives after the RPC response. External changes
+    // still discard the draft so it cannot be applied to another selection.
     useEffect(() => {
+      const selection = sliderSelection.current
+      sliderSelection.current = null
+      if (
+        selection &&
+        current?.provider === selection.provider &&
+        current?.model === selection.model &&
+        current?.reasoningEffort === selection.reasoningEffort
+      ) {
+        setStaged(null)
+        return
+      }
       setPanel(null)
+      setStaged(null)
     }, [current?.provider, current?.model, current?.reasoningEffort])
 
-    const select = async (selection: ModelSelection) => {
+    const select = async (selection: ModelSelection, keepSlider = false) => {
       if (disabled || pending.current) return
       pending.current = true
+      sliderSelection.current = keepSlider ? selection : null
       setFailed(false)
       try {
         const result = await directory.select(selection)
         if (!mounted.current) return
-        if (result.ok) close()
-        else setFailed(true)
+        if (result.ok) {
+          if (!keepSlider) close()
+        } else {
+          sliderSelection.current = null
+          setFailed(true)
+        }
       } catch {
+        sliderSelection.current = null
         if (mounted.current) setFailed(true)
       } finally {
         pending.current = false
@@ -200,19 +239,59 @@ export function apply(ctx: Context) {
         close()
         return
       }
+      setStaged(null)
       setDraft(Math.max(0, effortIndex))
       setFailed(false)
       setPanel('effort')
       void directory.load().catch(() => {})
     }
     const selectEffort = (index: number) => {
-      if (!current || !efforts[index]) return
-      const effort = efforts[index].id
-      void select({
-        provider: current.provider,
-        model: current.model,
-        ...(effort === undefined ? {} : { reasoningEffort: effort }),
-      })
+      const target = staged ?? (current ? { provider: current.provider, model: current.model } : null)
+      const effort = stagedEfforts[index]
+      if (!target || !effort) return
+      void select(
+        {
+          provider: target.provider,
+          model: target.model,
+          reasoningEffort: effort.id,
+        },
+        true
+      )
+    }
+    // A model picked from the list is staged only while its effort is unset.
+    // A model without a choice of efforts keeps applying immediately; the rest
+    // apply together with the effort chosen on the slider.
+    const stageModel = (provider: string, option: ModelCatalogModel) => {
+      const same = provider === current?.provider && option.id === current?.model
+      const optionReasoning = option.reasoning
+      const optionEfforts = optionReasoning?.efforts ?? []
+      if (optionEfforts.length < 2) {
+        if (same) {
+          close()
+          return
+        }
+        const effort = optionReasoning?.defaultEffort
+        void select({
+          provider,
+          model: option.id,
+          ...(effort === undefined ? {} : { reasoningEffort: effort }),
+        })
+        return
+      }
+      // The slider has no provider-default stop, so start from this model's
+      // declared default or, failing that, the effort already in use.
+      const preferredEffort = same
+        ? (current?.reasoningEffort ?? optionReasoning?.defaultEffort)
+        : (optionReasoning?.defaultEffort ?? current?.reasoningEffort)
+      setStaged({ provider, model: option.id })
+      setDraft(
+        Math.max(
+          0,
+          optionEfforts.findIndex((item) => item.id === preferredEffort)
+        )
+      )
+      setFailed(false)
+      setPanel('effort')
     }
 
     return (
@@ -223,13 +302,16 @@ export function apply(ctx: Context) {
             icon={<IconDataOutlineRegular size={16} />}
             label={model?.name ?? current?.model ?? text.model}
             detail={effortLabel}
-            disabled={disabled}
-            aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
+            disabled={locked}
+            aria-disabled={disabled}
+            aria-label={`${efforts.length ? text.choose : text.model}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
             aria-expanded={panel !== null}
             aria-controls={panel ? id : undefined}
-            onClick={(event) => show(event.currentTarget)}
+            onClick={(event) => {
+              if (!disabled) show(event.currentTarget)
+            }}
           />
         </div>
         {panel &&
@@ -242,31 +324,38 @@ export function apply(ctx: Context) {
               className="dsh-codex-popover"
             >
               {panel === 'model' ? (
-                <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
-                  <IconChevronLeftOutlineRegular size={14} /> {text.effort}
-                </button>
+                stagedEfforts.length > 0 && (
+                  <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
+                    <IconChevronLeftOutlineRegular size={14} /> {text.effort}
+                  </button>
+                )
               ) : (
                 <header className="dsh-codex-header">
                   <button
                     type="button"
                     className="dsh-codex-model"
-                    disabled={disabled}
-                    aria-label={`${text.model}: ${model?.name ?? current?.model ?? text.model}`}
-                    onClick={() => setPanel('model')}
+                    disabled={locked}
+                    aria-disabled={disabled}
+                    aria-label={`${text.model}: ${stagedName}`}
+                    onClick={() => {
+                      if (!disabled) setPanel('model')
+                    }}
                   >
-                    <strong>{efforts[draft]?.name ?? effortLabel ?? text.default}</strong>
+                    <strong>{stagedEfforts[draft]?.name}</strong>
                     <span>
-                      {model?.name ?? current?.model ?? text.model} <IconChevronRightOutlineRegular size={14} />
+                      {stagedName} <IconChevronRightOutlineRegular size={14} />
                     </span>
                   </button>
                   <button
                     type="button"
                     className="dsh-codex-reset"
-                    disabled={disabled || !current}
+                    disabled={locked || !(staged ?? current)}
+                    aria-disabled={disabled || !(staged ?? current)}
                     aria-label={text.reset}
                     title={text.reset}
                     onClick={() => {
-                      if (current) void select({ provider: current.provider, model: current.model })
+                      const target = staged ?? (current ? { provider: current.provider, model: current.model } : null)
+                      if (target) void select(target)
                     }}
                   >
                     <IconResetOutlineRegular />
@@ -279,7 +368,7 @@ export function apply(ctx: Context) {
                 </p>
               )}
               {busy && (
-                <p className="dsh-codex-notice" role="status">
+                <p className={panel === 'effort' ? 'dsh-codex-status' : 'dsh-codex-notice'} role="status">
                   {text.busy}
                 </p>
               )}
@@ -312,15 +401,7 @@ export function apply(ctx: Context) {
                             className="dsh-codex-option"
                             key={option.id}
                             disabled={disabled}
-                            onClick={() => {
-                              const same = provider.id === current?.provider && option.id === current?.model
-                              const effort = same ? current.reasoningEffort : option.reasoning?.defaultEffort
-                              void select({
-                                provider: provider.id,
-                                model: option.id,
-                                ...(effort === undefined ? {} : { reasoningEffort: effort }),
-                              })
-                            }}
+                            onClick={() => stageModel(provider.id, option)}
                           >
                             <span>
                               {option.name}
@@ -354,32 +435,35 @@ export function apply(ctx: Context) {
                   </button>
                 </>
               ) : (
-                efforts.length > 0 && (
+                stagedEfforts.length > 0 && (
                   <div className="dsh-codex-slider">
                     <div
                       className="dsh-codex-rail"
                       style={
                         {
-                          '--dsh-codex-progress': `${efforts.length > 1 ? (draft / (efforts.length - 1)) * 100 : 0}%`,
+                          '--dsh-codex-progress': `${stagedEfforts.length > 1 ? (draft / (stagedEfforts.length - 1)) * 100 : 0}%`,
                         } as React.CSSProperties
                       }
                     >
                       <div className="dsh-codex-track" aria-hidden="true">
-                        {efforts.map((effort, index) => (
-                          <span key={effort.id ?? 'default'} data-filled={index <= draft} />
+                        {stagedEfforts.map((effort, index) => (
+                          <span key={effort.id} data-filled={index <= draft} />
                         ))}
                       </div>
                       <input
                         id={`${id}-effort`}
                         type="range"
                         min={0}
-                        max={efforts.length - 1}
+                        max={stagedEfforts.length - 1}
                         step={1}
                         value={draft}
-                        disabled={disabled || efforts.length < 2}
+                        disabled={locked || stagedEfforts.length < 2}
+                        aria-disabled={disabled || stagedEfforts.length < 2}
                         aria-label={text.effort}
-                        aria-valuetext={efforts[draft]?.name}
-                        onChange={(event) => setDraft(Number(event.target.value))}
+                        aria-valuetext={stagedEfforts[draft]?.name}
+                        onChange={(event) => {
+                          if (!disabled) setDraft(Number(event.target.value))
+                        }}
                         onPointerUp={(event) => selectEffort(Number(event.currentTarget.value))}
                         onKeyUp={(event) => {
                           if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))

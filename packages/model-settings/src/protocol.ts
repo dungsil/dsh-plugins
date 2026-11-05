@@ -12,12 +12,15 @@ export interface TitleTarget {
   route: Route | null
   reasoningEffort: string | null
   useAuxiliary?: boolean
+  instructions: string
+  defaultInstructions: string
 }
 
 export interface ModelSettingsView {
   auxiliary: TitleTarget | null
   target: TitleTarget | null
   worktree?: TitleTarget | null
+  yoonmoon?: TitleTarget | null
   providers: {
     id: string
     name: string

@@ -18,6 +18,8 @@ import { channel, method, type UsageView } from './protocol.js'
 export const name = 'dungsil-ui-usage'
 export const inject = ['connection', 'locale', 'slots']
 
+const cachedViews = new WeakMap<ConnectionHandle, Map<string, UsageView>>()
+
 const styles = `
 .dsh-usage-page { box-sizing: border-box; height: 100%; overflow: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
 .dsh-usage-page > .dsh-usage { max-width: 960px; margin: 0 auto; }
@@ -25,6 +27,10 @@ const styles = `
 .dsh-usage { container-type: inline-size; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-usage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dsh-usage-status { display: flex; align-items: center; gap: 6px; }
+@keyframes dsh-usage-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .dsh-usage-refresh[aria-busy=true] svg { animation: dsh-usage-spin .8s linear infinite; }
+}
 .dsh-usage-muted, .dsh-usage dt { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-usage h3 { margin: 24px 0 12px; font-size: 14px; font-weight: 500; }
 .dsh-usage dl { margin: 0; }
@@ -63,30 +69,30 @@ function Usage({ ctx }: { ctx: Context }) {
   const [period, setPeriod] = useState(7)
   const [periodOpen, setPeriodOpen] = useState(false)
   const [refresh, setRefresh] = useState(0)
-  const [view, setView] = useState<UsageView>()
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const cacheKey = JSON.stringify([period, timeZone])
+  let cache = cachedViews.get(connection)
+  if (!cache) cachedViews.set(connection, (cache = new Map()))
+  const [view, setView] = useState<UsageView | undefined>(() => cache.get(cacheKey))
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState(false)
-  const [selectedDay, setSelectedDay] = useState('')
-  const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const [selectedDay, setSelectedDay] = useState(() => view?.days.at(-1)?.day ?? '')
 
   useEffect(() => {
     const controller = new AbortController()
     setBusy(true)
     setError(false)
-    setView(undefined)
+    setView(cache.get(cacheKey))
     void (async () => {
       try {
-        const result = await connection.rpc.call(
-          channel,
-          method,
-          { days: period, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-          controller.signal
-        )
+        const result = await connection.rpc.call(channel, method, { days: period, timeZone }, controller.signal)
         if (controller.signal.aborted) return
         if (!result.ok) throw new Error('Usage unavailable')
         const next = result.value as unknown as UsageView
+        cache.set(cacheKey, next)
         setView(next)
-        setSelectedDay(next.days.at(-1)?.day ?? '')
+        setSelectedDay((day) => (next.days.some((entry) => entry.day === day) ? day : (next.days.at(-1)?.day ?? '')))
       } catch {
         if (!controller.signal.aborted) setError(true)
       } finally {
@@ -94,7 +100,7 @@ function Usage({ ctx }: { ctx: Context }) {
       }
     })()
     return () => controller.abort()
-  }, [connection, period, refresh])
+  }, [connection, period, timeZone, cache, cacheKey, refresh])
 
   const metrics = ['input', 'output', 'cacheRead', 'cacheWrite'] as const
   const periods = [
@@ -138,14 +144,16 @@ function Usage({ ctx }: { ctx: Context }) {
         />
         <Button
           variant="outline"
+          className="dsh-usage-refresh"
+          aria-busy={busy}
           icon={<IconRefreshOutlineRegular />}
           disabled={busy}
           onClick={() => setRefresh((value) => value + 1)}
         >
-          {text.refresh}
+          {busy ? text.refreshing : text.refresh}
         </Button>
       </div>
-      {busy && (
+      {busy && !view && (
         <p role="status" className="dsh-usage-status">
           <StateDot state="ongoing" />
           {text.loading}

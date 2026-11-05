@@ -19,6 +19,7 @@
   "command_failed": "无法加载请求。请检查 CLI 登录状态、仓库访问权限和会话的沙箱网络策略。",
   "invalid_response": "CLI 返回了无效响应。",
   "unavailable": "无法查询请求。请重新连接后刷新。",
+  "link_unsupported": "此链接不属于当前会话的远程仓库，或使用了不支持的主机。请打开下方的原始链接。",
   "overview": "概览",
   "changes": "变更",
   "conversation": "评论与审查",

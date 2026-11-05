@@ -1,10 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react'
+import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button,
@@ -21,17 +25,36 @@ import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
   IconLinkOutlineRegular,
+  IconLoadingOutlineRegular,
   IconRefreshOutlineRegular,
+  mergeIconSvg,
+  pullRequestClosedIconSvg,
+  pullRequestDraftIconSvg,
+  pullRequestIconSvg,
 } from '@dungsil/dsh-ui/icons'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
 import { splitMarkdownSections, type MarkdownSection } from './markdown-sections.js'
-import { actionMethod, channel, method, type RequestAction, type RequestView } from './pull-requests-protocol.js'
+import {
+  actionMethod,
+  channel,
+  method,
+  type RequestAction,
+  type RequestItem,
+  type RequestView,
+} from './pull-requests-protocol.js'
 import { styles } from './pull-requests-styles.js'
+import { bindPullRequestLinks, pullRequestUrl } from './pull-request-links.js'
 
 export const name = 'dungsil-vcs-pull-requests'
-export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs']
+export const inject = ['slots', 'locale', 'connection', 'sessions', 'sidebarRightTabs', 'sidebarRight']
+
+declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
+  interface SidebarRightTabParamsMap {
+    'dungsil-vcs-pull-requests': { requestUrl?: string; section?: 'checks' }
+  }
+}
 
 type ReviewAction = Exclude<RequestAction['action'], 'merge'>
 type Strategy = NonNullable<RequestAction['strategy']>
@@ -41,6 +64,37 @@ const providerNames: Record<RequestView['provider'], string> = {
   gitlab: 'GitLab',
   gitea: 'Gitea',
   forgejo: 'Forgejo',
+}
+
+export function checksState(item: RequestItem): StateDotState {
+  const states = item.checks.map((check) => check.status.toLowerCase())
+  if (
+    states.some((state) =>
+      [
+        'failure',
+        'failed',
+        'error',
+        'timed_out',
+        'action_required',
+        'startup_failure',
+        'stale',
+        'cancelled',
+        'canceled',
+      ].includes(state)
+    )
+  )
+    return 'error'
+  if (item.detailsError || !states.length) return 'warning'
+  if (states.some((state) => !['success', 'passed', 'neutral', 'skipped'].includes(state))) return 'ongoing'
+  return states.every((state) => ['success', 'passed'].includes(state)) ? 'done' : 'idle'
+}
+
+function Loading({ label }: { label: string }) {
+  return (
+    <span className="dsh-pr-loading" role="status" aria-label={label}>
+      <IconLoadingOutlineRegular aria-hidden="true" />
+    </span>
+  )
 }
 
 function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>, 'text' | 'labels'>) {
@@ -122,18 +176,135 @@ function Choice<Value extends string>({
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const sessions = ctx.get('sessions') as unknown as ISessions
+  const views = new Map<string, RequestView>()
+  ctx.effect(() => () => views.clear())
   const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
   const text = () => {
     const language = ctx.locale.getSnapshot().active
     return language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
   }
 
+  function SessionRequest({ sessionId }: PropsRuntime<'sidebar.workspaces.session.row.action'>) {
+    useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
+    const copy = text()
+    const running = useSyncExternalStore(
+      (listener) => sessions.list.subscribe(listener),
+      () => sessions.list.getSnapshot().byId[sessionId]?.running ?? false
+    )
+    const cwd = useSyncExternalStore(
+      (listener) => sessions.list.subscribe(listener),
+      () => sessions.list.getSnapshot().byId[sessionId]?.cwd
+    )
+    const anchor = useRef<HTMLSpanElement>(null)
+    const [host, setHost] = useState<HTMLSpanElement>()
+    const [view, setView] = useState<RequestView>()
+    useEffect(() => {
+      // The leading slot disappears during live activity, and row actions are
+      // hover-only. Use the worktree label's trailing seat before those actions.
+      const row = anchor.current?.closest('[data-row-key]')
+      const actions = row?.lastElementChild
+      if (row?.getAttribute('data-row-key') !== `session:${sessionId}` || !actions) return
+      const node = document.createElement('span')
+      node.style.display = 'inline-flex'
+      node.style.flex = 'none'
+      row.insertBefore(node, actions)
+      setHost(node)
+      return () => node.remove()
+    }, [sessionId])
+    useEffect(() => {
+      let active: AbortController | undefined
+      setView(undefined)
+      const refresh = async () => {
+        active?.abort()
+        active = new AbortController()
+        const { signal } = active
+        try {
+          const result = await connection.rpc.call(channel, method, { sessionId, summary: true }, signal)
+          if (!signal.aborted) setView(result.ok ? (result.value as RequestView) : undefined)
+        } catch {
+          if (!signal.aborted) setView(undefined)
+        }
+      }
+      void refresh()
+      window.addEventListener('focus', refresh)
+      const interval = window.setInterval(refresh, 60_000)
+      return () => {
+        active?.abort()
+        window.removeEventListener('focus', refresh)
+        window.clearInterval(interval)
+      }
+    }, [sessionId, running, cwd])
+    const item = view?.request
+    const state = item?.state === 'open' && item.draft ? 'draft' : item?.state
+    const icon =
+      state === 'merged'
+        ? mergeIconSvg
+        : state === 'closed'
+          ? pullRequestClosedIconSvg
+          : state === 'draft'
+            ? pullRequestDraftIconSvg
+            : pullRequestIconSvg
+    const label =
+      item && state ? `${copy.title} ${view?.provider === 'gitlab' ? '!' : '#'}${item.number}: ${copy[state]}` : ''
+    return (
+      <>
+        <span ref={anchor} hidden />
+        {host &&
+          item &&
+          state &&
+          createPortal(
+            <span
+              className="dsh-vcs-session-request"
+              role="img"
+              aria-label={label}
+              title={label}
+              data-state={state}
+              dangerouslySetInnerHTML={{ __html: icon }}
+              style={{
+                display: 'inline-flex',
+                width: 14,
+                height: 14,
+                marginInline: 6,
+                color:
+                  state === 'open'
+                    ? 'var(--dsw-alias-state-success-primary)'
+                    : state === 'closed'
+                      ? 'var(--dsw-alias-state-error-primary)'
+                      : state === 'merged'
+                        ? 'var(--dsw-alias-state-business-primary)'
+                        : 'var(--dsw-alias-label-tertiary)',
+              }}
+            />,
+            host
+          )}
+      </>
+    )
+  }
+
+  function Links({ sessionId }: PropsRuntime<'conversation.input.dock'>) {
+    const anchor = useRef<HTMLSpanElement>(null)
+    useEffect(() => {
+      const conversation = anchor.current?.closest('[data-conversation-session]')
+      if (conversation?.getAttribute('data-conversation-session') !== sessionId) return
+      return bindPullRequestLinks(conversation, (requestUrl) => {
+        if (ctx.sidebarRight.mounted.getSnapshot() !== sessionId) return false
+        ctx.sidebarRight.openTab(name, { params: { requestUrl } })
+        return true
+      })
+    }, [sessionId])
+    return <span ref={anchor} hidden />
+  }
+
   function Requests({ sessionId, useTabInfo, useSession }: PropsRuntime<'sidebar.right.pane.tab'>) {
     useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
     const copy = text()
     const { tab } = useTabInfo()
+    const params = tab.navigation.params as { requestUrl?: unknown; section?: unknown } | undefined
+    const requestUrl = typeof params?.requestUrl === 'string' ? pullRequestUrl(params.requestUrl) : undefined
+    const cacheKey = JSON.stringify([sessionId, requestUrl])
     const running = useSession((session) => session.running)
-    const [view, setView] = useState<RequestView>()
+    const [view, setView] = useState<RequestView | undefined>(() => views.get(cacheKey))
     const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState<'overview' | 'changes' | 'conversation'>('overview')
@@ -156,6 +327,10 @@ export function apply(ctx: Context) {
     )
     const canReview =
       !!item &&
+      (!requestUrl ||
+        (view?.provider === 'github'
+          ? pullRequestUrl(item.url)?.toLowerCase() === requestUrl.toLowerCase()
+          : pullRequestUrl(item.url) === requestUrl)) &&
       item.state === 'open' &&
       !!item.headSha &&
       !item.detailsError &&
@@ -164,7 +339,7 @@ export function apply(ctx: Context) {
       !error &&
       !notice
     const mergeBlockedReason = (() => {
-      if (loading) return copy.loading
+      if (loading) return
       if (pending) return copy.pending
       if (error) return copy[error]
       if (notice) return copy[notice]
@@ -195,17 +370,33 @@ export function apply(ctx: Context) {
       setConfirmation(undefined)
       setNotice(undefined)
       try {
-        const result = await connection.rpc.call(channel, method, { sessionId }, signal)
-        signal.throwIfAborted()
-        if (!result.ok) throw result.error
-        setView(result.value as RequestView)
+        // A cached snapshot is display-only while the fresh, full read is in flight.
+        // On first open, show the cheap overview without waiting for CI or a large diff.
+        for (const summary of views.has(cacheKey) ? [false] : [true, false]) {
+          const result = await connection.rpc.call(
+            channel,
+            method,
+            { sessionId, summary, ...(requestUrl ? { requestUrl } : {}) },
+            signal
+          )
+          signal.throwIfAborted()
+          if (!result.ok) throw result.error
+          const next = result.value as RequestView
+          setView(next)
+          views.delete(cacheKey)
+          views.set(cacheKey, next)
+          if (views.size > 20) views.delete(views.keys().next().value!)
+          if (!next.request) break
+        }
       } catch (cause) {
         if (signal.aborted) return
         const code = (cause as { code?: string } | null)?.code
         setError(
-          code && ['repository', 'unsupported', 'cli_missing', 'command_failed', 'invalid_response'].includes(code)
-            ? (code as Exclude<keyof typeof en, 'meta'>)
-            : 'unavailable'
+          code === 'unsupported' && requestUrl
+            ? 'link_unsupported'
+            : code && ['repository', 'unsupported', 'cli_missing', 'command_failed', 'invalid_response'].includes(code)
+              ? (code as Exclude<keyof typeof en, 'meta'>)
+              : 'unavailable'
         )
       } finally {
         if (!signal.aborted) setLoading(false)
@@ -213,7 +404,7 @@ export function apply(ctx: Context) {
     }
 
     useEffect(() => {
-      setView(undefined)
+      setView(views.get(cacheKey))
       setBody('')
       setConfirmation(undefined)
       setNotice(undefined)
@@ -221,7 +412,14 @@ export function apply(ctx: Context) {
       setStrategy('squash')
       setStrategyOpen(false)
       setChecksOpen(false)
-    }, [sessionId])
+    }, [sessionId, requestUrl])
+
+    useEffect(() => {
+      if (params?.section !== 'checks') return
+      setChecksOpen(true)
+      setPage('overview')
+      content.current?.scrollTo({ top: 0 })
+    }, [sessionId, requestUrl, params?.section, tab.navigation.revision])
 
     useEffect(() => {
       if (!tab.visible) return
@@ -240,7 +438,7 @@ export function apply(ctx: Context) {
         window.removeEventListener('focus', focus)
         unbind()
       }
-    }, [sessionId, tab.visible, running])
+    }, [sessionId, tab.visible, running, requestUrl, tab.navigation.revision])
 
     const prepare = (action: RequestAction['action']) => {
       if (!item || !canReview || confirmation || (action === 'merge' && !canMerge) || submitting.current) return
@@ -285,24 +483,14 @@ export function apply(ctx: Context) {
       return { label: `${copy.pending_check} · ${value}`, state: 'ongoing' }
     }
     const checkStates = item?.checks.map((check) => checkStatus(check.status).state) ?? []
-    const checksState: StateDotState =
-      checkStates.some((state) => state === 'error') ||
-      item?.checks.some((check) => ['cancelled', 'canceled'].includes(check.status.toLowerCase()))
-        ? 'error'
-        : item?.detailsError || !checkStates.length
-          ? 'warning'
-          : checkStates.some((state) => state === 'ongoing')
-            ? 'ongoing'
-            : checkStates.every((state) => state === 'done')
-              ? 'done'
-              : 'idle'
+    const state = item ? checksState(item) : 'warning'
     const checksLabel = {
       done: copy.success,
       error: copy.failure,
       warning: copy.checks_unknown,
       ongoing: copy.pending_check,
       idle: copy.checks_complete,
-    }[checksState]
+    }[state]
     const checksSummary = copy.checks_summary
       .replace('{passed}', String(checkStates.filter((state) => state === 'done').length))
       .replace('{total}', String(checkStates.length))
@@ -340,15 +528,32 @@ export function apply(ctx: Context) {
               void load()
             }}
             disabled={loading || pending}
+            aria-busy={loading}
             aria-label={copy.refresh}
             title={copy.refresh}
           >
-            <IconRefreshOutlineRegular aria-hidden="true" />
+            {loading && view ? <Loading label={copy.loading} /> : <IconRefreshOutlineRegular aria-hidden="true" />}
           </Button>
         </header>
         <div ref={content} className="dsh-pr-content" aria-busy={loading}>
-          {loading && <p role="status">{copy.loading}</p>}
-          {error && <p role="alert">{copy[error] as string}</p>}
+          {loading && !view && (
+            <div className="dsh-pr-initial-loading">
+              <Loading label={copy.loading} />
+            </div>
+          )}
+          {error && (
+            <p role="alert" className="dsh-pr-section">
+              {copy[error] as string}
+              {requestUrl && (
+                <>
+                  <br />
+                  <a href={requestUrl} target="_blank" rel="noopener noreferrer">
+                    {requestUrl}
+                  </a>
+                </>
+              )}
+            </p>
+          )}
           {notice && <p role={notice === 'completed' ? 'status' : 'alert'}>{copy[notice]}</p>}
           {view &&
             (item ? (
@@ -378,20 +583,21 @@ export function apply(ctx: Context) {
                       type="button"
                       size="sm"
                       className="dsh-pr-ci-trigger"
-                      aria-label={`${copy.checks}: ${checksSummary} · ${checksLabel}`}
+                      aria-label={`${copy.checks}: ${loading ? copy.loading : `${checksSummary} · ${checksLabel}`}`}
                       aria-expanded={checksOpen}
                       aria-controls={`${tabsId}-checks`}
-                      title={`${copy.checks}: ${checksLabel}`}
+                      title={`${copy.checks}: ${loading ? copy.loading : checksLabel}`}
                       onClick={() => setChecksOpen(!checksOpen)}
+                      aria-busy={loading}
                     >
-                      <StateDot state={checksState} appearance="step" />
-                      <span>{checksSummary}</span>
+                      {loading ? <Loading label={copy.loading} /> : <StateDot state={state} appearance="step" />}
+                      <span>{item.headSha ? checksSummary : copy.checks}</span>
                       <IconChevronDownOutlineRegular aria-hidden="true" />
                     </Button>
                   </div>
                   {checksOpen && (
                     <div id={`${tabsId}-checks`} className="dsh-pr-ci-results" role="region" aria-label={copy.checks}>
-                      {!item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
+                      {!loading && !item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
                       <ul className="dsh-pr-checks">
                         {item.checks.map((check, index) => {
                           const status = checkStatus(check.status)
@@ -432,7 +638,7 @@ export function apply(ctx: Context) {
                       },
                       {
                         value: 'changes',
-                        label: `${copy.changes} (${item.files.length})`,
+                        label: item.headSha ? `${copy.changes} (${item.files.length})` : copy.changes,
                         id: `${tabsId}-changes`,
                         panelId: `${tabsId}-changes-panel`,
                       },
@@ -450,7 +656,13 @@ export function apply(ctx: Context) {
                     {copy.details_error}
                   </p>
                 )}
-                <div role="tabpanel" id={`${tabsId}-${page}-panel`} aria-labelledby={`${tabsId}-${page}`} tabIndex={0}>
+                <div
+                  role="tabpanel"
+                  id={`${tabsId}-${page}-panel`}
+                  aria-labelledby={`${tabsId}-${page}`}
+                  aria-busy={loading && page !== 'overview'}
+                  tabIndex={0}
+                >
                   {page === 'overview' && (
                     <>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
@@ -463,7 +675,9 @@ export function apply(ctx: Context) {
                   {page === 'changes' && (
                     <section className="dsh-pr-section" aria-label={copy.changes}>
                       <h3>
-                        {copy.files} <Tag tone="neutral">{item.files.length}</Tag>
+                        {copy.files}
+                        {item.headSha && <Tag tone="neutral">{item.files.length}</Tag>}
+                        {loading && <Loading label={copy.loading} />}
                       </h3>
                       <ul className="dsh-pr-files">
                         {item.files.map((file, index) => {
@@ -486,16 +700,20 @@ export function apply(ctx: Context) {
                         <summary>{copy.diff}</summary>
                         {item.diff ? (
                           <CodeBlock code={item.diff} lang="diff" copyLabel={copy.copy} copiedLabel={copy.copied} />
-                        ) : (
+                        ) : !loading ? (
                           <p>{copy.no_diff}</p>
-                        )}
+                        ) : null}
                       </details>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
                     </section>
                   )}
                   {page === 'conversation' && (
                     <section className="dsh-pr-section" aria-label={copy.conversation}>
-                      {!item.detailsError && !item.comments.length && !item.reviews.length && (
+                      <h3>
+                        {copy.conversation}
+                        {loading && <Loading label={copy.loading} />}
+                      </h3>
+                      {!loading && !item.detailsError && !item.comments.length && !item.reviews.length && (
                         <p>{copy.no_conversation}</p>
                       )}
                       {item.comments.map((comment, index) => (
@@ -695,6 +913,12 @@ export function apply(ctx: Context) {
         },
       ],
     })
+  )
+  ctx.slots.inject('conversation.input.dock', () =>
+    ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links` }, Links)
+  )
+  ctx.slots.inject('sidebar.workspaces.session.row.action', () =>
+    ctx.slots.register({ name: 'sidebar.workspaces.session.row.action', id: `${name}-status` }, SessionRequest)
   )
   ctx.slots.inject('sidebar.right.pane.tab', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab', key: name }, Requests)

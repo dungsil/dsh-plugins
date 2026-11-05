@@ -8,6 +8,7 @@ import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
+import { canOpenNativePath } from '@deepseek-ai/dsh-native-command'
 import Skills from '@deepseek-ai/dsh-skill'
 import * as Filesystem from '@deepseek-ai/dsh-skill-filesystem'
 import * as plugin from '../dist/index.js'
@@ -21,7 +22,10 @@ async function fixture(t, withRegistry = false) {
   const dsh = join(home, 'dsh')
   const agents = join(home, 'agents')
   const previousEnv = Object.fromEntries(
-    ['DSH_HOME', 'DSH_AGENTS_HOME', 'DSH_BUNDLED_SKILL_DIR'].map((key) => [key, process.env[key]])
+    ['DSH_HOME', 'DSH_AGENTS_HOME', 'DSH_BUNDLED_SKILL_DIR', 'DISPLAY', 'WAYLAND_DISPLAY', 'PATH'].map((key) => [
+      key,
+      process.env[key],
+    ])
   )
   process.env.DSH_HOME = dsh
   process.env.DSH_AGENTS_HOME = agents
@@ -135,7 +139,7 @@ async function fixture(t, withRegistry = false) {
   }
 }
 
-await test('discovers both user roots without a global skill registry, including duplicates and symlinked skills', async (t) => {
+await test('전역 스킬 레지스트리 없이 중복과 심볼릭 링크된 스킬을 포함해 두 사용자 루트를 모두 찾아낸다', async (t) => {
   const h = await fixture(t)
   const dshPath = await h.skill(h.dsh, 'planning-work', 'DSH entry')
   const sharedPath = await h.skill(
@@ -159,6 +163,7 @@ await test('discovers both user roots without a global skill registry, including
       ok: true,
       value: {
         translationAvailable: false,
+        folderOpenAvailable: canOpenNativePath(),
         disabled: ['not-installed'],
         complete: true,
         skills: [
@@ -186,9 +191,15 @@ await test('discovers both user roots without a global skill registry, including
   })
 })
 
-await test('returns empty missing roots and rereads additions and removals on the next request', async (t) => {
+await test('없는 루트는 빈 결과를 반환하고 다음 요청에서 추가와 제거를 다시 읽는다', async (t) => {
   const h = await fixture(t)
-  const empty = { translationAvailable: false, disabled: ['not-installed'], complete: true, skills: [] }
+  const empty = {
+    translationAvailable: false,
+    folderOpenAvailable: canOpenNativePath(),
+    disabled: ['not-installed'],
+    complete: true,
+    skills: [],
+  }
   assert.deepEqual(await h.rpc(), { ok: true, value: empty })
   const path = await h.skill(h.dsh, 'planning-work', 'New entry')
   assert.deepEqual((await h.rpc()).value.skills, [
@@ -198,7 +209,61 @@ await test('returns empty missing roots and rereads additions and removals on th
   assert.deepEqual(await h.rpc(), { ok: true, value: empty })
 })
 
-await test('translates only discovered descriptions using accepted preferences without changing skills', async (t) => {
+await test(
+  '소유자에 대해서만 발견된 사용자 스킬 폴더를 열고 네이티브 실패를 보고한다',
+  { skip: process.platform !== 'linux' },
+  async (t) => {
+    const h = await fixture(t)
+    const paths = [
+      await h.skill(h.agents, 'shared-skill', 'Shared entry'),
+      await h.skill(h.dsh, 'dsh-skill', 'DSH entry'),
+    ]
+    const projectPath = await h.skill(join(h.home, '.agents'), 'project-only', 'Not a user skill')
+    const bin = join(h.home, 'bin')
+    const capture = join(bin, 'opened')
+    await mkdir(bin)
+    await writeFile(join(bin, 'xdg-open'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$(dirname "$0")/opened"\n', {
+      mode: 0o755,
+    })
+    process.env.PATH = `${bin}:${process.env.PATH}`
+    process.env.DISPLAY = ':test'
+    const request = (payload) => ({ ...h.request, method: 'dungsil-ui-setting-skills/open-folder', payload })
+    const open = async (payload) => (await (await h.fetch(request(payload))).json()).result
+    assert.equal((await h.rpc()).value.folderOpenAvailable, true)
+    for (const path of paths) {
+      assert.equal((await open({ path })).ok, true)
+      assert.equal(await readFile(capture, 'utf8'), `${path.slice(0, -'/SKILL.md'.length)}\n`)
+      await rm(capture)
+    }
+    for (const path of ['/unknown/SKILL.md', projectPath, join(h.agents, 'skills')]) {
+      assert.equal((await open({ path })).ok, false)
+    }
+    for (const payload of [null, {}, { path: 42 }]) {
+      assert.equal((await h.fetch(request(payload))).status, 400)
+    }
+    for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
+      assert.equal((await h.fetch(request({ path: paths[0] }), { principal, interactions: 'deny' })).status, 403)
+    }
+    await assert.rejects(readFile(capture), { code: 'ENOENT' })
+    await writeFile(join(bin, 'xdg-open'), '#!/bin/sh\nexit 1\n')
+    assert.deepEqual(await open({ path: paths[0] }), {
+      ok: false,
+      error: { code: 'open_folder_failed', message: 'Could not open skill folder.', details: {} },
+    })
+    await writeFile(join(bin, 'xdg-open'), '#!/bin/sh\ntouch "$(dirname "$0")/opened"\n')
+    await rm(paths[1])
+    assert.equal((await open({ path: paths[1] })).ok, false)
+    delete process.env.DISPLAY
+    delete process.env.WAYLAND_DISPLAY
+    assert.equal((await h.rpc()).value.folderOpenAvailable, false)
+    assert.equal((await open({ path: paths[0] })).ok, false)
+    await assert.rejects(readFile(capture), { code: 'ENOENT' })
+    await h.fiber.dispose()
+    assert.equal((await h.fetch(request({ path: paths[0] }))).status, 404)
+  }
+)
+
+await test('스킬을 변경하지 않고 승인된 기본 설정을 사용해 발견된 설명만 번역한다', async (t) => {
   const h = await fixture(t)
   const path = await h.skill(h.agents, 'planning-work', 'Plan the next task')
   const before = await readFile(path, 'utf8')
@@ -263,7 +328,7 @@ await test('translates only discovered descriptions using accepted preferences w
   assert.equal(await translate({ path, language: 'ko' }), 404)
 })
 
-await test('persists DSH-only disabling across reloads without changing skill files, and restores lookup on re-enable', async (t) => {
+await test('스킬 파일을 변경하지 않고 재로드 후에도 DSH 전용 비활성화를 유지하며 다시 활성화하면 조회를 복원한다', async (t) => {
   const h = await fixture(t, true)
   const paths = [
     await h.skill(h.agents, 'planning-work', 'Shared entry'),
@@ -317,7 +382,7 @@ await test('persists DSH-only disabling across reloads without changing skill fi
   assert.ok(await isolated.get('skills').get('planning-work'))
 })
 
-await test('rejects non-owner requests and malformed envelopes, and removes the route on unload', async (t) => {
+await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부하고 언로드 시 라우트를 제거한다', async (t) => {
   const h = await fixture(t)
   for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
     assert.equal((await h.fetch(h.request, { principal, interactions: 'deny' })).status, 403)
@@ -345,7 +410,7 @@ await test('rejects non-owner requests and malformed envelopes, and removes the 
   assert.equal((await h.fetch(h.request)).status, 404)
 })
 
-await test('all UI strings have English, Korean and Chinese translations', async () => {
+await test('모든 UI 문자열에 영어, 한국어, 중국어 번역이 있다', async () => {
   const locales = await Promise.all(
     ['en', 'ko', 'zh'].map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))

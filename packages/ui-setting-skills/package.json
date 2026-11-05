@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-setting-skills",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "View loaded user skills in DeepSeek Harness settings.",
   "license": "MIT",
   "repository": {
@@ -11,6 +11,7 @@
   "files": [
     "dist",
     "locale",
+    "assets",
     "cordis.patch.yml"
   ],
   "type": "module",
@@ -31,7 +32,8 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-atomic-write": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.1"
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-native-command": "0.2.2-rc.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
@@ -50,7 +52,10 @@
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "happy-dom": "21.0.4",
     "react": "18.3.1",
+    "react-dom": "18.3.1",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {

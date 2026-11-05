@@ -1,15 +1,21 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, SegmentedControl, Switch } from '@dungsil/dsh-ui'
-import { IconChevronRightOutlineRegular } from '@dungsil/dsh-ui/icons'
+import { Button, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
+import {
+  IconChevronRightOutlineRegular,
+  IconFolderOpenOutlineRegular,
+  IconLoadingOutlineRegular,
+  IconSkillOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
-import { channel, method, saveMethod, translateMethod, type SkillsView } from './protocol.js'
+import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
@@ -24,8 +30,8 @@ const styles = `
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
 .dsh-skills-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
-.dsh-skills-settings li { display: flex; align-items: flex-start; gap: 16px; border-bottom: .5px solid var(--dsw-alias-border-l2); }
-.dsh-skills-settings details { flex: 1; min-width: 0; }
+.dsh-skills-settings li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-skills-settings details { min-width: 0; }
 .dsh-skills-settings summary { display: flex; align-items: center; gap: 12px; padding: 16px 0; list-style: none; cursor: pointer; border-radius: var(--dsw-radius-md); }
 .dsh-skills-settings summary::-webkit-details-marker { display: none; }
 .dsh-skills-settings summary:hover { background: var(--dsw-alias-interactive-bg-hover); }
@@ -38,7 +44,9 @@ const styles = `
 .dsh-skills-title .dsh-skills-muted { flex: none; font-size: 12px; }
 .dsh-skills-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-skills-detail { padding: 0 0 16px 28px; overflow-wrap: anywhere; }
-.dsh-skills-toggle { flex: none; padding-top: 27px; }
+.dsh-skills-actions { display: flex; align-items: center; align-self: start; gap: 12px; height: 78px; }
+.dsh-skills-folder { width: 28px; padding: 0; }
+.dsh-skills-open-error { grid-column: 1 / -1; padding: 0 0 16px 28px; }
 .dsh-skills-list-header { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 `
 
@@ -126,6 +134,9 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const [error, setError] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [opening, setOpening] = useState<string>()
+  const [openError, setOpenError] = useState<string>()
+  const openingPending = useRef(false)
   const pending = useRef(false)
   const mounted = useRef(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -175,9 +186,26 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     }
   }
 
+  async function openFolder(path: string) {
+    if (openingPending.current) return
+    openingPending.current = true
+    setOpening(path)
+    setOpenError(undefined)
+    try {
+      const result = await connection.rpc.call(channel, openFolderMethod, { path })
+      if (!result.ok) throw new Error('Could not open skill folder')
+    } catch {
+      if (mounted.current) setOpenError(path)
+    } finally {
+      openingPending.current = false
+      if (mounted.current) setOpening(undefined)
+    }
+  }
+
   return (
     <section className="dsh-skills-settings" aria-label={text.nav} aria-busy={!view && !error}>
       <p className="dsh-skills-muted">{text.description}</p>
+      {view && !view.folderOpenAvailable && <p className="dsh-skills-muted">{text.openFolderUnavailable}</p>}
       {view?.translationAvailable && <p className="dsh-skills-muted">{text.translationNotice}</p>}
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
@@ -250,7 +278,34 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                             )}
                           </div>
                         </details>
-                        <div className="dsh-skills-toggle">
+                        <div className="dsh-skills-actions">
+                          {skill.path && (
+                            <Tooltip
+                              label={opening === skill.path ? text.openingFolder : text.openFolder}
+                              side="top"
+                              portal
+                            >
+                              <Button
+                                className="dsh-skills-folder"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`${opening === skill.path ? text.openingFolder : text.openFolder}: ${skill.name}`}
+                                aria-busy={opening === skill.path}
+                                disabled={!view.folderOpenAvailable || opening !== undefined}
+                                aria-description={
+                                  view.folderOpenAvailable ? text.openFolderHint : text.openFolderUnavailable
+                                }
+                                onClick={() => void openFolder(skill.path!)}
+                                icon={
+                                  opening === skill.path ? (
+                                    <IconLoadingOutlineRegular size={16} aria-hidden="true" />
+                                  ) : (
+                                    <IconFolderOpenOutlineRegular size={16} aria-hidden="true" />
+                                  )
+                                }
+                              />
+                            </Tooltip>
+                          )}
                           <Switch
                             label={`${text.use}: ${skill.name}`}
                             checked={!view.disabled.includes(skill.name)}
@@ -258,6 +313,11 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                             onChange={(enabled) => void save(skill.name, !enabled)}
                           />
                         </div>
+                        {skill.path && openError === skill.path && (
+                          <p className="dsh-skills-open-error" role="alert">
+                            {text.openFolderError}
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -272,6 +332,13 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
 }
 
 export function apply(ctx: Context) {
+  ctx.effect(() =>
+    installSettingsIcon(name, [en.ui.nav, ko.ui.nav, zh.ui.nav], (container) => {
+      const root = createRoot(container)
+      root.render(<IconSkillOutlineRegular size={16} />)
+      return () => root.unmount()
+    })
+  )
   ctx.effect(() => {
     const style = document.createElement('style')
     style.textContent = styles

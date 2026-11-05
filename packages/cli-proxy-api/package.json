@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-cli-proxy-api",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "CLIProxyAPI model provider and owner-only management settings for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
@@ -35,7 +35,6 @@
     "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-layout": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-sidebar": "0.2.2-rc.1",

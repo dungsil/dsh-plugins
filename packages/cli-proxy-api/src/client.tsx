@@ -6,11 +6,20 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { Button, Input, IconPluginPinwheelOutlineRegular, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { Button, Input, installSettingsIcon, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { cliProxyIconSvg } from '@dungsil/dsh-ui/icons'
 import { channel, endpointPrefix, type ConnectionView, type QuotaAccount, type QuotaResult } from './protocol.js'
 import { localizedCopy } from './copy.js'
 import { QuotaPanel, quotaStyles } from './quota-panel.js'
+import {
+  isQuotaCacheFresh,
+  loadQuotaSnapshot,
+  QuotaCache,
+  quotaKey,
+  subscribeQuotaGeneration,
+  type QuotaSnapshot,
+} from './quota-cache.js'
 
 export const name = 'dungsil-cli-proxy-api'
 export const inject = ['connection', 'locale', 'slots']
@@ -22,6 +31,8 @@ declare module '@deepseek-ai/cordis' {
 }
 
 const styles = `${settingsStyles}${quotaStyles}
+.dsh-cli-proxy-icon { display: inline-flex; }
+.dsh-cli-proxy-icon > svg { width: 100%; height: 100%; }
 .dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
 .dsh-cli-proxy-page > .dsh-cli-proxy { max-width: 960px; margin: 0 auto; }
@@ -48,7 +59,7 @@ const styles = `${settingsStyles}${quotaStyles}
 
 type Notice = 'error' | 'success' | 'savedConnection'
 
-function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean }) {
+function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: QuotaCache; settings?: boolean }) {
   const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const id = useId()
@@ -66,6 +77,7 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
   const [notice, setNotice] = useState<Notice>()
   const [quotaAccounts, setQuotaAccounts] = useState<QuotaAccount[]>()
   const [quotas, setQuotas] = useState<Record<string, QuotaResult | null | undefined>>({})
+  const [fetchedAt, setFetchedAt] = useState<number>()
   const [uncertain, setUncertain] = useState(false)
   const lock = useRef(true)
   const lifetime = useRef<AbortController>()
@@ -94,22 +106,67 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
       setRemoveManagementKey(false)
       setQuotaAccounts(undefined)
       setQuotas({})
+      setFetchedAt(undefined)
+      return next
     },
     [call]
   )
 
+  const showSnapshot = useCallback((snapshot: QuotaSnapshot) => {
+    setQuotaAccounts(snapshot.accounts)
+    setQuotas(snapshot.quotas)
+    setFetchedAt(snapshot.fetchedAt)
+  }, [])
+
+  const loadAccounts = useCallback(
+    async (next: ConnectionView, controller: AbortController) => {
+      const snapshot = await loadQuotaSnapshot(
+        () => call<QuotaAccount[]>('quota-list', {}, controller),
+        (account) => call<QuotaResult>('quota-fetch', { name: account.name, authIndex: account.authIndex }, controller),
+        controller.signal,
+        showSnapshot
+      )
+      controller.signal.throwIfAborted()
+      cache.write(next, snapshot)
+      setUncertain(false)
+      if (Object.values(snapshot.quotas).some((result) => result === null)) setNotice('error')
+    },
+    [call, cache, showSnapshot]
+  )
+
   useEffect(() => {
-    const dispose = settings
-      ? undefined
-      : ctx.on('cli-proxy-api/connection-changed', () => setConnectionVersion((version) => version + 1))
-    const unsubscribe = connection.generation.subscribe(() => {
-      if (connection.generation.getSnapshot()) setConnectionVersion((version) => version + 1)
-    })
+    const invalidate = () => {
+      lifetime.current?.abort()
+      cache.clear()
+      setConnectionVersion((version) => version + 1)
+    }
+    const dispose = settings ? undefined : ctx.on('cli-proxy-api/connection-changed', invalidate)
+    const unsubscribe = subscribeQuotaGeneration(
+      connection.generation,
+      cache,
+      () => lifetime.current?.abort(),
+      (connected) => {
+        if (connected) {
+          setConnectionVersion((version) => version + 1)
+          return
+        }
+        lock.current = true
+        setBusy(true)
+        setSynchronized(false)
+        setView(undefined)
+        setQuotaAccounts(undefined)
+        setQuotas({})
+        setFetchedAt(undefined)
+        setAPIKey('')
+        setManagementKey('')
+        setNotice(undefined)
+      }
+    )
     return () => {
       dispose?.()
       unsubscribe()
     }
-  }, [ctx, settings, connection])
+  }, [ctx, settings, connection, cache])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -120,11 +177,22 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
     setView(undefined)
     setQuotaAccounts(undefined)
     setQuotas({})
+    setFetchedAt(undefined)
     setUncertain(false)
     setAPIKey('')
     setManagementKey('')
     setNotice(undefined)
     void describe(controller)
+      .then(async (next) => {
+        if (settings) return
+        const cached = cache.read(next)
+        if (!next.managementKeySaved) return
+        if (cached) {
+          showSnapshot(cached)
+          if (isQuotaCacheFresh(cached)) return
+        }
+        await loadAccounts(next, controller)
+      })
       .catch(() => {
         if (!controller.signal.aborted && lifetime.current === controller) setNotice('error')
       })
@@ -138,7 +206,7 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
       controller.abort()
       if (lifetime.current === controller) lifetime.current = undefined
     }
-  }, [describe, connectionVersion])
+  }, [describe, connectionVersion, settings, cache, showSnapshot, loadAccounts])
 
   // One lock covers reads and writes. An aborted or uncertain write is never automatically repeated.
   const run = async (work: (controller: AbortController) => Promise<void>, mutation = false) => {
@@ -153,6 +221,7 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
       if (!controller.signal.aborted && lifetime.current === controller) {
         setNotice('error')
         if (mutation) {
+          cache.clear()
           setUncertain(true)
           setQuotaAccounts(undefined)
         }
@@ -178,6 +247,7 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
     setAPIKey('')
     setManagementKey('')
     void run(async (controller) => {
+      cache.clear()
       setSynchronized(false)
       let saved = false
       try {
@@ -292,22 +362,21 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
           <QuotaPanel
             accounts={quotaAccounts}
             quotas={quotas}
+            fetchedAt={fetchedAt}
             language={locale.active}
             text={text}
             busy={busy}
             canLoad={canManage}
             managementDisabled={managementDisabled}
             onLoad={() => {
-              if (!canManage) return
+              if (!canManage || !view) return
               void run(async (controller) => {
-                setQuotaAccounts(undefined)
-                setQuotas({})
-                setQuotaAccounts(await call<QuotaAccount[]>('quota-list', {}, controller))
-                setUncertain(false)
+                cache.clear()
+                await loadAccounts(view, controller)
               })
             }}
             onFetch={(account) => {
-              const key = JSON.stringify([account.name, account.authIndex])
+              const key = quotaKey(account)
               void run(async (controller) => {
                 setQuotas((current) => ({ ...current, [key]: undefined }))
                 try {
@@ -317,9 +386,12 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
                     controller
                   )
                   setQuotas((current) => ({ ...current, [key]: next }))
+                  if (view) cache.update(view, account, next)
                 } catch {
-                  if (!controller.signal.aborted && lifetime.current === controller)
+                  if (!controller.signal.aborted && lifetime.current === controller) {
                     setQuotas((current) => ({ ...current, [key]: null }))
+                    if (view) cache.update(view, account, null)
+                  }
                   throw new Error('request failed')
                 }
               })
@@ -337,19 +409,25 @@ function ProxyPage({ ctx, settings = false }: { ctx: Context; settings?: boolean
   )
 }
 
-function ProxyPanel({ ctx }: { ctx: Context }) {
+function ProxyPanel({ ctx, cache }: { ctx: Context; cache: QuotaCache }) {
   return (
     <div className="dsh-cli-proxy-page">
       <div className="dsh-cli-proxy">
         <h1>CLIProxyAPI</h1>
-        <ProxyPage ctx={ctx} />
+        <ProxyPage ctx={ctx} cache={cache} />
       </div>
     </div>
   )
 }
 
 export function apply(ctx: Context) {
+  const cache = new QuotaCache()
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
+  ctx.effect(() => connection.generation.subscribe(() => cache.clear()), 'cli-proxy-api: cache generation')
+  ctx.on('cli-proxy-api/connection-changed', () => cache.clear())
+  ctx.effect(() => () => cache.clear(), 'cli-proxy-api: quota cache')
   ctx.effect(() => installStyles(styles), 'cli-proxy-api: styles')
+  ctx.effect(() => installSettingsIcon(name, ['CLIProxyAPI'], cliProxyIconSvg))
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       {
@@ -357,20 +435,27 @@ export function apply(ctx: Context) {
         id: name,
         order: 17,
         label: () => 'CLIProxyAPI',
-        inject: () => ({ ctx }),
+        inject: () => ({ ctx, cache }),
       },
       (props) => <ProxyPage {...props} settings />
     )
   )
   ctx.slots.inject('main', () =>
-    ctx.slots.register({ name: 'main', key: name as MainPanelId, inject: () => ({ ctx }) }, (props) => (
+    ctx.slots.register({ name: 'main', key: name as MainPanelId, inject: () => ({ ctx, cache }) }, (props) => (
       <ProxyPanel {...props} />
     ))
   )
   ctx.slots.inject('sidebar.panellist', () =>
     ctx.slots.register(
       { name: 'sidebar.panellist', id: name as MainPanelId, order: 20, label: () => 'CLIProxyAPI' },
-      ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
+      ({ size }) => (
+        <span
+          className="dsh-cli-proxy-icon"
+          style={{ width: size, height: size }}
+          aria-hidden="true"
+          dangerouslySetInnerHTML={{ __html: cliProxyIconSvg }}
+        />
+      )
     )
   )
 }

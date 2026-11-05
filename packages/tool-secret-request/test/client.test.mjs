@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
-await test('approval identifies the server-bound target separately from misleading agent text in every locale', async () => {
+await test('승인 화면은 모든 로케일에서 오해를 부르는 에이전트 텍스트와 서버에 바인딩된 대상을 구분해 식별한다', async () => {
   for (const [locale, label] of [
     ['en', 'Credential storage reference'],
     ['ko', '비밀값 저장 참조'],
