@@ -53,6 +53,42 @@
   },
   "plugins": [
     {
+      "name": "@dungsil/dsh-preset-tools",
+      "title": {
+        "en": "Tools Preset",
+        "ko": "도구 프리셋",
+        "zh": "工具预设"
+      },
+      "description": {
+        "en": "Install Diff Notes and Secret input together.",
+        "ko": "변경 설명과 비밀값 입력 도구를 함께 설치합니다.",
+        "zh": "一起安装变更说明和私密凭据输入工具。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/preset-tools"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["preset", "bundle", "tools"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793860624,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-preset-ui",
       "title": {
         "en": "UI Preset",
@@ -60,9 +96,9 @@
         "zh": "界面预设"
       },
       "description": {
-        "en": "Install Korean UI, Sidebar Inbox, Task Models UI, Skills Settings, Git Worktree UI, Model Picker, and Left Turn Rail together.",
-        "ko": "한국어 UI, 사이드바 수신함, 상황별 모델, 스킬 설정, Git Worktree UI, 모델 피커, 왼쪽 턴 레일을 함께 설치합니다.",
-        "zh": "一起安装韩语界面、侧边栏收件箱、任务模型设置、技能设置、Git 工作树界面、模型选择器和左侧轮次导航栏。"
+        "en": "A preset that installs UI plugins for DeepSeek Harness.",
+        "ko": "DeepSeek Harness UI 플러그인을 함께 설치하는 프리셋입니다.",
+        "zh": "用于统一安装 DeepSeek Harness 界面插件的预设。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -76,6 +112,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1793860624,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.1.0",
           "publishTimestamp": 1793854533,
@@ -721,6 +767,16 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1793860624,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1793853935,
           "source": {
@@ -852,6 +908,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.4",
+          "publishTimestamp": 1793860624,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.2.3",
           "publishTimestamp": 1793853871,
@@ -997,6 +1063,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1793860624,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.2.0",
           "publishTimestamp": 1793854230,
