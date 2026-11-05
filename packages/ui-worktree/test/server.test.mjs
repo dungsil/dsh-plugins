@@ -191,8 +191,8 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
 }
 
 // Each test owns its repository, profile, storage and Cordis context.
-await describe('worktree RPC', { concurrency: 8 }, async () => {
-  await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
+await describe('독립된 저장소와 세션에서 worktree RPC를 실행한다', { concurrency: 8 }, async () => {
+  await test('부작용 없이 예약하고, 프롬프트 작업 전에 생성하며, 기존 스위치는 즉시 동작하게 유지한다', async (t) => {
     const { ctx, agent, repo, other, git, rpc, requests, submit } = await fixture(t)
     const progress = []
     ctx.on('session/event', (session, event) => {
@@ -308,7 +308,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 3)
   })
 
-  await test('new-worktree default reserves once without side effects and respects cancellation across profile reloads', async (t) => {
+  await test('새 워크트리 기본값은 부작용 없이 한 번 예약하고 프로필을 다시 불러와도 취소를 존중한다', async (t) => {
     const { agent, repo, git, rpc, requests, profile, submit } = await fixture(t, {}, { defaultSelection: 'new' })
     const before = agent.session.snapshotEvents()
     const lookup = await rpc('describe')
@@ -346,7 +346,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.deepEqual(restored.deriveMessages(), agent.session.deriveMessages(), 'selection is not model context')
   })
 
-  await test('new-worktree default creates on first prompt only and does not replace an existing conversation checkout', async (t) => {
+  await test('새 워크트리 기본값은 첫 프롬프트에서만 생성하며 기존 대화의 체크아웃을 대체하지 않는다', async (t) => {
     const { ctx, repo, rpc, submit } = await fixture(
       t,
       {},
@@ -382,7 +382,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.equal((await existing.rpc('describe')).value.cwd, existing.repo)
   })
 
-  await test('reservations are session-local, cancellable, and refuse a source directory changed before submission', async (t) => {
+  await test('예약은 세션에 한정되고 취소할 수 있으며 제출 전에 바뀐 소스 디렉터리를 거부한다', async (t) => {
     const { ctx, agent, repo, other, git, rpc, requests, submit, harness } = await fixture(t)
     assert.equal((await rpc('create', { cwd: repo, name: 'cancelled-task' })).ok, true)
     const unrelated = await harness.create(
@@ -415,7 +415,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
   })
 
-  await test('an empty reserved name uses the newly submitted prompt, not earlier history, only for naming', async (t) => {
+  await test('예약된 이름이 비어 있으면 이전 기록이 아니라 새로 제출된 프롬프트를 이름 짓기에만 사용한다', async (t) => {
     const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'fallback', model: 'fallback-model' })
     const requests = []
     let answer = 'fix/session-isolation'
@@ -542,7 +542,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     ])
   })
 
-  await test('automatic naming leaves room for reasoning before the branch name', async (t) => {
+  await test('자동 이름 짓기는 브랜치 이름 앞에 추론할 여지를 남긴다', async (t) => {
     const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'reasoning', model: 'reasoner' })
     const requests = []
     class ReasoningAdapter extends LlmAdapter {
@@ -592,7 +592,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     )
   })
 
-  await test('automatic naming selects a supported non-off effort when the model has no default', async (t) => {
+  await test('모델에 기본값이 없으면 자동 이름 짓기는 지원되는 off 이외의 추론 강도를 선택한다', async (t) => {
     const { ctx, agent, repo, git, rpc, submit } = await fixture(t, {
       provider: 'reasoning',
       model: 'no-default',
@@ -660,20 +660,20 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     )
   })
 
-  await test('naming preserves explicit efforts, model defaults and non-reasoning models', async (t) => {
+  await test('이름 짓기는 명시적 추론 강도, 모델 기본값, 추론을 지원하지 않는 모델을 그대로 유지한다', async (t) => {
     for (const { label, configured, reasoning, expected } of [
       {
-        label: 'explicit task effort',
+        label: '명시적 작업 추론 강도',
         configured: 'high',
         reasoning: { efforts: ['off', 'low', 'high'].map((id) => ({ id, name: id })), defaultEffort: 'low' },
         expected: 'high',
       },
       {
-        label: 'model default',
+        label: '모델 기본값',
         reasoning: { efforts: ['off', 'low', 'medium'].map((id) => ({ id, name: id })), defaultEffort: 'medium' },
         expected: 'medium',
       },
-      { label: 'non-reasoning model', expected: undefined },
+      { label: '추론을 지원하지 않는 모델', expected: undefined },
     ]) {
       await t.test(label, async (t) => {
         const { ctx, repo, rpc, submit } = await fixture(
@@ -715,7 +715,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     }
   })
 
-  await test('cold lookup reads an interrupted session without activating or repairing it', async (t) => {
+  await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지 않고 읽는다', async (t) => {
     const { ctx, agent, repo, other, rpc, inspections, resolutions } = await fixture(t)
     const id = SessionId('cold-worktree-read')
     const cold = Session.create(id, agent.session.snapshotEvents(), { ...agent.session.header, id })
@@ -738,7 +738,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.deepEqual(cold.snapshotEvents(), events, 'Lookup must not close interrupted turns or initialize selection')
   })
 
-  await test('lookup reads the current checkout during work without changing the session', async (t) => {
+  await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크아웃을 읽는다', async (t) => {
     const { ctx, agent, repo, rpc, submit } = await fixture(t, { provider: 'paused', model: 'paused-model' })
     const started = Promise.withResolvers()
     const work = Promise.withResolvers()
@@ -780,7 +780,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.ok(restored.value.worktrees.some((entry) => entry.branch === 'fix/navigation'))
   })
 
-  await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
+  await test('소유자가 아닌 요청, 형식이 잘못된 입력, 동시 유지 보수, 읽기 전용 상태의 생성을 거부한다', async (t) => {
     const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
     for (const endpoint of ['describe', 'initialize', 'create', 'switch', 'settings', 'save-settings']) {
       assert.equal(
@@ -845,7 +845,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     )
   })
 
-  await test('persists settings through Loader reload and uses absolute paths and the tracked remote commit, not local HEAD', async (t) => {
+  await test('Loader를 다시 불러와도 설정을 유지하고 로컬 HEAD가 아니라 절대 경로와 추적된 리모트 커밋을 사용한다', async (t) => {
     const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(t)
     const initial = (await rpc('settings')).value
     assert.deepEqual(initial.settings, {
@@ -905,7 +905,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.equal(await readFile(join(relative.value.cwd, 'local-only.txt'), 'utf8'), 'not on remote')
   })
 
-  await test('saved DSH and custom prefixes affect generated names only; invalid settings and missing upstream never create branches', async (t) => {
+  await test('저장된 DSH와 사용자 지정 접두사는 생성된 이름에만 영향을 주며, 잘못된 설정과 없는 업스트림은 절대 브랜치를 만들지 않는다', async (t) => {
     const { ctx, repo, git, rpc, submit } = await fixture(t, { provider: 'namer', model: 'small' })
     let modelCalls = 0
     class NamingAdapter extends LlmAdapter {
@@ -964,7 +964,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.equal((await rpc('describe')).value.cwd, repo)
   })
 
-  await test('configured hooks and checkout filters do not execute while creating a worktree', async (t) => {
+  await test('설정된 훅과 체크아웃 필터는 워크트리를 생성하는 동안 실행되지 않는다', async (t) => {
     const { repo, home, git, rpc, submit } = await fixture(t)
     await writeFile(join(repo, '.gitattributes'), '*.txt filter=unsafe\n')
     await writeFile(join(repo, 'tracked.txt'), 'original content\n')
@@ -985,7 +985,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     await assert.rejects(readFile(marker), { code: 'ENOENT' })
   })
 
-  await test('task model and worktree settings coexist across profile reloads, reject stale writes and reset to the conversation model', async (t) => {
+  await test('작업 모델과 워크트리 설정은 프로필을 다시 불러와도 함께 유지되고, 오래된 쓰기를 거부하며 대화 모델로 되돌린다', async (t) => {
     const initialSettings = {
       defaultSelection: 'current',
       directory: '../naming pool',
@@ -1126,7 +1126,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     })
   })
 
-  await test('automatic worktree naming follows live auxiliary settings without changing conversation calls', async (t) => {
+  await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않고 실시간 보조 설정을 따른다', async (t) => {
     const route = { provider: 'auxiliary', model: 'small' }
     const { ctx, agent, repo, rpc, requests, submit } = await fixture(
       t,
@@ -1240,7 +1240,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.ok(requests.every((request) => request.provider === 'test' && request.model === 'test-model'))
   })
 
-  await test('destination-only conditional filters cannot execute during checkout or archive cleanup', async (t) => {
+  await test('대상 디렉터리에만 적용되는 조건부 필터는 체크아웃이나 아카이브 정리 중에 실행될 수 없다', async (t) => {
     const { repo, home, git, rpc, submit, archive } = await fixture(t, {}, { deleteOnArchive: true })
     await writeFile(join(repo, '.gitattributes'), '*.txt filter=linked\n')
     await writeFile(join(repo, 'tracked.txt'), 'unchanged\n')
@@ -1266,7 +1266,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     await assert.rejects(readFile(marker), { code: 'ENOENT' })
   })
 
-  await test('repository symlinks cannot redirect pool or branch-prefix allocation', async (t) => {
+  await test('저장소 심볼릭 링크는 풀이나 브랜치 접두사 할당 경로를 다른 곳으로 돌릴 수 없다', async (t) => {
     for (const component of ['.agents', '.agents/worktrees', '.agents/worktrees/fix']) {
       await t.test(component, async (t) => {
         const { repo, home, git, rpc, submit } = await fixture(t)
@@ -1285,7 +1285,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     }
   })
 
-  await test('stale or forged worktree metadata cannot switch to unrelated directories', async (t) => {
+  await test('오래되었거나 위조된 워크트리 메타데이터로는 관련 없는 디렉터리로 전환할 수 없다', async (t) => {
     for (const replacement of ['plain', 'repository', 'forged-link', 'symlink-git']) {
       await t.test(replacement, async (t) => {
         const { ctx, agent, repo, other, git, rpc } = await fixture(t)
@@ -1307,7 +1307,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     }
   })
 
-  await test('explicit external pools retain owner-selected symlink ancestors', async (t) => {
+  await test('명시적 외부 풀은 소유자가 선택한 심볼릭 링크 상위 경로를 유지한다', async (t) => {
     const { repo, home, rpc, submit } = await fixture(t)
     const external = join(home, 'external')
     const alias = join(home, 'pool-alias')
@@ -1324,7 +1324,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     assert.equal((await rpc('describe')).value.cwd, join(external, 'pool/safe'))
   })
 
-  await test('archive cleanup is opt-in, persists across reloads, removes only the checkout and restores the source directory', async (t) => {
+  await test('아카이브 정리는 선택해야 동작하고 다시 불러와도 유지되며, 체크아웃만 제거하고 소스 디렉터리를 복원한다', async (t) => {
     const { ctx, agent, repo, git, rpc, submit, archive, profile } = await fixture(t)
     assert.equal((await rpc('create', { cwd: repo, name: 'feat/archived' })).ok, true)
     await submit()
@@ -1350,7 +1350,7 @@ await describe('worktree RPC', { concurrency: 8 }, async () => {
     await submit('Continue from the source checkout')
   })
 
-  await test('archive cleanup preserves disabled, dirty, ignored, locked, foreign and shared checkouts', async (t) => {
+  await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된, 잠긴, 외부, 공유 체크아웃을 보존한다', async (t) => {
     for (const scenario of [
       'disabled',
       'tracked',

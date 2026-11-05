@@ -236,8 +236,8 @@ async function fixture(
 }
 
 // Each test owns its repository, Cordis context and CLI responses.
-await describe('pull request RPC', { concurrency: 4 }, async () => {
-  await test('shows only the current branch PR and distinguishes absent requests, failed lookup and missing CLI', async (t) => {
+await describe('PR RPC', { concurrency: 4 }, async () => {
+  await test('현재 브랜치의 PR만 표시하고, 없는 요청·실패한 조회·CLI 없음을 구분한다', async (t) => {
     const f = await fixture(t)
     assert.deepEqual(await f.rpc(), {
       ok: true,
@@ -272,7 +272,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.rpc()).error.code, 'cli_missing')
   })
 
-  await test('GitHub distinguishes a branch without a PR from authentication or transport errors', async (t) => {
+  await test('GitHub은 PR이 없는 브랜치와 인증·전송 오류를 구분한다', async (t) => {
     const f = await fixture(t)
     f.dispatch(() => new Error('no pull requests found for branch "feat/sidebar"\n'))
     assert.equal((await f.summary()).value.request, null)
@@ -282,7 +282,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     }
   })
 
-  await test('overview is available when slow detail endpoints fail, without enabling review or bypassing identity checks', async (t) => {
+  await test('느린 세부 정보 엔드포인트가 실패해도 리뷰를 활성화하거나 신원 검사를 우회하지 않고 개요를 제공한다', async (t) => {
     const f = await fixture(t)
     f.setRows({ ...github, body: 'Overview without waiting for CI or diff' })
     f.dispatch((args, next) => (!args.includes('--repo') ? next(args) : new Error('detail unavailable')))
@@ -299,7 +299,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.summary({ principal: { kind: 'viewer', sessionId: 'test' } })).status, 403)
   })
 
-  await test('explicit GitHub URLs load the exact non-current PR while mutations still resolve the current branch', async (t) => {
+  await test('명시적 GitHub URL은 현재가 아닌 정확한 PR을 불러오고, 변경은 여전히 현재 브랜치를 대상으로 한다', async (t) => {
     const f = await fixture(t)
     const clicked = {
       ...github,
@@ -339,7 +339,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
   })
 
-  await test('explicit URLs reject unrelated repositories, hosts and malformed IDs without querying the clicked target', async (t) => {
+  await test('명시적 URL은 관련 없는 저장소·호스트·잘못된 ID를 클릭한 대상 조회 없이 거부한다', async (t) => {
     const f = await fixture(t)
     for (const requestUrl of [
       'https://github.com/other/project/pull/29',
@@ -380,7 +380,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(f.calls.length, before)
   })
 
-  await test('explicit GitHub links preserve repository casing and current upstream fork associations', async (t) => {
+  await test('명시적 GitHub 링크는 저장소 대소문자와 현재 업스트림 포크 관계를 보존한다', async (t) => {
     const mixed = await fixture(t, 'git@github.com:Team/Project.git')
     assert.equal((await mixed.lookup(github.url)).value.request.url, github.url)
     assert.equal((await mixed.lookup('https://github.com/TEAM/PROJECT/pull/17')).value.request.url, github.url)
@@ -400,7 +400,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.ok(!fork.calls.some((call) => call.argv.includes('18')))
   })
 
-  await test('explicit GitHub lookup rejects a CLI response for a different request instead of falling back', async (t) => {
+  await test('명시적 GitHub 조회는 다른 요청에 대한 CLI 응답을 폴백 없이 거부한다', async (t) => {
     const f = await fixture(t)
     assert.equal((await f.lookup('https://github.com/team/project/pull/29')).error.code, 'invalid_response')
     assert.equal(f.calls.length, 1)
@@ -408,7 +408,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.lookup(github.url)).error.code, 'invalid_response')
   })
 
-  await test('explicit GitLab URLs load an exact non-current MR in the trusted nested project', async (t) => {
+  await test('명시적 GitLab URL은 신뢰된 중첩 프로젝트에서 현재가 아닌 정확한 MR을 불러온다', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/sub/project.git')
     const requestUrl = 'https://gitlab.com/team/sub/project/-/merge_requests/29'
     f.setRows([
@@ -444,7 +444,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.ok(!f.calls.some((call) => call.argv[2] === 'note'))
   })
 
-  await test('uses the tracked GitLab remote, preserves nested groups, and normalizes MR draft fields', async (t) => {
+  await test('추적 중인 GitLab 리모트를 사용하고, 중첩 그룹을 보존하며, MR 초안 필드를 정규화한다', async (t) => {
     const f = await fixture(t)
     f.git('remote', 'add', 'upstream', 'ssh://git@gitlab.com:2222/team/sub/project.git')
     f.git('config', 'branch.feat/sidebar.remote', 'upstream')
@@ -509,7 +509,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.rpc()).value.request, null)
   })
 
-  await test('rejects malformed CLI data and unsafe links instead of exposing them', async (t) => {
+  await test('잘못된 CLI 데이터와 안전하지 않은 링크를 노출하지 않고 거부한다', async (t) => {
     const f = await fixture(t)
     for (const rows of [
       { items: [] },
@@ -523,7 +523,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     }
   })
 
-  await test('denies shared viewers and unknown sessions; reports missing remotes', async (t) => {
+  await test('공유 뷰어와 알 수 없는 세션을 거부하고, 없는 리모트를 보고한다', async (t) => {
     const f = await fixture(t)
     const viewer = { principal: { kind: 'session', sessionId: 'test' }, interactions: 'answer' }
     assert.equal((await f.rpc(viewer)).status, 403)
@@ -532,7 +532,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.rpc()).error.code, 'repository')
   })
 
-  await test('requires an explicit provider for enterprise hosts and never forwards remote userinfo', async (t) => {
+  await test('엔터프라이즈 호스트에는 명시적 provider 설정을 요구하고 리모트 userinfo는 절대 전달하지 않는다', async (t) => {
     const remote = 'https://user:private@git.example.com/team/project.git'
     const auto = await fixture(t, remote)
     assert.equal((await auto.rpc()).error.code, 'unsupported')
@@ -541,7 +541,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await enterprise.rpc()).value.repository, 'git.example.com/team/project')
   })
 
-  await test('GitHub actions return completion only, pin reviews and merge to the fresh SHA, and never retry failures', async (t) => {
+  await test('GitHub 작업은 완료 여부만 반환하고, 리뷰와 병합을 최신 SHA에 고정하며, 실패를 절대 재시도하지 않는다', async (t) => {
     const f = await fixture(t)
     f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
     for (const action of [
@@ -581,7 +581,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 4)
   })
 
-  await test('rejects stale SHA, URL, changed source, absent requests and closed requests without a mutation', async (t) => {
+  await test('오래된 SHA, URL, 변경된 소스, 없는 요청, 닫힌 요청은 변경 없이 거부한다', async (t) => {
     const f = await fixture(t)
     const mutations = () =>
       f.calls.filter(
@@ -601,7 +601,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(mutations().length, 0)
   })
 
-  await test('validates action allowlist, lengths, URLs, strategy and owner access before invoking a CLI', async (t) => {
+  await test('CLI를 호출하기 전에 작업 허용 목록, 길이, URL, 전략, 소유자 접근 권한을 검증한다', async (t) => {
     const f = await fixture(t)
     for (const input of [
       { action: 'delete' },
@@ -625,7 +625,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(f.calls.length, 0)
   })
 
-  await test('detail failures and unsafe secondary links are explicit and prevent actions; large diffs are bounded', async (t) => {
+  await test('세부 정보 실패와 안전하지 않은 보조 링크는 명시적으로 드러나 작업을 막고, 큰 차이는 길이가 제한된다', async (t) => {
     const f = await fixture(t)
     for (const dispatch of [
       (args, next) => (args[1] === 'diff' ? new Error('failed diff') : next(args)),
@@ -653,7 +653,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(item.detailsError, undefined)
   })
 
-  await test('GitLab details and mutations use explicit nested repository and SHA; unsupported actions never write', async (t) => {
+  await test('GitLab 세부 정보와 변경은 명시적 중첩 저장소와 SHA를 사용하고, 지원하지 않는 작업은 절대 쓰지 않는다', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/sub/project.git')
     const requestUrl = 'https://gitlab.com/team/sub/project/-/merge_requests/8'
     f.setRows([
@@ -727,7 +727,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     }
   })
 
-  await test('enterprise GitHub review APIs use the explicit upstream hostname and never remote credentials', async (t) => {
+  await test('엔터프라이즈 GitHub 리뷰 API는 명시적 업스트림 호스트 이름을 사용하고 리모트 자격 증명은 절대 사용하지 않는다', async (t) => {
     const f = await fixture(t, 'https://user:secret@git.example.com/team/project.git', 'github')
     const requestUrl = 'https://git.example.com/upstream/project/pull/17'
     f.setRows({ ...github, url: requestUrl, isDraft: false })
@@ -738,7 +738,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.ok(!f.calls.some((call) => call.argv.some((arg) => arg.includes('user:secret'))))
   })
 
-  await test('a moving GitHub or GitLab head marks the detail snapshot incomplete and prevents mutation', async (t) => {
+  await test('GitHub 또는 GitLab의 head가 이동하면 세부 정보 스냅샷을 불완전으로 표시하고 변경을 막는다', async (t) => {
     for (const provider of ['github', 'gitlab']) {
       const f = await fixture(
         t,
@@ -770,7 +770,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     }
   })
 
-  await test('approval rejects truncated diffs; merge allows display truncation but rejects drafts, missing diffs and blocked states', async (t) => {
+  await test('승인은 잘린 차이를 거부하고, 병합은 표시용 잘림은 허용하지만 초안, 없는 차이, 차단된 상태는 거부한다', async (t) => {
     const f = await fixture(t)
     f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
     for (const action of ['approve', 'merge']) {
@@ -817,7 +817,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
   })
 
-  await test('confines every CLI command and rejects simultaneous session actions without retrying', async (t) => {
+  await test('모든 CLI 명령을 격리하고 동시 세션 작업을 재시도 없이 거부한다', async (t) => {
     const f = await fixture(t)
     f.confine()
     const input = { action: 'comment', body: '@private-file; $(echo no)' }
@@ -835,7 +835,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 2)
   })
 
-  await test('GitLab detail pagination loads later comments and fails explicitly on malformed pages', async (t) => {
+  await test('GitLab 세부 정보 페이지네이션은 이후 댓글을 불러오고 형식이 잘못된 페이지에서는 명시적으로 실패한다', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/project.git')
     const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
     f.setRows([
@@ -870,7 +870,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await f.rpc()).value.request.detailsError, true)
   })
 
-  await test('GitLab uses the newest head pipeline, keeps its status without jobs, and permits zero required approvals', async (t) => {
+  await test('GitLab은 가장 최신 head 파이프라인을 사용하고, 작업이 없어도 그 상태를 유지하며, 필수 승인 0개를 허용한다', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/project.git')
     const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
     f.setRows([
@@ -920,7 +920,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(writes(), count)
   })
 
-  await test('GitLab merged-result CI verifies the current head pipeline commit parent and never trusts older merge results', async (t) => {
+  await test('GitLab 병합 결과 CI는 현재 head 파이프라인 커밋의 부모를 검증하고 이전 병합 결과는 절대 신뢰하지 않는다', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/project.git')
     const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
     const mergeSha = 'c'.repeat(40)
@@ -1020,7 +1020,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     changed_files: 1,
   }
 
-  await test('explicit forge URLs read the exact PR using trusted login ports and prefixes, not branch discovery', async (t) => {
+  await test('명시적 forge URL은 브랜치 탐색이 아니라 신뢰된 로그인 포트와 접두사를 사용해 정확한 PR을 읽는다', async (t) => {
     for (const remote of [
       'https://forge.example:3443/git/team/project.git',
       'ssh://git@forge.example:2222/team/project.git',
@@ -1061,7 +1061,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     }
   })
 
-  await test('Gitea and Forgejo load the same sidebar details and support comments, reviews and SHA-conditional merges', async (t) => {
+  await test('Gitea와 Forgejo는 같은 사이드바 세부 정보를 불러오고 댓글, 리뷰, SHA 조건부 병합을 지원한다', async (t) => {
     for (const provider of ['gitea', 'forgejo']) {
       const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', provider)
       f.setRows(forge)
@@ -1121,7 +1121,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     }
   })
 
-  await test('forge lookups select an exact configured instance, preserve SSH web ports and prefixes, and fail on HTTP errors', async (t) => {
+  await test('forge 조회는 설정된 정확한 인스턴스를 선택하고, SSH 웹 포트와 접두사를 보존하며, HTTP 오류에서 실패한다', async (t) => {
     const f = await fixture(t, 'ssh://git@forge.example:2222/team/project.git', 'forgejo')
     f.setRows(forge)
     assert.equal((await f.rpc()).value.request.url, forge.html_url)
@@ -1157,7 +1157,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal((await publicForge.rpc()).value.request.detailsError, undefined)
   })
 
-  await test('forge CI, required reviews, missing details, permissions and stale heads block mutations without bypasses', async (t) => {
+  await test('forge 검사, 필수 리뷰, 없는 세부 정보, 권한, 오래된 head는 우회 없이 변경을 막는다', async (t) => {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'gitea')
     f.setRows(forge)
     const mutations = () => f.calls.filter((call) => call.argv.includes('POST')).length
@@ -1193,7 +1193,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.equal(mutations(), 1)
   })
 
-  await test('forge pagination includes capped later pages and latest CI reruns, and finds PRs in the fork parent', async (t) => {
+  await test('forge 페이지네이션은 제한된 이후 페이지와 최신 CI 재실행을 포함하고, 포크 부모에서 PR을 찾는다', async (t) => {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'forgejo')
     const parentRequest = {
       ...forge,
@@ -1246,7 +1246,7 @@ await describe('pull request RPC', { concurrency: 4 }, async () => {
     assert.ok(f.calls.at(-1).argv.at(-1).includes('/api/v1/repos/upstream/project/pulls/23/merge'))
   })
 
-  await test('self-managed GitLab uses the configured provider, HTTPS port and nested namespace for reads and writes', async (t) => {
+  await test('자체 관리 GitLab은 읽기와 쓰기에 설정된 provider, HTTPS 포트, 중첩 네임스페이스를 사용한다', async (t) => {
     const f = await fixture(t, 'https://user:secret@gitlab.example:8443/team/sub/project.git', 'gitlab')
     const requestUrl = 'https://gitlab.example:8443/team/sub/project/-/merge_requests/8'
     f.setRows([

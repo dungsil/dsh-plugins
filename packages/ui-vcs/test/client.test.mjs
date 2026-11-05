@@ -176,7 +176,7 @@ async function mount(operation, language = 'en', options = {}) {
   }
 }
 
-await test('all Git actions use typed server RPC without sending conversation prompts in every locale', async () => {
+await test('모든 로케일에서 Git 작업은 대화 프롬프트를 보내지 않고 타입이 지정된 서버 RPC를 사용한다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
     for (const operation of ['commit', 'push', 'pr']) {
       const view = await mount(operation === 'commit' ? 'pr' : operation, language)
@@ -197,7 +197,7 @@ await test('all Git actions use typed server RPC without sending conversation pr
   }
 })
 
-await test('rapid repeated clicks cannot submit a duplicate command', async () => {
+await test('빠르게 반복 클릭해도 중복 명령을 제출할 수 없다', async () => {
   const waiting = Promise.withResolvers()
   const view = await mount('pr', 'en', { execute: () => waiting.promise })
   view.menu.onSelect('commit')
@@ -208,7 +208,7 @@ await test('rapid repeated clicks cannot submit a duplicate command', async () =
   assert.equal(view.messages.length, 0)
 })
 
-await test('server errors are localized and never retried automatically', async () => {
+await test('서버 오류는 로케일에 맞게 번역되고 절대 자동으로 재시도하지 않는다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
     const view = await mount('pr', language, { execute: () => ({ ok: false, error: { code: 'partial_stage' } }) })
     view.menu.onSelect('commit')
@@ -224,7 +224,7 @@ await test('server errors are localized and never retried automatically', async 
   }
 })
 
-await test('busy, read-only viewers and missing directories disable Git actions', async () => {
+await test('사용 중인 상태, 읽기 전용 뷰어, 없는 디렉터리는 Git 작업을 비활성화한다', async () => {
   for (const options of [{ session: { running: true } }, { canPrompt: false }, { cwd: null }]) {
     const view = await mount('pr', 'en', options)
     assert.equal(view.menu.anchor.props.disabled, true)
@@ -234,7 +234,7 @@ await test('busy, read-only viewers and missing directories disable Git actions'
   }
 })
 
-await test('PR creation changes immediately to a sidebar view action after execute RPC succeeds in every locale', async () => {
+await test('모든 로케일에서 execute RPC가 성공하면 PR 생성이 곧바로 사이드바 보기 작업으로 바뀐다', async () => {
   for (const [language, createLabel, viewLabel] of [
     ['en', 'Create PR', 'View PR'],
     ['ko', 'PR 생성', 'PR 보기'],
@@ -263,7 +263,7 @@ await test('PR creation changes immediately to a sidebar view action after execu
   }
 })
 
-await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
+await test('기존 PR은 사이드바를 열고 포커스 시 새로 고치며, 조회 오류가 있어도 생성을 비활성화하지 않는다', async () => {
   const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head', checks: [] } })
   assert.equal(mounted.primary.children[1], 'PR 보기')
   assert.equal(mounted.menu, undefined)
@@ -285,7 +285,7 @@ await test('existing PRs open the sidebar and refresh on focus without disabling
   assert.equal(primary.disabled, false)
 })
 
-await test('sidebar shows an overview before details, reopens from cache, and keeps cached actions disabled while refreshing', async () => {
+await test('사이드바는 세부 정보보다 개요를 먼저 보여 주고, 캐시에서 다시 열며, 새로 고치는 동안 캐시된 작업을 비활성화 상태로 유지한다', async () => {
   const overview = Promise.withResolvers()
   const details = Promise.withResolvers()
   const calls = []
@@ -344,7 +344,7 @@ await test('sidebar shows an overview before details, reopens from cache, and ke
   f.unmount()
 })
 
-await test('existing PRs offer updates for dirty files or unpublished commits and keep viewing in the menu', async () => {
+await test('변경된 파일이나 게시되지 않은 커밋이 있으면 업데이트를 제공하고 메뉴에는 보기를 유지한다', async () => {
   for (const [language, updateLabel, viewLabel] of [
     ['en', 'Update PR', 'View PR'],
     ['ko', 'PR 업데이트', 'PR 보기'],
@@ -385,7 +385,7 @@ await test('existing PRs offer updates for dirty files or unpublished commits an
   }
 })
 
-await test('Git action menus use a compact portaled bubble above the composer', async () => {
+await test('Git 작업 메뉴는 컴포저 위에 포털로 렌더링된 간결한 말풍선을 사용한다', async () => {
   for (const operation of ['push', 'pr']) {
     const mounted = await mount(operation)
     assert.equal(mounted.menu.side, 'top')
@@ -396,7 +396,7 @@ await test('Git action menus use a compact portaled bubble above the composer', 
   }
 })
 
-await test('CI pills show aggregate status in every locale and navigate directly to checks without executing Git actions', async () => {
+await test('CI 배지는 모든 로케일에서 집계 상태를 표시하고 Git 작업을 실행하지 않고 검사로 바로 이동한다', async () => {
   for (const [language, prefix, labels] of [
     ['en', 'CI checks', ['Passed', 'Failed', 'Pending', 'Unverified', 'Completed']],
     ['ko', 'CI 검사', ['통과', '실패', '대기 중', '확인 불가', '완료']],

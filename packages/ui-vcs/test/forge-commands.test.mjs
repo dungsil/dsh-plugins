@@ -83,7 +83,7 @@ function fixture(options = {}) {
   return { run, calls, state, makeReview, repository, origin, remoteUrl }
 }
 
-void test('GitHub discovery pins explicit host/repository and reads existing title/body', async () => {
+void test('GitHub 탐색은 명시한 호스트/저장소를 고정하고 기존 제목/본문을 읽는다', async () => {
   const f = fixture()
   f.state.rows = [f.makeReview()]
   const context = await inspectForge(f.run, 'auto')
@@ -100,7 +100,7 @@ void test('GitHub discovery pins explicit host/repository and reads existing tit
   }
 })
 
-void test('self-managed GitLab keeps port and nested namespace, creates and updates MR', async () => {
+void test('자체 관리 GitLab은 포트와 중첩 네임스페이스를 유지하고 MR을 생성하고 업데이트한다', async () => {
   const f = fixture({ provider: 'gitlab' })
   const context = await inspectForge(f.run, 'gitlab')
   assert.equal(context.host, 'gitlab.internal:8443')
@@ -117,7 +117,7 @@ void test('self-managed GitLab keeps port and nested namespace, creates and upda
   assert.ok(writes[1].args.includes('PUT'))
 })
 
-void test('Forgejo login selects exact URL prefix and non-default HTTP port', async () => {
+void test('Forgejo 로그인은 정확한 URL 접두사와 기본이 아닌 HTTP 포트를 선택한다', async () => {
   const f = fixture({ provider: 'forgejo' })
   const context = await inspectForge(f.run, 'forgejo')
   assert.equal(context.repository, 'owner/project')
@@ -131,7 +131,7 @@ void test('Forgejo login selects exact URL prefix and non-default HTTP port', as
   assert.ok(write.args.includes('body=@literal\n${literal}'))
 })
 
-void test('Gitea uses tea, never default login or implicit repository', async () => {
+void test('Gitea는 tea를 사용하며 기본 로그인이나 암시적 저장소를 절대 쓰지 않는다', async () => {
   const f = fixture({
     provider: 'gitea',
     remoteUrl: 'https://gitea.com/owner/project.git',
@@ -147,7 +147,7 @@ void test('Gitea uses tea, never default login or implicit repository', async ()
   )
 })
 
-void test('SSH alias resolves canonical hosting host without treating SSH port as API port', async () => {
+void test('SSH 별칭은 SSH 포트를 API 포트로 취급하지 않고 정규 호스팅 호스트를 확인한다', async () => {
   const f = fixture({ remoteUrl: 'ssh://git@github-work:2222/owner/project.git' })
   const context = await inspectForge(f.run, 'auto')
   assert.equal(context.host, 'github.com')
@@ -155,7 +155,7 @@ void test('SSH alias resolves canonical hosting host without treating SSH port a
   assert.deepEqual(f.calls.find((call) => call.executable === 'ssh').args, ['-G', '-p', '2222', 'github-work'])
 })
 
-void test('actual push URL and configured pushRemote take precedence over fetch upstream', async () => {
+void test('실제 푸시 URL과 설정된 pushRemote는 가져오기 업스트림보다 우선한다', async () => {
   const f = fixture({ config: { 'branch.feat/topic.pushRemote': 'fork', 'remote.pushDefault': 'other' } })
   const context = await discoverPush(f.run)
   assert.equal(context.remote, 'fork')
@@ -168,7 +168,7 @@ void test('actual push URL and configured pushRemote take precedence over fetch 
   assert.ok(f.calls.every((call) => call.executable === 'git'))
 })
 
-void test('default branch push requires no hosting CLI, default branch PR fails', async () => {
+void test('기본 브랜치 푸시는 호스팅 CLI가 필요 없고, 기본 브랜치 PR은 실패한다', async () => {
   const f = fixture({ state: { branch: 'main' } })
   const context = await discoverPush(f.run)
   await pushBranch(f.run, context)
@@ -176,13 +176,13 @@ void test('default branch push requires no hosting CLI, default branch PR fails'
   await assert.rejects(inspectForge(f.run, 'github'), /default_branch/)
 })
 
-void test('detached HEAD fails before any hosting or push command', async () => {
+void test('분리된 HEAD는 어떤 호스팅 명령이나 푸시 명령보다 먼저 실패한다', async () => {
   const f = fixture({ state: { branch: '' } })
   await assert.rejects(discoverPush(f.run), /detached_head/)
   assert.equal(f.calls.length, 1)
 })
 
-void test('retry after successful create re-queries PR and updates instead of duplicate create', async () => {
+void test('생성 성공 후 재시도하면 PR을 다시 조회해 중복 생성 대신 업데이트한다', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   await updateReview(f.run, context, { title: 'feat: first', body: 'first' })
@@ -194,7 +194,7 @@ void test('retry after successful create re-queries PR and updates instead of du
   assert.equal(writes[1].args.at(-1), 'repos/owner/project/pulls/7')
 })
 
-void test('changed branch or remote blocks writes', async () => {
+void test('변경된 브랜치나 리모트는 쓰기를 막는다', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   f.state.branch = 'feat/other'
@@ -205,13 +205,13 @@ void test('changed branch or remote blocks writes', async () => {
   assert.equal(f.state.mutations, 0)
 })
 
-void test('fork with no existing PR fails instead of choosing an uncertain target', async () => {
+void test('기존 PR이 없는 포크는 불확실한 대상을 고르지 않고 실패한다', async () => {
   const f = fixture({ metadata: { parent: { full_name: 'upstream/project' } } })
   await assert.rejects(inspectForge(f.run, 'github'), /ambiguous_target/)
   assert.equal(f.state.mutations, 0)
 })
 
-void test('existing upstream fork PR preserves its explicit target', async () => {
+void test('기존 업스트림 포크 PR은 명시된 대상을 보존한다', async () => {
   const f = fixture({ metadata: { parent: { full_name: 'upstream/project' } } })
   const row = f.makeReview()
   row.base.repo.full_name = 'upstream/project'
@@ -229,7 +229,7 @@ void test('existing upstream fork PR preserves its explicit target', async () =>
   assert.equal(context.existingReview.url, row.html_url)
 })
 
-void test('multiple push URLs, mirror, refspecs and mismatched simple upstream fail safely', async () => {
+void test('여러 푸시 URL, 미러, refspec, 일치하지 않는 단순 업스트림은 안전하게 실패한다', async () => {
   for (const options of [
     { state: { remoteUrl: 'https://github.com/owner/a.git\nhttps://github.com/owner/b.git' } },
     { config: { 'remote.origin.mirror': 'true' } },
@@ -242,7 +242,7 @@ void test('multiple push URLs, mirror, refspecs and mismatched simple upstream f
   }
 })
 
-void test('credential-bearing URL and arbitrary transport never reach a hosting CLI', async () => {
+void test('자격 증명이 포함된 URL과 임의 전송 방식은 호스팅 CLI에 절대 도달하지 않는다', async () => {
   for (const remoteUrl of [
     'https://user:secret@github.com/owner/project.git',
     'ext::something',
@@ -254,7 +254,7 @@ void test('credential-bearing URL and arbitrary transport never reach a hosting 
   }
 })
 
-void test('unrecognized self-hosted auto and ambiguous tea logins fail closed', async () => {
+void test('인식되지 않는 자체 호스팅 auto와 모호한 tea 로그인은 안전하게 실패한다', async () => {
   const unknown = fixture({ remoteUrl: 'https://custom.host/owner/project.git' })
   await assert.rejects(inspectForge(unknown.run, 'auto'), /unsupported/)
   const f = fixture({
@@ -267,14 +267,14 @@ void test('unrecognized self-hosted auto and ambiguous tea logins fail closed', 
   await assert.rejects(inspectForge(f.run, 'forgejo'), /unsupported/)
 })
 
-void test('review URLs and source repository identities are checked before mutation', async () => {
+void test('리뷰 URL과 소스 저장소 식별자는 변경 전에 확인한다', async () => {
   const f = fixture()
   f.state.rows = [{ ...f.makeReview(), html_url: 'https://evil.example/owner/project/pull/7' }]
   await assert.rejects(inspectForge(f.run, 'github'), /invalid_response/)
   assert.equal(f.state.mutations, 0)
 })
 
-void test('baseRef is a verified local SHA for new PRs and existing provider reviews', async () => {
+void test('baseRef는 새 PR과 기존 provider 리뷰에서 검증된 로컬 SHA이다', async () => {
   const fresh = fixture()
   assert.equal((await inspectForge(fresh.run, 'github')).baseRef, 'a'.repeat(40))
   for (const provider of ['github', 'gitlab', 'forgejo']) {
@@ -286,7 +286,7 @@ void test('baseRef is a verified local SHA for new PRs and existing provider rev
   assert.equal((await inspectForge(missing.run, 'github')).baseRef, undefined)
 })
 
-void test('changed existing review title or body blocks overwrite after generation', async () => {
+void test('기존 리뷰의 제목이나 본문이 바뀌면 생성 후 덮어쓰기를 막는다', async () => {
   for (const field of ['title', 'body']) {
     const f = fixture()
     f.state.rows = [f.makeReview()]
@@ -297,7 +297,7 @@ void test('changed existing review title or body blocks overwrite after generati
   }
 })
 
-void test('already applied texts are idempotent after an ambiguous update response', async () => {
+void test('모호한 업데이트 응답 후에도 이미 적용된 텍스트는 멱등이다', async () => {
   const f = fixture()
   f.state.rows = [f.makeReview()]
   const context = await inspectForge(f.run, 'github')
@@ -308,7 +308,7 @@ void test('already applied texts are idempotent after an ambiguous update respon
   assert.equal(f.state.mutations, 0)
 })
 
-void test('upstream push mode uses explicitly tracked branch without force', async () => {
+void test('업스트림 푸시 모드는 강제 없이 명시적으로 추적된 브랜치를 사용한다', async () => {
   const f = fixture({ config: { 'push.default': 'upstream', 'branch.feat/topic.merge': 'refs/heads/review/topic' } })
   const context = await discoverPush(f.run)
   assert.equal(context.pushBranch, 'review/topic')
@@ -318,7 +318,7 @@ void test('upstream push mode uses explicitly tracked branch without force', asy
   assert.ok(!push.args.some((arg) => /force|merge/.test(arg)))
 })
 
-void test('closed review and ambiguous duplicate reviews fail before mutation', async () => {
+void test('닫힌 리뷰와 모호한 중복 리뷰는 변경 전에 실패한다', async () => {
   for (const rows of [(f) => [{ ...f.makeReview(), state: 'closed' }], (f) => [f.makeReview(), f.makeReview()]]) {
     const f = fixture()
     f.state.rows = rows(f)
@@ -327,7 +327,7 @@ void test('closed review and ambiguous duplicate reviews fail before mutation', 
   }
 })
 
-void test('a PR created by another actor during generation is not overwritten', async () => {
+void test('생성 중 다른 주체가 만든 PR은 덮어쓰지 않는다', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   f.state.rows = [f.makeReview('human title', 'human body')]
@@ -335,7 +335,7 @@ void test('a PR created by another actor during generation is not overwritten', 
   assert.equal(f.state.mutations, 0)
 })
 
-void test('a lost create reply is recovered without another mutation', async () => {
+void test('유실된 생성 응답은 추가 변경 없이 복구한다', async () => {
   const f = fixture()
   const context = await inspectForge(f.run, 'github')
   f.state.rows = [f.makeReview('feat: generated', 'generated')]

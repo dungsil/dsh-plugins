@@ -95,7 +95,7 @@ async function fixture(t, options = {}) {
   return { ctx, agent, repo, git, requests, rpc }
 }
 
-await test('commits only the generated plan, preserves unrelated staging, and never changes conversation or inbox', async (t) => {
+await test('생성된 계획만 커밋하고 관련 없는 스테이징은 보존하며 대화나 받은편지함은 절대 바꾸지 않는다', async (t) => {
   const { agent, git, requests, rpc } = await fixture(t)
   const messages = agent.session.deriveMessages()
   const nextTurn = [...agent.inbox.nextTurn]
@@ -120,7 +120,7 @@ await test('commits only the generated plan, preserves unrelated staging, and ne
   assert.equal(requests.length, 1, 'same request ID returns its cached result')
 })
 
-await test('selected new files are committed without touching unrelated staged files', async (t) => {
+await test('선택한 새 파일은 관련 없는 스테이징된 파일을 건드리지 않고 커밋한다', async (t) => {
   const { repo, git, rpc } = await fixture(t, {
     answer: { commitMessage: 'feat: 새 파일을 추가한다', title: '', body: '', paths: ['new file 한글.txt'] },
   })
@@ -132,7 +132,7 @@ await test('selected new files are committed without touching unrelated staged f
   assert.match(git('diff', '--', 'task.txt'), /current task/)
 })
 
-await test('repository-relative plans work from a nested session directory and detached HEAD', async (t) => {
+await test('저장소 기준 계획은 중첩된 세션 디렉터리와 분리된 HEAD에서도 동작한다', async (t) => {
   const { ctx, agent, repo, git, rpc } = await fixture(t)
   const nested = join(repo, 'nested')
   await mkdir(nested)
@@ -144,7 +144,7 @@ await test('repository-relative plans work from a nested session directory and d
   assert.equal(git('show', '--format=', '--name-only', 'HEAD'), 'task.txt')
 })
 
-await test('literal leading-hyphen filenames cannot become Git options', async (t) => {
+await test('하이픈으로 시작하는 리터럴 파일 이름은 Git 옵션이 될 수 없다', async (t) => {
   const { repo, git, rpc } = await fixture(t, {
     answer: { commitMessage: 'feat: 새 파일을 추가한다', title: '', body: '', paths: ['-new.txt'] },
   })
@@ -153,7 +153,7 @@ await test('literal leading-hyphen filenames cannot become Git options', async (
   assert.equal(git('show', '--format=', '--name-only', 'HEAD'), '-new.txt')
 })
 
-await test('simultaneous commands return busy instead of starting another generation', async (t) => {
+await test('동시 명령은 다른 생성을 시작하지 않고 바쁨을 반환한다', async (t) => {
   let entered, release
   const started = new Promise((resolve) => {
     entered = resolve
@@ -176,7 +176,7 @@ await test('simultaneous commands return busy instead of starting another genera
   assert.equal(requests.length, 1)
 })
 
-await test('rejects partial staging and stale repository state without committing', async (t) => {
+await test('부분 스테이징과 오래된 저장소 상태는 커밋 없이 거부한다', async (t) => {
   for (const kind of ['partial', 'changed', 'branch']) {
     await t.test(kind, async (t) => {
       const options =
@@ -199,7 +199,7 @@ await test('rejects partial staging and stale repository state without committin
   }
 })
 
-await test('rejects invalid plans, invalid model responses, and secrets before side effects', async (t) => {
+await test('잘못된 계획, 잘못된 모델 응답, 비밀은 부작용 전에 거부한다', async (t) => {
   for (const kind of ['outside', 'malformed', 'secret']) {
     await t.test(kind, async (t) => {
       const options =
@@ -220,7 +220,7 @@ await test('rejects invalid plans, invalid model responses, and secrets before s
   }
 })
 
-await test('read-only mode, wrong directories and unauthorized peers cannot request generation or writes', async (t) => {
+await test('읽기 전용 모드, 잘못된 디렉터리, 권한 없는 피어는 생성이나 쓰기를 요청할 수 없다', async (t) => {
   const { rpc, requests } = await fixture(t, { mode: 'read-only' })
   assert.equal((await rpc()).error.code, 'read_only')
   assert.deepEqual(await rpc({}, { kind: 'anonymous' }), { status: 403 })
@@ -229,7 +229,7 @@ await test('read-only mode, wrong directories and unauthorized peers cannot requ
   assert.equal(requests.length, 0)
 })
 
-await test('wrong cwd is rejected before generation and a busy source cannot be queued', async (t) => {
+await test('잘못된 cwd는 생성 전에 거부되고 바쁜 소스는 대기열에 넣을 수 없다', async (t) => {
   const { agent, rpc, requests } = await fixture(t)
   assert.equal((await rpc({ cwd: '/not-current' })).error.code, 'conflict')
   let release
@@ -244,7 +244,7 @@ await test('wrong cwd is rejected before generation and a busy source cannot be 
   assert.equal(requests.length, 0)
 })
 
-await test('repository commit hooks remain active and failed hooks do not produce a success response', async (t) => {
+await test('저장소 커밋 훅은 계속 활성 상태이고 실패한 훅은 성공 응답을 만들지 않는다', async (t) => {
   const { repo, git, rpc } = await fixture(t)
   const hook = join(repo, '.git', 'hooks', 'pre-commit')
   await writeFile(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 })
