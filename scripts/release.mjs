@@ -97,10 +97,47 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     for (const pkg of selected) {
       process.chdir(pkg.path)
       const settings = releaseOptions({ dryRun })
+      let increment = version
+      if (!increment) {
+        // Resolve the commit-based bump without changing manifests or publishing.
+        const preview = await release({
+          ...settings,
+          ...options,
+          'dry-run': true,
+          quiet: true,
+          hooks: {},
+          npm: { ...settings.npm, ...options.npm, publish: false },
+          git: {
+            ...settings.git,
+            requireBranch: false,
+            commit: false,
+            tag: false,
+            push: false,
+            requireCleanWorkingDir: releases.length === 0,
+          },
+          github: { release: false },
+        })
+        if (!preview.version) continue
+        increment = preview.version
+        let published = []
+        try {
+          published = JSON.parse(execFileSync('pnpm', ['view', pkg.name, 'versions', '--json'], { encoding: 'utf8' }))
+        } catch (error) {
+          // Only a missing package means there are no published versions.
+          if (JSON.parse(error.stdout || '{}').error?.code !== 'ERR_PNPM_FETCH_404') throw error
+        }
+        const latest = semver.maxSatisfying(published, `>=${increment}`)
+        if (latest) {
+          // npm may have succeeded before the release commit/tags were pushed.
+          // Publish fresh code under a new version, never relabel an old artifact.
+          increment = semver.inc(latest, 'patch')
+          console.log(`${pkg.name}: ${preview.version} is behind npm ${latest}; releasing ${increment}`)
+        }
+      }
       const result = await release({
         ...settings,
-        ...(version ? { increment: version } : {}),
         ...options,
+        increment,
         npm: { ...settings.npm, ...options.npm, ...(version ? { allowSameVersion: true } : {}) },
         git: {
           ...settings.git,
