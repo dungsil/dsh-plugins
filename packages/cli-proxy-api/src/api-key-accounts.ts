@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { providerFamilies } from './protocol.js'
 
 type Row = Record<string, unknown>
@@ -33,7 +32,7 @@ export function apiKeyQuotaProvider(value: unknown): 'opencode-go' | 'ollama-clo
   }
 }
 
-export function mergeAPIKeyAccounts(accounts: Row[], config: unknown): Row[] {
+export function mergeAPIKeyAccounts(accounts: Row[], config: unknown, configRevision: string): Row[] {
   const families = record(record(config)['api-keys'])
   const result = [...accounts]
   for (const family of providerFamilies) {
@@ -44,9 +43,6 @@ export function mergeAPIKeyAccounts(accounts: Row[], config: unknown): Row[] {
       const group = record(value)
       const keys = group.keys
       if (!Array.isArray(keys)) return
-      const configRevision = createHash('sha256')
-        .update(JSON.stringify([family, groupIndex, group]))
-        .digest('hex')
       keys.forEach((value, keyIndex) => {
         const key = record(value)
         const kind = apiKeyQuotaProvider(key['base-url'] ?? group['base-url'])
@@ -64,7 +60,7 @@ export function mergeAPIKeyAccounts(accounts: Row[], config: unknown): Row[] {
           runtime_only: true,
           modtime: existing.modtime,
           updated_at: existing.updated_at,
-          // Compare config snapshots after lookup. The Client never receives this fingerprint or credentials.
+          // Compare the management ETag after lookup. The Client never receives this value or credentials.
           quotaConfigRevision: configRevision,
         }
         if (existingIndex < 0) result.push(row)

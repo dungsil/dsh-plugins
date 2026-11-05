@@ -276,7 +276,9 @@ export function apply(ctx: Context, config: Config) {
       const getAccounts = async () => {
         const files = record(await management('credentials')).files
         if (!Array.isArray(files)) throw new Error('invalid_response')
-        return mergeAPIKeyAccounts(files.map(record), await management('config'))
+        const snapshot = await request(baseURL, '/v8/management/config', 'management', signal)
+        if (!snapshot.etag) throw new Error('unavailable')
+        return mergeAPIKeyAccounts(files.map(record), snapshot.data, snapshot.etag)
       }
       const accounts = await getAccounts()
       if (endpoint === 'quota-list') {

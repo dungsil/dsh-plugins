@@ -25,6 +25,7 @@ async function fixture(t) {
   let disabled = false
   let oauthStatus = 'wait'
   let configVersion = 1
+  let configETag = true
   let conflictWrite = false
   let quotaAccounts
   let quotaStatus = 200
@@ -86,7 +87,7 @@ async function fixture(t) {
     }
     const path = new URL(req.url, 'http://localhost').pathname
     if (path === '/v8/management/config') {
-      res.setHeader('ETag', `"${configVersion}"`)
+      if (configETag) res.setHeader('ETag', `"${configVersion}"`)
       return send({ 'api-keys': providerGroups, management: { 'secret-key': 'private-management-secret' } })
     }
     if (path.startsWith('/v8/management/config/api-keys/')) {
@@ -250,6 +251,9 @@ async function fixture(t) {
     },
     changeConfig() {
       configVersion++
+    },
+    setConfigETag(value) {
+      configETag = value
     },
     conflictWrite() {
       conflictWrite = true
@@ -873,14 +877,46 @@ await test('API-key quota rejects disabled, removed and rotated configuration sn
   delete group.keys[0].disabled
   h.afterQuota(() => {
     group.keys[0]['api-key'] = 'private-after'
+    h.changeConfig()
   })
   assert.equal((await lookup()).error.code, 'conflict')
   h.afterQuota(() => {
     group['base-url'] = 'https://evil.example'
+    h.changeConfig()
   })
   assert.equal((await lookup()).error.code, 'conflict')
   assert.equal((await lookup()).error.code, 'conflict')
   assert.equal(h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length, 2)
+})
+
+await test('API-key quota uses management ETag changes and rejects missing version metadata', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([])
+  h.providerGroups['openai-compatibility'] = [
+    {
+      name: 'Go',
+      'base-url': 'https://opencode.ai/zen/go/v1',
+      keys: [{ 'api-key': 'private-key', auth_index: 'go' }],
+    },
+  ]
+  h.quotaBodies.set('https://opencode.ai/zen/go/v1/usage', { usage: { rolling: { percent: 25 } } })
+  const account = (await h.rpc('quota-list')).value[0]
+  const lookup = () => h.rpc('quota-fetch', { name: account.name, authIndex: account.authIndex })
+  h.afterQuota(() => h.changeConfig())
+  const stale = await lookup()
+  assert.equal(stale.ok, false, JSON.stringify(stale))
+  assert.equal(stale.error.code, 'conflict')
+  h.afterQuota(undefined)
+  const current = await lookup()
+  assert.equal(current.ok, true, JSON.stringify(current))
+  assert.equal(current.value.windows[0].usedPercent, 25)
+  assert.equal(/private-key|quotaConfigRevision/.test(JSON.stringify(current)), false)
+  h.setConfigETag(false)
+  const calls = h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length
+  assert.equal((await h.rpc('quota-list')).error.code, 'unavailable')
+  assert.equal((await lookup()).error.code, 'unavailable')
+  assert.equal(h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length, calls)
 })
 
 await test('API-key quota requires a server auth index and never invents missing OpenCode usage', async (t) => {
