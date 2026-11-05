@@ -240,9 +240,10 @@ await test('설정은 유효한 변경만 자동 저장하고 저장 중에 입�
     assert.equal(saves().length, 2)
     finishSave()
     await mounted.render()
-    await mounted.render()
+    tree = await mounted.render()
     assert.equal(stored.settings.authorName, 'New Author')
     assert.equal(stored.settings.authorEmail, 'ui@example.invalid')
+    assert.equal(nodes(tree).filter((node) => node.props.role === 'status').length, 0)
   } finally {
     mounted.unmount()
   }

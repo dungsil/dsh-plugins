@@ -18,7 +18,6 @@ const copy = {
     noSign: '항상 커밋 서명 비활성화',
     noSignHint:
       '활성화하면 이 UI에서 생성하는 커밋에 --no-gpg-sign을 적용합니다. 비활성화하면 기존 Git 서명 설정을 따릅니다.',
-    saved: '저장했습니다.',
     loading: '불러오는 중…',
     error: '결과를 확인하지 못했습니다. 새로고침한 뒤 다시 시도하세요.',
     conflict: '다른 곳에서 설정을 변경했습니다. 새로고침한 뒤 다시 입력하세요.',
@@ -45,7 +44,6 @@ const copy = {
     noSign: 'Always disable commit signing',
     noSignHint:
       'When enabled, commits created by this UI use --no-gpg-sign. Otherwise, existing Git signing settings apply.',
-    saved: 'Saved.',
     loading: 'Loading…',
     error: 'Could not confirm the result. Refresh before retrying.',
     conflict: 'Settings changed elsewhere. Refresh and enter your changes again.',
@@ -70,7 +68,6 @@ const copy = {
     authorHint: '将两个字段都留空以使用现有 Git 作者，不更改提交者。',
     noSign: '始终禁用提交签名',
     noSignHint: '启用时，此 UI 创建的提交使用 --no-gpg-sign；否则遵循现有 Git 签名设置。',
-    saved: '已保存。',
     loading: '正在加载…',
     error: '无法确认结果，请刷新后重试。',
     conflict: '设置已在其他位置更改，请刷新后重新输入。',
@@ -102,7 +99,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
   const [draft, setDraft] = useState<CommitSettings>()
   const [busy, setBusy] = useState(false)
   const [blocked, setBlocked] = useState(false)
-  const [notice, setNotice] = useState<'error' | 'conflict' | 'saved'>()
+  const [notice, setNotice] = useState<'error' | 'conflict'>()
   const [cli, setCli] = useState<CliStatus[]>()
   const [checking, setChecking] = useState(false)
   const [cliError, setCliError] = useState(false)
@@ -186,7 +183,6 @@ function VcsSettings({ ctx }: { ctx: Context }) {
       const next = result.value as CommitSettingsView
       setView(next)
       setDraft((current) => (JSON.stringify(current) === JSON.stringify(settings) ? next.settings : current))
-      setNotice('saved')
     } catch {
       if (!signal.aborted) {
         setBlocked(true)
@@ -266,7 +262,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
           </fieldset>
         )}
         {busy && <p role="status">{text.loading}</p>}
-        {notice && <p role={notice === 'saved' ? 'status' : 'alert'}>{text[notice]}</p>}
+        {notice && <p role="alert">{text[notice]}</p>}
         {blocked && (
           <Button
             type="button"
