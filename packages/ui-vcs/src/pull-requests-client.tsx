@@ -21,6 +21,7 @@ import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
   IconLinkOutlineRegular,
+  IconLoadingOutlineRegular,
   IconRefreshOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
 import en from '../locale/en.json' with { type: 'json' }
@@ -41,6 +42,14 @@ const providerNames: Record<RequestView['provider'], string> = {
   gitlab: 'GitLab',
   gitea: 'Gitea',
   forgejo: 'Forgejo',
+}
+
+function Loading({ label }: { label: string }) {
+  return (
+    <span className="dsh-pr-loading" role="status" aria-label={label}>
+      <IconLoadingOutlineRegular aria-hidden="true" />
+    </span>
+  )
 }
 
 function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>, 'text' | 'labels'>) {
@@ -166,7 +175,7 @@ export function apply(ctx: Context) {
       !error &&
       !notice
     const mergeBlockedReason = (() => {
-      if (loading) return copy.loading
+      if (loading) return
       if (pending) return copy.pending
       if (error) return copy[error]
       if (notice) return copy[notice]
@@ -351,14 +360,19 @@ export function apply(ctx: Context) {
               void load()
             }}
             disabled={loading || pending}
+            aria-busy={loading}
             aria-label={copy.refresh}
             title={copy.refresh}
           >
-            <IconRefreshOutlineRegular aria-hidden="true" />
+            {loading && view ? <Loading label={copy.loading} /> : <IconRefreshOutlineRegular aria-hidden="true" />}
           </Button>
         </header>
         <div ref={content} className="dsh-pr-content" aria-busy={loading}>
-          {loading && <p role="status">{copy.loading}</p>}
+          {loading && !view && (
+            <div className="dsh-pr-initial-loading">
+              <Loading label={copy.loading} />
+            </div>
+          )}
           {error && <p role="alert">{copy[error] as string}</p>}
           {notice && <p role={notice === 'completed' ? 'status' : 'alert'}>{copy[notice]}</p>}
           {view &&
@@ -389,20 +403,21 @@ export function apply(ctx: Context) {
                       type="button"
                       size="sm"
                       className="dsh-pr-ci-trigger"
-                      aria-label={`${copy.checks}: ${checksSummary} · ${checksLabel}`}
+                      aria-label={`${copy.checks}: ${loading ? copy.loading : `${checksSummary} · ${checksLabel}`}`}
                       aria-expanded={checksOpen}
                       aria-controls={`${tabsId}-checks`}
-                      title={`${copy.checks}: ${checksLabel}`}
+                      title={`${copy.checks}: ${loading ? copy.loading : checksLabel}`}
                       onClick={() => setChecksOpen(!checksOpen)}
+                      aria-busy={loading}
                     >
-                      <StateDot state={checksState} appearance="step" />
-                      <span>{checksSummary}</span>
+                      {loading ? <Loading label={copy.loading} /> : <StateDot state={checksState} appearance="step" />}
+                      <span>{item.headSha ? checksSummary : copy.checks}</span>
                       <IconChevronDownOutlineRegular aria-hidden="true" />
                     </Button>
                   </div>
                   {checksOpen && (
                     <div id={`${tabsId}-checks`} className="dsh-pr-ci-results" role="region" aria-label={copy.checks}>
-                      {!item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
+                      {!loading && !item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
                       <ul className="dsh-pr-checks">
                         {item.checks.map((check, index) => {
                           const status = checkStatus(check.status)
@@ -443,7 +458,7 @@ export function apply(ctx: Context) {
                       },
                       {
                         value: 'changes',
-                        label: `${copy.changes} (${item.files.length})`,
+                        label: item.headSha ? `${copy.changes} (${item.files.length})` : copy.changes,
                         id: `${tabsId}-changes`,
                         panelId: `${tabsId}-changes-panel`,
                       },
@@ -461,7 +476,13 @@ export function apply(ctx: Context) {
                     {copy.details_error}
                   </p>
                 )}
-                <div role="tabpanel" id={`${tabsId}-${page}-panel`} aria-labelledby={`${tabsId}-${page}`} tabIndex={0}>
+                <div
+                  role="tabpanel"
+                  id={`${tabsId}-${page}-panel`}
+                  aria-labelledby={`${tabsId}-${page}`}
+                  aria-busy={loading && page !== 'overview'}
+                  tabIndex={0}
+                >
                   {page === 'overview' && (
                     <>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
@@ -474,7 +495,9 @@ export function apply(ctx: Context) {
                   {page === 'changes' && (
                     <section className="dsh-pr-section" aria-label={copy.changes}>
                       <h3>
-                        {copy.files} <Tag tone="neutral">{item.files.length}</Tag>
+                        {copy.files}
+                        {item.headSha && <Tag tone="neutral">{item.files.length}</Tag>}
+                        {loading && <Loading label={copy.loading} />}
                       </h3>
                       <ul className="dsh-pr-files">
                         {item.files.map((file, index) => {
@@ -497,16 +520,17 @@ export function apply(ctx: Context) {
                         <summary>{copy.diff}</summary>
                         {item.diff ? (
                           <CodeBlock code={item.diff} lang="diff" copyLabel={copy.copy} copiedLabel={copy.copied} />
-                        ) : (
+                        ) : !loading ? (
                           <p>{copy.no_diff}</p>
-                        )}
+                        ) : null}
                       </details>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
                     </section>
                   )}
                   {page === 'conversation' && (
                     <section className="dsh-pr-section" aria-label={copy.conversation}>
-                      {!item.detailsError && !item.comments.length && !item.reviews.length && (
+                      {loading && <Loading label={copy.loading} />}
+                      {!loading && !item.detailsError && !item.comments.length && !item.reviews.length && (
                         <p>{copy.no_conversation}</p>
                       )}
                       {item.comments.map((comment, index) => (

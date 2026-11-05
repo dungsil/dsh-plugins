@@ -154,12 +154,16 @@ await test('sidebar shows an overview before details, reopens from cache, and ke
     'en',
     true
   )
-  await f.render()
+  const initial = await f.render()
+  assert.equal(initial.props.children[2].props.children[0].type, 'div')
   overview.resolve({ ok: true, value: view })
   await f.render()
   const partial = await f.render()
   assert.ok(JSON.stringify(partial).includes('Fast overview'))
   assert.equal(partial.props.children[2].props['aria-busy'], true)
+  assert.equal(partial.props.children[2].props.children[0], false)
+  assert.equal(partial.props.children[3].props.children[0], undefined)
+  assert.equal(partial.props.children[1].props.children[1].props['aria-busy'], true)
   assert.deepEqual(
     calls.map((call) => call.summary),
     [true, false]
@@ -171,6 +175,8 @@ await test('sidebar shows an overview before details, reopens from cache, and ke
   const cached = await f.render()
   assert.ok(JSON.stringify(cached).includes('Fast overview'))
   assert.equal(cached.props.children[2].props['aria-busy'], true)
+  assert.equal(cached.props.children[2].props.children[0], false)
+  assert.equal(cached.props.children[3].props.children[0], undefined)
   // Merge remains disabled even though the cached SHA is present.
   const merge = cached.props.children[3].props.children[1].props.anchor.props.children[0]
   assert.equal(merge.props.disabled, true)
