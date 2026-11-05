@@ -19,6 +19,7 @@
   "command_failed": "Could not load requests. Check CLI authentication, repository access and the session's sandbox network policy.",
   "invalid_response": "The CLI returned an invalid response.",
   "unavailable": "Requests are unavailable. Reconnect and refresh.",
+  "link_unsupported": "This link is outside the session's remote repository or uses an unsupported host. Open the original link below.",
   "overview": "Overview",
   "changes": "Changes",
   "conversation": "Conversation",

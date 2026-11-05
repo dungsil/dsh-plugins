@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -103,18 +104,20 @@ async function fixture(
     }
     if (args[1] === 'status' || args[1] === 'list') return rows
     if (args[1] === 'view' && args[0] === 'pr')
-      return {
-        ...rows,
-        body: details.body,
-        headRefOid: sha,
-        mergeable: details.mergeable,
-        reviewDecision: rows.reviewDecision ?? details.reviewDecision,
-        statusCheckRollup: [{ name: 'test', conclusion: 'SUCCESS', detailsUrl: 'https://ci.example/job/1' }],
-        changedFiles: details.files.length,
-        files: details.files,
-        comments: [{ author: { login: 'bob' }, body: 'Comment', url: details.comments[0].url }],
-        reviews: [{ author: { login: 'carol' }, body: 'Review', state: 'COMMENTED' }],
-      }
+      return rows === null
+        ? null
+        : {
+            ...rows,
+            body: details.body,
+            headRefOid: sha,
+            mergeable: details.mergeable,
+            reviewDecision: rows.reviewDecision ?? details.reviewDecision,
+            statusCheckRollup: [{ name: 'test', conclusion: 'SUCCESS', detailsUrl: 'https://ci.example/job/1' }],
+            changedFiles: details.files.length,
+            files: details.files,
+            comments: [{ author: { login: 'bob' }, body: 'Comment', url: details.comments[0].url }],
+            reviews: [{ author: { login: 'carol' }, body: 'Review', state: 'COMMENTED' }],
+          }
     if (args[1] === 'diff') return details.diff
     if (args[1] === 'view' && args[0] === 'mr')
       return {
@@ -134,7 +137,7 @@ async function fixture(
   }
   await writeFile(
     cli,
-    `process.stdout.write(process.argv[2]); process.stderr.write(process.argv[4] ?? ''); process.exit(Number(process.argv[3]))`
+    `import { readFileSync } from 'node:fs'; process.stdout.write(readFileSync(process.argv[2])); process.stderr.write(process.argv[4] ?? ''); process.exit(Number(process.argv[3]))`
   )
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
@@ -150,12 +153,14 @@ async function fixture(
       calls.push(spec)
       const args = spec.argv.slice(1)
       const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
+      const output = join(dir, `response-${calls.length}.json`)
+      writeFileSync(output, typeof value === 'string' ? value : JSON.stringify(value))
       return spawn({
         ...spec,
         argv: [
           process.execPath,
           cli,
-          typeof value === 'string' ? value : JSON.stringify(value),
+          output,
           String(value instanceof Error ? 1 : exitCode),
           spec.argv[0] === 'tea' && args[0] === 'api' ? `HTTP/1.1 ${httpStatus} Test\n` : '',
         ],
@@ -178,7 +183,7 @@ async function fixture(
   ctx.provide('sandboxPolicy', { resolve: () => ({ mode }) })
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (peer = owner, sessionId = 'test', action) => {
+  const rpc = async (peer = owner, sessionId = 'test', action, requestUrl) => {
     const method = action === undefined ? 'dungsil-vcs/pull-requests/list' : 'dungsil-vcs/pull-requests/action'
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
@@ -188,7 +193,7 @@ async function fixture(
           type: 'client-request',
           rpcId: 'test',
           method,
-          payload: action === undefined ? { sessionId } : action,
+          payload: action === undefined ? { sessionId, ...(requestUrl === undefined ? {} : { requestUrl }) } : action,
         }),
       }),
       peer
@@ -197,6 +202,7 @@ async function fixture(
   }
   return {
     rpc,
+    lookup: (requestUrl, peer = owner) => rpc(peer, 'test', undefined, requestUrl),
     action: (input = {}, peer = owner) =>
       rpc(peer, 'test', { sessionId: 'test', requestUrl: github.url, headSha: sha, action: 'approve', ...input }),
     calls,
@@ -256,6 +262,140 @@ await test('shows only the current branch PR and distinguishes absent requests, 
   assert.equal((await f.rpc()).error.code, 'command_failed')
   f.missing()
   assert.equal((await f.rpc()).error.code, 'cli_missing')
+})
+
+await test('explicit GitHub URLs load the exact non-current PR while mutations still resolve the current branch', async (t) => {
+  const f = await fixture(t)
+  const clicked = {
+    ...github,
+    number: 29,
+    url: 'https://github.com/team/project/pull/29',
+    headRefName: 'different-branch',
+    headRepository: { nameWithOwner: 'contributor/fork' },
+  }
+  f.dispatch((args, next) => (args[1] === 'view' ? { ...next(args), ...clicked } : next(args)))
+  for (const suffix of ['', '/files', '/commits', '/checks']) {
+    const before = f.calls.length
+    const result = await f.lookup(`${clicked.url}${suffix}?diff=split#discussion_r1`)
+    assert.equal(result.ok, true)
+    assert.equal(result.value.branch, 'feat/sidebar')
+    assert.equal(result.value.request.number, 29)
+    assert.equal(result.value.request.url, clicked.url)
+    assert.equal(result.value.request.source, 'different-branch')
+    assert.equal(result.value.request.detailsError, undefined)
+    const calls = f.calls.slice(before).map((call) => call.argv)
+    assert.deepEqual(calls[0].slice(0, 6), ['gh', 'pr', 'view', '29', '--repo', 'https://github.com/team/project'])
+    assert.ok(!calls.some((args) => args[2] === 'status'))
+  }
+  assert.equal((await f.rpc()).value.request.number, 17)
+  const before = f.calls.length
+  assert.equal(
+    (await f.action({ requestUrl: clicked.url, action: 'comment', body: 'Do not mutate another PR' })).error.code,
+    'stale_request'
+  )
+  assert.equal(f.calls[before].argv[2], 'status')
+  assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
+})
+
+await test('explicit URLs reject unrelated repositories, hosts and malformed IDs without querying the clicked target', async (t) => {
+  const f = await fixture(t)
+  for (const requestUrl of [
+    'https://github.com/other/project/pull/29',
+    'https://github.com/team/other/pull/29',
+    'https://other.example/team/project/pull/29',
+    'https://github.com.evil.example/team/project/pull/29',
+    'http://github.com/team/project/pull/29',
+    'https://github.com:8443/team/project/pull/29',
+    'https://user:secret@github.com/team/project/pull/29',
+    'https://@github.com/team/project/pull/29',
+    'https://:@github.com/team/project/pull/29',
+    'javascript:alert(1)',
+    '//github.com/team/project/pull/29',
+    'not a URL',
+    `${github.url}/reviews`,
+    'https://github.com/team/project/pull/0',
+    'https://github.com/team/project/pull/-1',
+    'https://github.com/team/project/pull/9007199254740992',
+    'https://github.com/team/project/pull/%32%39',
+    'https://github.com/team/project/other/../pull/29',
+    'https://github.com/team/project/pull/29\\files',
+    `${github.url}?${'x'.repeat(4096)}`,
+    '',
+    null,
+    29,
+    {},
+  ]) {
+    const result = await f.lookup(requestUrl)
+    assert.equal(result.ok, false, JSON.stringify(requestUrl))
+    assert.equal(result.error.code, 'unsupported', JSON.stringify(requestUrl))
+  }
+  assert.ok(f.calls.every((call) => call.argv[0] === 'gh'))
+  assert.ok(f.calls.every((call) => ['status', 'view', 'diff'].includes(call.argv[2])))
+  assert.ok(f.calls.every((call) => call.argv[2] === 'status' || call.argv[3] === github.url))
+  const before = f.calls.length
+  const viewer = { principal: { kind: 'session', sessionId: 'test' }, interactions: 'answer' }
+  assert.equal((await f.lookup(github.url, viewer)).status, 403)
+  assert.equal(f.calls.length, before)
+})
+
+await test('explicit GitHub links preserve repository casing and current upstream fork associations', async (t) => {
+  const mixed = await fixture(t, 'git@github.com:Team/Project.git')
+  assert.equal((await mixed.lookup(github.url)).value.request.url, github.url)
+  assert.equal((await mixed.lookup('https://github.com/TEAM/PROJECT/pull/17')).value.request.url, github.url)
+  const fork = await fixture(t)
+  const upstream = 'https://github.com/upstream/project/pull/17'
+  fork.setRows({ ...github, url: upstream })
+  const result = await fork.lookup(`${upstream}/files#discussion`)
+  assert.equal(result.ok, true)
+  assert.equal(result.value.request.url, upstream)
+  assert.equal(fork.calls[0].argv[2], 'status')
+  const mismatch = await fork.lookup('https://github.com/upstream/project/pull/18')
+  assert.equal(mismatch.error.code, 'unsupported')
+  assert.ok(!fork.calls.some((call) => call.argv.includes('18')))
+})
+
+await test('explicit GitHub lookup rejects a CLI response for a different request instead of falling back', async (t) => {
+  const f = await fixture(t)
+  assert.equal((await f.lookup('https://github.com/team/project/pull/29')).error.code, 'invalid_response')
+  assert.equal(f.calls.length, 1)
+  f.setRows(null)
+  assert.equal((await f.lookup(github.url)).error.code, 'invalid_response')
+})
+
+await test('explicit GitLab URLs load an exact non-current MR in the trusted nested project', async (t) => {
+  const f = await fixture(t, 'git@gitlab.com:team/sub/project.git')
+  const requestUrl = 'https://gitlab.com/team/sub/project/-/merge_requests/29'
+  f.setRows([
+    {
+      iid: 29,
+      title: 'A different MR',
+      web_url: requestUrl,
+      source_branch: 'other-branch',
+      target_branch: 'main',
+      state: 'opened',
+      source_project_id: 42,
+      target_project_id: 41,
+    },
+  ])
+  const result = await f.lookup(`${requestUrl}?view=inline#note_1`)
+  assert.equal(result.ok, true)
+  assert.equal(result.value.request.number, 29)
+  assert.equal(result.value.request.source, 'other-branch')
+  assert.equal(result.value.request.detailsError, undefined)
+  assert.deepEqual(f.calls[0].argv.slice(0, 6), [
+    'glab',
+    'mr',
+    'view',
+    '29',
+    '--repo',
+    'https://gitlab.com/team/sub/project',
+  ])
+  assert.ok(!f.calls.some((call) => call.argv[2] === 'list'))
+  const before = f.calls.length
+  assert.equal((await f.lookup('https://gitlab.com/team/other/-/merge_requests/29')).error.code, 'unsupported')
+  assert.equal(f.calls.length, before)
+  assert.equal((await f.action({ requestUrl, action: 'comment', body: 'Not current' })).error.code, 'stale_request')
+  assert.ok(!f.calls.some((call) => call.argv[2] === 'note'))
 })
 
 await test('uses the tracked GitLab remote, preserves nested groups, and normalizes MR draft fields', async (t) => {
@@ -831,6 +971,47 @@ const forge = {
   changed_files: 1,
 }
 
+await test('explicit forge URLs read the exact PR using trusted login ports and prefixes, not branch discovery', async (t) => {
+  for (const remote of [
+    'https://forge.example:3443/git/team/project.git',
+    'ssh://git@forge.example:2222/team/project.git',
+  ]) {
+    const f = await fixture(t, remote, 'forgejo')
+    const clicked = {
+      ...forge,
+      number: 29,
+      html_url: 'https://forge.example:3443/git/team/project/pulls/29',
+      head: { ...forge.head, ref: 'different-branch', repo: { full_name: 'contributor/fork' } },
+    }
+    f.setRows(clicked)
+    const result = await f.lookup(`${clicked.html_url}?view=split#issuecomment-1`)
+    assert.equal(result.ok, true)
+    assert.equal(result.value.request.number, 29)
+    assert.equal(result.value.request.source, 'different-branch')
+    assert.equal(result.value.request.detailsError, undefined)
+    const api = f.calls.filter((call) => call.argv[1] === 'api')
+    assert.equal(api[0].argv.at(-1), 'https://forge.example:3443/git/api/v1/repos/team/project/pulls/29')
+    assert.ok(api.every((call) => call.argv[call.argv.indexOf('--login') + 1] === 'work'))
+    assert.ok(!api.some((call) => call.argv.at(-1).includes('/pulls?')))
+    const before = api.length
+    assert.equal(
+      (await f.lookup('https://forge.example:3443/git/unrelated/project/pulls/29')).error.code,
+      'unsupported'
+    )
+    assert.ok(
+      f.calls
+        .filter((call) => call.argv[1] === 'api')
+        .slice(before)
+        .every((call) => call.argv.at(-1).startsWith('https://forge.example:3443/git/api/v1/repos/team/project'))
+    )
+    assert.equal(
+      (await f.action({ requestUrl: clicked.html_url, action: 'comment', body: 'Not current' })).error.code,
+      'stale_request'
+    )
+    assert.ok(!f.calls.some((call) => call.argv.includes('POST')))
+  }
+})
+
 await test('Gitea and Forgejo load the same sidebar details and support comments, reviews and SHA-conditional merges', async (t) => {
   for (const provider of ['gitea', 'forgejo']) {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', provider)
@@ -1002,6 +1183,10 @@ await test('forge pagination includes capped later pages and latest CI reruns, a
   assert.equal(result.reviewDecision, 'APPROVED')
   assert.deepEqual(result.checks, [{ name: 'build', status: 'success', url: '' }])
   assert.equal(result.reviews.length, 2)
+  const linked = await f.lookup(parentRequest.html_url)
+  assert.equal(linked.ok, true)
+  assert.equal(linked.value.request.url, parentRequest.html_url)
+  assert.equal(linked.value.request.detailsError, undefined)
   assert.equal((await f.action({ requestUrl: parentRequest.html_url, action: 'merge' })).ok, true)
   assert.ok(f.calls.at(-1).argv.at(-1).includes('/api/v1/repos/upstream/project/pulls/23/merge'))
 })
