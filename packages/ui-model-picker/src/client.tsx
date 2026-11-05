@@ -79,7 +79,7 @@ export function apply(ctx: Context) {
     const state = useSyncExternalStore(subscribe, getSnapshot)
     const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
-    const [panel, setPanel] = useState<'model' | 'effort' | null>(null)
+    const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
     const [draft, setDraft] = useState(0)
     const [failed, setFailed] = useState(false)
     const trigger = useRef<HTMLButtonElement | null>(null)
@@ -98,9 +98,10 @@ export function apply(ctx: Context) {
           ...reasoning.efforts,
         ]
       : []
+    const panel = requestedPanel === 'effort' && !efforts.length ? 'model' : requestedPanel
     const effective = current?.reasoningEffort ?? reasoning?.defaultEffort
     const effortIndex = efforts.findIndex((item) => item.id === effective)
-    const effortLabel = efforts[effortIndex]?.name ?? state.retainedEffort
+    const effortLabel = efforts.length ? (efforts[effortIndex]?.name ?? state.retainedEffort) : undefined
     const busy = state.status === 'selecting'
     const disabled = locked || busy
 
@@ -224,7 +225,7 @@ export function apply(ctx: Context) {
             label={model?.name ?? current?.model ?? text.model}
             detail={effortLabel}
             disabled={disabled}
-            aria-label={`${text.choose}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
+            aria-label={`${efforts.length ? text.choose : text.model}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
             aria-expanded={panel !== null}
@@ -242,9 +243,11 @@ export function apply(ctx: Context) {
               className="dsh-codex-popover"
             >
               {panel === 'model' ? (
-                <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
-                  <IconChevronLeftOutlineRegular size={14} /> {text.effort}
-                </button>
+                efforts.length > 0 && (
+                  <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
+                    <IconChevronLeftOutlineRegular size={14} /> {text.effort}
+                  </button>
+                )
               ) : (
                 <header className="dsh-codex-header">
                   <button
