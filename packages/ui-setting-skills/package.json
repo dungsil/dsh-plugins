@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-setting-skills",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "View loaded user skills in DeepSeek Harness settings.",
   "license": "MIT",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-settings",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Task model settings UI for DeepSeek Harness, backed by the model-settings plugin.",
   "license": "MIT",
   "repository": {

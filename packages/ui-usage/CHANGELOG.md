@@ -1,5 +1,8 @@
 # @dungsil/dsh-plugin-ui-usage
 
+- fix(compat): dsh 0.2.2 프리릴리스 호환성을 수정한다 (#80) (da66780)
+- fix(release): 하위 패키지 업데이트를 프리셋 릴리즈에 반영한다 (#168) (e54d5ac)
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.2.0...%40dungsil%2Fdsh-plugin-ui-usage%400.3.0) (2026-11-05)
 
 ### Features
