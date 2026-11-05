@@ -6,9 +6,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { Menu, Pill } from '@dungsil/dsh-ui'
+import { Menu, Pill, StateDot } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
+import en from '../locale/en.json' with { type: 'json' }
+import ko from '../locale/ko.json' with { type: 'json' }
+import zh from '../locale/zh.json' with { type: 'json' }
 import {
   channel,
   describeMethod,
@@ -93,6 +96,7 @@ export function apply(ctx: Context) {
       () => ctx.locale.getSnapshot().active
     )
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
+    const labels = language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
     const canPrompt = useAccess('session.prompt')
     const hidden = useSession((s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open')
     const unavailable = useSession(
@@ -103,6 +107,7 @@ export function apply(ctx: Context) {
     const cwd = useProjection('workingDirectory')
     const [operation, setOperation] = useState<'push' | 'pr'>()
     const [hasRequest, setHasRequest] = useState(false)
+    const [ciRequest, setCiRequest] = useState<RequestView['request']>(null)
     const [needsUpdate, setNeedsUpdate] = useState(false)
     const [lookup, setLookup] = useState<'loading' | 'ready' | 'error'>('loading')
     const [open, setOpen] = useState(false)
@@ -120,6 +125,14 @@ export function apply(ctx: Context) {
     const statusId = useId()
     const disabled = !canPrompt || unavailable || status === 'sending' || typeof cwd !== 'string'
     const viewOnly = hasRequest && !needsUpdate
+    const ciState = ciRequest ? PullRequests.checksState(ciRequest) : 'warning'
+    const ciLabel = {
+      done: labels.success,
+      error: labels.failure,
+      warning: labels.checks_unknown,
+      ongoing: labels.pending_check,
+      idle: labels.checks_complete,
+    }[ciState]
 
     useEffect(() => {
       if (!hasChanges || hidden || unavailable) return
@@ -131,6 +144,7 @@ export function apply(ctx: Context) {
         setLookup('loading')
         setOperation(undefined)
         setHasRequest(false)
+        setCiRequest(null)
         setNeedsUpdate(false)
         try {
           const result = await connection.rpc.call(channel, describeMethod, { sessionId }, signal)
@@ -147,6 +161,7 @@ export function apply(ctx: Context) {
               if (signal.aborted) return
               if (requests.ok) {
                 const request = (requests.value as RequestView).request
+                setCiRequest(request)
                 setHasRequest(!!request)
                 setNeedsUpdate(!!request && (context.dirty || context.headSha !== request.headSha))
               }
@@ -294,6 +309,16 @@ export function apply(ctx: Context) {
             />
           )}
         </div>
+        {hasRequest && (
+          <Pill
+            className="dsh-vcs-trigger"
+            title={`${labels.checks}: ${ciLabel}`}
+            onClick={() => ctx.sidebarRight.openTab(PullRequests.name, { params: { section: 'checks' } })}
+          >
+            <StateDot state={ciState} appearance="step" />
+            {`${labels.checks}: ${ciLabel}`}
+          </Pill>
+        )}
         <span id={statusId} role={status === 'error' ? 'alert' : 'status'} className="dsh-vcs-status">
           {status === 'error'
             ? errorCode === 'partial_stage'

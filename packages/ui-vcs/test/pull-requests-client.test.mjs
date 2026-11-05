@@ -267,6 +267,35 @@ await test('sidebar navigations fetch the clicked PR and discard an older respon
   }
 })
 
+await test('CI navigation opens checks on first load and reopens them in an already mounted PR pane', async () => {
+  const fixture = mount()
+  const find = (node, predicate) => {
+    if (Array.isArray(node)) return node.flatMap((child) => find(child, predicate))
+    if (!node?.props) return []
+    return [...(predicate(node.props) ? [node.props] : []), ...find(node.props.children, predicate)]
+  }
+  try {
+    fixture.tab.navigation = { revision: 1, params: { section: 'checks' } }
+    fixture.render()
+    fixture.calls[0].resolve({ ok: true, value: request(42) })
+    await settle()
+    fixture.calls[1].resolve({ ok: true, value: request(42) })
+    await settle()
+    let tree = fixture.render()
+    assert.equal(find(tree, (props) => props.className === 'dsh-pr-ci-results').length, 1)
+    find(tree, (props) => props.className === 'dsh-pr-ci-trigger')[0].onClick()
+    tree = fixture.render()
+    assert.equal(find(tree, (props) => props.className === 'dsh-pr-ci-results').length, 0)
+    fixture.tab.navigation = { revision: 2, params: { section: 'checks' } }
+    fixture.render()
+    tree = fixture.render()
+    assert.equal(find(tree, (props) => props.className === 'dsh-pr-ci-results').length, 1)
+    assert.equal(find(tree, (props) => props.className === 'dsh-pr-ci-trigger')[0]['aria-expanded'], true)
+  } finally {
+    fixture.dispose()
+  }
+})
+
 await test('unsupported linked requests show localized feedback and retain the original external link', async () => {
   for (const [language, expected] of [
     ['en', 'outside'],

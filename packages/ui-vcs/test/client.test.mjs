@@ -88,7 +88,7 @@ async function mount(operation, language = 'en', options = {}) {
         },
       }
     },
-    sidebarRight: { openTab: (kind) => openedTabs.push(kind) },
+    sidebarRight: { openTab: (kind, options) => openedTabs.push(options ? { kind, options } : kind) },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
@@ -151,9 +151,13 @@ async function mount(operation, language = 'en', options = {}) {
   if (sidebar) return common
   await render()
   await render()
-  let actions = (await render()).props.children[0].props.children
+  let tree = await render()
+  let actions = tree.props.children[0].props.children
   return {
     ...common,
+    get ci() {
+      return tree.props.children[1]?.props
+    },
     get primary() {
       return actions[0].props
     },
@@ -162,7 +166,8 @@ async function mount(operation, language = 'en', options = {}) {
     },
     async refresh() {
       await render()
-      actions = (await render()).props.children[0].props.children
+      tree = await render()
+      actions = tree.props.children[0].props.children
       return actions[0].props
     },
   }
@@ -205,7 +210,7 @@ await test('server errors are localized and never retried automatically', async 
     const view = await mount('pr', language, { execute: () => ({ ok: false, error: { code: 'partial_stage' } }) })
     view.menu.onSelect('commit')
     await new Promise((resolve) => setImmediate(resolve))
-    const status = (await view.render()).props.children[1]
+    const status = (await view.render()).props.children.find((child) => child?.props?.role === 'alert')
     assert.equal(status.props.role, 'alert')
     assert.match(
       JSON.stringify(status.props.children),
@@ -256,7 +261,7 @@ await test('PR creation changes immediately to a sidebar view action after execu
 })
 
 await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
-  const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head' } })
+  const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head', checks: [] } })
   assert.equal(mounted.primary.children[1], 'PR 보기')
   assert.equal(mounted.menu, undefined)
   mounted.primary.onClick()
@@ -345,7 +350,7 @@ await test('existing PRs offer updates for dirty files or unpublished commits an
     for (const context of [{ dirty: true }, { headSha: 'unpublished' }]) {
       const executed = Promise.withResolvers()
       const mounted = await mount('pr', language, {
-        request: { number: 42, headSha: 'head' },
+        request: { number: 42, headSha: 'head', checks: [] },
         execute: () => executed.promise,
       })
       mounted.setGitContext(context)
@@ -383,6 +388,46 @@ await test('Git action menus use a compact portaled bubble above the composer', 
     assert.equal(mounted.menu.side, 'top')
     assert.equal(mounted.menu.portal, true)
     assert.equal(mounted.menu.compact, true)
+    assert.equal(mounted.messages.length, 0)
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
+  }
+})
+
+await test('CI pills show aggregate status in every locale and navigate directly to checks without executing Git actions', async () => {
+  for (const [language, prefix, labels] of [
+    ['en', 'CI checks', ['Passed', 'Failed', 'Pending', 'Unverified', 'Completed']],
+    ['ko', 'CI 검사', ['통과', '실패', '대기 중', '확인 불가', '완료']],
+    ['zh', 'CI 检查', ['通过', '失败', '等待中', '未确认', '已完成']],
+  ]) {
+    const mounted = await mount('pr', language)
+    assert.equal(mounted.ci, undefined)
+    for (const [statuses, index, detailsError] of [
+      [['success', 'passed'], 0],
+      [['success', 'failure', 'pending'], 1],
+      [['cancelled', 'success'], 1],
+      [['success', 'in_progress'], 2],
+      [[], 3],
+      [['success'], 3, true],
+      [['success', 'skipped'], 4],
+    ]) {
+      mounted.setRequestResult({
+        ok: true,
+        value: {
+          request: {
+            number: 42,
+            headSha: 'head',
+            detailsError,
+            checks: statuses.map((status) => ({ name: status, status, url: '' })),
+          },
+        },
+      })
+      await mounted.focus()
+      await mounted.refresh()
+      assert.equal(mounted.ci.children[1], `${prefix}: ${labels[index]}`)
+    }
+    mounted.ci.onClick()
+    assert.equal(mounted.openedTabs[0].kind, 'dungsil-vcs-pull-requests')
+    assert.equal(mounted.openedTabs[0].options.params.section, 'checks')
     assert.equal(mounted.messages.length, 0)
     assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
   }
