@@ -13,6 +13,7 @@ async function mount(operation, language = 'en', request = null) {
   const openedTabs = []
   const listeners = new Map()
   let requestResult = { ok: true, value: { request } }
+  let gitContext = { operation, headSha: 'head', dirty: false }
   let cursor = 0
   let registered, plugin
   const react = {
@@ -70,7 +71,7 @@ async function mount(operation, language = 'en', request = null) {
         ? {
             rpc: {
               call: async (_channel, method) =>
-                method === 'dungsil-vcs/describe' ? { ok: true, value: operation } : requestResult,
+                method === 'dungsil-vcs/describe' ? { ok: true, value: gitContext } : requestResult,
             },
           }
         : { scope: () => ({ get: () => ({ send: async (message) => messages.push(message) }) }) },
@@ -116,6 +117,7 @@ async function mount(operation, language = 'en', request = null) {
     openedTabs,
     session,
     setRequestResult: (result) => (requestResult = result),
+    setGitContext: (value) => (gitContext = { ...gitContext, ...value }),
     focus: () => listeners.get('focus')?.(),
     async refresh() {
       await render()
@@ -189,7 +191,7 @@ await test('PR creation changes to a sidebar view action after the agent finishe
     await new Promise((resolve) => setImmediate(resolve))
     mounted.session.running = true
     assert.equal((await mounted.refresh()).disabled, true)
-    mounted.setRequestResult({ ok: true, value: { request: { number: 42 } } })
+    mounted.setRequestResult({ ok: true, value: { request: { number: 42, headSha: 'head' } } })
     mounted.session.running = false
     const primary = await mounted.refresh()
     assert.equal(primary.children[1], viewLabel)
@@ -202,7 +204,7 @@ await test('PR creation changes to a sidebar view action after the agent finishe
 })
 
 await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
-  const mounted = await mount('pr', 'ko', { number: 42 })
+  const mounted = await mount('pr', 'ko', { number: 42, headSha: 'head' })
   assert.equal(mounted.primary.children[1], 'PR 보기')
   assert.equal(mounted.menu, undefined)
   mounted.primary.onClick()
@@ -217,4 +219,35 @@ await test('existing PRs open the sidebar and refresh on focus without disabling
   const primary = await mounted.refresh()
   assert.equal(primary.children[1], 'PR 생성')
   assert.equal(primary.disabled, false)
+})
+
+await test('existing PRs offer updates for dirty files or unpublished commits and keep viewing in the menu', async () => {
+  for (const [language, updateLabel, viewLabel] of [
+    ['en', 'Update PR', 'View PR'],
+    ['ko', 'PR 업데이트', 'PR 보기'],
+    ['zh', '更新 PR', '查看 PR'],
+  ]) {
+    for (const context of [{ dirty: true }, { headSha: 'unpublished' }]) {
+      const mounted = await mount('pr', language, { number: 42, headSha: 'head' })
+      mounted.setGitContext(context)
+      await mounted.focus()
+      const primary = await mounted.refresh()
+      assert.equal(primary.children[1], updateLabel)
+      assert.equal(primary.disabled, false)
+      assert.equal(mounted.menu.items.find((item) => item.id === 'view').label, viewLabel)
+      mounted.menu.onSelect('view')
+      assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+      assert.equal(mounted.messages.length, 0)
+      primary.onClick()
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(mounted.messages.length, 1)
+      assert.ok(mounted.messages[0].startsWith('Commit and push'))
+      mounted.session.running = true
+      assert.equal((await mounted.refresh()).disabled, true)
+      mounted.setGitContext({ dirty: false, headSha: 'head' })
+      mounted.session.running = false
+      assert.equal((await mounted.refresh()).children[1], viewLabel)
+      assert.equal(mounted.menu, undefined)
+    }
+  }
 })
