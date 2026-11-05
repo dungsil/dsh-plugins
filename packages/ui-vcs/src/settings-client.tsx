@@ -187,7 +187,6 @@ function VcsSettings({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-vcs-settings" aria-label={text.nav}>
-      <p>{text.scope}</p>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -197,6 +196,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
         {draft && (
           <fieldset disabled={blocked}>
             <h3>{text.author}</h3>
+            <p>{text.scope}</p>
             <p>{text.authorHint}</p>
             <SettingsRow label={<label htmlFor={`${id}-name`}>{text.name}</label>}>
               <Input
