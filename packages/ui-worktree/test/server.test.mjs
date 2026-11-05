@@ -247,6 +247,47 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   }
 }
 
+await test('선택은 Git을 실행하거나 경로를 바꾸지 않고 전송할 때 기존 워크트리로 전환한다', async (t) => {
+  const { ctx, agent, repo, other, rpc, submit, requests } = await fixture(t)
+  const before = agent.session.snapshotEvents()
+  const commands = []
+  const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
+  ctx.subprocess.spawn = (spec) => {
+    commands.push(spec)
+    return spawn(spec)
+  }
+  assert.equal((await rpc('select', { cwd: repo, choice: 'new' })).ok, true)
+  const cancelled = await rpc('select', { cwd: repo, choice: 'current' })
+  assert.deepEqual(cancelled, { ok: true, value: { cwd: repo } })
+  assert.equal((await rpc('select', { cwd: repo, choice: 'existing', path: gitPath(other) })).ok, true)
+  assert.deepEqual(commands, [], 'Selecting an execution location must not spawn Git')
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.deepEqual(agent.session.snapshotEvents(), before, 'Selection alone must not append maintenance or cwd events')
+  await submit('Work in the selected checkout')
+  assert.ok(requests.length > 0)
+  assert.ok(requests.every((request) => request.cwd === other))
+  assert.equal(ctx.workingDirectory.get(agent.session), other)
+  const described = await rpc('describe')
+  assert.equal(described.value.pendingSwitch, undefined)
+  assert.equal(described.value.pendingCreation, undefined)
+})
+
+await test('선택한 기존 워크트리가 사라지면 전송 시 작업을 중단하고 자동으로 재시도하지 않는다', async (t) => {
+  const { ctx, agent, repo, other, git, rpc, submit, requests } = await fixture(t)
+  assert.equal((await rpc('select', { cwd: repo, choice: 'existing', path: gitPath(other) })).ok, true)
+  git('worktree', 'remove', '--', other)
+  await submit('Do not run in the original directory')
+  assert.equal(requests.length, 0)
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.equal((await rpc('describe')).value.pendingSwitch.failed, true)
+  await submit('Do not retry without confirming a selection')
+  assert.equal(requests.length, 0)
+  assert.equal((await rpc('select', { cwd: repo, choice: 'current' })).ok, true)
+  await submit('Continue in the source checkout')
+  assert.ok(requests.length > 0)
+  assert.ok(requests.every((request) => request.cwd === repo))
+})
+
 await test('부작용 없이 예약하고, 프롬프트 작업 전에 생성하며, 기존 스위치는 즉시 동작하게 유지한다', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit } = await fixture(t)
   const progress = []
@@ -762,6 +803,59 @@ await test('이름 짓기는 명시적 추론 강도, 모델 기본값, 추론�
   }
 })
 
+await test('workspace-write 세션의 조회와 선택은 쓰기 권한을 준비하지 않는다', async (t) => {
+  const { ctx, agent, repo, other, rpc } = await fixture(t)
+  setSandboxMode(agent.session, 'workspace-write')
+  const confined = []
+  const confine = ctx.sandbox.confine.bind(ctx.sandbox)
+  ctx.sandbox.confine = async (argv, policy, signal) => {
+    confined.push({ argv, policy })
+    assert.equal(policy.mode, 'read-only', 'Passive Git reads must not materialize workspace write ACLs')
+    return confine(argv, policy, signal)
+  }
+  const initial = await rpc('describe')
+  assert.deepEqual(
+    confined.map(({ policy }) => policy.mode),
+    ['read-only']
+  )
+  assert.equal(initial.ok, true, JSON.stringify(initial))
+  const before = agent.session.snapshotEvents()
+  const concurrent = await Promise.all([rpc('describe'), rpc('describe')])
+  assert.ok(concurrent.every((result) => result.ok && result.value.cwd === repo))
+  assert.deepEqual(agent.session.snapshotEvents(), before)
+  assert.equal(confined.length, 3)
+  assert.equal((await rpc('initialize', { cwd: repo })).ok, true)
+  const reserved = await rpc('create', { cwd: repo, name: 'fix/read-only-lookup' })
+  assert.equal(reserved.ok, true)
+  assert.equal(reserved.value.pendingCreation.failed, false)
+  const switched = await rpc('switch', { cwd: repo, path: gitPath(other) })
+  assert.equal(switched.ok, true, JSON.stringify(switched))
+  assert.equal(ctx.workingDirectory.get(agent.session), other)
+  assert.equal(switched.value.pendingCreation, undefined)
+  assert.ok(confined.length > 0)
+  assert.ok(confined.every(({ policy }) => policy.workspaceRoot === repo && policy.sessionId === agent.id))
+  assert.equal(ctx.sandboxPolicy.resolve({ session: agent.session }).mode, 'workspace-write')
+})
+
+await test('실제 생성의 쓰기 정책은 조회 모드로 낮추거나 우회하지 않는다', async (t) => {
+  const { ctx, agent, repo, rpc, submit, requests, git } = await fixture(t)
+  setSandboxMode(agent.session, 'workspace-write')
+  const modes = []
+  const confine = ctx.sandbox.confine.bind(ctx.sandbox)
+  ctx.sandbox.confine = async (argv, policy, signal) => {
+    modes.push(policy.mode)
+    if (policy.mode === 'workspace-write') throw new Error('Write confinement unavailable')
+    return confine(argv, policy, signal)
+  }
+  assert.equal((await rpc('create', { cwd: repo, name: 'fix/write-policy' })).ok, true)
+  await submit()
+  assert.deepEqual(modes, ['read-only', 'workspace-write'])
+  assert.equal(requests.length, 0, 'A failed write boundary must stop the original task')
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.equal(git('branch', '--list', 'fix/write-policy'), '')
+  assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
+})
+
 await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지 않고 읽는다', async (t) => {
   const { ctx, agent, repo, other, rpc, inspections, resolutions } = await fixture(t)
   const id = SessionId('cold-worktree-read')
@@ -947,7 +1041,7 @@ await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크�
 
 await test('소유자가 아닌 요청, 형식이 잘못된 입력, 동시 유지 보수, 읽기 전용 상태의 생성을 거부한다', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
-  for (const endpoint of ['describe', 'initialize', 'create', 'switch', 'settings', 'save-settings']) {
+  for (const endpoint of ['describe', 'initialize', 'select', 'create', 'switch', 'settings', 'save-settings']) {
     assert.equal(
       (
         await rpc(
