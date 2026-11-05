@@ -9,12 +9,18 @@ async function mount(operation, language = 'en', options = {}) {
   const hooks = []
   const effects = []
   const calls = []
+  const messages = []
+  const openedTabs = []
+  const listeners = new Map()
+  const sidebar = options.sidebar === true
+  let requestResult = { ok: true, value: { request: options.request ?? null } }
   let cursor = 0
+  let mountingSidebar = false
   let registered, plugin
   const react = {
     useState(initial) {
       const index = cursor++
-      if (!(index in hooks)) hooks[index] = initial
+      if (!(index in hooks)) hooks[index] = typeof initial === 'function' ? initial() : initial
       return [hooks[index], (value) => (hooks[index] = typeof value === 'function' ? value(hooks[index]) : value)]
     },
     useRef(initial) {
@@ -23,12 +29,15 @@ async function mount(operation, language = 'en', options = {}) {
     },
     useEffect(effect, deps) {
       const [previous, setPrevious] = react.useState()
-      if (!previous || deps.some((value, index) => value !== previous[index])) {
-        setPrevious(deps)
-        effects.push(effect)
+      if (!previous || deps.some((value, index) => value !== previous.deps[index])) {
+        effects.push(() => {
+          previous?.cleanup?.()
+          setPrevious({ deps, cleanup: effect() })
+        })
       }
     },
     useId: () => 'status',
+    useMemo: (create) => create(),
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
   }
   const jsx = (type, props) => ({ type, props })
@@ -42,8 +51,10 @@ async function mount(operation, language = 'en', options = {}) {
       disconnect() {}
     },
     window: {
-      addEventListener() {},
-      removeEventListener() {},
+      addEventListener: (event, listener) => listeners.set(event, listener),
+      removeEventListener: (event, listener) => {
+        if (listeners.get(event) === listener) listeners.delete(event)
+      },
       __ModuleLoader__: {
         load({ factory }) {
           plugin = factory((id) => {
@@ -63,7 +74,10 @@ async function mount(operation, language = 'en', options = {}) {
         rpc: {
           call: async (channel, method, payload) => {
             calls.push({ channel, method, payload })
+            if (sidebar) return operation(channel, method, payload)
             if (method === 'dungsil-vcs/describe') return { ok: true, value: operation }
+            if (method === 'dungsil-vcs/pull-requests/list') return requestResult
+            assert.equal(method, 'dungsil-vcs/execute')
             if (options.execute) return options.execute(payload)
             return {
               ok: true,
@@ -73,26 +87,45 @@ async function mount(operation, language = 'en', options = {}) {
         },
       }
     },
+    sidebarRight: { openTab: (kind) => openedTabs.push(kind) },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
-      register: (_options, render) => (registered = render),
+      register: (registration, render) => {
+        if (!sidebar || registration.name === 'sidebar.right.pane.tab') registered = render
+      },
     },
-    plugin() {},
-    effect() {},
+    sidebarRightTabs: { register() {} },
+    plugin(module) {
+      if (sidebar) {
+        mountingSidebar = true
+        module.apply(this)
+        mountingSidebar = false
+      }
+    },
+    effect(setup) {
+      if (mountingSidebar) setup()
+    },
   })
   const session = { openState: 'open', pendingSubmissions: [], ...options.session }
-  const render = async () => {
+  const tab = {
+    signal: new AbortController().signal,
+    visible: true,
+    navigation: { revision: 1 },
+    actions: { bindCommands: () => () => {} },
+  }
+  const render = async (sessionId = 'session') => {
     cursor = 0
     const element = registered({
-      sessionId: 'session',
+      sessionId,
+      useTabInfo: () => ({ tab }),
       useSession: (select) => select(session),
       useAccess: () => options.canPrompt !== false,
       useProjection: () => (options.cwd === null ? undefined : '/repo'),
     })
-    const tree = element.type(element.props)
-    const conversation = { getAttribute: () => 'session', querySelector: () => ({}) }
-    for (const hook of hooks) {
+    const tree = sidebar ? element : element.type(element.props)
+    const conversation = { getAttribute: () => sessionId, querySelector: () => ({}) }
+    for (const hook of sidebar ? [] : hooks) {
       if (hook && typeof hook === 'object' && 'current' in hook && hook.current === null)
         hook.current = { closest: () => conversation }
     }
@@ -100,11 +133,37 @@ async function mount(operation, language = 'en', options = {}) {
     await new Promise((resolve) => setImmediate(resolve))
     return tree
   }
+  const common = {
+    calls,
+    messages,
+    openedTabs,
+    session,
+    render,
+    setRequestResult: (result) => (requestResult = result),
+    focus: () => listeners.get('focus')?.(),
+    unmount() {
+      for (const hook of hooks) hook?.cleanup?.()
+      hooks.length = 0
+    },
+  }
+  if (sidebar) return common
   await render()
   await render()
-  const tree = await render()
-  const actions = tree.props.children[0].props.children
-  return { primary: actions[0].props, menu: actions[1].props, calls, render }
+  let actions = (await render()).props.children[0].props.children
+  return {
+    ...common,
+    get primary() {
+      return actions[0].props
+    },
+    get menu() {
+      return actions[1]?.props
+    },
+    async refresh() {
+      await render()
+      actions = (await render()).props.children[0].props.children
+      return actions[0].props
+    },
+  }
 }
 
 await test('all Git actions use typed server RPC without sending conversation prompts in every locale', async () => {
@@ -123,21 +182,20 @@ await test('all Git actions use typed server RPC without sending conversation pr
         payload: { sessionId: 'session', cwd: '/repo', operation, requestId: '11111111-1111-4111-8111-111111111111' },
       })
       assert.ok(JSON.stringify((await view.render()).props.children).includes('aaaaaaaaaaaa'))
+      assert.equal(view.messages.length, 0)
     }
   }
 })
 
 await test('rapid repeated clicks cannot submit a duplicate command', async () => {
-  let release
-  const waiting = new Promise((resolve) => {
-    release = resolve
-  })
-  const view = await mount('pr', 'en', { execute: () => waiting })
+  const waiting = Promise.withResolvers()
+  const view = await mount('pr', 'en', { execute: () => waiting.promise })
   view.menu.onSelect('commit')
   view.menu.onSelect('commit')
   assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
-  release({ ok: true, value: { operation: 'commit', branch: 'feat/test', checks: [] } })
+  waiting.resolve({ ok: true, value: { operation: 'commit', branch: 'feat/test', checks: [] } })
   await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(view.messages.length, 0)
 })
 
 await test('server errors are localized and never retried automatically', async () => {
@@ -152,6 +210,7 @@ await test('server errors are localized and never retried automatically', async 
       language === 'ko' ? /스테이징/ : language === 'zh' ? /暂存/ : /staged/
     )
     assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+    assert.equal(view.messages.length, 0)
   }
 })
 
@@ -161,5 +220,116 @@ await test('busy, read-only viewers and missing directories disable Git actions'
     assert.equal(view.menu.anchor.props.disabled, true)
     view.menu.onSelect('commit')
     assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
+    assert.equal(view.messages.length, 0)
   }
+})
+
+await test('PR creation changes immediately to a sidebar view action after execute RPC succeeds in every locale', async () => {
+  for (const [language, createLabel, viewLabel] of [
+    ['en', 'Create PR', 'View PR'],
+    ['ko', 'PR 생성', 'PR 보기'],
+    ['zh', '创建 PR', '查看 PR'],
+  ]) {
+    const executed = Promise.withResolvers()
+    const mounted = await mount('pr', language, { execute: () => executed.promise })
+    assert.equal(mounted.primary.children[1], createLabel)
+    assert.ok(mounted.menu)
+    mounted.primary.onClick()
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
+    executed.resolve({
+      ok: true,
+      value: { operation: 'pr', branch: 'feat/test', url: 'https://github.com/team/project/pull/42', checks: [] },
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    const primary = await mounted.refresh()
+    assert.equal(mounted.session.running, undefined)
+    assert.equal(primary.children[1], viewLabel)
+    assert.equal(primary.disabled, false)
+    assert.equal(mounted.menu, undefined)
+    primary.onClick()
+    assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+    assert.equal(mounted.messages.length, 0)
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
+  }
+})
+
+await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
+  const mounted = await mount('pr', 'ko', { request: { number: 42 } })
+  assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.equal(mounted.menu, undefined)
+  mounted.primary.onClick()
+  assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+  assert.equal(mounted.messages.length, 0)
+  assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
+  const beforeFocus = mounted.calls.filter((call) => call.method === 'dungsil-vcs/pull-requests/list').length
+  assert.ok(beforeFocus > 0)
+  mounted.setRequestResult({ ok: true, value: { request: null } })
+  await mounted.focus()
+  assert.equal((await mounted.refresh()).children[1], 'PR 생성')
+  assert.ok(mounted.menu)
+  assert.ok(mounted.calls.filter((call) => call.method === 'dungsil-vcs/pull-requests/list').length > beforeFocus)
+  mounted.setRequestResult({ ok: false, error: { code: 'cli_missing' } })
+  await mounted.focus()
+  const primary = await mounted.refresh()
+  assert.equal(primary.children[1], 'PR 생성')
+  assert.equal(primary.disabled, false)
+})
+
+await test('sidebar shows an overview before details, reopens from cache, and keeps cached actions disabled while refreshing', async () => {
+  const overview = Promise.withResolvers()
+  const details = Promise.withResolvers()
+  const calls = []
+  const item = {
+    number: 17,
+    title: 'Fast overview',
+    url: 'https://github.com/team/project/pull/17',
+    source: 'topic',
+    target: 'main',
+    state: 'open',
+    headSha: '',
+    body: 'Description',
+    checks: [],
+    files: [],
+    comments: [],
+    reviews: [],
+    diff: '',
+  }
+  const view = { provider: 'github', repository: 'github.com/team/project', branch: 'topic', request: item }
+  const f = await mount(
+    (_channel, _method, payload) => {
+      calls.push(payload)
+      return payload.summary ? overview.promise : details.promise
+    },
+    'en',
+    { sidebar: true }
+  )
+  const initial = await f.render()
+  assert.equal(initial.props.children[2].props.children[0].type, 'div')
+  overview.resolve({ ok: true, value: view })
+  await f.render()
+  const partial = await f.render()
+  assert.ok(JSON.stringify(partial).includes('Fast overview'))
+  assert.equal(partial.props.children[2].props['aria-busy'], true)
+  assert.equal(partial.props.children[2].props.children[0], false)
+  assert.equal(partial.props.children[3].props.children[0], undefined)
+  assert.equal(partial.props.children[1].props.children[1].props['aria-busy'], true)
+  assert.deepEqual(
+    calls.map((call) => call.summary),
+    [true, false]
+  )
+  details.resolve({ ok: true, value: { ...view, request: { ...item, headSha: 'a'.repeat(40) } } })
+  await f.render()
+  assert.equal((await f.render()).props.children[2].props['aria-busy'], false)
+  f.unmount()
+  const cached = await f.render()
+  assert.ok(JSON.stringify(cached).includes('Fast overview'))
+  assert.equal(cached.props.children[2].props['aria-busy'], true)
+  assert.equal(cached.props.children[2].props.children[0], false)
+  assert.equal(cached.props.children[3].props.children[0], undefined)
+  const merge = cached.props.children[3].props.children[1].props.anchor.props.children[0]
+  assert.equal(merge.props.disabled, true)
+  f.unmount()
+  const otherSession = await f.render('other')
+  assert.ok(!JSON.stringify(otherSession).includes('Fast overview'))
+  f.unmount()
 })

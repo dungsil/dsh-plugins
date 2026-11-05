@@ -9,6 +9,11 @@ export const styles = `
 .dsh-pr-branch svg{width:14px;height:14px;flex-shrink:0}
 .dsh-pr-refresh{width:28px;padding:0;flex-shrink:0}
 .dsh-pr-refresh svg{width:16px;height:16px}
+.dsh-pr-loading{display:inline-flex;flex-shrink:0;width:16px;height:16px;vertical-align:middle;color:var(--dsw-alias-label-secondary)}
+.dsh-pr-loading svg{width:100%;height:100%;animation:dsh-pr-spin .8s linear infinite}
+.dsh-pr-initial-loading{display:flex;justify-content:center;padding:24px 16px}
+@keyframes dsh-pr-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.dsh-pr-loading svg{animation:none}}
 .dsh-pr-panel :is(a,textarea,summary,[role=tabpanel]):focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:-2px}
 .dsh-pr-content{overflow:auto;flex:1;min-height:0}
 .dsh-pr-content>p{padding:20px 16px;color:var(--dsw-alias-label-secondary);line-height:1.6}
@@ -24,6 +29,7 @@ export const styles = `
 .dsh-pr-refs code{min-width:0;overflow:hidden;text-overflow:ellipsis;padding:2px 6px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-module-platform);font-size:11px;line-height:1.5}
 .dsh-pr-refs code:last-child{flex-shrink:0;max-width:35%}
 .dsh-pr-ci-trigger{gap:5px;padding:2px 0 2px 6px;white-space:nowrap;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsh-pr-ci-trigger .dsh-pr-loading{width:12px;height:12px}
 .dsh-pr-ci-trigger>svg{width:12px;height:12px;transition:transform .15s}
 .dsh-pr-ci-trigger[aria-expanded=true]>svg{transform:rotate(180deg)}
 .dsh-pr-ci-results{font-size:12px;max-height:40vh;overflow:auto}

@@ -17,13 +17,15 @@ import {
   type GitActionResult,
   type GitOperation,
 } from './protocol.js'
+import { method, type RequestView } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-ui-vcs'
-export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs']
+export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sidebarRight']
 
 const copy = {
   en: {
     pr: 'Create PR',
+    viewPr: 'View PR',
     push: 'Push',
     commit: 'Commit only',
     menu: 'More Git actions',
@@ -42,6 +44,7 @@ const copy = {
   },
   ko: {
     pr: 'PR 생성',
+    viewPr: 'PR 보기',
     push: '푸시',
     commit: '커밋만',
     menu: '다른 Git 작업',
@@ -60,6 +63,7 @@ const copy = {
   },
   zh: {
     pr: '创建 PR',
+    viewPr: '查看 PR',
     push: '推送',
     commit: '仅提交',
     menu: '更多 Git 操作',
@@ -95,6 +99,7 @@ export function apply(ctx: Context) {
     const anchor = useRef<HTMLSpanElement>(null)
     const cwd = useProjection('workingDirectory')
     const [operation, setOperation] = useState<'push' | 'pr'>()
+    const [hasRequest, setHasRequest] = useState(false)
     const [lookup, setLookup] = useState<'loading' | 'ready' | 'error'>('loading')
     const [open, setOpen] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
@@ -120,12 +125,24 @@ export function apply(ctx: Context) {
         const signal = controller.signal
         setLookup('loading')
         setOperation(undefined)
+        setHasRequest(false)
         try {
           const result = await connection.rpc.call(channel, describeMethod, { sessionId }, signal)
           if (signal.aborted) return
           if (!result.ok || (result.value !== 'push' && result.value !== 'pr'))
             throw new Error('Git context unavailable')
           setOperation(result.value)
+          if (result.value === 'pr') {
+            // Review lookup may be unavailable before the first push or without a hosting CLI.
+            // Keep creation available. The server checks for an existing PR before each write.
+            try {
+              const requests = await connection.rpc.call(channel, method, { sessionId }, signal)
+              if (signal.aborted) return
+              if (requests.ok) setHasRequest(!!(requests.value as RequestView).request)
+            } catch {
+              if (signal.aborted) return
+            }
+          }
           setLookup('ready')
         } catch {
           if (!signal.aborted) setLookup('error')
@@ -140,8 +157,8 @@ export function apply(ctx: Context) {
     }, [sessionId, cwd, hasChanges, hidden, unavailable])
 
     useEffect(() => {
-      if (disabled) setOpen(false)
-    }, [disabled])
+      if (disabled || hasRequest) setOpen(false)
+    }, [disabled, hasRequest])
 
     useEffect(() => {
       const conversation = anchor.current?.closest('[data-conversation-session]')
@@ -189,6 +206,7 @@ export function apply(ctx: Context) {
         if (!isGitActionResult(response.value) || response.value.operation !== selected)
           throw new Error('Invalid Git response')
         setResult(response.value)
+        if (response.value.operation === 'pr' && response.value.url) setHasRequest(true)
         setStatus('sent')
       } catch {
         if (mounted.current) setStatus('error')
@@ -204,42 +222,53 @@ export function apply(ctx: Context) {
         <div className="dsh-vcs-actions">
           <Pill
             className="dsh-vcs-trigger"
-            disabled={disabled || !operation || lookup !== 'ready'}
-            title={text.hint}
+            disabled={(!hasRequest && disabled) || !operation || lookup !== 'ready'}
+            title={hasRequest ? text.viewPr : text.hint}
             aria-describedby={statusId}
             aria-busy={status === 'sending'}
-            onClick={() => operation && void send(operation)}
+            onClick={() => {
+              if (hasRequest) ctx.sidebarRight.openTab(PullRequests.name)
+              else if (operation) void send(operation)
+            }}
           >
             <IconBranchOutlineRegular aria-hidden="true" />
-            {status === 'sending' ? text.sending : operation === 'push' ? text.push : text.pr}
+            {hasRequest
+              ? text.viewPr
+              : status === 'sending'
+                ? text.sending
+                : operation === 'push'
+                  ? text.push
+                  : text.pr}
           </Pill>
-          <Menu
-            open={open}
-            side="top"
-            portal
-            compact
-            items={[{ id: 'commit', label: text.commit }]}
-            onClose={() => setOpen(false)}
-            onSelect={() => void send('commit')}
-            anchor={
-              <Pill
-                className="dsh-vcs-trigger dsh-vcs-menu"
-                disabled={disabled}
-                aria-label={text.menu}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                onClick={() => setOpen((value) => !value)}
-                onKeyDown={(event) => {
-                  if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
-                    event.preventDefault()
-                    setOpen(true)
-                  }
-                }}
-              >
-                <IconChevronDownOutlineRegular aria-hidden="true" />
-              </Pill>
-            }
-          />
+          {!hasRequest && (
+            <Menu
+              open={open}
+              side="top"
+              portal
+              compact
+              items={[{ id: 'commit', label: text.commit }]}
+              onClose={() => setOpen(false)}
+              onSelect={() => void send('commit')}
+              anchor={
+                <Pill
+                  className="dsh-vcs-trigger dsh-vcs-menu"
+                  disabled={disabled}
+                  aria-label={text.menu}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={() => setOpen((value) => !value)}
+                  onKeyDown={(event) => {
+                    if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                      event.preventDefault()
+                      setOpen(true)
+                    }
+                  }}
+                >
+                  <IconChevronDownOutlineRegular aria-hidden="true" />
+                </Pill>
+              }
+            />
+          )}
         </div>
         <span id={statusId} role={status === 'error' ? 'alert' : 'status'} className="dsh-vcs-status">
           {status === 'error'
@@ -287,6 +316,7 @@ export function apply(ctx: Context) {
 .dsh-vcs { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance)); max-width: var(--dsh-composer-card-max-width); margin: 0 auto; padding-bottom: 8px; }
 .dsh-vcs-actions { display: inline-flex; align-items: center; }
 .dsh-vcs-actions > .dsh-vcs-trigger { border-radius: 14px 0 0 14px; }
+.dsh-vcs-actions > .dsh-vcs-trigger:only-child { border-radius: 14px; }
 .dsh-vcs-actions .dsh-vcs-menu { border-radius: 0 14px 14px 0; border-left: 0; padding: 0 7px; }
 .dsh-vcs-notice { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .dsh-vcs-trigger { height: 28px; max-width: 100%; padding: 0 10px; border: 1px solid var(--dsw-alias-border-l2); font: inherit; font-size: 12px; line-height: 18px; }
