@@ -99,6 +99,33 @@ export function apply(ctx: Context, config: Config) {
   const actionsInFlight = new Set<string>()
   ctx.effect(() => () => lifetime.abort())
 
+  // Every sidebar row refreshes independently. Bound the whole lookup, including
+  // executable resolution and sandbox helpers, not just the final CLI command.
+  let activeLookups = 0
+  const waiting = new Set<() => void>()
+  const acquire = (signal: AbortSignal) =>
+    new Promise<() => void>((resolve, reject) => {
+      signal.throwIfAborted()
+      const start = () => {
+        waiting.delete(start)
+        signal.removeEventListener('abort', cancel)
+        activeLookups++
+        resolve(() => {
+          activeLookups--
+          waiting.values().next().value?.()
+        })
+      }
+      const cancel = () => {
+        waiting.delete(start)
+        reject(signal.reason)
+      }
+      if (activeLookups < 4) start()
+      else {
+        waiting.add(start)
+        signal.addEventListener('abort', cancel, { once: true })
+      }
+    })
+
   const list = async (
     agent: Agent,
     signal: AbortSignal,
@@ -999,6 +1026,7 @@ export function apply(ctx: Context, config: Config) {
           if (!input || typeof input.sessionId !== 'string' || !input.sessionId)
             return reply({ ok: false, error: { code: 'unavailable', message: 'Invalid session', details: {} } })
           let inFlight: string | undefined
+          let release: (() => void) | undefined
           try {
             let action: RequestAction | undefined
             if (route === actionMethod) {
@@ -1013,9 +1041,12 @@ export function apply(ctx: Context, config: Config) {
             }
             const requested =
               route === method && input.requestUrl !== undefined ? lookupUrl(input.requestUrl) : undefined
+            const pending = AbortSignal.any([request.signal, lifetime.signal])
+            release = await acquire(pending)
+            pending.throwIfAborted()
             const resolved = await ctx.sessionController.resolveAgent(SessionId(input.sessionId))
             if ('error' in resolved) throw new Error('unavailable')
-            const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(20_000)])
+            const signal = AbortSignal.any([pending, AbortSignal.timeout(20_000)])
             const value = await list(resolved.agent, signal, action, requested, input.summary === true)
             if (action && !('completed' in value)) throw new Error('stale_request')
             return reply({ ok: true, value })
@@ -1047,6 +1078,7 @@ export function apply(ctx: Context, config: Config) {
               },
             })
           } finally {
+            release?.()
             if (inFlight) actionsInFlight.delete(inFlight)
           }
         },

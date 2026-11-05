@@ -216,7 +216,7 @@ export function apply(ctx: Context) {
       let active: AbortController | undefined
       setView(undefined)
       const refresh = async () => {
-        active?.abort()
+        if (active || document.visibilityState === 'hidden') return
         active = new AbortController()
         const { signal } = active
         try {
@@ -224,6 +224,8 @@ export function apply(ctx: Context) {
           if (!signal.aborted) setView(result.ok ? (result.value as RequestView) : undefined)
         } catch {
           if (!signal.aborted) setView(undefined)
+        } finally {
+          active = undefined
         }
       }
       void refresh()

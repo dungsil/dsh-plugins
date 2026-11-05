@@ -16,6 +16,15 @@ function mount(language = 'en') {
   const intervals = new Set()
   const session = { running: false, cwd: '/repo' }
   const hosts = []
+  const document = {
+    visibilityState: 'visible',
+    createElement: () => ({
+      style: {},
+      remove() {
+        this.removed = true
+      },
+    }),
+  }
   let cursor = 0,
     plugin,
     mounted = 'session',
@@ -65,14 +74,7 @@ function mount(language = 'en') {
     AbortSignal,
     URL,
     Element,
-    document: {
-      createElement: () => ({
-        style: {},
-        remove() {
-          this.removed = true
-        },
-      }),
-    },
+    document,
     window: {
       addEventListener: (name, listener) => listeners.set(name, listener),
       removeEventListener: (name, listener) => {
@@ -205,6 +207,7 @@ function mount(language = 'en') {
     session,
     hosts,
     intervals,
+    document,
     focus: () => listeners.get('focus')?.(),
     setLanguage: (value) => {
       language = value
@@ -282,6 +285,34 @@ await test('세션 배지는 모든 로케일에서 MR 상태를 구분하고, �
   }
   assert.equal(fixture.intervals.size, 0)
   assert.ok(fixture.hosts.every((host) => host.removed))
+})
+
+await test('세션 배지는 진행 중인 조회를 중복 실행하지 않고 숨겨진 탭에서는 갱신하지 않는다', async () => {
+  const fixture = mount()
+  try {
+    fixture.renderBadge()
+    for (let i = 0; i < 5; i++) {
+      fixture.focus()
+      for (const refresh of fixture.intervals) refresh()
+    }
+    assert.equal(fixture.calls.length, 1)
+    assert.equal(fixture.calls[0].signal.aborted, false)
+    fixture.calls[0].resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+    fixture.document.visibilityState = 'hidden'
+    fixture.focus()
+    for (const refresh of fixture.intervals) refresh()
+    assert.equal(fixture.calls.length, 1)
+    fixture.document.visibilityState = 'visible'
+    fixture.focus()
+    assert.equal(fixture.calls.length, 2)
+    fixture.dispose()
+    assert.equal(fixture.calls[1].signal.aborted, true)
+    assert.equal(fixture.intervals.size, 0)
+  } finally {
+    fixture.dispose()
+  }
 })
 
 await test('세션 배지는 에이전트 활동과 디렉터리 변경 후 새로 고치고, 대체된 응답은 버린다', async () => {
