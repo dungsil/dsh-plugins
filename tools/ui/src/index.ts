@@ -17,6 +17,7 @@ export {
   StateDot,
   Switch,
   Tag,
+  Tooltip,
   focusWithoutRing,
   useDismissOnOutsidePointer,
   writeClipboard,
