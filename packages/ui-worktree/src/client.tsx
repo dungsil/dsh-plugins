@@ -11,11 +11,12 @@ import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   IconBranchOutlineRegular,
+  IconCheckOutlineRegular,
   IconPlusOutlineRegular,
   IconCloseOutlineRegular,
   worktreeSettingsIconSvg,
 } from '@dungsil/dsh-ui/icons'
-import { installSettingsIcon, Menu } from '@dungsil/dsh-ui'
+import { installSettingsIcon, Menu, MenuItemButton } from '@dungsil/dsh-ui'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
@@ -39,8 +40,12 @@ export function apply(ctx: Context) {
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
-    const running = useSession((s) => s.running)
-    const wasRunning = useRef(running)
+    const unavailableRef = useRef(unavailable)
+    unavailableRef.current = unavailable
+    const unreadable = useSession((s) => s.removed || s.openState !== 'open')
+    const unreadableRef = useRef(unreadable)
+    unreadableRef.current = unreadable
+    const previousReadiness = useRef({ unreadable: true, unavailable })
     const [view, setView] = useState<WorktreeView>()
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
@@ -48,6 +53,7 @@ export function apply(ctx: Context) {
     const [changed, setChanged] = useState(false)
     const [open, setOpen] = useState(false)
     const pending = useRef(false)
+    const reloadRequested = useRef(false)
     const needsRefresh = useRef(false)
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
@@ -81,21 +87,39 @@ export function apply(ctx: Context) {
     // and ignore replies after unmount (including navigation to another Session).
     const load = async (explicit = false) => {
       const controller = lifetime.current
-      if (!controller || controller.signal.aborted || pending.current || (needsRefresh.current && !explicit)) return
+      if (!controller || controller.signal.aborted || unreadableRef.current || (needsRefresh.current && !explicit))
+        return
+      if (pending.current) {
+        reloadRequested.current = true
+        return
+      }
+      reloadRequested.current = false
       pending.current = true
       setLoading(true)
+      let operation: WorktreeOperation = 'describe'
       try {
         const view = await request('describe', { sessionId }, controller.signal)
         if (controller.signal.aborted) return
         setView(view)
+        if (view.needsInitialization && !unavailableRef.current) {
+          operation = 'initialize'
+          const initialized = await request('initialize', { sessionId, cwd: view.cwd }, controller.signal)
+          if (controller.signal.aborted) return
+          setView(initialized)
+        }
         needsRefresh.current = false
         setError(undefined)
       } catch (cause) {
-        if (!controller.signal.aborted) recordFailure('describe', cause)
+        // A busy response changes nothing. Keep prior errors until verification succeeds.
+        if (!controller.signal.aborted && failureCode(cause) !== 'busy') recordFailure(operation, cause)
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
           setLoading(false)
+          if (reloadRequested.current) {
+            reloadRequested.current = false
+            void load()
+          }
         }
       }
     }
@@ -104,7 +128,6 @@ export function apply(ctx: Context) {
       const controller = new AbortController()
       lifetime.current = controller
       pending.current = false
-      void load()
       const focus = () => {
         void load()
       }
@@ -121,9 +144,10 @@ export function apply(ctx: Context) {
     }, [])
 
     useEffect(() => {
-      if (wasRunning.current && !running) void load()
-      wasRunning.current = running
-    }, [running])
+      const previous = previousReadiness.current
+      previousReadiness.current = { unreadable, unavailable }
+      if (!unreadable && (previous.unreadable || (previous.unavailable && !unavailable))) void load()
+    }, [unreadable, unavailable])
 
     useEffect(() => {
       if (disabled) setOpen(false)
@@ -209,24 +233,8 @@ export function apply(ctx: Context) {
           open={open}
           side="top"
           portal
-          selectedId={creation ? 'create' : current ? `path:${current.path}` : undefined}
-          items={[
-            { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
-            ...(view?.worktrees.map((item) => ({
-              id: `path:${item.path}`,
-              label: item.branch ?? text.detached,
-              icon: <IconBranchOutlineRegular />,
-            })) ?? []),
-          ]}
+          listClassName="dsh-worktree-menu"
           onClose={() => setOpen(false)}
-          onSelect={(id) => {
-            setOpen(false)
-            if (disabled || pending.current) return
-            if (id === 'create') {
-              if (!creation || creation.failed) void change('create')
-            } else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
-              void change('switch', id.slice(5))
-          }}
           anchor={
             <ComposerTrigger
               ref={trigger}
@@ -252,7 +260,57 @@ export function apply(ctx: Context) {
               }}
             />
           }
-        />
+        >
+          <div className="dsh-worktree-pinned">
+            <MenuItemButton
+              icon={<IconPlusOutlineRegular />}
+              current={!!creation}
+              onSelect={() => {
+                setOpen(false)
+                if (!creation || creation.failed) void change('create')
+              }}
+            >
+              <span className="dsh-worktree-option">
+                <span>{text.create}</span>
+                {creation && <IconCheckOutlineRegular />}
+              </span>
+            </MenuItemButton>
+            {view?.worktrees.slice(0, 1).map((item) => (
+              <MenuItemButton
+                key={item.path}
+                icon={<IconBranchOutlineRegular />}
+                current={!creation && current === item}
+                onSelect={() => {
+                  setOpen(false)
+                  if (creation || current !== item) void change('switch', item.path)
+                }}
+              >
+                <span className="dsh-worktree-option">
+                  <span>{item.branch ?? text.detached}</span>
+                  <span className="dsh-worktree-badge">{text.primaryBranch}</span>
+                  {!creation && current === item && <IconCheckOutlineRegular />}
+                </span>
+              </MenuItemButton>
+            ))}
+          </div>
+          {view?.worktrees.slice(1).map((item, index) => (
+            <MenuItemButton
+              key={item.path}
+              icon={<IconBranchOutlineRegular />}
+              current={!creation && current === item}
+              separatorBefore={index === 0}
+              onSelect={() => {
+                setOpen(false)
+                if (creation || current !== item) void change('switch', item.path)
+              }}
+            >
+              <span className="dsh-worktree-option">
+                <span>{item.branch ?? text.detached}</span>
+                {!creation && current === item && <IconCheckOutlineRegular />}
+              </span>
+            </MenuItemButton>
+          ))}
+        </Menu>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>

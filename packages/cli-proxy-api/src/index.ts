@@ -19,6 +19,7 @@ import {
   type ProxyModel,
 } from './protocol.js'
 import { fetchQuota, supportsQuota } from './quota.js'
+import { isDisabled, mergeAPIKeyAccounts } from './api-key-accounts.js'
 
 export const name = 'dungsil-cli-proxy-api'
 export const inject = ['connection', 'configEditor', 'credentials', 'llm']
@@ -275,7 +276,9 @@ export function apply(ctx: Context, config: Config) {
       const getAccounts = async () => {
         const files = record(await management('credentials')).files
         if (!Array.isArray(files)) throw new Error('invalid_response')
-        return files.map(record)
+        const snapshot = await request(baseURL, '/v8/management/config', 'management', signal)
+        if (!snapshot.etag) throw new Error('unavailable')
+        return mergeAPIKeyAccounts(files.map(record), snapshot.data, snapshot.etag)
       }
       const accounts = await getAccounts()
       if (endpoint === 'quota-list') {
@@ -285,7 +288,7 @@ export function apply(ctx: Context, config: Config) {
               name: text(row.name),
               provider: typeof row.provider === 'string' ? row.provider : typeof row.type === 'string' ? row.type : '',
               status: '',
-              disabled: row.disabled === true,
+              disabled: isDisabled(row.disabled),
               authIndex: typeof row.auth_index === 'string' ? row.auth_index : '',
               editable: row.source === 'file' && row.runtime_only !== true,
               supported: supportsQuota(row),
@@ -295,18 +298,19 @@ export function apply(ctx: Context, config: Config) {
       const find = (rows: Record<string, unknown>[]) =>
         rows.find((row) => row.name === text(input.name) && row.auth_index === text(input.authIndex))
       const account = find(accounts)
-      if (!account || account.disabled === true) throw new Error('conflict')
+      if (!account || isDisabled(account.disabled)) throw new Error('conflict')
       const connectionRevision = revision()
       const result = await fetchQuota(account, management)
       const current = find(await getAccounts())
       if (
         revision() !== connectionRevision ||
         !current ||
-        current.disabled === true ||
+        isDisabled(current.disabled) ||
         current.provider !== account.provider ||
         current.type !== account.type ||
         current.modtime !== account.modtime ||
-        current.updated_at !== account.updated_at
+        current.updated_at !== account.updated_at ||
+        current.quotaConfigRevision !== account.quotaConfigRevision
       )
         throw new Error('conflict')
       return result

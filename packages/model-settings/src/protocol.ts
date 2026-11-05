@@ -18,6 +18,7 @@ export interface ModelSettingsView {
   auxiliary: TitleTarget | null
   target: TitleTarget | null
   worktree?: TitleTarget | null
+  yoonmoon?: TitleTarget | null
   providers: {
     id: string
     name: string

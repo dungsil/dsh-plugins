@@ -89,7 +89,12 @@ async function mount(operation, language = 'en', sidebar = false) {
     },
   })
   const session = { openState: 'open', pendingSubmissions: [] }
-  const tab = { signal: new AbortController().signal, visible: true, actions: { bindCommands: () => () => {} } }
+  const tab = {
+    signal: new AbortController().signal,
+    visible: true,
+    navigation: { revision: 1 },
+    actions: { bindCommands: () => () => {} },
+  }
   const render = async (sessionId = 'session') => {
     cursor = 0
     const element = registered({

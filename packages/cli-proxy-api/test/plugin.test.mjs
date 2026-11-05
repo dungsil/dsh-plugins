@@ -25,6 +25,7 @@ async function fixture(t) {
   let disabled = false
   let oauthStatus = 'wait'
   let configVersion = 1
+  let configETag = true
   let conflictWrite = false
   let quotaAccounts
   let quotaStatus = 200
@@ -86,7 +87,7 @@ async function fixture(t) {
     }
     const path = new URL(req.url, 'http://localhost').pathname
     if (path === '/v8/management/config') {
-      res.setHeader('ETag', `"${configVersion}"`)
+      if (configETag) res.setHeader('ETag', `"${configVersion}"`)
       return send({ 'api-keys': providerGroups, management: { 'secret-key': 'private-management-secret' } })
     }
     if (path.startsWith('/v8/management/config/api-keys/')) {
@@ -250,6 +251,9 @@ async function fixture(t) {
     },
     changeConfig() {
       configVersion++
+    },
+    setConfigETag(value) {
+      configETag = value
     },
     conflictWrite() {
       conflictWrite = true
@@ -657,4 +661,294 @@ await test('native quota providers keep credential downloads server-side and use
     ),
     false
   )
+})
+
+await test('API-key quota accounts merge config with credentials and project only display fields', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([
+    { name: 'oauth.json', provider: 'codex', auth_index: 'oauth', source: 'file' },
+    {
+      name: 'runtime-go',
+      provider: 'openai-compatible-custom',
+      auth_index: 'go',
+      runtime_only: true,
+      supports_quota: true,
+      quota_plugin_id: 'unrelated-plugin',
+    },
+  ])
+  h.providerGroups['openai-compatibility'] = [
+    {
+      name: 'Custom Go',
+      'base-url': 'https://opencode.ai/zen/go/v1',
+      headers: { Authorization: 'private-custom-header' },
+      keys: [
+        { 'api-key': 'private-go-key', auth_index: 'go' },
+        { 'api-key': 'private-go-key-2', auth_index: 'go-2' },
+      ],
+    },
+    {
+      name: 'Custom Ollama',
+      'base-url': 'https://ollama.com/v1',
+      keys: [{ 'api-key': 'private-ollama-key', auth_index: 'ollama' }],
+    },
+  ]
+  h.quotaBodies.set('https://opencode.ai/zen/go/v1/usage', {
+    usage: {
+      rolling: { percent: 1, resetsAt: '2099-01-01T05:00:00Z' },
+      weekly: { percent: 100, resetsAt: '2099-01-08T00:00:00Z' },
+      monthly: { percent: 32 },
+    },
+    token: 'private-go-key',
+  })
+  h.quotaBodies.set('https://ollama.com/api/balance', {
+    included: {
+      balance_usd: 72.5,
+      allowance_usd: 100,
+      period: { from: '2099-01-01T00:00:00Z', until: '2099-02-01T00:00:00Z' },
+    },
+    purchased: { balance_usd: 25 },
+    token: 'private-ollama-key',
+  })
+  const accounts = (await h.rpc('quota-list')).value
+  assert.equal(accounts.length, 4)
+  assert.equal(accounts.filter((row) => row.authIndex === 'go').length, 1)
+  assert.deepEqual(
+    accounts.map((row) => row.provider),
+    ['codex', 'opencode-go', 'opencode-go', 'ollama-cloud']
+  )
+  assert.equal(accounts[1].name, 'Custom Go · 1')
+  assert.ok(accounts.every((row) => row.supported))
+  assert.ok(accounts.slice(1).every((row) => !row.editable))
+  assert.equal(/private-|quotaConfigRevision|base-url|headers/.test(JSON.stringify(accounts)), false)
+  const go = await h.rpc('quota-fetch', { name: accounts[1].name, authIndex: 'go', url: 'https://evil.example' })
+  assert.equal(go.ok, true, JSON.stringify(go))
+  assert.deepEqual(
+    go.value.windows.map((row) => row.usedPercent),
+    [1, 100, 32]
+  )
+  assert.equal(go.value.windows[0].periodSeconds, 18000)
+  assert.equal(go.value.windows[2].periodSeconds, undefined)
+  const ollama = await h.rpc('quota-fetch', { name: accounts[3].name, authIndex: 'ollama' })
+  assert.equal(ollama.ok, true, JSON.stringify(ollama))
+  assert.equal(ollama.value.windows.length, 1)
+  assert.ok(Math.abs(ollama.value.windows[0].usedPercent - 27.5) < 0.001)
+  assert.equal(ollama.value.windows[0].resetAt, '2099-02-01T00:00:00.000Z')
+  assert.equal(/private-/.test(JSON.stringify([go, ollama])), false)
+  const calls = h.requests.filter((row) => row.url.endsWith('/requests/api-call'))
+  assert.equal(calls.length, 2)
+  assert.ok(calls.every((row) => row.body.method === 'GET' && row.body.header.Authorization === 'Bearer $TOKEN$'))
+  assert.ok(calls.every((row) => !row.body.data && !row.body.header.Host && !row.body.proxy_url))
+  assert.equal(/private-|evil/.test(JSON.stringify(calls.map((row) => row.body))), false)
+  assert.equal(
+    h.requests.some((row) => /credentials\/download|cooldown|consume|chat\/completions/.test(row.url)),
+    false
+  )
+})
+
+await test('API-key quota endpoint allowlist accepts official bases without name-based credential forwarding', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([])
+  const accepted = [
+    'https://opencode.ai/zen/go/v1/',
+    'https://opencode.ai/inference/go/openai/v1',
+    'https://opencode.ai/inference/go/anthropic/v1',
+    'https://opencode.ai/inference/go/google/v1beta',
+    'https://ollama.com',
+    'https://ollama.com/api/',
+    'https://ollama.com/v1',
+  ]
+  const rejected = [
+    'http://opencode.ai/zen/go/v1',
+    'https://opencode.ai.evil.example/zen/go/v1',
+    'https://evil.example/zen/go/v1',
+    'https://opencode.ai/zen/v1',
+    'https://opencode.ai/zen/go/v1?token=private-key',
+    'https://private-key@ollama.com/v1',
+    'https://ollama.com:8443/v1',
+    'https://ollama.com/v1#private-key',
+    'https://ollama.com.evil.example/v1',
+    'https://ollama.com/%76%31',
+    'not a url',
+  ]
+  h.providerGroups['openai-compatibility'] = [...accepted, ...rejected].map((url, i) => ({
+    name: 'OpenCode Go Ollama Cloud',
+    'base-url': url,
+    keys: [{ 'api-key': 'private-key', auth_index: `key-${i}` }],
+  }))
+  h.providerGroups.claude = [
+    {
+      name: 'Anthropic Go',
+      'base-url': 'https://opencode.ai/inference/go/anthropic/v1',
+      keys: [{ 'api-key': 'private-key', auth_index: 'claude-go' }],
+    },
+  ]
+  const accounts = (await h.rpc('quota-list')).value
+  assert.equal(accounts.length, accepted.length + 1)
+  assert.equal(accounts.find((row) => row.authIndex === 'claude-go').provider, 'opencode-go')
+  assert.equal(JSON.stringify(accounts).includes('private-key'), false)
+  assert.equal(
+    h.requests.some((row) => row.url.endsWith('/requests/api-call')),
+    false
+  )
+  for (let i = accepted.length; i < accepted.length + rejected.length; i++) {
+    const result = await h.rpc('quota-fetch', { name: 'OpenCode Go Ollama Cloud · 1', authIndex: `key-${i}` })
+    assert.equal(result.error.code, 'conflict')
+  }
+})
+
+await test('API-key quota handles Ollama legacy limits, unknown values and upstream errors', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([])
+  h.providerGroups['openai-compatibility'] = [
+    {
+      name: 'Ollama',
+      'base-url': 'https://ollama.com/v1',
+      keys: [{ 'api-key': 'private-key', auth_index: 'ollama' }],
+    },
+  ]
+  const account = (await h.rpc('quota-list')).value[0]
+  const lookup = () => h.rpc('quota-fetch', { name: account.name, authIndex: account.authIndex })
+  h.quotaBodies.set('https://ollama.com/api/balance', {
+    included: {
+      session: { remaining_percent: 75, resets_at: '2099-01-01T05:00:00Z' },
+      weekly: { remaining_percent: 0 },
+    },
+  })
+  let result = await lookup()
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.deepEqual(
+    result.value.windows.map((row) => row.usedPercent),
+    [25, 100]
+  )
+  assert.equal(result.value.windows[0].periodSeconds, undefined)
+  for (const included of [
+    { allowance_usd: 0, balance_usd: 0 },
+    { allowance_usd: null, balance_usd: null },
+    { allowance_usd: 'invalid', balance_usd: 10 },
+    { session: { remaining_percent: -1 }, weekly: { remaining_percent: 101 } },
+  ]) {
+    h.quotaBodies.set('https://ollama.com/api/balance', { included, purchased: { balance_usd: 25 } })
+    result = await lookup()
+    assert.equal(result.ok, true, JSON.stringify(result))
+    assert.ok(result.value.windows.every((row) => row.usedPercent === undefined))
+  }
+  for (const [balance, expected] of [
+    ['72.5', 27.5],
+    [0, 100],
+    [120, 0],
+    [-10, 100],
+  ]) {
+    h.quotaBodies.set('https://ollama.com/api/balance', { included: { allowance_usd: '100', balance_usd: balance } })
+    result = await lookup()
+    assert.ok(Math.abs(result.value.windows[0].usedPercent - expected) < 0.001)
+  }
+  for (const status of [401, 403, 429, 503]) {
+    h.setQuotaStatus(status)
+    result = await lookup()
+    assert.equal(result.error.code, 'upstream_failed')
+    assert.equal(JSON.stringify(result).includes('private-key'), false)
+  }
+})
+
+await test('API-key quota rejects disabled, removed and rotated configuration snapshots', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([])
+  const group = {
+    name: 'Go',
+    'base-url': 'https://opencode.ai/zen/go/v1',
+    keys: [{ 'api-key': 'private-before', auth_index: 'go' }],
+  }
+  h.providerGroups['openai-compatibility'] = [group]
+  h.quotaBodies.set('https://opencode.ai/zen/go/v1/usage', { usage: { rolling: { percent: 50 } } })
+  const account = (await h.rpc('quota-list')).value[0]
+  const lookup = () => h.rpc('quota-fetch', { name: account.name, authIndex: account.authIndex })
+  for (const disabled of [true, 'true', '1', 1]) {
+    group.disabled = disabled
+    assert.equal((await h.rpc('quota-list')).value[0].supported, false)
+    assert.equal((await lookup()).error.code, 'conflict')
+  }
+  delete group.disabled
+  group.keys[0].disabled = true
+  assert.equal((await lookup()).error.code, 'conflict')
+  delete group.keys[0].disabled
+  h.afterQuota(() => {
+    group.keys[0]['api-key'] = 'private-after'
+    h.changeConfig()
+  })
+  assert.equal((await lookup()).error.code, 'conflict')
+  h.afterQuota(() => {
+    group['base-url'] = 'https://evil.example'
+    h.changeConfig()
+  })
+  assert.equal((await lookup()).error.code, 'conflict')
+  assert.equal((await lookup()).error.code, 'conflict')
+  assert.equal(h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length, 2)
+})
+
+await test('API-key quota uses management ETag changes and rejects missing version metadata', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([])
+  h.providerGroups['openai-compatibility'] = [
+    {
+      name: 'Go',
+      'base-url': 'https://opencode.ai/zen/go/v1',
+      keys: [{ 'api-key': 'private-key', auth_index: 'go' }],
+    },
+  ]
+  h.quotaBodies.set('https://opencode.ai/zen/go/v1/usage', { usage: { rolling: { percent: 25 } } })
+  const account = (await h.rpc('quota-list')).value[0]
+  const lookup = () => h.rpc('quota-fetch', { name: account.name, authIndex: account.authIndex })
+  h.afterQuota(() => h.changeConfig())
+  const stale = await lookup()
+  assert.equal(stale.ok, false, JSON.stringify(stale))
+  assert.equal(stale.error.code, 'conflict')
+  h.afterQuota(undefined)
+  const current = await lookup()
+  assert.equal(current.ok, true, JSON.stringify(current))
+  assert.equal(current.value.windows[0].usedPercent, 25)
+  assert.equal(/private-key|quotaConfigRevision/.test(JSON.stringify(current)), false)
+  h.setConfigETag(false)
+  const calls = h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length
+  assert.equal((await h.rpc('quota-list')).error.code, 'unavailable')
+  assert.equal((await lookup()).error.code, 'unavailable')
+  assert.equal(h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length, calls)
+})
+
+await test('API-key quota requires a server auth index and never invents missing OpenCode usage', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  h.setQuotaAccounts([])
+  h.providerGroups['openai-compatibility'] = [
+    {
+      name: 'Go',
+      'base-url': 'https://opencode.ai/zen/go/v1',
+      keys: [{ 'api-key': 'private-key' }],
+    },
+  ]
+  let account = (await h.rpc('quota-list')).value[0]
+  assert.equal(account.supported, false)
+  assert.equal(account.authIndex, '')
+  const blocked = await h.rpc('quota-fetch', { name: account.name, authIndex: 'forged' })
+  assert.equal(blocked.error.code, 'conflict')
+  h.providerGroups['openai-compatibility'][0].keys[0].auth_index = 'go'
+  account = (await h.rpc('quota-list')).value[0]
+  for (const payload of [
+    {},
+    { usage: {} },
+    { usage: { rolling: null } },
+    {
+      usage: { rolling: { percent: null }, weekly: { percent: -1 }, monthly: { percent: 101 } },
+    },
+  ]) {
+    h.quotaBodies.set('https://opencode.ai/zen/go/v1/usage', payload)
+    const result = await h.rpc('quota-fetch', { name: account.name, authIndex: account.authIndex })
+    assert.equal(result.ok, true, JSON.stringify(result))
+    assert.ok(result.value.windows.every((window) => window.usedPercent === undefined))
+    assert.ok(result.value.windows.every((window) => window.resetAt === undefined))
+  }
 })

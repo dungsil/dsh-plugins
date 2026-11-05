@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -30,9 +31,16 @@ import zh from '../locale/zh.json' with { type: 'json' }
 import { splitMarkdownSections, type MarkdownSection } from './markdown-sections.js'
 import { actionMethod, channel, method, type RequestAction, type RequestView } from './pull-requests-protocol.js'
 import { styles } from './pull-requests-styles.js'
+import { bindPullRequestLinks, pullRequestUrl } from './pull-request-links.js'
 
 export const name = 'dungsil-vcs-pull-requests'
-export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs']
+export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sidebarRight']
+
+declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
+  interface SidebarRightTabParamsMap {
+    'dungsil-vcs-pull-requests': { requestUrl?: string }
+  }
+}
 
 type ReviewAction = Exclude<RequestAction['action'], 'merge'>
 type Strategy = NonNullable<RequestAction['strategy']>
@@ -139,12 +147,29 @@ export function apply(ctx: Context) {
     return language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
   }
 
+  function Links({ sessionId }: PropsRuntime<'conversation.input.dock'>) {
+    const anchor = useRef<HTMLSpanElement>(null)
+    useEffect(() => {
+      const conversation = anchor.current?.closest('[data-conversation-session]')
+      if (conversation?.getAttribute('data-conversation-session') !== sessionId) return
+      return bindPullRequestLinks(conversation, (requestUrl) => {
+        if (ctx.sidebarRight.mounted.getSnapshot() !== sessionId) return false
+        ctx.sidebarRight.openTab(name, { params: { requestUrl } })
+        return true
+      })
+    }, [sessionId])
+    return <span ref={anchor} hidden />
+  }
+
   function Requests({ sessionId, useTabInfo, useSession }: PropsRuntime<'sidebar.right.pane.tab'>) {
     useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
     const copy = text()
     const { tab } = useTabInfo()
+    const params = tab.navigation.params as { requestUrl?: unknown } | undefined
+    const requestUrl = typeof params?.requestUrl === 'string' ? pullRequestUrl(params.requestUrl) : undefined
+    const cacheKey = JSON.stringify([sessionId, requestUrl])
     const running = useSession((session) => session.running)
-    const [view, setView] = useState<RequestView | undefined>(() => views.get(sessionId))
+    const [view, setView] = useState<RequestView | undefined>(() => views.get(cacheKey))
     const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState<'overview' | 'changes' | 'conversation'>('overview')
@@ -167,6 +192,10 @@ export function apply(ctx: Context) {
     )
     const canReview =
       !!item &&
+      (!requestUrl ||
+        (view?.provider === 'github'
+          ? pullRequestUrl(item.url)?.toLowerCase() === requestUrl.toLowerCase()
+          : pullRequestUrl(item.url) === requestUrl)) &&
       item.state === 'open' &&
       !!item.headSha &&
       !item.detailsError &&
@@ -208,14 +237,19 @@ export function apply(ctx: Context) {
       try {
         // A cached snapshot is display-only while the fresh, full read is in flight.
         // On first open, show the cheap overview without waiting for CI or a large diff.
-        for (const summary of views.has(sessionId) ? [false] : [true, false]) {
-          const result = await connection.rpc.call(channel, method, { sessionId, summary }, signal)
+        for (const summary of views.has(cacheKey) ? [false] : [true, false]) {
+          const result = await connection.rpc.call(
+            channel,
+            method,
+            { sessionId, summary, ...(requestUrl ? { requestUrl } : {}) },
+            signal
+          )
           signal.throwIfAborted()
           if (!result.ok) throw result.error
           const next = result.value as RequestView
           setView(next)
-          views.delete(sessionId)
-          views.set(sessionId, next)
+          views.delete(cacheKey)
+          views.set(cacheKey, next)
           if (views.size > 20) views.delete(views.keys().next().value!)
           if (!next.request) break
         }
@@ -223,9 +257,11 @@ export function apply(ctx: Context) {
         if (signal.aborted) return
         const code = (cause as { code?: string } | null)?.code
         setError(
-          code && ['repository', 'unsupported', 'cli_missing', 'command_failed', 'invalid_response'].includes(code)
-            ? (code as Exclude<keyof typeof en, 'meta'>)
-            : 'unavailable'
+          code === 'unsupported' && requestUrl
+            ? 'link_unsupported'
+            : code && ['repository', 'unsupported', 'cli_missing', 'command_failed', 'invalid_response'].includes(code)
+              ? (code as Exclude<keyof typeof en, 'meta'>)
+              : 'unavailable'
         )
       } finally {
         if (!signal.aborted) setLoading(false)
@@ -233,7 +269,7 @@ export function apply(ctx: Context) {
     }
 
     useEffect(() => {
-      setView(views.get(sessionId))
+      setView(views.get(cacheKey))
       setBody('')
       setConfirmation(undefined)
       setNotice(undefined)
@@ -241,7 +277,7 @@ export function apply(ctx: Context) {
       setStrategy('squash')
       setStrategyOpen(false)
       setChecksOpen(false)
-    }, [sessionId])
+    }, [sessionId, requestUrl])
 
     useEffect(() => {
       if (!tab.visible) return
@@ -260,7 +296,7 @@ export function apply(ctx: Context) {
         window.removeEventListener('focus', focus)
         unbind()
       }
-    }, [sessionId, tab.visible, running])
+    }, [sessionId, tab.visible, running, requestUrl, tab.navigation.revision])
 
     const prepare = (action: RequestAction['action']) => {
       if (!item || !canReview || confirmation || (action === 'merge' && !canMerge) || submitting.current) return
@@ -373,7 +409,19 @@ export function apply(ctx: Context) {
               <Loading label={copy.loading} />
             </div>
           )}
-          {error && <p role="alert">{copy[error] as string}</p>}
+          {error && (
+            <p role="alert" className="dsh-pr-section">
+              {copy[error] as string}
+              {requestUrl && (
+                <>
+                  <br />
+                  <a href={requestUrl} target="_blank" rel="noopener noreferrer">
+                    {requestUrl}
+                  </a>
+                </>
+              )}
+            </p>
+          )}
           {notice && <p role={notice === 'completed' ? 'status' : 'alert'}>{copy[notice]}</p>}
           {view &&
             (item ? (
@@ -733,6 +781,9 @@ export function apply(ctx: Context) {
         },
       ],
     })
+  )
+  ctx.slots.inject('conversation.input.dock', () =>
+    ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links` }, Links)
   )
   ctx.slots.inject('sidebar.right.pane.tab', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab', key: name }, Requests)
