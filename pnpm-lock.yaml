@@ -452,6 +452,12 @@ importers:
       '@dungsil/dsh-plugin-ui-turn-rail-left':
         specifier: workspace:*
         version: link:../ui-turn-rail-left
+      '@dungsil/dsh-plugin-ui-usage':
+        specifier: workspace:*
+        version: link:../ui-usage
+      '@dungsil/dsh-plugin-ui-vcs':
+        specifier: workspace:*
+        version: link:../ui-vcs
       '@dungsil/dsh-plugin-ui-worktree':
         specifier: workspace:*
         version: link:../ui-worktree
