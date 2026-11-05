@@ -127,7 +127,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
       git(['add', '--', ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`])])
       const message = packageName
         ? `chore(release): ${packageName}@${releases[0].result.version} [skip ci]`
-        : 'chore(release): 게시한 패키지의 버전을 확정한다 [skip ci]'
+        : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
       git(['commit', '-m', message])
       for (const { pkg, result } of releases) {
         git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
