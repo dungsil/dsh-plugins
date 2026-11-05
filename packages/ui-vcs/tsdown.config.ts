@@ -11,7 +11,7 @@ export default defineConfig([
     loader: { '.svg': 'text' },
     deps: {
       alwaysBundle: ['@dungsil/dsh-ui'],
-      neverBundle: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'],
+      neverBundle: ['react', 'react/jsx-runtime', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives'],
     },
     target: 'es2023',
     outExtensions: () => ({ js: '.js' }),

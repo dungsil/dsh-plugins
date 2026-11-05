@@ -61,6 +61,7 @@ async function mount(operation, language = 'en', options = {}) {
           plugin = factory((id) => {
             if (id === 'react') return react
             if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
+            if (id === 'react-dom') return { createPortal: (children) => children }
             if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Pill: 'Pill', Menu: 'Menu' }
             throw new Error(`Unexpected dependency: ${id}`)
           })

@@ -376,6 +376,7 @@ export function apply(ctx: Context) {
 .dsh-vcs-status:empty { display: none; }
 .dsh-vcs-status { overflow-wrap: anywhere; }
 .dsh-vcs-status[role=alert] { color: var(--dsw-alias-state-error-primary); }
+.dsh-vcs-session-request svg { width: 100%; height: 100%; }
 `
     document.head.append(style)
     return () => style.remove()
