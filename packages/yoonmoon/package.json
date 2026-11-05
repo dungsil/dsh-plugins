@@ -41,6 +41,7 @@
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
     "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
     "@deepseek-ai/schemastery": "~3.18.5",
+    "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "tsdown": "0.23.4"

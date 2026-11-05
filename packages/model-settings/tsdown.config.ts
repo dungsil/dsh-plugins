@@ -1,7 +1,7 @@
 import { defineConfig, nodeConfig } from '@dungsil/dsh-tsdown'
 
 export default defineConfig([
-  nodeConfig,
+  { ...nodeConfig, deps: { alwaysBundle: ['@dungsil/dsh-task-prompts'] } },
   {
     entry: ['src/protocol.ts'],
     format: 'esm',

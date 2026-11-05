@@ -410,6 +410,9 @@ importers:
       '@dungsil/dsh-plugin-yoonmoon':
         specifier: workspace:*
         version: link:../yoonmoon
+      '@dungsil/dsh-task-prompts':
+        specifier: workspace:*
+        version: link:../../tools/task-prompts
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
@@ -1089,6 +1092,9 @@ importers:
       '@dungsil/dsh-plugin-model-settings':
         specifier: workspace:*
         version: link:../model-settings
+      '@dungsil/dsh-task-prompts':
+        specifier: workspace:*
+        version: link:../../tools/task-prompts
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
@@ -1132,6 +1138,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: ~3.18.5
         version: 3.18.5
+      '@dungsil/dsh-task-prompts':
+        specifier: workspace:*
+        version: link:../../tools/task-prompts
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
@@ -1141,6 +1150,8 @@ importers:
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
+
+  tools/task-prompts: {}
 
   tools/tsconfig: {}
 

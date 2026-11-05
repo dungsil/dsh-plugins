@@ -7,6 +7,7 @@ import z from '@deepseek-ai/schemastery'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { BUNDLED_SKILL_RANK, type SkillCandidate, type SkillProvider } from '@deepseek-ai/dsh-skill'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { renderYoonmoonInstructions, yoonmoonInstructions } from '@dungsil/dsh-task-prompts'
 import { parse } from 'yaml'
 
 export const name = 'yoonmoon'
@@ -157,10 +158,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         const assembler = new BlockAssembler()
         for await (const chunk of call.stream({
           ...call.config,
-          system:
-            `Execute the ${args.skill} skill below. All bundled skills and references needed for this task are included. ` +
-            'Perform the steps yourself without calling tools or requesting local files. Preserve the input meaning.\n\n' +
-            resources.join('\n\n'),
+          system: renderYoonmoonInstructions(yoonmoonInstructions, args.skill, resources.join('\n\n')),
           messages: [
             createUserMessage({
               content: [

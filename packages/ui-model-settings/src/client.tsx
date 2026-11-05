@@ -44,11 +44,12 @@ const copy = {
     auxiliaryHint: 'Uses the auxiliary model and its reasoning effort. If unset, uses the conversation model.',
     instructions: 'Instructions',
     editInstructions: 'Edit instructions',
-    instructionsHint: 'Added to the default task instructions. Clear and save to remove your instructions.',
+    instructionsHint: 'Edit the default prompt used for this task. Clear and save to restore the default.',
     auxiliaryInstructionsHint:
-      'Shared with tasks set to use the auxiliary model, even when no auxiliary model is selected.',
+      'No default prompt: these extra instructions are shared with tasks set to use the auxiliary model. Clear and save to remove them.',
+    yoonmoonInstructionsHint:
+      '{{skill}} and {{resources}} are replaced with the selected skill and its bundled references.',
     save: 'Save',
-    discard: 'Discard changes',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
@@ -88,10 +89,11 @@ const copy = {
     auxiliaryHint: '보조 모델과 추론 수준을 따릅니다. 보조 모델을 지정하지 않으면 대화 모델을 따릅니다.',
     instructions: '지침',
     editInstructions: '지침 수정',
-    instructionsHint: '기본 작업 지침에 추가합니다. 내용을 비우고 저장하면 추가한 지침을 제거합니다.',
-    auxiliaryInstructionsHint: '보조 모델을 지정하지 않아도 보조 모델 따르기를 선택한 작업에 공통으로 적용합니다.',
+    instructionsHint: '이 작업의 기본 프롬프트를 직접 수정합니다. 내용을 비우고 저장하면 기본값으로 복원합니다.',
+    auxiliaryInstructionsHint:
+      '고유한 기본 프롬프트는 없습니다. 보조 모델 따르기를 선택한 작업에 공통으로 추가할 지침을 입력합니다. 내용을 비우고 저장하면 해제합니다.',
+    yoonmoonInstructionsHint: '{{skill}}과 {{resources}}는 실행할 스킬과 해당 스킬의 내장 자료로 바뀝니다.',
     save: '저장',
-    discard: '변경 취소',
     effort: '추론 수준',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
@@ -129,10 +131,11 @@ const copy = {
     auxiliaryHint: '使用辅助模型及其推理级别。未指定辅助模型时使用对话模型。',
     instructions: '指令',
     editInstructions: '编辑指令',
-    instructionsHint: '添加到默认任务指令中。清空并保存即可移除自定义指令。',
-    auxiliaryInstructionsHint: '应用于选择使用辅助模型的任务，即使未指定辅助模型。',
+    instructionsHint: '直接编辑此任务的默认提示词。清空并保存即可恢复默认值。',
+    auxiliaryInstructionsHint:
+      '没有独立的默认提示词。在此输入选择使用辅助模型的任务共用的附加指令。清空并保存即可移除。',
+    yoonmoonInstructionsHint: '{{skill}} 和 {{resources}} 会替换为所选技能及其内置参考资料。',
     save: '保存',
-    discard: '放弃更改',
     effort: '推理级别',
     automatic: '自动',
     automaticHint: '自动（支持的最低级别）',
@@ -506,25 +509,18 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               >
                 <label htmlFor={`${fieldId}-instructions-input`}>{text.instructions}</label>
                 <div id={`${fieldId}-instructions-hint`} className="dsh-model-settings-description">
-                  {text.instructionsHint}
-                  {task === 'auxiliary' && <> {text.auxiliaryInstructionsHint}</>}
+                  {task === 'auxiliary' ? text.auxiliaryInstructionsHint : text.instructionsHint}
+                  {task === 'yoonmoon' && <> {text.yoonmoonInstructionsHint}</>}
                 </div>
                 <textarea
                   id={`${fieldId}-instructions-input`}
                   aria-describedby={`${fieldId}-instructions-hint`}
+                  rows={10}
                   value={instructionDrafts[task]}
                   disabled={!!busy || !synchronized}
                   onChange={(event) => setInstructionDrafts((current) => ({ ...current, [task]: event.target.value }))}
                 />
                 <div className="dsh-model-settings-instruction-actions">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!!busy || !synchronized || instructionDrafts[task] === target.instructions}
-                    onClick={() => setInstructionDrafts((current) => ({ ...current, [task]: target.instructions }))}
-                  >
-                    {text.discard}
-                  </Button>
                   <Button
                     type="submit"
                     variant="primary"
