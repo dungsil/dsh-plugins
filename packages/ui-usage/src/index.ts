@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import { lastAssistantStreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-query'
-import { method, type UsageTotals, type UsageView } from './protocol.js'
+import { callLimit, method, type UsageTotals, type UsageView } from './protocol.js'
 
 export const name = 'dungsil-ui-usage'
 export const inject = ['connection', 'sessionQuery']
@@ -88,6 +88,7 @@ export function apply(ctx: Context) {
             const view: UsageView = {
               totals: empty(),
               models: [],
+              calls: [],
               days: [],
               sessions: 0,
               unreadable: 0,
@@ -131,6 +132,28 @@ export function apply(ctx: Context) {
                       const before = row.total
                       add(row, usage)
                       add(view.totals, usage)
+                      const finish = lastAssistantStreamChunk(event.data.stream, 'finish')?.reason.kind
+                      const call: UsageView['calls'][number] = {
+                        ...empty(),
+                        session: record.header.id,
+                        seq: event.seq,
+                        time: event.time,
+                        provider: route.provider,
+                        model: route.model,
+                        status:
+                          finish === 'error'
+                            ? 'failure'
+                            : finish === 'aborted' || (event.type === 'assistant/message' && event.data.interrupted)
+                              ? 'interrupted'
+                              : event.type === 'assistant/message'
+                                ? 'success'
+                                : 'unknownStatus',
+                      }
+                      add(call, usage)
+                      // Keep response size and retained metadata bounded, independently of corpus size.
+                      view.calls.push(call)
+                      view.calls.sort((a, b) => b.time - a.time || a.session.localeCompare(b.session) || b.seq - a.seq)
+                      if (view.calls.length > callLimit) view.calls.pop()
                       days.set(day, (days.get(day) ?? 0) + row.total - before)
                       included = true
                     }

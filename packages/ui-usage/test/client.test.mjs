@@ -83,6 +83,7 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   const view = (total) => ({
     totals: { calls: 0, unreported: 0, input: total, output: 0, cacheRead: 0, cacheWrite: 0, total },
     models: [],
+    calls: [],
     days: [{ day: '2026-11-05', total }],
     sessions: 1,
     unreadable: 0,
@@ -185,6 +186,42 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
         const model = [...container.querySelectorAll('.dsh-usage-model dd')].map((dd) => dd.textContent)
         assert.deepEqual(model, ['12,345', expected[index], '999', expected[2], '0'])
         assert.ok(container.querySelector('.dsh-usage-meta').textContent.includes('12,345'))
+      }
+    }
+  })
+
+  await t.test('호출 목록은 각 언어로 상태와 정확한 토큰을 표시하며 미보고 값을 0으로 표시하지 않는다', async () => {
+    for (const [language, labels] of [
+      ['en', ['Succeeded', 'Failed', 'Interrupted', 'Unconfirmed', 'Not reported']],
+      ['ko', ['성공', '실패', '중단', '미확정', '미보고']],
+      ['zh', ['成功', '失败', '已中断', '未确认', '未报告']],
+    ]) {
+      await leave()
+      snapshot.active = language
+      connection = makeConnection()
+      await mount()
+      const result = view(12345)
+      result.totals.calls = 4
+      result.calls = ['success', 'failure', 'interrupted', 'unknownStatus'].map((status, seq) => ({
+        ...result.totals,
+        session: 'session-a',
+        seq,
+        time: Date.parse('2026-11-05T01:02:03Z'),
+        provider: 'provider-a',
+        model: 'model-b',
+        status,
+        unreported: seq === 3 ? 1 : 0,
+      }))
+      await reply({ ok: true, value: result })
+      const log = container.querySelector('.dsh-usage-calls')
+      assert.equal(log.tabIndex, 0)
+      assert.equal(log.children.length, 4)
+      for (const [index, row] of [...log.children].entries()) {
+        assert.ok(row.querySelector('.dsh-usage-call-status').textContent.includes(labels[index]))
+        assert.ok(row.textContent.includes('provider-a / model-b'))
+        assert.ok(row.textContent.includes('session-a'))
+        assert.equal(row.querySelector('time').dateTime, '2026-11-05T01:02:03.000Z')
+        assert.equal(row.querySelector('dd').textContent, index === 3 ? labels[4] : '12,345')
       }
     }
   })

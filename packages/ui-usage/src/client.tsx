@@ -51,6 +51,13 @@ const styles = `
 .dsh-usage-model-heading > span:first-child { min-width: 0; }
 .dsh-usage-model-heading > span:last-child { flex: none; font-variant-numeric: tabular-nums; }
 .dsh-usage-model dl { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 12px; font-size: 12px; }
+.dsh-usage-calls { list-style: none; margin: 0; padding: 0 12px; max-height: 520px; overflow: auto; border: .5px solid var(--dsw-alias-border-l2); border-radius: 8px; }
+.dsh-usage-calls:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.dsh-usage-calls .dsh-usage-model:last-child { border-bottom: none; }
+.dsh-usage-calls dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dsh-usage-call-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.dsh-usage-call-status { flex: none; font-size: 12px; }
+.dsh-usage-call-status[data-status=failure] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-usage [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 @container (max-width: 480px) {
   .dsh-usage-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -232,6 +239,41 @@ function Usage({ ctx }: { ctx: Context }) {
               <p className="dsh-usage-detail" aria-live="polite" title={selected && number.format(selected.total)}>
                 {selected && `${date(selected.day)} · ${text.total}: ${tokens.format(selected.total)}`}
               </p>
+              <h3>{text.requests}</h3>
+              <p className="dsh-usage-muted">{text.requestScope}</p>
+              <ol className="dsh-usage-calls" tabIndex={0} aria-label={text.requests}>
+                {view.calls.map((call) => (
+                  <li className="dsh-usage-model" key={JSON.stringify([call.session, call.seq])}>
+                    <div className="dsh-usage-call-meta">
+                      <time className="dsh-usage-muted" dateTime={new Date(call.time).toISOString()}>
+                        {text.time}:{' '}
+                        {new Intl.DateTimeFormat(locale.active, {
+                          dateStyle: 'medium',
+                          timeStyle: 'medium',
+                          timeZone: view.timeZone,
+                        }).format(call.time)}
+                      </time>
+                      <span className="dsh-usage-call-status" data-status={call.status}>
+                        {text.status}: {text[call.status]}
+                      </span>
+                    </div>
+                    <div>
+                      {call.provider || text.unknown} / {call.model || text.unknown}
+                    </div>
+                    <div className="dsh-usage-muted">
+                      {text.session}: {call.session}
+                    </div>
+                    <dl>
+                      {(['total', ...metrics] as const).map((key) => (
+                        <div key={key}>
+                          <dt>{text[key]}</dt>
+                          <dd>{call.unreported ? text.notReported : number.format(call[key])}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </li>
+                ))}
+              </ol>
               <h3>{text.models}</h3>
               {view.models.map((row) => (
                 <div className="dsh-usage-model" key={JSON.stringify([row.provider, row.model])}>

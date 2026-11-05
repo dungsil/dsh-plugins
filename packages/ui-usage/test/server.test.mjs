@@ -122,6 +122,14 @@ await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로�
     assert.deepEqual(result.value.days[0], { day: '2026-10-29', total: 12 })
     assert.deepEqual(result.value.days[1], { day: '2026-10-30', total: 0 })
     assert.deepEqual(result.value.days.at(-1), { day: '2026-11-04', total: 204 })
+    assert.equal(result.value.calls.length, 5)
+    assert.equal(
+      result.value.calls.some((call) => call.session === 'fork' && call.seq < 2),
+      false
+    )
+    assert.equal(result.value.calls.at(-1).time, Date.parse('2026-10-28T15:00:00Z'))
+    assert.equal(result.value.calls.find((call) => call.session === 'original').total, 177)
+    assert.equal(result.value.calls.find((call) => call.session === 'fork' && call.seq === 5).unreported, 1)
     assert.equal(JSON.stringify(result).includes('private/path'), false)
   })
   await t.test('30일과 전체 기간 합계는 일별 그래프를 키우지 않고 더 오래된 호출을 포함한다', async () => {
@@ -146,6 +154,63 @@ await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로�
       assert.equal((await read(payload)).error.code, 'invalid')
     }
   })
+  await t.test(
+    '최근 100건의 상태와 토큰만 반환하며 본문과 오류 내용은 노출하지 않고 전체 집계는 유지한다',
+    async () => {
+      const finish = (kind) => ({
+        type: 'chunk',
+        time: 1,
+        chunk: { type: 'finish', reason: { kind, failure: { message: 'private failure body' } } },
+      })
+      sessions = [
+        {
+          id: 'recent',
+          events: [
+            route('beta', 'retry-model'),
+            ...Array.from({ length: 105 }, () => message({ inputTokens: 3, outputTokens: 5 })),
+            event('assistant/attempt', {
+              stream: [
+                {
+                  type: 'chunk',
+                  time: 0,
+                  chunk: { type: 'usage', usage: { inputTokens: 9, outputTokens: 4, totalTokens: 19 } },
+                },
+                finish('error'),
+              ],
+            }),
+            event('assistant/attempt', { stream: [finish('aborted')] }),
+            event('assistant/message', {
+              message: { source: { provider: 'alpha', model: 'shared' }, content: ['private response body'] },
+              usage: { inputTokens: 1, outputTokens: 2 },
+              interrupted: true,
+              stream: [],
+            }),
+            event('assistant/attempt', { stream: [] }),
+          ],
+        },
+      ]
+      const result = await read()
+      assert.equal(result.value.totals.calls, 109)
+      assert.equal(result.value.totals.total, 862)
+      assert.equal(result.value.calls.length, 100)
+      assert.deepEqual(
+        result.value.calls
+          .slice(0, 5)
+          .map(({ seq, status, total, unreported }) => ({ seq, status, total, unreported })),
+        [
+          { seq: 109, status: 'unknownStatus', total: 0, unreported: 1 },
+          { seq: 108, status: 'interrupted', total: 3, unreported: 0 },
+          { seq: 107, status: 'interrupted', total: 0, unreported: 1 },
+          { seq: 106, status: 'failure', total: 19, unreported: 0 },
+          { seq: 105, status: 'success', total: 8, unreported: 0 },
+        ]
+      )
+      assert.equal(result.value.calls.at(-1).seq, 10)
+      assert.equal(result.value.calls[3].provider, 'beta')
+      assert.equal(result.value.calls[3].model, 'retry-model')
+      assert.equal(JSON.stringify(result).includes('private'), false)
+    }
+  )
   await t.test('빈 코퍼스는 실패가 아니라 성공적인 0이다', async () => {
     sessions = []
     const result = await read()
@@ -153,6 +218,7 @@ await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로�
     assert.equal(result.value.totals.calls, 0)
     assert.equal(result.value.sessions, 0)
     assert.deepEqual(result.value.models, [])
+    assert.deepEqual(result.value.calls, [])
     assert.equal(result.value.days.length, 7)
   })
 })
