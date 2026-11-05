@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-usage
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.2.0...%40dungsil%2Fdsh-plugin-ui-usage%400.3.0) (2026-11-05)
+
+### Features
+
+- **usage:** 모델 호출 목록과 토큰 및 상태를 표시한다 ([#164](https://github.com/dungsil/dsh-plugins/issues/164)) ([20a5372](https://github.com/dungsil/dsh-plugins/commit/20a537287e4b286f0bbb9999c2aa43924587c6e0))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.1.1...%40dungsil%2Fdsh-plugin-ui-usage%400.2.0) (2026-11-05)
 
 ### Features
