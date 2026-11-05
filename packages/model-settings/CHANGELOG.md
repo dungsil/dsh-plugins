@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.5.1...%40dungsil%2Fdsh-plugin-model-settings%400.6.0) (2026-11-05)
+
+### Features
+
+- **model-settings:** 작업 등록 계약으로 모델 설정 책임을 분리한다 ([#163](https://github.com/dungsil/dsh-plugins/issues/163)) ([f3edf46](https://github.com/dungsil/dsh-plugins/commit/f3edf468421579868bf97371b2e2f9e61a37ea62))
+
+### Bug Fixes
+
+- **model-settings:** 선택적 제목 생성기의 실패를 설정 API와 분리한다 ([#156](https://github.com/dungsil/dsh-plugins/issues/156)) ([086ce22](https://github.com/dungsil/dsh-plugins/commit/086ce225f8c488872bb22aabf3d1db3c16a41a40))
+
 ## [0.5.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.5.0...%40dungsil%2Fdsh-plugin-model-settings%400.5.1) (2026-11-05)
 
 ### Bug Fixes

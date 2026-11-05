@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-cli-proxy-api
 
+## [0.2.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.1...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.2) (2026-11-05)
+
+### Bug Fixes
+
+- **usage:** 사용량과 CPA 재진입 시 캐시를 즉시 표시한다 ([#158](https://github.com/dungsil/dsh-plugins/issues/158)) ([27bfda8](https://github.com/dungsil/dsh-plugins/commit/27bfda85a1e99b025b9fbd4703c25ea77f56a59f))
+
 ## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.0...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.1) (2026-11-05)
 
 ### Bug Fixes

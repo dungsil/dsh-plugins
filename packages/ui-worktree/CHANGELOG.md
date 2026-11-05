@@ -1,5 +1,21 @@
 # @dungsil/dsh-plugin-ui-worktree
 
+## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.5.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.6.0) (2026-11-05)
+
+### ⚠ BREAKING CHANGES
+
+- **session:** 비활성 세션 조회와 워크트리 전환을 막는다 ([#159](https://github.com/dungsil/dsh-plugins/issues/159))
+
+### Features
+
+- **model-settings:** 작업 등록 계약으로 모델 설정 책임을 분리한다 ([#163](https://github.com/dungsil/dsh-plugins/issues/163)) ([f3edf46](https://github.com/dungsil/dsh-plugins/commit/f3edf468421579868bf97371b2e2f9e61a37ea62))
+
+### Bug Fixes
+
+- **process:** Git 조회 동시 실행과 DSH 보조 프로세스 폭증을 제한한다 ([#161](https://github.com/dungsil/dsh-plugins/issues/161)) ([852855f](https://github.com/dungsil/dsh-plugins/commit/852855f22eb1dcc95fe352e3851b2997d9b0cd29))
+- **session:** 비활성 세션 조회와 워크트리 전환을 막는다 ([#159](https://github.com/dungsil/dsh-plugins/issues/159)) ([91b4d68](https://github.com/dungsil/dsh-plugins/commit/91b4d6873d5034e44e8d1b272d79f81d7848b1e7))
+- **worktree:** 선택과 실행을 분리하고 조회를 안정화한다 ([#162](https://github.com/dungsil/dsh-plugins/issues/162)) ([6826110](https://github.com/dungsil/dsh-plugins/commit/6826110afc694db9b2b83a41dcba07c43f244505))
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.4.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.5.0) (2026-11-05)
 
 ### Features

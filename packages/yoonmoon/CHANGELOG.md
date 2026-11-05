@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-yoonmoon
 
+## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-yoonmoon%400.5.0...%40dungsil%2Fdsh-plugin-yoonmoon%400.6.0) (2026-11-05)
+
+### Features
+
+- **model-settings:** 작업 등록 계약으로 모델 설정 책임을 분리한다 ([#163](https://github.com/dungsil/dsh-plugins/issues/163)) ([f3edf46](https://github.com/dungsil/dsh-plugins/commit/f3edf468421579868bf97371b2e2f9e61a37ea62))
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-yoonmoon%400.4.0...%40dungsil%2Fdsh-plugin-yoonmoon%400.5.0) (2026-11-05)
 
 ### Features
