@@ -6,8 +6,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { Button, Input, IconPluginPinwheelOutlineRegular, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { Button, Input, installSettingsIcon, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { cliProxyIconSvg } from '@dungsil/dsh-ui/icons'
 import { channel, endpointPrefix, type ConnectionView, type QuotaAccount, type QuotaResult } from './protocol.js'
 import { localizedCopy } from './copy.js'
 import { QuotaPanel, quotaStyles } from './quota-panel.js'
@@ -30,6 +31,8 @@ declare module '@deepseek-ai/cordis' {
 }
 
 const styles = `${settingsStyles}${quotaStyles}
+.dsh-cli-proxy-icon { display: inline-flex; }
+.dsh-cli-proxy-icon > svg { width: 100%; height: 100%; }
 .dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
 .dsh-cli-proxy-page > .dsh-cli-proxy { max-width: 960px; margin: 0 auto; }
@@ -424,6 +427,7 @@ export function apply(ctx: Context) {
   ctx.on('cli-proxy-api/connection-changed', () => cache.clear())
   ctx.effect(() => () => cache.clear(), 'cli-proxy-api: quota cache')
   ctx.effect(() => installStyles(styles), 'cli-proxy-api: styles')
+  ctx.effect(() => installSettingsIcon(name, ['CLIProxyAPI'], cliProxyIconSvg))
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       {
@@ -444,7 +448,14 @@ export function apply(ctx: Context) {
   ctx.slots.inject('sidebar.panellist', () =>
     ctx.slots.register(
       { name: 'sidebar.panellist', id: name as MainPanelId, order: 20, label: () => 'CLIProxyAPI' },
-      ({ size }) => <IconPluginPinwheelOutlineRegular size={size} />
+      ({ size }) => (
+        <span
+          className="dsh-cli-proxy-icon"
+          style={{ width: size, height: size }}
+          aria-hidden="true"
+          dangerouslySetInnerHTML={{ __html: cliProxyIconSvg }}
+        />
+      )
     )
   )
 }

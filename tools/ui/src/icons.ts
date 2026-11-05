@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import resetIconSvg from './icons/rotate-ccw.svg'
 
+export { default as cliProxyIconSvg } from './icons/diamond-interlocking-loops.svg'
 export { default as modelSettingsIconSvg } from './icons/circle-to-squares.svg'
 export { default as worktreeSettingsIconSvg } from './icons/git-branch.svg'
 
