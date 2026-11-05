@@ -1,3 +1,5 @@
+import { isDisabled } from './api-key-accounts.js'
+
 export interface QuotaWindow {
   id: string
   usedPercent?: number
@@ -99,17 +101,10 @@ function pluginId(account: RecordValue): string {
 }
 
 export function supportsQuota(account: Record<string, unknown>): boolean {
-  const disabled = account.disabled
-  if (
-    disabled === true ||
-    (typeof disabled === 'number' && disabled !== 0) ||
-    ['true', '1'].includes(text(disabled).toLowerCase())
-  )
-    return false
-  return (
-    ['claude', 'codex', 'antigravity', 'kimi', 'devin', 'meta', 'xai'].includes(provider(account)) ||
-    Boolean(pluginId(account))
-  )
+  if (isDisabled(account.disabled)) return false
+  const kind = provider(account)
+  if (kind === 'opencode-go' || kind === 'ollama-cloud') return Boolean(text(account.auth_index ?? account.authIndex))
+  return ['claude', 'codex', 'antigravity', 'kimi', 'devin', 'meta', 'xai'].includes(kind) || Boolean(pluginId(account))
 }
 
 async function managementCall(management: Management, path: string, method = 'GET', body?: unknown) {
@@ -340,6 +335,49 @@ export async function fetchQuota(
     groupWindows(payload, windows)
     const subscription = record(payload.subscription)
     plan = planName(subscription.plan ?? subscription.tierName ?? subscription.tierId)
+  } else if (kind === 'opencode-go') {
+    const payload = await apiCall(management, authIndex, 'https://opencode.ai/zen/go/v1/usage', {
+      ...bearer,
+      Accept: 'application/json',
+      'User-Agent': 'dsh-cli-proxy-api',
+    })
+    const usage = record(payload.usage)
+    for (const [key, id, duration] of [
+      ['rolling', 'five_hour', 18000],
+      ['weekly', 'weekly', 604800],
+      ['monthly', 'monthly', undefined],
+    ] as const) {
+      if (usage[key] === undefined || usage[key] === null) continue
+      const window = record(usage[key])
+      addWindow(windows, id, window.percent, window.resetsAt, duration)
+    }
+  } else if (kind === 'ollama-cloud') {
+    const payload = await apiCall(management, authIndex, 'https://ollama.com/api/balance', {
+      ...bearer,
+      Accept: 'application/json',
+    })
+    const included = record(payload.included)
+    const allowance = positive(included.allowance_usd)
+    const balance = number(included.balance_usd)
+    const period = record(included.period)
+    if (allowance !== undefined || included.period !== undefined) {
+      addWindow(
+        windows,
+        'monthly',
+        allowance !== undefined && balance !== undefined
+          ? Math.max(0, Math.min(100, (1 - balance / allowance) * 100))
+          : undefined,
+        period.until
+      )
+    }
+    for (const [key, id, duration] of [
+      ['session', 'primary_window', undefined],
+      ['weekly', 'weekly', 604800],
+    ] as const) {
+      if (included[key] === undefined || included[key] === null) continue
+      const window = record(included[key])
+      addWindow(windows, id, fromRemaining(window.remaining_percent, 100), window.resets_at, duration)
+    }
   } else if (kind === 'claude') {
     const payload = await apiCall(management, authIndex, 'https://api.anthropic.com/api/oauth/usage', {
       ...jsonHeaders,
