@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import conventionalCommits from 'conventional-changelog-conventionalcommits'
 import release from 'release-it'
@@ -60,8 +60,6 @@ export function releaseOptions({ dryRun = false } = {}) {
         'pnpm exec oxfmt --write package.json CHANGELOG.md',
         `pnpm pack --pack-destination ${destination}`,
       ],
-      // npm has published by this point; record the confirmed version without waiting for registry propagation.
-      'before:git:release': [`pnpm --dir ../.. market:index --release ${name}`, 'git add ../../market/index.json'],
     },
   }
 }
@@ -95,7 +93,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
   const releases = []
   try {
     // Publish dependencies first, but defer workspace Git and GitHub releases
-    // until every manifest, changelog and market entry is ready for one commit.
+    // until every manifest and changelog is ready for one commit.
     for (const pkg of selected) {
       process.chdir(pkg.path)
       const settings = releaseOptions({ dryRun })
@@ -160,6 +158,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
   } finally {
     process.chdir(root)
   }
+  return dryRun ? [] : releases.map(({ pkg }) => pkg.name)
 }
 
 if (import.meta.main) {
@@ -170,5 +169,12 @@ if (import.meta.main) {
       version: { type: 'string' },
     },
   })
-  await releaseWorkspace({ dryRun: values['dry-run'], packageName: values.package, version: values.version })
+  const packages = await releaseWorkspace({
+    dryRun: values['dry-run'],
+    packageName: values.package,
+    version: values.version,
+  })
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `packages=${JSON.stringify(packages)}\n`)
+  }
 }

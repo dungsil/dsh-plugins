@@ -53,6 +53,42 @@
   },
   "plugins": [
     {
+      "name": "@dungsil/dsh-preset-ui",
+      "title": {
+        "en": "UI Preset",
+        "ko": "UI 프리셋",
+        "zh": "界面预设"
+      },
+      "description": {
+        "en": "Install Korean UI, Sidebar Inbox, Task Models UI, Skills Settings, Git Worktree UI, Model Picker, and Left Turn Rail together.",
+        "ko": "한국어 UI, 사이드바 수신함, 상황별 모델, 스킬 설정, Git Worktree UI, 모델 피커, 왼쪽 턴 레일을 함께 설치합니다.",
+        "zh": "一起安装韩语界面、侧边栏收件箱、任务模型设置、技能设置、Git 工作树界面、模型选择器和左侧轮次导航栏。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/preset-ui"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["preset", "bundle", "ui"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793854533,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-locale-ko",
       "title": {
         "en": "Korean UI",
@@ -279,6 +315,16 @@
       },
       "versions": [
         {
+          "version": "0.5.0",
+          "publishTimestamp": 1793853700,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.4.0",
           "publishTimestamp": 1793781201,
           "source": {
@@ -411,6 +457,16 @@
       },
       "versions": [
         {
+          "version": "0.2.2",
+          "publishTimestamp": 1793854072,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.1",
           "publishTimestamp": 1793784435,
           "source": {
@@ -523,6 +579,16 @@
       },
       "versions": [
         {
+          "version": "0.6.0",
+          "publishTimestamp": 1793854365,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.5.0",
           "publishTimestamp": 1793804371,
           "source": {
@@ -599,6 +665,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1793853994,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1793804353,
           "source": {
@@ -645,6 +721,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1793853935,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1793838010,
           "source": {
@@ -690,6 +776,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1793854384,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.4.0",
           "publishTimestamp": 1793804377,
@@ -757,6 +853,16 @@
       },
       "versions": [
         {
+          "version": "0.2.3",
+          "publishTimestamp": 1793853871,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.2",
           "publishTimestamp": 1793804347,
           "source": {
@@ -823,6 +929,16 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1793853689,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1793781192,
           "source": {
@@ -882,6 +998,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1793854230,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1793804365,
           "source": {
@@ -927,6 +1053,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1793854160,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.1.0",
           "publishTimestamp": 1793804359,
