@@ -621,6 +621,52 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-cli-proxy-api",
+      "title": {
+        "en": "CLIProxyAPI",
+        "ko": "CLIProxyAPI",
+        "zh": "CLIProxyAPI"
+      },
+      "description": {
+        "en": "Connect CLIProxyAPI models and inspect account quota from the DSH sidebar. Requires CLIProxyAPI v8.",
+        "ko": "CLIProxyAPI 모델을 연결하고 DSH 사이드바에서 계정별 할당량을 확인합니다. CLIProxyAPI v8이 필요합니다.",
+        "zh": "连接 CLIProxyAPI 模型，并从 DSH 侧边栏查看账户配额。需要 CLIProxyAPI v8。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/cli-proxy-api"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["cliproxyapi", "proxy", "models", "oauth", "management"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793838010,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1793837887,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-worktree",
       "title": {
         "en": "Git Worktree UI",
