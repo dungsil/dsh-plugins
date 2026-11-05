@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-working-directory'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import { workspaceDomainState } from '@deepseek-ai/dsh-workspace'
+import { createTaskQueue } from '@dungsil/dsh-async'
 import { worktreeInstructions } from '@dungsil/dsh-task-prompts'
 import {
   channel,
@@ -106,6 +107,7 @@ export interface Config extends WorktreeSettings {
 export function apply(ctx: Context, config: Config) {
   if (!validSettings(config)) throw new Error('Invalid worktree settings')
   const pending = new Set<string>()
+  const read = createTaskQueue({ concurrency: 2, maxPending: 128 })
   const lifetime = new AbortController()
   let saving = false
   ctx.effect(() => () => lifetime.abort(), 'ui-worktree: cancel disposed operations')
@@ -618,12 +620,14 @@ export function apply(ctx: Context, config: Config) {
       const sessionId = SessionId(input.sessionId)
       if (!mutation) {
         const operationSignal = AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(60_000)])
-        operationSignal.throwIfAborted()
-        const live = ctx.agents.get(sessionId)
-        if (live) return { ok: true as const, value: await describe(live.session, operationSignal, live) }
-        const inspection = await ctx.sessionController.inspect(sessionId, operationSignal)
-        const session = Session.create(sessionId, inspection.events, inspection.meta, inspection.inheritedEventCount)
-        return { ok: true as const, value: await describe(session, operationSignal) }
+        return await read(operationSignal, async () => {
+          operationSignal.throwIfAborted()
+          const live = ctx.agents.get(sessionId)
+          if (live) return { ok: true as const, value: await describe(live.session, operationSignal, live) }
+          const inspection = await ctx.sessionController.inspect(sessionId, operationSignal)
+          const session = Session.create(sessionId, inspection.events, inspection.meta, inspection.inheritedEventCount)
+          return { ok: true as const, value: await describe(session, operationSignal) }
+        })
       }
       const resolved = await ctx.sessionController.resolveAgent(sessionId)
       if ('error' in resolved)
@@ -694,7 +698,7 @@ export function apply(ctx: Context, config: Config) {
     } catch (error) {
       if (!mutation && error && typeof error === 'object' && 'code' in error && error.code === 'session/not-found')
         return failure('session/not-found')
-      return failure('operation_failed')
+      return failure(!mutation && error instanceof Error && error.message === 'busy' ? 'busy' : 'operation_failed')
     } finally {
       if (mutation) pending.delete(input.sessionId)
     }
