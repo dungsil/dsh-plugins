@@ -71,8 +71,8 @@ async function mount(operation, language = 'en', options = {}) {
   })
   plugin.apply({
     get(name) {
-      if (mountingSidebar && name === 'sessions')
-        return { list: { getSnapshot: () => ({ byId: {} }), subscribe: () => () => {} } }
+      // The PR plugin also registers session badges; this fixture renders only its sidebar pane.
+      if (mountingSidebar && name === 'sessions') return {}
       assert.equal(name, 'connection', 'UI must not access the current conversation or sessions service')
       return {
         rpc: {
