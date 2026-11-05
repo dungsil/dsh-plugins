@@ -6,10 +6,13 @@ import { runInNewContext } from 'node:vm'
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
 // Exercise the shipped client entry point without a browser or a live agent.
-async function mount(operation, language = 'en') {
+async function mount(operation, language = 'en', request = null) {
   const hooks = []
   const effects = []
   const messages = []
+  const openedTabs = []
+  const listeners = new Map()
+  let requestResult = { ok: true, value: { request } }
   let cursor = 0
   let registered, plugin
   const react = {
@@ -24,9 +27,11 @@ async function mount(operation, language = 'en') {
     },
     useEffect(effect, deps) {
       const [previous, setPrevious] = react.useState()
-      if (!previous || deps.some((value, index) => value !== previous[index])) {
-        setPrevious(deps)
-        effects.push(effect)
+      if (!previous || deps.some((value, index) => value !== previous.deps[index])) {
+        effects.push(() => {
+          previous?.cleanup?.()
+          setPrevious({ deps, cleanup: effect() })
+        })
       }
     },
     useId: () => 'status',
@@ -43,8 +48,10 @@ async function mount(operation, language = 'en') {
       disconnect() {}
     },
     window: {
-      addEventListener() {},
-      removeEventListener() {},
+      addEventListener: (event, listener) => listeners.set(event, listener),
+      removeEventListener: (event, listener) => {
+        if (listeners.get(event) === listener) listeners.delete(event)
+      },
       __ModuleLoader__: {
         load({ factory }) {
           plugin = factory((id) => {
@@ -60,8 +67,14 @@ async function mount(operation, language = 'en') {
   plugin.apply({
     get: (name) =>
       name === 'connection'
-        ? { rpc: { call: async () => ({ ok: true, value: operation }) } }
+        ? {
+            rpc: {
+              call: async (_channel, method) =>
+                method === 'dungsil-vcs/describe' ? { ok: true, value: operation } : requestResult,
+            },
+          }
         : { scope: () => ({ get: () => ({ send: async (message) => messages.push(message) }) }) },
+    sidebarRight: { openTab: (kind) => openedTabs.push(kind) },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
@@ -93,8 +106,23 @@ async function mount(operation, language = 'en') {
   await render()
   await render()
   const tree = await render()
-  const actions = tree.props.children[0].props.children
-  return { primary: actions[0].props, menu: actions[1].props, messages }
+  let actions = tree.props.children[0].props.children
+  return {
+    primary: actions[0].props,
+    get menu() {
+      return actions[1]?.props
+    },
+    messages,
+    openedTabs,
+    session,
+    setRequestResult: (result) => (requestResult = result),
+    focus: () => listeners.get('focus')?.(),
+    async refresh() {
+      await render()
+      actions = (await render()).props.children[0].props.children
+      return actions[0].props
+    },
+  }
 }
 
 await test('PR actions send a multi-forge, self-hosted review request in every supported locale', async () => {
@@ -146,4 +174,47 @@ await test('push and commit-only actions do not request hosting API access or re
   assert.equal(commit.messages.length, 1)
   assert.ok(commit.messages[0].startsWith('Commit only the work completed in this session. Do not push'))
   assert.ok(!commit.messages[0].includes('tea CLI'))
+})
+
+await test('PR creation changes to a sidebar view action after the agent finishes in every locale', async () => {
+  for (const [language, createLabel, viewLabel] of [
+    ['en', 'Create PR', 'View PR'],
+    ['ko', 'PR 생성', 'PR 보기'],
+    ['zh', '创建 PR', '查看 PR'],
+  ]) {
+    const mounted = await mount('pr', language)
+    assert.equal(mounted.primary.children[1], createLabel)
+    assert.ok(mounted.menu)
+    mounted.primary.onClick()
+    await new Promise((resolve) => setImmediate(resolve))
+    mounted.session.running = true
+    assert.equal((await mounted.refresh()).disabled, true)
+    mounted.setRequestResult({ ok: true, value: { request: { number: 42 } } })
+    mounted.session.running = false
+    const primary = await mounted.refresh()
+    assert.equal(primary.children[1], viewLabel)
+    assert.equal(primary.disabled, false)
+    assert.equal(mounted.menu, undefined)
+    primary.onClick()
+    assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+    assert.equal(mounted.messages.length, 1) // Viewing never submits another agent request.
+  }
+})
+
+await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
+  const mounted = await mount('pr', 'ko', { number: 42 })
+  assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.equal(mounted.menu, undefined)
+  mounted.primary.onClick()
+  assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+  assert.equal(mounted.messages.length, 0)
+  mounted.setRequestResult({ ok: true, value: { request: null } })
+  await mounted.focus()
+  assert.equal((await mounted.refresh()).children[1], 'PR 생성')
+  assert.ok(mounted.menu)
+  mounted.setRequestResult({ ok: false, error: { code: 'cli_missing' } })
+  await mounted.focus()
+  const primary = await mounted.refresh()
+  assert.equal(primary.children[1], 'PR 생성')
+  assert.equal(primary.disabled, false)
 })
