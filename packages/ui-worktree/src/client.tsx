@@ -34,7 +34,7 @@ export function apply(ctx: Context) {
   ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconSvg))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   installProgress(ctx)
-  function Picker({ sessionId, useSession }: Props) {
+  function Picker({ sessionId, useSession, useProjection }: Props) {
     const { active: language } = useLocaleSnapshot(ctx.locale)
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
     const unavailable = useSession(
@@ -45,7 +45,8 @@ export function apply(ctx: Context) {
     const unreadable = useSession((s) => s.removed || s.openState !== 'open')
     const unreadableRef = useRef(unreadable)
     unreadableRef.current = unreadable
-    const previousReadiness = useRef({ unreadable: true, unavailable })
+    const cwd = useProjection('workingDirectory')
+    const previousReadiness = useRef({ unreadable: true, unavailable, cwd })
     const [view, setView] = useState<WorktreeView>()
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
@@ -145,9 +146,10 @@ export function apply(ctx: Context) {
 
     useEffect(() => {
       const previous = previousReadiness.current
-      previousReadiness.current = { unreadable, unavailable }
-      if (!unreadable && (previous.unreadable || (previous.unavailable && !unavailable))) void load()
-    }, [unreadable, unavailable])
+      previousReadiness.current = { unreadable, unavailable, cwd }
+      if (!unreadable && (previous.unreadable || (previous.unavailable && !unavailable) || previous.cwd !== cwd))
+        void load()
+    }, [unreadable, unavailable, cwd])
 
     useEffect(() => {
       if (disabled) setOpen(false)

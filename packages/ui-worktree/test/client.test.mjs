@@ -49,6 +49,7 @@ function visibleText(node) {
 // a hook-value stub, this runner commits effect cleanups and remounts on JSX keys.
 async function mount(t, { initial = {}, rpc = () => success() } = {}) {
   const sessions = new Map()
+  const directories = new Map()
   const calls = []
   const warnings = []
   const listeners = new Map()
@@ -184,7 +185,14 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     instance = undefined
   }
   function render() {
-    const element = registered({ sessionId, useSession: (select) => select(session(sessionId)) })
+    const element = registered({
+      sessionId,
+      useSession: (select) => select(session(sessionId)),
+      useProjection: (key) => {
+        assert.equal(key, 'workingDirectory')
+        return directories.get(sessionId) ?? '/repo'
+      },
+    })
     if (instance && (instance.key !== element.key || instance.type !== element.type)) unmount()
     if (!instance) instance = { key: element.key, type: element.type, hooks: [], mounted: true }
     active = instance
@@ -240,6 +248,11 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     },
     async update(patch) {
       Object.assign(session(sessionId), patch)
+      render()
+      await flush()
+    },
+    async changeDirectory(cwd) {
+      directories.set(sessionId, cwd)
       render()
       await flush()
     },
@@ -372,6 +385,8 @@ for (const { name, blocked, ready } of readReadinessCases) {
   await test(`${name} 마운트와 포커스는 세션이 준비될 때까지 조회를 미룬다`, async (t) => {
     const h = await mount(t, { initial: blocked })
     assert.equal(h.calls.length, 0, `A ${name} session must not issue its initial describe`)
+    await h.changeDirectory('/other-worktree')
+    assert.equal(h.calls.length, 0, 'Directory changes must not query an unreadable session')
     assert.equal(h.menu.anchor.props.disabled, true)
     assert.doesNotMatch(h.text, /Lookup failed/)
     await h.focus()
@@ -455,6 +470,39 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.equal(h.calls.filter((call) => call.operation === 'create').length, 0)
   })
 }
+
+await test('워크트리 준비가 끝나면 작업 실행 중에도 예약 문구를 갱신한다', async (t) => {
+  let selected = pendingCreationView()
+  const h = await mount(t, { rpc: () => success(selected) })
+  assert.equal(h.menu.anchor.props.label, 'New worktree')
+  await h.update({ running: true })
+  selected = linkedView()
+  const beforeReady = h.calls.length
+  await h.changeDirectory(selected.cwd)
+  assert.equal(h.menu.anchor.props.label, 'feature/worktree', 'Readiness must replace the reserved label before idle')
+  assert.equal(h.selectedId, 'path:/other-worktree')
+  assert.deepEqual(operations(h).slice(beforeReady), ['describe'])
+  assert.equal(h.menu.anchor.props.disabled, true, 'Refreshing the label must not allow mutations while running')
+  await h.update({})
+  await h.changeDirectory(selected.cwd)
+  assert.equal(h.calls.length, beforeReady + 1, 'An unchanged directory must not trigger another read')
+})
+
+await test('조회 중 작업 경로가 바뀌면 요청을 중복 실행하지 않고 새 워크트리를 조회한다', async (t) => {
+  const response = deferred()
+  let reads = 0
+  const h = await mount(t, {
+    initial: { running: true },
+    rpc: () => (++reads === 1 ? response.promise : success(linkedView())),
+  })
+  await h.changeDirectory('/other-worktree')
+  assert.equal(h.calls.length, 1, 'Directory updates must not overlap a pending read')
+  response.resolve(success(pendingCreationView()))
+  await h.flush()
+  assert.deepEqual(operations(h), ['describe', 'describe'])
+  assert.equal(h.menu.anchor.props.label, 'feature/worktree')
+  assert.equal(h.menu.anchor.props.disabled, true)
+})
 
 await test('성공한 초기화는 describe가 다시 명시적으로 초기화를 요청할 때까지 반복하지 않는다', async (t) => {
   let needsInitialization = true
@@ -718,6 +766,7 @@ for (const operation of ['create', 'switch']) {
       assert.equal(h.calls.length, 2)
       assert.equal(h.calls.at(-1).operation, operation)
       assert.match(h.text, /Check worktree state/)
+      await h.changeDirectory('/other-worktree')
       await h.focus()
       await h.update({ running: true })
       await h.update({ running: false })
