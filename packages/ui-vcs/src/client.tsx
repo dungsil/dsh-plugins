@@ -17,7 +17,7 @@ import {
   type GitActionResult,
   type GitOperation,
 } from './protocol.js'
-import { method, type RequestView } from './pull-requests-protocol.js'
+import { method, type GitContext, type RequestView } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-ui-vcs'
 export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sidebarRight']
@@ -25,6 +25,7 @@ export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sid
 const copy = {
   en: {
     pr: 'Create PR',
+    updatePr: 'Update PR',
     viewPr: 'View PR',
     push: 'Push',
     commit: 'Commit only',
@@ -44,6 +45,7 @@ const copy = {
   },
   ko: {
     pr: 'PR 생성',
+    updatePr: 'PR 업데이트',
     viewPr: 'PR 보기',
     push: '푸시',
     commit: '커밋만',
@@ -63,6 +65,7 @@ const copy = {
   },
   zh: {
     pr: '创建 PR',
+    updatePr: '更新 PR',
     viewPr: '查看 PR',
     push: '推送',
     commit: '仅提交',
@@ -100,6 +103,7 @@ export function apply(ctx: Context) {
     const cwd = useProjection('workingDirectory')
     const [operation, setOperation] = useState<'push' | 'pr'>()
     const [hasRequest, setHasRequest] = useState(false)
+    const [needsUpdate, setNeedsUpdate] = useState(false)
     const [lookup, setLookup] = useState<'loading' | 'ready' | 'error'>('loading')
     const [open, setOpen] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
@@ -115,6 +119,7 @@ export function apply(ctx: Context) {
     }, [])
     const statusId = useId()
     const disabled = !canPrompt || unavailable || status === 'sending' || typeof cwd !== 'string'
+    const viewOnly = hasRequest && !needsUpdate
 
     useEffect(() => {
       if (!hasChanges || hidden || unavailable) return
@@ -126,19 +131,25 @@ export function apply(ctx: Context) {
         setLookup('loading')
         setOperation(undefined)
         setHasRequest(false)
+        setNeedsUpdate(false)
         try {
           const result = await connection.rpc.call(channel, describeMethod, { sessionId }, signal)
           if (signal.aborted) return
-          if (!result.ok || (result.value !== 'push' && result.value !== 'pr'))
-            throw new Error('Git context unavailable')
-          setOperation(result.value)
-          if (result.value === 'pr') {
+          if (!result.ok) throw new Error('Git context unavailable')
+          const context = result.value as GitContext
+          if (context.operation !== 'push' && context.operation !== 'pr') throw new Error('Git context unavailable')
+          setOperation(context.operation)
+          if (context.operation === 'pr') {
             // Review lookup may be unavailable before the first push or without a hosting CLI.
             // Keep creation available. The server checks for an existing PR before each write.
             try {
               const requests = await connection.rpc.call(channel, method, { sessionId }, signal)
               if (signal.aborted) return
-              if (requests.ok) setHasRequest(!!(requests.value as RequestView).request)
+              if (requests.ok) {
+                const request = (requests.value as RequestView).request
+                setHasRequest(!!request)
+                setNeedsUpdate(!!request && (context.dirty || context.headSha !== request.headSha))
+              }
             } catch {
               if (signal.aborted) return
             }
@@ -157,8 +168,8 @@ export function apply(ctx: Context) {
     }, [sessionId, cwd, hasChanges, hidden, unavailable])
 
     useEffect(() => {
-      if (disabled || hasRequest) setOpen(false)
-    }, [disabled, hasRequest])
+      if (disabled || viewOnly) setOpen(false)
+    }, [disabled, viewOnly])
 
     useEffect(() => {
       const conversation = anchor.current?.closest('[data-conversation-session]')
@@ -206,7 +217,10 @@ export function apply(ctx: Context) {
         if (!isGitActionResult(response.value) || response.value.operation !== selected)
           throw new Error('Invalid Git response')
         setResult(response.value)
-        if (response.value.operation === 'pr' && response.value.url) setHasRequest(true)
+        if (response.value.operation === 'pr' && response.value.url) {
+          setHasRequest(true)
+          setNeedsUpdate(false)
+        }
         setStatus('sent')
       } catch {
         if (mounted.current) setStatus('error')
@@ -222,33 +236,43 @@ export function apply(ctx: Context) {
         <div className="dsh-vcs-actions">
           <Pill
             className="dsh-vcs-trigger"
-            disabled={(!hasRequest && disabled) || !operation || lookup !== 'ready'}
-            title={hasRequest ? text.viewPr : text.hint}
+            disabled={(!viewOnly && disabled) || !operation || lookup !== 'ready'}
+            title={viewOnly ? text.viewPr : text.hint}
             aria-describedby={statusId}
             aria-busy={status === 'sending'}
             onClick={() => {
-              if (hasRequest) ctx.sidebarRight.openTab(PullRequests.name)
+              if (viewOnly) ctx.sidebarRight.openTab(PullRequests.name)
               else if (operation) void send(operation)
             }}
           >
             <IconBranchOutlineRegular aria-hidden="true" />
-            {hasRequest
+            {viewOnly
               ? text.viewPr
               : status === 'sending'
                 ? text.sending
                 : operation === 'push'
                   ? text.push
-                  : text.pr}
+                  : hasRequest
+                    ? text.updatePr
+                    : text.pr}
           </Pill>
-          {!hasRequest && (
+          {!viewOnly && (
             <Menu
               open={open}
               side="top"
               portal
               compact
-              items={[{ id: 'commit', label: text.commit }]}
+              items={[
+                ...(hasRequest ? [{ id: 'view', label: text.viewPr }] : []),
+                { id: 'commit', label: text.commit },
+              ]}
               onClose={() => setOpen(false)}
-              onSelect={() => void send('commit')}
+              onSelect={(id) => {
+                if (id === 'view') {
+                  setOpen(false)
+                  ctx.sidebarRight.openTab(PullRequests.name)
+                } else void send('commit')
+              }}
               anchor={
                 <Pill
                   className="dsh-vcs-trigger dsh-vcs-menu"
@@ -306,14 +330,14 @@ export function apply(ctx: Context) {
   }
 
   ctx.slots.inject('conversation.input.dock', () =>
-    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: 100 }, (props) => (
+    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: -100 }, (props) => (
       <Action key={props.sessionId} {...props} />
     ))
   )
   ctx.effect(() => {
     const style = document.createElement('style')
     style.textContent = `
-.dsh-vcs { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance)); max-width: var(--dsh-composer-card-max-width); margin: 0 auto; padding-bottom: 8px; }
+.dsh-vcs { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance) - 4 * var(--dsh-composer-dock-inset)); max-width: calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset)); margin: 0 auto; padding-bottom: 8px; }
 .dsh-vcs-actions { display: inline-flex; align-items: center; }
 .dsh-vcs-actions > .dsh-vcs-trigger { border-radius: 14px 0 0 14px; }
 .dsh-vcs-actions > .dsh-vcs-trigger:only-child { border-radius: 14px; }

@@ -2,7 +2,49 @@ name: CI
 
 on:
   push:
+    branches: ['main']
+    paths:
+      - '.github/workflows/ci.yml'
+      - 'packages/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'turbo.json'
+      - '.oxfmtrc.json'
+      - '.oxlintrc.json'
+      - '.editorconfig'
+      - '.gitignore'
+      # Skills are shipped plugin content, so do not exclude Markdown globally.
+      - '!**/AGENTS.md'
+      - '!packages/*/README.md'
+      - '!packages/*/CHANGELOG.md'
+      - '!packages/*/verification/**'
+      - '!tools/*/README.md'
+      - '!tools/*/CHANGELOG.md'
   pull_request:
+    paths:
+      - '.github/workflows/ci.yml'
+      - 'packages/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'turbo.json'
+      - '.oxfmtrc.json'
+      - '.oxlintrc.json'
+      - '.editorconfig'
+      - '.gitignore'
+      - '!**/AGENTS.md'
+      - '!packages/*/README.md'
+      - '!packages/*/CHANGELOG.md'
+      - '!packages/*/verification/**'
+      - '!tools/*/README.md'
+      - '!tools/*/CHANGELOG.md'
 
 permissions:
   contents: read

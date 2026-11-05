@@ -14,6 +14,9 @@ const copy = {
     new: '새 워크트리',
     directory: '워크트리 풀 디렉터리',
     remote: '추적 중인 원격 브랜치 사용',
+    deleteOnArchive: '보관 시 워크트리 삭제',
+    deleteOnArchiveDescription:
+      '이 플러그인이 만든 워크트리만 삭제합니다. 미커밋·미추적·무시된 파일이나 다른 세션이 있으면 유지하며, 브랜치는 삭제하지 않습니다.',
     naming: '자동 브랜치 이름 형식',
     semantic: '시멘틱 (feat/… 또는 fix/…)',
     dsh: 'DSH (dsh/*)',
@@ -34,6 +37,9 @@ const copy = {
     new: '新工作树',
     directory: '工作树池目录',
     remote: '使用跟踪的远程分支',
+    deleteOnArchive: '归档时删除工作树',
+    deleteOnArchiveDescription:
+      '仅删除此插件创建的工作树。有未提交、未跟踪、被忽略的文件或其他会话使用时保留，不删除分支。',
     naming: '自动分支命名格式',
     semantic: '语义化（feat/… 或 fix/…）',
     dsh: 'DSH（dsh/*）',
@@ -54,6 +60,9 @@ const copy = {
     new: 'New worktree',
     directory: 'Worktree pool directory',
     remote: 'Use tracked remote branch',
+    deleteOnArchive: 'Delete worktree on archive',
+    deleteOnArchiveDescription:
+      'Only removes worktrees created by this plugin. Keeps worktrees with uncommitted, untracked or ignored files, or other sessions. Branches are kept.',
     naming: 'Automatic branch naming',
     semantic: 'Semantic (feat/… or fix/…)',
     dsh: 'DSH (dsh/*)',
@@ -265,6 +274,21 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
                 checked={draft.remote}
                 disabled={disabled}
                 onChange={(remote) => change({ remote })}
+              />
+            </SettingsRow>
+            <SettingsRow
+              label={
+                <>
+                  <div className="dsh-worktree-settings-title">{text.deleteOnArchive}</div>
+                  <p>{text.deleteOnArchiveDescription}</p>
+                </>
+              }
+            >
+              <Switch
+                label={text.deleteOnArchive}
+                checked={draft.deleteOnArchive}
+                disabled={disabled}
+                onChange={(deleteOnArchive) => change({ deleteOnArchive })}
               />
             </SettingsRow>
             <SettingsRow

@@ -14,6 +14,7 @@ async function mount(operation, language = 'en', options = {}) {
   const listeners = new Map()
   const sidebar = options.sidebar === true
   let requestResult = { ok: true, value: { request: options.request ?? null } }
+  let gitContext = { operation, headSha: 'head', dirty: false }
   let cursor = 0
   let mountingSidebar = false
   let registered, plugin
@@ -75,7 +76,7 @@ async function mount(operation, language = 'en', options = {}) {
           call: async (channel, method, payload) => {
             calls.push({ channel, method, payload })
             if (sidebar) return operation(channel, method, payload)
-            if (method === 'dungsil-vcs/describe') return { ok: true, value: operation }
+            if (method === 'dungsil-vcs/describe') return { ok: true, value: gitContext }
             if (method === 'dungsil-vcs/pull-requests/list') return requestResult
             assert.equal(method, 'dungsil-vcs/execute')
             if (options.execute) return options.execute(payload)
@@ -140,6 +141,7 @@ async function mount(operation, language = 'en', options = {}) {
     session,
     render,
     setRequestResult: (result) => (requestResult = result),
+    setGitContext: (value) => (gitContext = { ...gitContext, ...value }),
     focus: () => listeners.get('focus')?.(),
     unmount() {
       for (const hook of hooks) hook?.cleanup?.()
@@ -254,7 +256,7 @@ await test('PR creation changes immediately to a sidebar view action after execu
 })
 
 await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
-  const mounted = await mount('pr', 'ko', { request: { number: 42 } })
+  const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head' } })
   assert.equal(mounted.primary.children[1], 'PR 보기')
   assert.equal(mounted.menu, undefined)
   mounted.primary.onClick()
@@ -332,4 +334,56 @@ await test('sidebar shows an overview before details, reopens from cache, and ke
   const otherSession = await f.render('other')
   assert.ok(!JSON.stringify(otherSession).includes('Fast overview'))
   f.unmount()
+})
+
+await test('existing PRs offer updates for dirty files or unpublished commits and keep viewing in the menu', async () => {
+  for (const [language, updateLabel, viewLabel] of [
+    ['en', 'Update PR', 'View PR'],
+    ['ko', 'PR 업데이트', 'PR 보기'],
+    ['zh', '更新 PR', '查看 PR'],
+  ]) {
+    for (const context of [{ dirty: true }, { headSha: 'unpublished' }]) {
+      const executed = Promise.withResolvers()
+      const mounted = await mount('pr', language, {
+        request: { number: 42, headSha: 'head' },
+        execute: () => executed.promise,
+      })
+      mounted.setGitContext(context)
+      await mounted.focus()
+      const primary = await mounted.refresh()
+      assert.equal(primary.children[1], updateLabel)
+      assert.equal(primary.disabled, false)
+      assert.equal(mounted.menu.items.find((item) => item.id === 'view').label, viewLabel)
+      mounted.menu.onSelect('view')
+      assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+      assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
+      assert.equal(mounted.messages.length, 0)
+      primary.onClick()
+      const commands = mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute')
+      assert.equal(commands.length, 1)
+      assert.equal(commands[0].payload.operation, 'pr')
+      assert.equal((await mounted.refresh()).disabled, true)
+      executed.resolve({
+        ok: true,
+        value: { operation: 'pr', branch: 'feat/test', url: 'https://github.com/team/project/pull/42', checks: [] },
+      })
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal((await mounted.refresh()).children[1], viewLabel)
+      assert.equal(mounted.menu, undefined)
+      assert.equal(mounted.session.running, undefined)
+      assert.equal(mounted.messages.length, 0)
+      assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
+    }
+  }
+})
+
+await test('Git action menus use a compact portaled bubble above the composer', async () => {
+  for (const operation of ['push', 'pr']) {
+    const mounted = await mount(operation)
+    assert.equal(mounted.menu.side, 'top')
+    assert.equal(mounted.menu.portal, true)
+    assert.equal(mounted.menu.compact, true)
+    assert.equal(mounted.messages.length, 0)
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
+  }
 })
