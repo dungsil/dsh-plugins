@@ -20,7 +20,7 @@ export const copy = {
     readError: '无法加载工作树列表。请重新查询以确认当前分支。',
     errorCode: '错误代码',
     errorOperation: '请求',
-    operations: { describe: '查询工作树', create: '创建工作树', switch: '切换工作树' },
+    operations: { describe: '查询工作树', initialize: '初始化工作树选择', create: '创建工作树', switch: '切换工作树' },
     reasons: {
       busy: '会话中有正在执行的任务。请在任务结束后重新查询。',
       conflict: '当前工作目录已更改。请刷新列表后再进行更改。',
@@ -59,7 +59,12 @@ export const copy = {
     readError: 'Could not load the worktree list. Retry the lookup to check the current branch.',
     errorCode: 'Error code',
     errorOperation: 'Request',
-    operations: { describe: 'List worktrees', create: 'Create worktree', switch: 'Switch worktree' },
+    operations: {
+      describe: 'List worktrees',
+      initialize: 'Initialize worktree selection',
+      create: 'Create worktree',
+      switch: 'Switch worktree',
+    },
     reasons: {
       busy: 'The session has an active task. Retry after the task stops.',
       conflict: 'The current directory changed. Reload the list before another change.',
@@ -99,7 +104,12 @@ export const copy = {
     readError: '워크트리 목록을 불러오지 못했습니다. 다시 조회해 현재 브랜치를 확인하세요.',
     errorCode: '오류 코드',
     errorOperation: '요청',
-    operations: { describe: '워크트리 조회', create: '워크트리 생성', switch: '워크트리 전환' },
+    operations: {
+      describe: '워크트리 조회',
+      initialize: '워크트리 선택 초기화',
+      create: '워크트리 생성',
+      switch: '워크트리 전환',
+    },
     reasons: {
       busy: '세션에서 작업을 실행 중입니다. 작업이 끝난 뒤 다시 조회하세요.',
       conflict: '현재 작업 경로가 바뀌었습니다. 목록을 새로고침한 뒤 변경하세요.',

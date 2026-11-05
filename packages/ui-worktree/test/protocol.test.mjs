@@ -35,6 +35,8 @@ await test('POSIX names keep literal backslashes and case while roots and nested
 await test('worktree response validation rejects malformed values before render', () => {
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [{ path: '/repo', branch: null }] }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [] }), true)
+  assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], needsInitialization: true }), true)
+  assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], needsInitialization: false }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], pendingCreation: { name: '', failed: false } }), true)
   for (const value of [
     null,
@@ -42,6 +44,7 @@ await test('worktree response validation rejects malformed values before render'
     { cwd: 3, worktrees: [] },
     { cwd: '/repo', worktrees: [null] },
     { cwd: '/repo', worktrees: [{ path: '/repo', branch: 3 }] },
+    ...[null, 'true', 1, {}].map((needsInitialization) => ({ cwd: '/repo', worktrees: [], needsInitialization })),
     ...[null, {}, { name: 42, failed: false }, { name: '', failed: 'no' }].map((pendingCreation) => ({
       cwd: '/repo',
       worktrees: [],

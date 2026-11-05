@@ -20,12 +20,17 @@ function deferred() {
   return { promise, resolve }
 }
 
-const readinessCases = [
+const mutationReadinessCases = [
   { name: 'running', blocked: { running: true }, ready: { running: false } },
-  { name: 'opening', blocked: { openState: 'opening' }, ready: { openState: 'open' } },
   { name: 'pending submission', blocked: { pendingSubmissions: [{}] }, ready: { pendingSubmissions: [] } },
+]
+const readReadinessCases = [
+  { name: 'opening', blocked: { openState: 'opening' }, ready: { openState: 'open' } },
   { name: 'removed', blocked: { removed: true }, ready: { removed: false } },
 ]
+const uninitializedView = () => ({ ...view(), needsInitialization: true })
+const pendingCreationView = () => ({ ...view(), pendingCreation: { name: 'New worktree', failed: false } })
+const operations = (h) => h.calls.map((call) => call.operation)
 
 function elements(node) {
   if (Array.isArray(node)) return node.flatMap(elements)
@@ -263,25 +268,23 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
   return harness
 }
 
-await test('returning to a running session defers lookup and recovers automatically when idle', async (t) => {
-  let running = false
+await test('returning to a running session reads its current branch without enabling mutations', async (t) => {
   const h = await mount(t, {
-    rpc: ({ payload }) => (payload.sessionId === 'original' && running ? failure('busy') : success()),
+    rpc: ({ payload }) => success(view(payload.sessionId === 'original' ? 'original-branch' : 'other-branch')),
   })
-  assert.equal(h.calls.length, 1)
-  assert.match(h.text, /main/)
-  running = true
+  assert.match(h.text, /original-branch/)
   await h.update({ running: true })
   await h.navigate('other')
+  assert.match(h.text, /other-branch/)
   const beforeReturn = h.calls.length
   await h.navigate('original')
-  const afterReturn = h.calls.length
-  assert.equal(afterReturn, beforeReturn, 'Returning to a still-running session must not query the busy server')
+  assert.equal(h.calls.length, beforeReturn + 1, 'Returning to a running session must issue a read-only describe')
+  assert.equal(h.calls.at(-1).operation, 'describe')
+  assert.equal(h.calls.at(-1).payload.sessionId, 'original')
+  assert.match(h.text, /original-branch/)
   assert.doesNotMatch(h.text, /Lookup failed/)
-  running = false
+  assert.equal(h.menu.anchor.props.disabled, true)
   await h.update({ running: false })
-  assert.equal(h.calls.length, afterReturn + 1, 'An idle transition must load without manual refresh')
-  assert.match(h.text, /main/)
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
@@ -304,7 +307,39 @@ await test('idle mount loads once, stable renders do not reload, and idle focus 
   assert.equal(h.calls.at(-1).signal.aborted, true)
 })
 
-for (const { name, blocked, ready } of readinessCases) {
+for (const { name, blocked, ready } of mutationReadinessCases) {
+  await test(`${name} mount and focus read the branch but keep mutations disabled`, async (t) => {
+    const h = await mount(t, { initial: blocked, rpc: () => success(linkedView()) })
+    assert.deepEqual(operations(h), ['describe'])
+    assert.match(h.text, /feature\/worktree/)
+    assert.equal(h.menu.anchor.props.disabled, true)
+    await h.select('create')
+    await h.select('path:/repo')
+    assert.deepEqual(operations(h), ['describe'], 'Disabled menu handlers must not perform writes')
+    await h.focus()
+    assert.deepEqual(operations(h), ['describe', 'describe'])
+    assert.match(h.text, /feature\/worktree/)
+    assert.equal(h.menu.anchor.props.disabled, true)
+    await h.update(ready)
+    assert.equal(h.menu.anchor.props.disabled, false)
+    assert.ok(h.calls.every((call) => call.operation === 'describe'))
+  })
+
+  await test(`focus after becoming ${name} still reads using current mutation readiness`, async (t) => {
+    const h = await mount(t)
+    await h.update(blocked)
+    const beforeFocus = h.calls.length
+    await h.focus()
+    assert.equal(h.calls.length, beforeFocus + 1)
+    assert.equal(h.calls.at(-1).operation, 'describe')
+    assert.match(h.text, /main/)
+    assert.equal(h.menu.anchor.props.disabled, true)
+    await h.update(ready)
+    assert.equal(h.menu.anchor.props.disabled, false)
+  })
+}
+
+for (const { name, blocked, ready } of readReadinessCases) {
   await test(`${name} mount and focus defer lookup until the session is ready`, async (t) => {
     const h = await mount(t, { initial: blocked })
     assert.equal(h.calls.length, 0, `A ${name} session must not issue its initial describe`)
@@ -332,12 +367,10 @@ for (const { name, blocked, ready } of readinessCases) {
   })
 }
 
-await test('create worktree, navigate away, and return while running never produces Lookup failed', async (t) => {
-  let running = false
+await test('create worktree, navigate away, and return while running reads the selected branch', async (t) => {
   let selected = view()
   const h = await mount(t, {
-    rpc: ({ operation, payload }) => {
-      if (payload.sessionId === 'original' && running) return failure('busy')
+    rpc: ({ operation }) => {
       if (operation === 'create') selected = linkedView()
       return success(selected)
     },
@@ -345,49 +378,216 @@ await test('create worktree, navigate away, and return while running never produ
   await h.select('create')
   assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
   assert.match(h.text, /feature\/worktree/)
-  running = true
   await h.update({ running: true })
   await h.navigate('other')
   assert.equal(h.calls[0].signal.aborted, true, 'The keyed navigation must run the old Picker cleanup')
   const beforeReturn = h.calls.length
   await h.navigate('original')
-  await h.focus()
-  assert.equal(h.calls.length, beforeReturn, 'Return and focus must both defer reads during the original task')
-  assert.doesNotMatch(h.text, /Lookup failed/)
-  running = false
-  await h.update({ running: false })
   assert.equal(h.calls.length, beforeReturn + 1)
   assert.match(h.text, /feature\/worktree/)
+  await h.focus()
+  assert.equal(h.calls.length, beforeReturn + 2, 'Return and focus must each read during the original task')
+  assert.equal(h.menu.anchor.props.disabled, true)
+  assert.doesNotMatch(h.text, /Lookup failed/)
+  await h.update({ running: false })
+  assert.match(h.text, /feature\/worktree/)
   assert.equal(h.menu.anchor.props.disabled, false)
+  assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
 })
 
-await test('a busy describe race is deferred rather than a sticky lookup error and retries on readiness', async (t) => {
+for (const { name, blocked, ready } of mutationReadinessCases) {
+  await test(`an uninitialized ${name} session describes first and initializes only after becoming idle`, async (t) => {
+    let initialized = false
+    const h = await mount(t, {
+      initial: blocked,
+      rpc: ({ operation }) => {
+        if (operation === 'initialize') initialized = true
+        return success(initialized ? pendingCreationView() : uninitializedView())
+      },
+    })
+    assert.deepEqual(operations(h), ['describe'])
+    assert.match(h.text, /main/)
+    assert.equal(h.menu.anchor.props.disabled, true)
+    await h.focus()
+    assert.deepEqual(operations(h), ['describe', 'describe'], 'Read-only focus must not initialize a busy session')
+    const beforeIdle = h.calls.length
+    await h.update(ready)
+    assert.deepEqual(operations(h).slice(beforeIdle), ['describe', 'initialize'])
+    const initialization = h.calls.at(-1)
+    assert.equal(initialization.endpoint, 'dungsil-worktree/initialize')
+    assert.equal(initialization.payload.sessionId, 'original')
+    assert.equal(initialization.payload.cwd, '/repo')
+    assert.equal(h.menu.selectedId, 'create', 'The initialize response must apply pendingCreation immediately')
+    assert.match(h.menu.anchor.props.label, /New worktree/)
+    assert.equal(h.menu.anchor.props.disabled, false)
+    await h.update({})
+    await h.focus()
+    assert.equal(h.calls.filter((call) => call.operation === 'initialize').length, 1)
+    assert.equal(h.calls.filter((call) => call.operation === 'create').length, 0)
+  })
+}
+
+await test('successful initialization is not repeated until describe explicitly requests initialization again', async (t) => {
+  let needsInitialization = true
+  const h = await mount(t, {
+    rpc: ({ operation }) => {
+      if (operation === 'initialize') needsInitialization = false
+      return success(needsInitialization ? uninitializedView() : pendingCreationView())
+    },
+  })
+  assert.deepEqual(operations(h), ['describe', 'initialize'])
+  assert.equal(h.menu.selectedId, 'create')
+  await h.update({})
+  await h.focus()
+  assert.equal(h.calls.filter((call) => call.operation === 'initialize').length, 1)
+  needsInitialization = true
+  await h.focus()
+  assert.deepEqual(operations(h).slice(-2), ['describe', 'initialize'])
+  assert.equal(h.calls.filter((call) => call.operation === 'initialize').length, 2)
+})
+
+await test('a busy initialization race preserves the read view and retries on readiness without a loop', async (t) => {
   const response = deferred()
-  let reads = 0
-  const h = await mount(t, { rpc: () => (reads++ === 0 ? response.promise : success()) })
-  assert.equal(h.calls.length, 1)
+  let attempts = 0
+  let initialized = false
+  const h = await mount(t, {
+    rpc: ({ operation }) => {
+      if (operation === 'initialize') {
+        if (++attempts === 1) return response.promise
+        initialized = true
+      }
+      return success(initialized ? pendingCreationView() : uninitializedView())
+    },
+  })
+  assert.deepEqual(operations(h), ['describe', 'initialize'])
   await h.update({ running: true })
   response.resolve(failure('busy'))
   await h.flush()
-  assert.doesNotMatch(h.text, /Lookup failed/, 'A busy read is temporary, not a manual-refresh error')
+  assert.match(h.text, /main/)
+  assert.doesNotMatch(h.text, /Lookup failed|Check worktree state/)
+  assert.equal(h.calls.length, 2, 'Busy initialization must not cause an immediate retry loop')
+  await h.update({})
+  assert.equal(h.calls.length, 2)
+  await h.focus()
+  assert.equal(h.calls.at(-1).operation, 'describe', 'Running focus may read but must not retry initialization')
+  assert.equal(attempts, 1)
+  const beforeIdle = h.calls.length
+  await h.update({ running: false })
+  assert.deepEqual(operations(h).slice(beforeIdle), ['describe', 'initialize'])
+  assert.equal(attempts, 2)
+  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.menu.anchor.props.disabled, false)
+})
+
+await test('a busy initialization retries on a later idle focus rather than an unrelated render', async (t) => {
+  let attempts = 0
+  let initialized = false
+  const h = await mount(t, {
+    rpc: ({ operation }) => {
+      if (operation === 'initialize') {
+        if (++attempts === 1) return failure('busy')
+        initialized = true
+      }
+      return success(initialized ? pendingCreationView() : uninitializedView())
+    },
+  })
+  assert.deepEqual(operations(h), ['describe', 'initialize'])
+  assert.match(h.text, /main/)
+  assert.doesNotMatch(h.text, /Lookup failed|Check worktree state/)
+  await h.update({})
+  assert.equal(h.calls.length, 2)
+  await h.focus()
+  assert.deepEqual(operations(h), ['describe', 'initialize', 'describe', 'initialize'])
+  assert.equal(h.menu.selectedId, 'create')
+})
+
+await test('an idle transition during an in-flight initialization queues one serialized refresh', async (t) => {
+  const response = deferred()
+  let attempts = 0
+  let initialized = false
+  const h = await mount(t, {
+    rpc: ({ operation }) => {
+      if (operation === 'initialize') {
+        if (++attempts === 1) return response.promise
+        initialized = true
+      }
+      return success(initialized ? pendingCreationView() : uninitializedView())
+    },
+  })
+  assert.deepEqual(operations(h), ['describe', 'initialize'])
+  await h.update({ running: true })
+  await h.update({ running: false })
+  await h.focus()
+  await h.focus()
+  assert.equal(h.calls.length, 2, 'Readiness and focus must not overlap an in-flight initialization')
+  response.resolve(failure('busy'))
+  await h.flush()
+  assert.deepEqual(operations(h), ['describe', 'initialize', 'describe', 'initialize'])
+  assert.equal(h.menu.selectedId, 'create')
+})
+
+await test('a describe reply rechecks every mutation condition before initializing', async (t) => {
+  const response = deferred()
+  let reads = 0
+  let initialized = false
+  const h = await mount(t, {
+    rpc: ({ operation }) => {
+      if (operation === 'describe' && ++reads === 1) return response.promise
+      if (operation === 'initialize') initialized = true
+      return success(initialized ? pendingCreationView() : uninitializedView())
+    },
+  })
+  await h.update({ running: true, pendingSubmissions: [{}] })
+  response.resolve(success(uninitializedView()))
+  await h.flush()
+  assert.deepEqual(operations(h), ['describe'], 'A session that became busy during describe must not initialize')
+  assert.match(h.text, /main/)
+  assert.equal(h.menu.anchor.props.disabled, true)
+  await h.update({ running: false })
+  await h.focus()
+  assert.ok(h.calls.every((call) => call.operation === 'describe'))
+  const beforeReady = h.calls.length
+  await h.update({ pendingSubmissions: [] })
+  assert.deepEqual(operations(h).slice(beforeReady), ['describe', 'initialize'])
+  assert.equal(h.menu.selectedId, 'create')
+})
+
+await test('keyed navigation aborts initialization and ignores its late pendingCreation reply', async (t) => {
+  const response = deferred()
+  const h = await mount(t, {
+    rpc: ({ operation, payload }) => {
+      if (payload.sessionId !== 'original') return success(view('other-branch'))
+      return operation === 'initialize' ? response.promise : success(uninitializedView())
+    },
+  })
+  assert.deepEqual(operations(h), ['describe', 'initialize'])
+  const initialization = h.calls.at(-1)
+  await h.navigate('other', { running: true })
+  assert.equal(initialization.signal.aborted, true)
+  assert.match(h.text, /other-branch/)
+  response.resolve(success(pendingCreationView()))
+  await h.flush()
+  assert.match(h.text, /other-branch/)
+  assert.notEqual(h.menu.selectedId, 'create')
+  assert.equal(h.warnings.length, 0)
+  assert.equal(h.listeners.get('focus').size, 1)
+  await h.navigate('original', { running: true })
+  assert.equal(h.calls.at(-1).operation, 'describe')
+  assert.equal(h.calls.filter((call) => call.operation === 'initialize').length, 1)
+  assert.match(h.text, /main/)
+  assert.equal(h.menu.anchor.props.disabled, true)
+})
+
+await test('repeated focus during an in-flight describe coalesces into one serialized read', async (t) => {
+  const response = deferred()
+  let reads = 0
+  const h = await mount(t, { rpc: () => (++reads === 1 ? response.promise : success()) })
+  await h.focus()
   await h.focus()
   assert.equal(h.calls.length, 1)
-  await h.update({ running: false })
-  assert.equal(h.calls.length, 2)
-  assert.match(h.text, /main/)
-  assert.equal(h.menu.anchor.props.disabled, false)
-})
-
-await test('an idle transition during an in-flight busy read schedules one follow-up lookup', async (t) => {
-  const response = deferred()
-  let reads = 0
-  const h = await mount(t, { rpc: () => (reads++ === 0 ? response.promise : success()) })
-  await h.update({ running: true })
-  await h.update({ running: false })
-  assert.equal(h.calls.length, 1, 'The next read must wait for the in-flight request')
-  response.resolve(failure('busy'))
+  response.resolve(success())
   await h.flush()
-  assert.equal(h.calls.length, 2, 'The idle refresh must not disappear behind an in-flight read')
+  assert.deepEqual(operations(h), ['describe', 'describe'])
   assert.match(h.text, /main/)
   assert.equal(h.menu.anchor.props.disabled, false)
 })
@@ -431,6 +631,33 @@ await test('a busy focus refresh preserves the known branch and remains automati
   assert.equal(h.calls.length, 3)
   assert.equal(h.menu.anchor.props.disabled, false)
 })
+
+for (const code of ['timeout', 'forbidden', 'invalid_response']) {
+  await test(`an initialization ${code} failure stays manual until describe verifies the server state`, async (t) => {
+    let needsInitialization = true
+    const h = await mount(t, {
+      rpc: ({ operation }) => {
+        if (operation === 'initialize') {
+          needsInitialization = false
+          return failure(code)
+        }
+        return success(needsInitialization ? uninitializedView() : pendingCreationView())
+      },
+    })
+    assert.deepEqual(operations(h), ['describe', 'initialize'])
+    assert.match(h.text, /Check worktree state/)
+    await h.focus()
+    await h.update({ running: true })
+    await h.update({ running: false })
+    await h.focus()
+    assert.equal(h.calls.length, 2, 'An uncertain initialization must not be replayed automatically')
+    await h.retry()
+    assert.deepEqual(operations(h), ['describe', 'initialize', 'describe'])
+    assert.equal(h.menu.selectedId, 'create')
+    assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
+    assert.equal(h.menu.anchor.props.disabled, false)
+  })
+}
 
 for (const code of ['forbidden', 'connection_error', 'invalid_response']) {
   await test(`a real ${code} lookup error remains sticky until explicit refresh`, async (t) => {
@@ -545,34 +772,49 @@ await test('keyed navigation aborts an in-flight lookup and ignores its late bus
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('deferred lookup waits until every readiness condition is clear', async (t) => {
+await test('describe needs an open present session, while initialization waits for every mutation condition', async (t) => {
+  let initialized = false
   const h = await mount(t, {
-    initial: { running: true, openState: 'opening', pendingSubmissions: [{}] },
+    initial: { running: true, removed: true, openState: 'opening', pendingSubmissions: [{}] },
+    rpc: ({ operation }) => {
+      if (operation === 'initialize') initialized = true
+      return success(initialized ? pendingCreationView() : uninitializedView())
+    },
   })
-  assert.equal(h.calls.length, 0)
-  await h.update({ running: false })
-  await h.focus()
   assert.equal(h.calls.length, 0)
   await h.update({ openState: 'open' })
   await h.focus()
-  assert.equal(h.calls.length, 0)
+  assert.equal(h.calls.length, 0, 'Removed sessions must not read even when open')
+  await h.update({ removed: false })
+  assert.deepEqual(operations(h), ['describe'])
+  assert.match(h.text, /main/)
+  await h.update({ running: false })
+  await h.focus()
+  assert.ok(
+    h.calls.every((call) => call.operation === 'describe'),
+    'Queued submissions still prohibit initialization'
+  )
+  assert.equal(h.menu.anchor.props.disabled, true)
+  const beforeReady = h.calls.length
   await h.update({ pendingSubmissions: [] })
-  assert.equal(h.calls.length, 1)
+  assert.deepEqual(operations(h).slice(beforeReady), ['describe', 'initialize'])
+  assert.equal(h.menu.selectedId, 'create')
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('manual refresh of a sticky error also defers while the session is running', async (t) => {
+await test('manual refresh of a sticky read error is allowed while the session is running', async (t) => {
   let reads = 0
   const h = await mount(t, { rpc: () => (reads++ === 0 ? failure('forbidden') : success()) })
   assert.match(h.text, /Lookup failed/)
   await h.update({ running: true })
+  assert.equal(h.calls.length, 1, 'Readiness alone must not clear a sticky error')
   await h.retry()
-  assert.equal(h.calls.length, 1, 'Explicit refresh must not bypass session readiness')
-  await h.update({ running: false })
-  assert.equal(h.calls.length, 1, 'The original real error still requires manual refresh')
-  await h.retry()
-  assert.equal(h.calls.length, 2)
+  assert.deepEqual(operations(h), ['describe', 'describe'])
+  assert.match(h.text, /main/)
   assert.doesNotMatch(h.text, /Lookup failed/)
+  assert.equal(h.menu.anchor.props.disabled, true)
+  await h.update({ running: false })
+  assert.equal(h.menu.anchor.props.disabled, false)
 })
 
 await test('busy verification of a real lookup error does not clear its manual-refresh requirement', async (t) => {

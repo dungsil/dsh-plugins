@@ -41,6 +41,10 @@ export function apply(ctx: Context) {
     )
     const unavailableRef = useRef(unavailable)
     unavailableRef.current = unavailable
+    const unreadable = useSession((s) => s.removed || s.openState !== 'open')
+    const unreadableRef = useRef(unreadable)
+    unreadableRef.current = unreadable
+    const previousReadiness = useRef({ unreadable: true, unavailable })
     const [view, setView] = useState<WorktreeView>()
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
@@ -82,7 +86,7 @@ export function apply(ctx: Context) {
     // and ignore replies after unmount (including navigation to another Session).
     const load = async (explicit = false) => {
       const controller = lifetime.current
-      if (!controller || controller.signal.aborted || unavailableRef.current || (needsRefresh.current && !explicit))
+      if (!controller || controller.signal.aborted || unreadableRef.current || (needsRefresh.current && !explicit))
         return
       if (pending.current) {
         reloadRequested.current = true
@@ -91,15 +95,22 @@ export function apply(ctx: Context) {
       reloadRequested.current = false
       pending.current = true
       setLoading(true)
+      let operation: WorktreeOperation = 'describe'
       try {
         const view = await request('describe', { sessionId }, controller.signal)
         if (controller.signal.aborted) return
         setView(view)
+        if (view.needsInitialization && !unavailableRef.current) {
+          operation = 'initialize'
+          const initialized = await request('initialize', { sessionId, cwd: view.cwd }, controller.signal)
+          if (controller.signal.aborted) return
+          setView(initialized)
+        }
         needsRefresh.current = false
         setError(undefined)
       } catch (cause) {
-        // A busy read changes nothing. Keep prior errors until an explicit read succeeds.
-        if (!controller.signal.aborted && failureCode(cause) !== 'busy') recordFailure('describe', cause)
+        // A busy response changes nothing. Keep prior errors until verification succeeds.
+        if (!controller.signal.aborted && failureCode(cause) !== 'busy') recordFailure(operation, cause)
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
@@ -132,8 +143,10 @@ export function apply(ctx: Context) {
     }, [])
 
     useEffect(() => {
-      if (!unavailable) void load()
-    }, [unavailable])
+      const previous = previousReadiness.current
+      previousReadiness.current = { unreadable, unavailable }
+      if (!unreadable && (previous.unreadable || (previous.unavailable && !unavailable))) void load()
+    }, [unreadable, unavailable])
 
     useEffect(() => {
       if (disabled) setOpen(false)
