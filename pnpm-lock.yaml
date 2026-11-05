@@ -980,6 +980,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: ~3.18.5
         version: 3.18.5
+      '@dungsil/dsh-async':
+        specifier: workspace:*
+        version: link:../../tools/async
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
@@ -1116,6 +1119,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: ~3.18.5
         version: 3.18.5
+      '@dungsil/dsh-async':
+        specifier: workspace:*
+        version: link:../../tools/async
       '@dungsil/dsh-plugin-model-settings':
         specifier: workspace:*
         version: link:../model-settings
@@ -1177,6 +1183,12 @@ importers:
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
+
+  tools/async:
+    devDependencies:
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   tools/task-prompts: {}
 
