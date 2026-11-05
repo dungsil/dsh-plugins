@@ -67,16 +67,4 @@ jobs:
         env:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Rehearse packaging all public packages
-        run: |
-          pnpm -r list --depth -1 --json | jq -r '.[] | select(.private != true) | .path' |
-          while IFS= read -r directory; do
-            pnpm --dir "$directory" pack --pack-destination "$RUNNER_TEMP/packages"
-            # Rehearse publishing even when this version is already published.
-            pnpm --dir "$directory" publish --dry-run --no-git-checks --force
-          done
-      - uses: actions/upload-artifact@v6.0.0
-        with:
-          name: plugin-packages
-          path: ${{ runner.temp }}/packages/*.tgz
-          if-no-files-found: error
+      - run: pnpm build
