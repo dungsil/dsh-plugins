@@ -233,6 +233,39 @@ await test('모든 로케일에서 브랜치 조회 중이거나 실패하면 �
   }
 })
 
+await test('설정 화면은 모든 로케일에서 열린 세션 없이 CLI 인증 상태를 표시한다', async () => {
+  for (const [language, label] of [
+    ['ko', '인증됨'],
+    ['en', 'Authenticated'],
+    ['zh', '已认证'],
+  ]) {
+    const mounted = await mount(
+      async (_channel, method) => ({
+        ok: true,
+        value:
+          method === 'dungsil-vcs/cli-status'
+            ? [{ cli: 'gh', status: 'authenticated', accounts: [{ host: 'github.com', login: 'alice' }] }]
+            : { revision: 'initial', settings: { authorName: '', authorEmail: '', noSign: false } },
+      }),
+      language,
+      { settings: true }
+    )
+    try {
+      await mounted.render()
+      const tree = JSON.stringify(await mounted.render())
+      assert.ok(tree.includes(label))
+      assert.ok(tree.includes('github.com'))
+      assert.ok(tree.includes('alice'))
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(mounted.calls.find((call) => call.method === 'dungsil-vcs/cli-status').payload)),
+        {}
+      )
+    } finally {
+      mounted.unmount()
+    }
+  }
+})
+
 await test('설정은 유효한 변경만 자동 저장하고 저장 중에 입력한 값을 이전 응답으로 덮어쓰지 않는다', async () => {
   let stored = { revision: 'initial', settings: { authorName: '', authorEmail: '', noSign: false } }
   let finishSave

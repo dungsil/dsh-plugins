@@ -1,23 +1,15 @@
 import { createHash } from 'node:crypto'
+import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import z from '@deepseek-ai/schemastery'
-import { SessionId } from '@deepseek-ai/dsh-session'
 import { inspectCliStatus } from './cli-status.js'
 import { channel, validCommitSettings, type CommitSettings } from './protocol.js'
 import type { Config as ForgeConfig } from './pull-requests.js'
 
 export const name = 'dungsil-vcs-settings'
-export const inject = [
-  'connection',
-  'configEditor',
-  'sessionController',
-  'workingDirectory',
-  'subprocess',
-  'sandbox',
-  'sandboxPolicy',
-]
+export const inject = ['connection', 'configEditor', 'subprocess', 'sandbox', 'sandboxPolicy']
 export const Config = z.object({
   provider: z.union(['auto', 'github', 'gitlab', 'gitea', 'forgejo']).default('auto'),
   authorName: z.string().default(''),
@@ -78,12 +70,6 @@ export function apply(ctx: Context) {
                 })
                 result = { ok: true, value: snapshot() }
               } else {
-                const sessionId = (body.payload as { sessionId?: unknown } | null)?.sessionId
-                if (typeof sessionId !== 'string' || !sessionId || sessionId.length > 256) throw new Error('invalid')
-                const resolved = await ctx.sessionController.resolveAgent(SessionId(sessionId))
-                if ('error' in resolved) throw new Error('unavailable')
-                const { agent } = resolved
-                const cwd = await ctx.workingDirectory.ensure(agent, signal)
                 const value = await inspectCliStatus(async (executable, args) => {
                   const bounded = AbortSignal.any([signal, AbortSignal.timeout(10_000)])
                   let path: string
@@ -95,14 +81,14 @@ export function apply(ctx: Context) {
                     throw error
                   }
                   const argv = [path, ...args]
-                  const policy = ctx.sandboxPolicy.resolve({ session: agent.session })
+                  const policy = ctx.sandboxPolicy.resolve()
                   const command =
                     policy.mode === 'danger-full-access'
                       ? argv
                       : (await ctx.sandbox.confine(argv, { ...policy, mode: policy.mode }, bounded)).argv
                   const child = ctx.subprocess.spawn({
                     argv: command,
-                    cwd,
+                    cwd: homedir(),
                     signal: bounded,
                     graceMs: 1000,
                     env: {
@@ -139,7 +125,6 @@ export function apply(ctx: Context) {
                   }
                 })
                 signal.throwIfAborted()
-                if (ctx.workingDirectory.get(agent.session) !== cwd) throw new Error('conflict')
                 result = { ok: true, value }
               }
             } catch (error) {
