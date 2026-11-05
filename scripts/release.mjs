@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process'
-import { appendFileSync, readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import conventionalCommits from 'conventional-changelog-conventionalcommits'
 import release from 'release-it'
 import semver from 'semver'
+import { generateIndex, INDEX_FILE } from './market-index.mjs'
 
 export function releaseOptions({ dryRun = false } = {}) {
   const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
@@ -56,10 +57,7 @@ export function releaseOptions({ dryRun = false } = {}) {
       },
     },
     hooks: {
-      'before:git:beforeRelease': [
-        'pnpm exec oxfmt --write package.json CHANGELOG.md',
-        `pnpm pack --pack-destination ${destination}`,
-      ],
+      'before:git:beforeRelease': `pnpm pack --pack-destination ${destination}`,
     },
   }
 }
@@ -69,7 +67,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     throw new Error('An exact version requires a package name and a valid semantic version')
   }
   const root = process.cwd()
-  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  const git = (args, options = {}) => execFileSync('git', args, { cwd: root, encoding: 'utf8', ...options })
   const releaseHead = dryRun ? undefined : git(['rev-parse', 'HEAD']).trim()
   // Unlike `pnpm list`, recursive exec honors dependency order. Serial output
   // keeps that order intact before release-it bumps and packs each package.
@@ -124,11 +122,25 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     }
     if (!dryRun && releases.length > 0) {
       process.chdir(root)
-      git(['add', '--', ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`])])
+      // Index failures must not prevent finalizing packages already published to npm.
+      try {
+        const index = await generateIndex(releases.map(({ pkg }) => pkg.name))
+        writeFileSync(INDEX_FILE, `${JSON.stringify(index, null, 2)}\n`)
+      } catch (error) {
+        console.warn(`warning: Cannot update market index: ${error.message}`)
+      }
+      execFileSync('pnpm', ['format'], { cwd: root, stdio: 'inherit' })
+      git([
+        'add',
+        '--',
+        ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`]),
+        INDEX_FILE,
+      ])
       const message = packageName
         ? `chore(release): ${packageName}@${releases[0].result.version} [skip ci]`
         : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
-      git(['commit', '-m', message])
+      // Formatting already ran once for the entire release, so do not repeat it in lint-staged.
+      git(['commit', '-m', message], { env: { ...process.env, SKIP_SIMPLE_GIT_HOOKS: '1' } })
       for (const { pkg, result } of releases) {
         git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
       }
@@ -177,12 +189,9 @@ if (import.meta.main) {
       version: { type: 'string' },
     },
   })
-  const packages = await releaseWorkspace({
+  await releaseWorkspace({
     dryRun: values['dry-run'],
     packageName: values.package,
     version: values.version,
   })
-  if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `packages=${JSON.stringify(packages)}\n`)
-  }
 }
