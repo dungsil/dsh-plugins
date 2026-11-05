@@ -234,6 +234,14 @@ await test('모든 로케일에서 브랜치 조회 중이거나 실패하면 �
 })
 
 await test('설정 화면은 모든 로케일에서 열린 세션 없이 CLI 인증 상태를 표시한다', async () => {
+  const texts = (node) =>
+    Array.isArray(node)
+      ? node.flatMap(texts)
+      : typeof node === 'string'
+        ? [node]
+        : node?.props
+          ? texts(node.props.children)
+          : []
   for (const [language, label] of [
     ['ko', '인증됨'],
     ['en', 'Authenticated'],
@@ -252,10 +260,10 @@ await test('설정 화면은 모든 로케일에서 열린 세션 없이 CLI 인
     )
     try {
       await mounted.render()
-      const tree = JSON.stringify(await mounted.render())
-      assert.ok(tree.includes(label))
-      assert.ok(tree.includes('github.com'))
-      assert.ok(tree.includes('alice'))
+      const rendered = texts(await mounted.render())
+      for (const expected of [label, 'github.com', 'alice']) {
+        assert.ok(rendered.some((text) => text === expected))
+      }
       assert.deepEqual(
         JSON.parse(JSON.stringify(mounted.calls.find((call) => call.method === 'dungsil-vcs/cli-status').payload)),
         {}
