@@ -5,11 +5,10 @@ import { runInNewContext } from 'node:vm'
 
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
-// Exercise the shipped client entry point without a browser or a live agent.
-async function mount(operation, language = 'en') {
+async function mount(operation, language = 'en', options = {}) {
   const hooks = []
   const effects = []
-  const messages = []
+  const calls = []
   let cursor = 0
   let registered, plugin
   const react = {
@@ -35,8 +34,8 @@ async function mount(operation, language = 'en') {
   const jsx = (type, props) => ({ type, props })
   runInNewContext(bundle, {
     AbortController,
-    // The sidebar's Markdown decoder initializes a DOM node on module load;
-    // these composer tests do not invoke that decoder or mount the sidebar.
+    AbortSignal,
+    crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     document: { createElement: () => ({}) },
     MutationObserver: class {
       observe() {}
@@ -58,10 +57,22 @@ async function mount(operation, language = 'en') {
     },
   })
   plugin.apply({
-    get: (name) =>
-      name === 'connection'
-        ? { rpc: { call: async () => ({ ok: true, value: operation }) } }
-        : { scope: () => ({ get: () => ({ send: async (message) => messages.push(message) }) }) },
+    get(name) {
+      assert.equal(name, 'connection', 'UI must not access the current conversation or sessions service')
+      return {
+        rpc: {
+          call: async (channel, method, payload) => {
+            calls.push({ channel, method, payload })
+            if (method === 'dungsil-vcs/describe') return { ok: true, value: operation }
+            if (options.execute) return options.execute(payload)
+            return {
+              ok: true,
+              value: { operation: payload.operation, branch: 'feat/test', commit: 'a'.repeat(40), checks: [] },
+            }
+          },
+        },
+      }
+    },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
@@ -70,17 +81,16 @@ async function mount(operation, language = 'en') {
     plugin() {},
     effect() {},
   })
-  const session = { openState: 'open', pendingSubmissions: [] }
+  const session = { openState: 'open', pendingSubmissions: [], ...options.session }
   const render = async () => {
     cursor = 0
     const element = registered({
       sessionId: 'session',
       useSession: (select) => select(session),
-      useAccess: () => true,
-      useProjection: () => '/repo',
+      useAccess: () => options.canPrompt !== false,
+      useProjection: () => (options.cwd === null ? undefined : '/repo'),
     })
     const tree = element.type(element.props)
-    // React attaches the anchor before running effects. A changed-files card is present.
     const conversation = { getAttribute: () => 'session', querySelector: () => ({}) }
     for (const hook of hooks) {
       if (hook && typeof hook === 'object' && 'current' in hook && hook.current === null)
@@ -94,56 +104,62 @@ async function mount(operation, language = 'en') {
   await render()
   const tree = await render()
   const actions = tree.props.children[0].props.children
-  return { primary: actions[0].props, menu: actions[1].props, messages }
+  return { primary: actions[0].props, menu: actions[1].props, calls, render }
 }
 
-await test('PR actions send a multi-forge, self-hosted review request in every supported locale', async () => {
+await test('all Git actions use typed server RPC without sending conversation prompts in every locale', async () => {
   for (const language of ['en', 'ko', 'zh']) {
-    const { primary, messages } = await mount('pr', language)
-    assert.equal(primary.disabled, false)
-    primary.onClick()
-    await new Promise((resolve) => setImmediate(resolve))
-    assert.equal(messages.length, 1)
-    const [message] = messages
-    for (const requirement of [
-      'GitHub',
-      'GitLab (including Self-Managed and Dedicated)',
-      'Gitea',
-      'Forgejo',
-      'merge request (MR)',
-      'gh for GitHub',
-      'glab for GitLab',
-      'tea CLI',
-      'actual push remote',
-      'SSH host aliases',
-      'custom ports',
-      'instance URL prefixes',
-      'nested GitLab namespaces',
-      'never fall back to a public host',
-      'credentials already scoped to that instance',
-      'source repository/branch and target repository/branch',
-      'Read the current title and body',
-      'create a new PR/MR only if no matching one exists',
-      'report the resulting PR/MR URL',
-      'report the specific blocker',
-      'Do not force-push',
-    ])
-      assert.ok(message.includes(requirement), `Missing request contract: ${requirement}`)
+    for (const operation of ['commit', 'push', 'pr']) {
+      const view = await mount(operation === 'commit' ? 'pr' : operation, language)
+      assert.equal(view.primary.disabled, false)
+      if (operation === 'commit') view.menu.onSelect('commit')
+      else view.primary.onClick()
+      await new Promise((resolve) => setImmediate(resolve))
+      const commands = view.calls.filter((call) => call.method === 'dungsil-vcs/execute')
+      assert.equal(commands.length, 1)
+      assert.deepEqual(JSON.parse(JSON.stringify(commands[0])), {
+        channel: '/api',
+        method: 'dungsil-vcs/execute',
+        payload: { sessionId: 'session', cwd: '/repo', operation, requestId: '11111111-1111-4111-8111-111111111111' },
+      })
+      assert.ok(JSON.stringify((await view.render()).props.children).includes('aaaaaaaaaaaa'))
+    }
   }
 })
 
-await test('push and commit-only actions do not request hosting API access or review creation', async () => {
-  const { primary, messages } = await mount('push')
-  primary.onClick()
+await test('rapid repeated clicks cannot submit a duplicate command', async () => {
+  let release
+  const waiting = new Promise((resolve) => {
+    release = resolve
+  })
+  const view = await mount('pr', 'en', { execute: () => waiting })
+  view.menu.onSelect('commit')
+  view.menu.onSelect('commit')
+  assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+  release({ ok: true, value: { operation: 'commit', branch: 'feat/test', checks: [] } })
   await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(messages.length, 1)
-  assert.ok(messages[0].startsWith('Commit the work completed in this session if needed, then push'))
-  assert.ok(messages[0].includes('Do not create or update a PR/MR or switch branches.'))
-  assert.ok(!messages[0].includes('tea CLI'))
-  const commit = await mount('pr')
-  commit.menu.onSelect('commit')
-  await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(commit.messages.length, 1)
-  assert.ok(commit.messages[0].startsWith('Commit only the work completed in this session. Do not push'))
-  assert.ok(!commit.messages[0].includes('tea CLI'))
+})
+
+await test('server errors are localized and never retried automatically', async () => {
+  for (const language of ['en', 'ko', 'zh']) {
+    const view = await mount('pr', language, { execute: () => ({ ok: false, error: { code: 'partial_stage' } }) })
+    view.menu.onSelect('commit')
+    await new Promise((resolve) => setImmediate(resolve))
+    const status = (await view.render()).props.children[1]
+    assert.equal(status.props.role, 'alert')
+    assert.match(
+      JSON.stringify(status.props.children),
+      language === 'ko' ? /스테이징/ : language === 'zh' ? /暂存/ : /staged/
+    )
+    assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+  }
+})
+
+await test('busy, read-only viewers and missing directories disable Git actions', async () => {
+  for (const options of [{ session: { running: true } }, { canPrompt: false }, { cwd: null }]) {
+    const view = await mount('pr', 'en', options)
+    assert.equal(view.menu.anchor.props.disabled, true)
+    view.menu.onSelect('commit')
+    assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
+  }
 })

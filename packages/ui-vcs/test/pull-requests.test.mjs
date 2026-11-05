@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -134,7 +135,7 @@ async function fixture(
   }
   await writeFile(
     cli,
-    `process.stdout.write(process.argv[2]); process.stderr.write(process.argv[4] ?? ''); process.exit(Number(process.argv[3]))`
+    `import { readFileSync } from 'node:fs'; process.stdout.write(readFileSync(process.argv[2])); process.stderr.write(process.argv[4] ?? ''); process.exitCode = Number(process.argv[3])`
   )
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
@@ -150,12 +151,14 @@ async function fixture(
       calls.push(spec)
       const args = spec.argv.slice(1)
       const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
+      const output = join(dir, `cli-response-${calls.length}.json`)
+      writeFileSync(output, typeof value === 'string' ? value : JSON.stringify(value))
       return spawn({
         ...spec,
         argv: [
           process.execPath,
           cli,
-          typeof value === 'string' ? value : JSON.stringify(value),
+          output,
           String(value instanceof Error ? 1 : exitCode),
           spec.argv[0] === 'tea' && args[0] === 'api' ? `HTTP/1.1 ${httpStatus} Test\n` : '',
         ],
