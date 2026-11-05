@@ -13,7 +13,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "prepare": "simple-git-hooks",
-    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test"
+    "check": "pnpm format:check && pnpm lint && turbo run typecheck test"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-plugin-market-index": "0.2.1-rc.5",
