@@ -9,12 +9,12 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4.4.0
-      - uses: pnpm/action-setup@v4.3.0
-      - uses: actions/setup-node@v4.4.0
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v4.4.0
+      - uses: actions/setup-node@v5.0.0
         with:
           node-version: 26.13.0
           cache: pnpm
@@ -28,7 +28,7 @@ jobs:
             # Rehearse publishing even when this version is already published.
             pnpm --dir "$directory" publish --dry-run --no-git-checks --force
           done
-      - uses: actions/upload-artifact@v4.6.2
+      - uses: actions/upload-artifact@v6.0.0
         with:
           name: plugin-packages
           path: ${{ runner.temp }}/packages/*.tgz

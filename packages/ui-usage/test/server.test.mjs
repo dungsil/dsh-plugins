@@ -157,7 +157,7 @@ await test('usage HTTP API accounts for original calls, routes, cache, attempts 
   })
 })
 
-test('all dashboard strings are available in English, Korean and Chinese', () => {
+await test('all dashboard strings are available in English, Korean and Chinese', () => {
   for (const language of ['ko', 'zh']) {
     assert.deepEqual(Object.keys(copy[language]).sort(), Object.keys(copy.en).sort())
     for (const value of Object.values(copy[language])) assert.ok(value.trim())

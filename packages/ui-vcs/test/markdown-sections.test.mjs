@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { splitMarkdownSections } from '../src/markdown-sections.ts'
 
-test('description sections preserve Markdown and nest headings without splitting code, quotes, tables or math', () => {
+await test('description sections preserve Markdown and nest headings without splitting code, quotes, tables or math', () => {
   const code = '```md\n# Not a section\n```'
   const quote = '> ## Quoted heading\n> Quoted text'
   const math = '$$\n# Not a section either\n$$'
@@ -23,7 +23,7 @@ test('description sections preserve Markdown and nest headings without splitting
   assert.deepEqual(result.sections[1].children, [])
 })
 
-test('setext headings, shared references and heading-free descriptions remain available', () => {
+await test('setext headings, shared references and heading-free descriptions remain available', () => {
   const text =
     'Summary\n=======\n[Link][shared] and note[^note].\n\nReview\n------\nDone.\n\n[shared]: https://example.com/path\n[^note]: Shared footnote\n'
   const result = splitMarkdownSections(text)

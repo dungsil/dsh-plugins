@@ -557,22 +557,22 @@ await test('native quota providers keep credential downloads server-side and use
   const h = await fixture(t)
   await h.save()
   const cases = [
-    [
-      'claude',
-      'https://api.anthropic.com/api/oauth/usage',
-      { five_hour: { utilization: 31, resets_at: '2099-01-01T05:00:00Z' } },
-      31,
-    ],
-    [
-      'antigravity',
-      'https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary',
-      { groups: [{ displayName: 'Fixture model', buckets: [{ remainingFraction: 0.35, window: '5h' }] }] },
-      65,
-    ],
-    [
-      'kimi-ai',
-      'https://api.kimi.ai/coding/v1/usages',
-      {
+    {
+      provider: 'claude',
+      url: 'https://api.anthropic.com/api/oauth/usage',
+      payload: { five_hour: { utilization: 31, resets_at: '2099-01-01T05:00:00Z' } },
+      usedPercent: 31,
+    },
+    {
+      provider: 'antigravity',
+      url: 'https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary',
+      payload: { groups: [{ displayName: 'Fixture model', buckets: [{ remainingFraction: 0.35, window: '5h' }] }] },
+      usedPercent: 65,
+    },
+    {
+      provider: 'kimi-ai',
+      url: 'https://api.kimi.ai/coding/v1/usages',
+      payload: {
         limits: [
           {
             detail: { limit: '100', used: '5', remaining: '95', resetTime: '2099-01-01T05:00:00Z' },
@@ -581,12 +581,12 @@ await test('native quota providers keep credential downloads server-side and use
         ],
         usages: { limit_month_total: { used_ratio: 0.2529 } },
       },
-      5,
-    ],
-    [
-      'devin',
-      'https://server.codeium.com/exa.seat_management_pb.SeatManagementService/GetUserStatus',
-      {
+      usedPercent: 5,
+    },
+    {
+      provider: 'devin',
+      url: 'https://server.codeium.com/exa.seat_management_pb.SeatManagementService/GetUserStatus',
+      payload: {
         userStatus: {
           planStatus: {
             dailyQuotaRemainingPercent: 75,
@@ -595,27 +595,27 @@ await test('native quota providers keep credential downloads server-side and use
           },
         },
       },
-      25,
-    ],
-    [
-      'meta',
-      'https://api.meta.ai/muse-code/key',
-      {
+      usedPercent: 25,
+    },
+    {
+      provider: 'meta',
+      url: 'https://api.meta.ai/muse-code/key',
+      payload: {
         api_key: 'must-not-leak',
         user_email: 'private@example.invalid',
         subs_tier_name: 'Fixture plan',
         subs_usage: { window: { used_percent: 19, window_duration_mins: 300, resets_at: 4070926800 } },
       },
-      19,
-    ],
-    [
-      'xai',
-      'https://cli-chat-proxy.grok.com/v1/billing?format=credits',
-      { config: { currentPeriod: { type: 'weekly', end: '2099-01-08T00:00:00Z' }, creditUsagePercent: 37 } },
-      37,
-    ],
+      usedPercent: 19,
+    },
+    {
+      provider: 'xai',
+      url: 'https://cli-chat-proxy.grok.com/v1/billing?format=credits',
+      payload: { config: { currentPeriod: { type: 'weekly', end: '2099-01-08T00:00:00Z' }, creditUsagePercent: 37 } },
+      usedPercent: 37,
+    },
   ]
-  for (const [provider, url, payload, usedPercent] of cases) {
+  for (const { provider, url, payload, usedPercent } of cases) {
     const account = {
       name: `${provider}.json`,
       provider,
