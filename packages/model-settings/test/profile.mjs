@@ -63,7 +63,13 @@ class RecordingAdapter extends LlmAdapter {
 }
 
 /** Real profile persistence, Loader reconciliation, title service and LLM routing. */
-export async function profileFixture(strategy = 'first-prompt', initialRoute = {}, worktreeConfig, yoonmoonConfig) {
+export async function profileFixture(
+  strategy = 'first-prompt',
+  initialRoute = {},
+  worktreeConfig,
+  yoonmoonConfig,
+  { yoonmoonPlugin = Yoonmoon, omitYoonmoonConfig = false } = {}
+) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-model-settings-'))
   const dir = join(home, 'profiles', 'test')
   initProfile(dir, ['test-bundle'])
@@ -91,7 +97,13 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
             ? [{ id: 'custom-worktree-entry', name: '@dungsil/dsh-plugin-ui-worktree', config: worktreeConfig }]
             : []),
           ...(yoonmoonConfig
-            ? [{ id: 'custom-yoonmoon-entry', name: '@dungsil/dsh-plugin-yoonmoon', config: yoonmoonConfig }]
+            ? [
+                {
+                  id: 'custom-yoonmoon-entry',
+                  name: '@dungsil/dsh-plugin-yoonmoon',
+                  ...(omitYoonmoonConfig ? {} : { config: yoonmoonConfig }),
+                },
+              ]
             : []),
         ],
       },
@@ -128,7 +140,7 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
         import: async (specifier) => {
           if (specifier === providerName) return strategy === 'first-prompt' ? FirstPrompt : AllPrompts
           if (specifier === '@dungsil/dsh-plugin-model-settings') return plugin
-          if (specifier === '@dungsil/dsh-plugin-yoonmoon') return Yoonmoon
+          if (specifier === '@dungsil/dsh-plugin-yoonmoon') return yoonmoonPlugin
           // This fixture exercises config ownership and persistence; real worktree calls are tested by ui-worktree.
           if (specifier === '@dungsil/dsh-plugin-ui-worktree') return { apply() {} }
           throw new Error(`Unexpected import: ${specifier}`)
