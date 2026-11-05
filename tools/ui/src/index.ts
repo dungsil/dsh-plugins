@@ -9,6 +9,7 @@ export {
   Input,
   MarkdownText,
   Menu,
+  MenuItemButton,
   MenuSurface,
   Modal,
   Pill,

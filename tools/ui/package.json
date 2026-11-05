@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
@@ -11,7 +12,8 @@
     "./icons/dom": "./src/icons-dom.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
   },
   "dependencies": {
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5"
@@ -19,7 +21,9 @@
   "devDependencies": {
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
     "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
     "@types/react": "18.3.31",
-    "react": "18.3.1"
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
   }
 }

@@ -7,7 +7,7 @@ export default defineConfig([
     entry: ['src/client.tsx'],
     deps: {
       alwaysBundle: ['@dungsil/dsh-ui'],
-      neverBundle: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'],
+      neverBundle: ['react', 'react/jsx-runtime', 'react-dom/client', '@deepseek-ai/dsh-client-ui-primitives'],
     },
   }),
 ])
