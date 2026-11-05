@@ -529,7 +529,10 @@ export function apply(ctx: Context) {
                   )}
                   {page === 'conversation' && (
                     <section className="dsh-pr-section" aria-label={copy.conversation}>
-                      {loading && <Loading label={copy.loading} />}
+                      <h3>
+                        {copy.conversation}
+                        {loading && <Loading label={copy.loading} />}
+                      </h3>
                       {!loading && !item.detailsError && !item.comments.length && !item.reviews.length && (
                         <p>{copy.no_conversation}</p>
                       )}
