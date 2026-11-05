@@ -134,9 +134,8 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const [error, setError] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [opening, setOpening] = useState<string>()
-  const [openError, setOpenError] = useState<string>()
-  const openingPending = useRef(false)
+  const [folderStatus, setFolderStatus] = useState<Record<string, 'opening' | 'error' | undefined>>({})
+  const openingPending = useRef(new Set<string>())
   const pending = useRef(false)
   const mounted = useRef(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -187,18 +186,17 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   }
 
   async function openFolder(path: string) {
-    if (openingPending.current) return
-    openingPending.current = true
-    setOpening(path)
-    setOpenError(undefined)
+    if (openingPending.current.has(path)) return
+    openingPending.current.add(path)
+    setFolderStatus((current) => ({ ...current, [path]: 'opening' }))
     try {
       const result = await connection.rpc.call(channel, openFolderMethod, { path })
       if (!result.ok) throw new Error('Could not open skill folder')
+      if (mounted.current) setFolderStatus((current) => ({ ...current, [path]: undefined }))
     } catch {
-      if (mounted.current) setOpenError(path)
+      if (mounted.current) setFolderStatus((current) => ({ ...current, [path]: 'error' }))
     } finally {
-      openingPending.current = false
-      if (mounted.current) setOpening(undefined)
+      openingPending.current.delete(path)
     }
   }
 
@@ -281,7 +279,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                         <div className="dsh-skills-actions">
                           {skill.path && (
                             <Tooltip
-                              label={opening === skill.path ? text.openingFolder : text.openFolder}
+                              label={folderStatus[skill.path] === 'opening' ? text.openingFolder : text.openFolder}
                               side="top"
                               portal
                             >
@@ -289,15 +287,15 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                                 className="dsh-skills-folder"
                                 variant="ghost"
                                 size="sm"
-                                aria-label={`${opening === skill.path ? text.openingFolder : text.openFolder}: ${skill.name}`}
-                                aria-busy={opening === skill.path}
-                                disabled={!view.folderOpenAvailable || opening !== undefined}
+                                aria-label={`${folderStatus[skill.path] === 'opening' ? text.openingFolder : text.openFolder}: ${skill.name}`}
+                                aria-busy={folderStatus[skill.path] === 'opening'}
+                                disabled={!view.folderOpenAvailable || folderStatus[skill.path] === 'opening'}
                                 aria-description={
                                   view.folderOpenAvailable ? text.openFolderHint : text.openFolderUnavailable
                                 }
                                 onClick={() => void openFolder(skill.path!)}
                                 icon={
-                                  opening === skill.path ? (
+                                  folderStatus[skill.path] === 'opening' ? (
                                     <IconLoadingOutlineRegular size={16} aria-hidden="true" />
                                   ) : (
                                     <IconFolderOpenOutlineRegular size={16} aria-hidden="true" />
@@ -313,7 +311,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                             onChange={(enabled) => void save(skill.name, !enabled)}
                           />
                         </div>
-                        {skill.path && openError === skill.path && (
+                        {skill.path && folderStatus[skill.path] === 'error' && (
                           <p className="dsh-skills-open-error" role="alert">
                             {text.openFolderError}
                           </p>
