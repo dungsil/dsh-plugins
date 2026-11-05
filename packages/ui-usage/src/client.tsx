@@ -27,6 +27,10 @@ const styles = `
 .dsh-usage { container-type: inline-size; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-usage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dsh-usage-status { display: flex; align-items: center; gap: 6px; }
+@keyframes dsh-usage-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .dsh-usage-refresh[aria-busy=true] svg { animation: dsh-usage-spin .8s linear infinite; }
+}
 .dsh-usage-muted, .dsh-usage dt { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dsh-usage h3 { margin: 24px 0 12px; font-size: 14px; font-weight: 500; }
 .dsh-usage dl { margin: 0; }
@@ -140,11 +144,13 @@ function Usage({ ctx }: { ctx: Context }) {
         />
         <Button
           variant="outline"
+          className="dsh-usage-refresh"
+          aria-busy={busy}
           icon={<IconRefreshOutlineRegular />}
           disabled={busy}
           onClick={() => setRefresh((value) => value + 1)}
         >
-          {text.refresh}
+          {busy ? text.refreshing : text.refresh}
         </Button>
       </div>
       {busy && !view && (
