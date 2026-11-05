@@ -35,6 +35,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-agent-loop-testkit": "0.2.1-rc.5",
     "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5",
@@ -45,6 +46,10 @@
     "@deepseek-ai/dsh-session-title": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session-title-all-prompts-llm": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session-title-first-prompt-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-skill": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@dungsil/dsh-plugin-yoonmoon": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "tsdown": "0.23.4"

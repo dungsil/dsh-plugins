@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
+import { mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
@@ -12,6 +13,10 @@ import Projections from '@deepseek-ai/dsh-session-projection'
 import Titles from '@deepseek-ai/dsh-session-title'
 import * as FirstPrompt from '@deepseek-ai/dsh-session-title-first-prompt-llm'
 import * as AllPrompts from '@deepseek-ai/dsh-session-title-all-prompts-llm'
+import Skills from '@deepseek-ai/dsh-skill'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import Tools from '@deepseek-ai/dsh-tools'
+import * as Yoonmoon from '@dungsil/dsh-plugin-yoonmoon'
 import * as plugin from '../dist/index.js'
 
 export const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
@@ -58,7 +63,7 @@ class RecordingAdapter extends LlmAdapter {
 }
 
 /** Real profile persistence, Loader reconciliation, title service and LLM routing. */
-export async function profileFixture(strategy = 'first-prompt', initialRoute = {}, worktreeConfig) {
+export async function profileFixture(strategy = 'first-prompt', initialRoute = {}, worktreeConfig, yoonmoonConfig) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-model-settings-'))
   const dir = join(home, 'profiles', 'test')
   initProfile(dir, ['test-bundle'])
@@ -85,6 +90,9 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
           ...(worktreeConfig
             ? [{ id: 'custom-worktree-entry', name: '@dungsil/dsh-plugin-ui-worktree', config: worktreeConfig }]
             : []),
+          ...(yoonmoonConfig
+            ? [{ id: 'custom-yoonmoon-entry', name: '@dungsil/dsh-plugin-yoonmoon', config: yoonmoonConfig }]
+            : []),
         ],
       },
     ])
@@ -104,6 +112,7 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
   let ctx
   let adapter
   let handler
+  let harness
   const start = async () => {
     ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
       root.provide('profileContext', profile)
@@ -119,6 +128,7 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
         import: async (specifier) => {
           if (specifier === providerName) return strategy === 'first-prompt' ? FirstPrompt : AllPrompts
           if (specifier === '@dungsil/dsh-plugin-model-settings') return plugin
+          if (specifier === '@dungsil/dsh-plugin-yoonmoon') return Yoonmoon
           // This fixture exercises config ownership and persistence; real worktree calls are tested by ui-worktree.
           if (specifier === '@dungsil/dsh-plugin-ui-worktree') return { apply() {} }
           throw new Error(`Unexpected import: ${specifier}`)
@@ -127,9 +137,15 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
       await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
       await root.plugin(Connection)
       await root.plugin(Llm)
+      if (yoonmoonConfig) {
+        await root.plugin(Skills)
+        await root.plugin(SystemPrompt)
+        await root.plugin(Tools)
+      }
       await root.plugin(Sessions)
       await root.plugin(Projections)
       await root.plugin(AgentRegistry)
+      if (yoonmoonConfig) harness = await mountAgentLoopTestHarness(root)
       await root.plugin(Titles, { fallbackMaxWords: 5, fallbackMaxBytes: 40, maxTitleBytes: 80 })
       adapter = new RecordingAdapter()
       root.llm.registerAdapter(['conversation', 'auxiliary'], adapter)
@@ -160,6 +176,22 @@ export async function profileFixture(strategy = 'first-prompt', initialRoute = {
       await start()
     },
     fetch: (request, peer = owner) => handler.fetch(request, peer),
+    async write(id) {
+      const agent = await harness.create(SessionId(id), {
+        provider: 'conversation',
+        model: 'chat-large',
+        reasoningEffort: 'quick',
+      })
+      agent.session.append('request/header', { header: { config: agent.options }, reason: 'initial' })
+      const result = await ctx.tools.execute({
+        name: 'yoonmoon',
+        callId: id,
+        arguments: { skill: 'proofreading-korean', text: '안되요.' },
+        agent,
+        signal: new AbortController().signal,
+      })
+      return { result, config: agent.session.requestHeader().config }
+    },
     async rpc(endpoint, payload = {}, peer = owner) {
       const method = `dungsil-model-settings/${endpoint}`
       const response = await handler.fetch(
