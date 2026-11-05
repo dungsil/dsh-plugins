@@ -11,6 +11,7 @@ import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import Llm, { BlockAssembler } from '@deepseek-ai/dsh-llm'
 import * as PiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import * as plugin from '../dist/index.js'
+import { loadQuotaSnapshot, quotaKey } from '../src/quota-cache.ts'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 
@@ -30,6 +31,7 @@ async function fixture(t) {
   let quotaAccounts
   let quotaStatus = 200
   let quotaAfter
+  let beforeRequest
   const quotaBodies = new Map()
   const credentialFiles = new Map()
   const providerGroups = {
@@ -47,6 +49,7 @@ async function fixture(t) {
     for await (const chunk of req) raw += chunk
     const body = raw ? JSON.parse(raw) : undefined
     requests.push({ url: req.url, method: req.method, body, authorization: req.headers.authorization })
+    await beforeRequest?.(req.url, body)
     const send = (value, status = 200) => {
       res.writeHead(status, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(value))
@@ -211,13 +214,14 @@ async function fixture(t) {
   }
   await start()
   t.after(() => ctx.fiber.dispose())
-  const rpc = async (endpoint, payload = {}, peer = owner) => {
+  const rpc = async (endpoint, payload = {}, peer = owner, signal) => {
     const method = `dungsil-cli-proxy-api/${endpoint}`
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'client-request', rpcId: 'test', method, payload }),
+        signal,
       }),
       peer
     )
@@ -228,6 +232,9 @@ async function fixture(t) {
       return ctx
     },
     requests,
+    beforeRequest(callback) {
+      beforeRequest = callback
+    },
     baseURL,
     profile,
     rpc,
@@ -278,6 +285,153 @@ async function fixture(t) {
     },
   }
 }
+
+for (const count of [1, 3, 8]) {
+  await test(`자동 할당량 로딩은 ${count}개 계정을 조회할 때 busy 오류와 요청 미확인 경고를 만들지 않는다`, async (t) => {
+    const h = await fixture(t)
+    await h.save()
+    h.setQuotaAccounts(
+      Array.from({ length: count }, (_, i) => ({
+        name: `account-${i}.json`,
+        provider: 'codex',
+        auth_index: `auth-${i}`,
+        source: 'file',
+        status: 'ready',
+      }))
+    )
+    h.quotaBodies.set('https://chatgpt.com/backend-api/wham/usage', {
+      rate_limit: { primary_window: { used_percent: 25 } },
+    })
+    const failures = []
+    const call = async (endpoint, payload) => {
+      const result = await h.rpc(endpoint, payload)
+      if (!result.ok) {
+        failures.push(result.error.code)
+        throw new Error(result.error.code)
+      }
+      return result.value
+    }
+    const snapshot = await loadQuotaSnapshot(
+      () => call('quota-list'),
+      (account) => call('quota-fetch', { name: account.name, authIndex: account.authIndex }),
+      new AbortController().signal,
+      () => {}
+    )
+    assert.deepEqual(failures, [])
+    assert.equal(snapshot.accounts.length, count)
+    for (const account of snapshot.accounts)
+      assert.equal(snapshot.quotas[quotaKey(account)]?.windows[0].usedPercent, 25)
+    assert.equal(
+      Object.values(snapshot.quotas).some((result) => result === null),
+      false
+    )
+    assert.equal(h.requests.filter((request) => request.url === '/v8/management/requests/api-call').length, count)
+  })
+}
+
+for (const abortFirst of [false, true]) {
+  await test(`동시 할당량 조회는 첫 조회가 ${abortFirst ? '취소' : '성공'}되어도 마지막 조회가 끝날 때까지 변경을 거부하고 실패 후 잠금을 해제한다`, async (t) => {
+    const h = await fixture(t)
+    await h.save()
+    const gates = Array.from({ length: 2 }, () => ({
+      started: Promise.withResolvers(),
+      finished: Promise.withResolvers(),
+      controller: new AbortController(),
+    }))
+    let cursor = 0
+    h.beforeRequest(async (path) => {
+      if (path !== '/v8/management/requests/api-call') return
+      const gate = gates[cursor++]
+      gate.started.resolve()
+      await gate.finished.promise
+    })
+    const pending = []
+    const lookup = (signal) => h.rpc('quota-fetch', { name: 'demo.json', authIndex: 'auth-1' }, owner, signal)
+    try {
+      for (const gate of gates) {
+        const request = lookup(gate.controller.signal)
+        pending.push(request)
+        await Promise.race([
+          gate.started.promise,
+          request.then(() => assert.fail('the quota request must reach the upstream')),
+        ])
+      }
+      assert.equal((await h.rpc('describe')).ok, true)
+      assert.equal((await h.rpc('quota-list')).ok, true)
+      for (const endpoint of ['save', 'models', 'reset']) assert.equal((await h.rpc(endpoint)).error.code, 'busy')
+      if (abortFirst) {
+        gates[0].controller.abort()
+        assert.equal((await pending[0]).error.code, 'upstream_failed')
+      } else {
+        gates[0].finished.resolve()
+        assert.equal((await pending[0]).ok, true)
+      }
+      assert.equal((await h.rpc('reset')).error.code, 'busy')
+      h.setQuotaStatus(401)
+      gates[1].finished.resolve()
+      assert.equal((await pending[1]).error.code, 'upstream_failed')
+      assert.equal((await h.rpc('reset', { authIndex: 'auth-1' })).ok, true)
+      assert.equal(h.requests.filter((request) => request.url === '/v8/management/routing/cooldown/reset').length, 1)
+    } finally {
+      gates.forEach((gate) => gate.finished.resolve())
+      await Promise.allSettled(pending)
+    }
+  })
+}
+
+await test('병렬 조회 중 외부에서 연결 revision이 바뀌면 오래된 할당량을 거부하고 잠금을 해제한다', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  const before = (await h.rpc('describe')).value
+  const started = Promise.withResolvers()
+  const finished = Promise.withResolvers()
+  h.beforeRequest(async (path) => {
+    if (path !== '/v8/management/requests/api-call') return
+    started.resolve()
+    await finished.promise
+  })
+  const pending = h.rpc('quota-fetch', { name: 'demo.json', authIndex: 'auth-1' })
+  try {
+    await Promise.race([started.promise, pending.then(() => assert.fail('the quota request must reach the upstream'))])
+    const entry = h.ctx.configEditor.entries().find((row) => row.options.id === 'dungsil-cli-proxy-api')
+    await h.ctx.configEditor.edit(entry, (current) => ({ ...current, revision: 'external-change' }))
+    assert.notEqual((await h.rpc('describe')).value.revision, before.revision)
+    finished.resolve()
+    assert.equal((await pending).error.code, 'conflict')
+    assert.equal((await h.rpc('reset', { authIndex: 'auth-1' })).ok, true)
+  } finally {
+    finished.resolve()
+    await pending
+  }
+})
+
+await test('변경 요청 중에는 조회와 중복 변경을 거부하고 실패 후에도 자동으로 재시도하지 않는다', async (t) => {
+  const h = await fixture(t)
+  await h.save()
+  const started = Promise.withResolvers()
+  const finished = Promise.withResolvers()
+  h.beforeRequest(async (path) => {
+    if (path !== '/v8/management/routing/cooldown/reset') return
+    started.resolve()
+    await finished.promise
+  })
+  const pending = h.rpc('reset', { authIndex: 'auth-1' })
+  try {
+    await Promise.race([started.promise, pending.then(() => assert.fail('the reset must reach the upstream'))])
+    for (const endpoint of ['describe', 'quota-list', 'quota-fetch', 'reset', 'save'])
+      assert.equal((await h.rpc(endpoint)).error.code, 'busy')
+    h.reject(true)
+    finished.resolve()
+    assert.equal((await pending).error.code, 'unauthorized')
+    h.reject(false)
+    assert.equal((await h.rpc('describe')).ok, true)
+    assert.equal((await h.rpc('reset', { authIndex: 'auth-1' })).ok, true)
+    assert.equal(h.requests.filter((request) => request.url === '/v8/management/routing/cooldown/reset').length, 2)
+  } finally {
+    finished.resolve()
+    await pending
+  }
+})
 
 await test('연결과 탐색된 라우트를 유지하고 공식 어댑터를 통해 텍스트와 분할된 도구 호출을 스트리밍한다', async (t) => {
   const h = await fixture(t)
