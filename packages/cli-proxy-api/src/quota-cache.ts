@@ -1,6 +1,5 @@
 import type { ConnectionView, QuotaAccount, QuotaResult } from './protocol.js'
 
-export const quotaCacheTTL = 5 * 60 * 1000
 export const quotaKey = (account: QuotaAccount) => JSON.stringify([account.name, account.authIndex])
 export type QuotaValues = Record<string, QuotaResult | null | undefined>
 
@@ -13,7 +12,11 @@ export interface QuotaSnapshot {
 const connectionKey = (view: ConnectionView) => JSON.stringify([view.baseURL, view.revision, view.managementKeySaved])
 
 export class QuotaCache {
-  private entry?: { key: string; snapshot: QuotaSnapshot }
+  private entry?: { key: string; view: ConnectionView; snapshot: QuotaSnapshot }
+
+  get connection() {
+    return this.entry?.view
+  }
 
   read(view: ConnectionView) {
     if (this.entry?.key !== connectionKey(view)) {
@@ -24,7 +27,7 @@ export class QuotaCache {
   }
 
   write(view: ConnectionView, snapshot: QuotaSnapshot) {
-    this.entry = { key: connectionKey(view), snapshot }
+    this.entry = { key: connectionKey(view), view, snapshot }
   }
 
   update(view: ConnectionView, account: QuotaAccount, value: QuotaResult | null) {
@@ -48,11 +51,6 @@ export function subscribeQuotaGeneration(
     cache.clear()
     changed(!!generation.getSnapshot())
   })
-}
-
-export function isQuotaCacheFresh(snapshot: QuotaSnapshot, now = Date.now()) {
-  const age = now - snapshot.fetchedAt
-  return age >= 0 && age < quotaCacheTTL
 }
 
 export async function loadQuotaSnapshot(

@@ -17,9 +17,10 @@ import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
   endpointPrefix,
-  type ModelSettingsView,
+  type ModelSettingsViewV2,
+  type ModelSelection,
   type Route,
-  type TitleTarget,
+  type TaskSnapshot,
 } from '@dungsil/dsh-plugin-model-settings/protocol'
 
 export const name = 'dungsil-ui-model-settings'
@@ -29,31 +30,16 @@ const copy = {
   en: {
     nav: 'Models by task',
     taskSettings: 'Task-specific settings',
-    title: 'Session title',
-    titleDescription: 'Choose the model and reasoning effort used to automatically generate session titles.',
     model: 'Model',
-    worktree: 'Worktree branch name',
-    worktreeDescription:
-      'Choose the model and reasoning effort used to generate a branch name when creating a worktree without a name.',
-    yoonmoon: 'Yoonmoon',
-    yoonmoonDescription:
-      'Choose the model and reasoning effort used for separate polishing and diagnostic calls without changing the conversation model.',
     inherit: 'Use conversation model',
-    auxiliary: 'Auxiliary model',
     useAuxiliary: 'Use auxiliary model',
     auxiliaryHint: 'Uses the auxiliary model and its reasoning effort. If unset, uses the conversation model.',
     instructions: 'Instructions',
     editInstructions: 'Edit instructions',
     instructionsHint: 'Edit the default prompt used for this task. Clear and save to restore the default.',
-    auxiliaryInstructionsHint:
-      'No default prompt: these extra instructions are shared with tasks set to use the auxiliary model. Clear and save to remove them.',
-    yoonmoonInstructionsHint:
-      '{{skill}} and {{resources}} are replaced with the selected skill and its bundled references.',
     save: 'Save',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
-    automaticHint: 'Automatic (lowest supported effort)',
-    worktreeAutomaticHint: 'Automatic (model default)',
     effortHint: 'Choose a model to set its reasoning effort. Automatic keeps the existing behavior.',
     noEfforts: 'This model does not offer reasoning effort settings.',
     missingEffort: 'Saved effort (currently unavailable)',
@@ -63,8 +49,7 @@ const copy = {
     loadError: 'Could not load settings. Close and reopen this settings section to try again.',
     resyncError:
       'Could not check saved settings. Changes are disabled. Close and reopen this settings section to try again.',
-    unavailable:
-      'No supported active title generator was found. Enable one DSH first-prompt or all-prompts title provider.',
+    unavailable: 'No tasks are registered. Enable a plugin that registers model settings tasks.',
     catalog: 'Some model lists could not be loaded. You can still use the conversation model.',
     missing: 'Saved model (not in current catalog)',
     error: 'Could not confirm the change. The change will not be retried automatically.',
@@ -75,29 +60,16 @@ const copy = {
   ko: {
     nav: '상황별 모델',
     taskSettings: '작업별 설정',
-    title: '세션 제목',
-    titleDescription: '세션 제목을 자동으로 생성할 때 사용할 모델과 추론 수준을 설정합니다.',
     model: '모델',
-    worktree: '워크트리 브랜치 이름',
-    worktreeDescription: '이름을 입력하지 않고 워크트리를 만들 때 브랜치 이름을 생성할 모델과 추론 수준을 설정합니다.',
-    yoonmoon: '윤문',
-    yoonmoonDescription:
-      '대화 모델을 변경하지 않고 글다듬기·진단 작업을 별도로 호출할 때 사용할 모델과 추론 수준을 설정합니다.',
     inherit: '대화 모델 따르기',
-    auxiliary: '보조 모델',
     useAuxiliary: '보조 모델 따르기',
     auxiliaryHint: '보조 모델과 추론 수준을 따릅니다. 보조 모델을 지정하지 않으면 대화 모델을 따릅니다.',
     instructions: '지침',
     editInstructions: '지침 수정',
     instructionsHint: '이 작업의 기본 프롬프트를 직접 수정합니다. 내용을 비우고 저장하면 기본값으로 복원합니다.',
-    auxiliaryInstructionsHint:
-      '고유한 기본 프롬프트는 없습니다. 보조 모델 따르기를 선택한 작업에 공통으로 추가할 지침을 입력합니다. 내용을 비우고 저장하면 해제합니다.',
-    yoonmoonInstructionsHint: '{{skill}}과 {{resources}}는 실행할 스킬과 해당 스킬의 내장 자료로 바뀝니다.',
     save: '저장',
     effort: '추론 수준',
     automatic: '자동',
-    automaticHint: '자동 (지원하는 최저 수준)',
-    worktreeAutomaticHint: '자동 (모델 기본값)',
     effortHint: '모델을 지정하면 추론 수준을 선택할 수 있습니다. 자동은 기존 동작을 유지합니다.',
     noEfforts: '이 모델은 추론 수준 설정을 제공하지 않습니다.',
     missingEffort: '저장된 추론 수준 (현재 사용할 수 없음)',
@@ -106,8 +78,7 @@ const copy = {
     resyncing: '저장된 설정을 확인하는 중입니다…',
     loadError: '설정을 불러오지 못했습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
     resyncError: '저장된 설정을 확인하지 못해 변경을 잠갔습니다. 이 설정 항목을 닫았다가 다시 열어 주세요.',
-    unavailable:
-      '지원하는 제목 생성기가 활성화되어 있지 않습니다. DSH의 first-prompt 또는 all-prompts 제목 생성기를 하나 활성화하세요.',
+    unavailable: '등록된 작업이 없습니다. 모델 설정 작업을 등록하는 플러그인을 활성화하세요.',
     catalog: '일부 모델 목록을 불러오지 못했습니다. 대화 모델은 계속 따를 수 있습니다.',
     missing: '저장된 모델 (현재 목록에 없음)',
     error: '변경 여부를 확인하지 못했습니다. 변경 사항은 자동으로 다시 저장하지 않습니다.',
@@ -118,28 +89,16 @@ const copy = {
   zh: {
     nav: '任务模型设置',
     taskSettings: '各任务设置',
-    title: '会话标题',
-    titleDescription: '设置自动生成会话标题时使用的模型和推理级别。',
     model: '模型',
-    worktree: '工作树分支名称',
-    worktreeDescription: '设置创建未指定名称的工作树时用于生成分支名称的模型和推理级别。',
-    yoonmoon: '韩语润色',
-    yoonmoonDescription: '设置单独调用文本润色和诊断任务时使用的模型和推理级别，不更改对话模型。',
     inherit: '使用对话模型',
-    auxiliary: '辅助模型',
     useAuxiliary: '使用辅助模型',
     auxiliaryHint: '使用辅助模型及其推理级别。未指定辅助模型时使用对话模型。',
     instructions: '指令',
     editInstructions: '编辑指令',
     instructionsHint: '直接编辑此任务的默认提示词。清空并保存即可恢复默认值。',
-    auxiliaryInstructionsHint:
-      '没有独立的默认提示词。在此输入选择使用辅助模型的任务共用的附加指令。清空并保存即可移除。',
-    yoonmoonInstructionsHint: '{{skill}} 和 {{resources}} 会替换为所选技能及其内置参考资料。',
     save: '保存',
     effort: '推理级别',
     automatic: '自动',
-    automaticHint: '自动（支持的最低级别）',
-    worktreeAutomaticHint: '自动（模型默认值）',
     effortHint: '指定模型后可选择推理级别。自动选项保留现有行为。',
     noEfforts: '此模型不提供推理级别设置。',
     missingEffort: '已保存的推理级别（当前不可用）',
@@ -148,7 +107,7 @@ const copy = {
     resyncing: '正在检查已保存的设置…',
     loadError: '无法加载设置。请关闭并重新打开此设置项后重试。',
     resyncError: '无法确认已保存的设置，已禁止更改。请关闭并重新打开此设置项后重试。',
-    unavailable: '未找到已启用且受支持的标题生成器。请启用一个 DSH first-prompt 或 all-prompts 标题提供程序。',
+    unavailable: '尚未注册任何任务。请启用注册模型设置任务的插件。',
     catalog: '部分模型列表无法加载。仍可使用对话模型。',
     missing: '已保存的模型（不在当前列表中）',
     error: '无法确认更改是否生效。不会自动重新保存此更改。',
@@ -158,13 +117,13 @@ const copy = {
   },
 }
 
-const localizedCopy = (language: string) =>
-  copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
+const languageKey = (language: string) => (language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en')
+const localizedCopy = (language: string) => copy[languageKey(language)]
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-model-settings-field { border-bottom: .5px solid var(--dsw-alias-border-l2); }
-.dsh-model-settings-field[data-task=auxiliary] { border-bottom: none; }
+.dsh-model-settings-field[data-auxiliary=true] { border-bottom: none; }
 .dsh-model-settings .dsh-plugin-settings-row { border-bottom: none; gap: 8px; }
 .dsh-model-settings-task-heading { margin: 32px 0 0; padding-bottom: 8px; border-bottom: .5px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
@@ -194,54 +153,49 @@ const styles = `${settingsStyles}
 `
 
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
-const selectionKey = (target?: TitleTarget | null) =>
-  target?.useAuxiliary ? 'auxiliary' : routeKey(target?.route ?? null)
-type Task = 'auxiliary' | 'target' | 'worktree' | 'yoonmoon'
+const selectionKey = ({ selection }: TaskSnapshot) =>
+  selection.mode === 'model' ? routeKey(selection.route) : selection.mode === 'auxiliary' ? 'auxiliary' : ''
+const reasoningEffort = ({ selection }: TaskSnapshot) =>
+  selection.mode === 'model' ? (selection.reasoningEffort ?? '') : ''
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useLocaleSnapshot(ctx.locale)
+  const language = languageKey(locale.active)
   const text = localizedCopy(locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const [view, setView] = useState<ModelSettingsView>()
-  const [drafts, setDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
-  const [effortDrafts, setEffortDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
-  const [instructionDrafts, setInstructionDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
-  const [expanded, setExpanded] = useState<Partial<Record<Task, boolean>>>({})
+  const [view, setView] = useState<ModelSettingsViewV2>()
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [effortDrafts, setEffortDrafts] = useState<Record<string, string>>({})
+  const [instructionDrafts, setInstructionDrafts] = useState<Record<string, string>>({})
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
   const [synchronized, setSynchronized] = useState(false)
   const [notice, setNotice] = useState<Notice>()
-  const [noticeTask, setNoticeTask] = useState<Task>()
+  const [noticeTask, setNoticeTask] = useState<string>()
   const [readError, setReadError] = useState<'loadError' | 'resyncError'>()
   const lock = useRef(true)
   const lifetime = useRef<AbortController>()
 
   const read = useCallback(
-    async (controller: AbortController) => {
-      const result = await connection.rpc.call(channel, `${endpointPrefix}describe`, {}, controller.signal)
+    async (controller: AbortController, preserveInstructions = false) => {
+      const result = await connection.rpc.call(channel, `${endpointPrefix}v2/describe`, {}, controller.signal)
       if (controller.signal.aborted || lifetime.current !== controller) return false
       if (!result.ok) throw new Error('describe failed')
-      const next = result.value as unknown as ModelSettingsView
+      const next = result.value as unknown as ModelSettingsViewV2
+      const snapshots = next.auxiliary ? [next.auxiliary, ...next.tasks] : next.tasks
       setView(next)
-      setInstructionDrafts({
-        auxiliary: next.auxiliary?.instructions ?? '',
-        target: next.target?.instructions ?? '',
-        worktree: next.worktree?.instructions ?? '',
-        yoonmoon: next.yoonmoon?.instructions ?? '',
-      })
-      setEffortDrafts({
-        auxiliary: next.auxiliary?.reasoningEffort ?? '',
-        target: next.target?.reasoningEffort ?? '',
-        worktree: next.worktree?.reasoningEffort ?? '',
-        yoonmoon: next.yoonmoon?.reasoningEffort ?? '',
-      })
-      setDrafts({
-        auxiliary: selectionKey(next.auxiliary),
-        target: selectionKey(next.target),
-        worktree: selectionKey(next.worktree),
-        yoonmoon: selectionKey(next.yoonmoon),
-      })
+      setInstructionDrafts((current) =>
+        Object.fromEntries(
+          snapshots.map((task) => [
+            task.id,
+            preserveInstructions ? (current[task.id] ?? task.instructions) : task.instructions,
+          ])
+        )
+      )
+      setEffortDrafts(Object.fromEntries(snapshots.map((task) => [task.id, reasoningEffort(task)])))
+      setDrafts(Object.fromEntries(snapshots.map((task) => [task.id, selectionKey(task)])))
       setSynchronized(true)
       return true
     },
@@ -301,9 +255,11 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     ) ?? []),
   ]
 
-  const save = async (task: Task, draft: string, effort: string, instructions?: string) => {
+  const snapshots = view ? (view.auxiliary ? [view.auxiliary, ...view.tasks] : view.tasks) : []
+
+  const save = async (task: string, draft: string, effort: string, instructions?: string) => {
     const controller = lifetime.current
-    const target = view?.[task]
+    const target = snapshots.find((snapshot) => snapshot.id === task)
     const option = options.find((option) => routeKey(option.route) === draft)
     const selected = option?.route ?? null
     const missingEffort = effort !== '' && !option?.efforts.some((item) => item.id === effort)
@@ -314,7 +270,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       !target ||
       !synchronized ||
       (instructions === undefined &&
-        ((draft === selectionKey(target) && effort === (target.reasoningEffort ?? '')) ||
+        ((draft === selectionKey(target) && effort === reasoningEffort(target)) ||
+          (draft === 'auxiliary' && target.id === view?.auxiliary?.id) ||
           (draft && draft !== 'auxiliary' && !selected) ||
           missingEffort)) ||
       (instructions !== undefined && instructions.trim() === target.instructions)
@@ -330,28 +287,41 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     const active = () => !controller.signal.aborted && lifetime.current === controller
     let failure: Notice | undefined
     try {
+      const selection: ModelSelection =
+        draft === 'auxiliary'
+          ? { mode: 'auxiliary' }
+          : selected
+            ? { mode: 'model', route: selected, reasoningEffort: effort || null }
+            : { mode: 'conversation' }
       const result = await connection.rpc.call(
         channel,
-        `${endpointPrefix}${instructions === undefined ? 'save' : 'instructions'}`,
+        `${endpointPrefix}v2/${instructions === undefined ? 'save' : 'instructions'}`,
         instructions !== undefined
           ? { id: target.id, revision: target.revision, instructions }
           : {
               id: target.id,
               revision: target.revision,
-              route: selected,
-              reasoningEffort: effort || null,
-              useAuxiliary: draft === 'auxiliary',
+              selection,
             },
         controller.signal
       )
       if (!active()) return
       if (result.ok) {
-        const saved = result.value as unknown as TitleTarget | null
-        setView((current) => current && { ...current, [task]: saved })
+        const saved = result.value as unknown as TaskSnapshot
+        setView(
+          (current) =>
+            current && {
+              ...current,
+              auxiliary: current.auxiliary?.id === task ? saved : current.auxiliary,
+              tasks: current.tasks.map((snapshot) => (snapshot.id === task ? saved : snapshot)),
+            }
+        )
         setDrafts((current) => ({ ...current, [task]: selectionKey(saved) }))
-        setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
-        if (instructions !== undefined)
-          setInstructionDrafts((current) => ({ ...current, [task]: saved?.instructions ?? '' }))
+        setEffortDrafts((current) => ({ ...current, [task]: reasoningEffort(saved) }))
+        if (instructions !== undefined) setInstructionDrafts((current) => ({ ...current, [task]: saved.instructions }))
+        // Shared settings can remount the service and renew every task's
+        // registration. Refresh revisions without discarding other text drafts.
+        await read(controller, true)
       } else {
         const code = result.error.code
         failure =
@@ -384,20 +354,21 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       {busy === 'loading' && <p role="status">{text.loading}</p>}
       {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
       {readError && <p role="alert">{text[readError]}</p>}
-      {view && !view.target && <p role="status">{text.unavailable}</p>}
-      {(['auxiliary', 'target', 'worktree', 'yoonmoon'] as const).map((task) => {
-        const target = view?.[task]
-        if (!target) return null
-        const title = task === 'target' ? text.title : text[task]
+      {view && view.tasks.length === 0 && <p role="status">{text.unavailable}</p>}
+      {snapshots.map((target, index) => {
+        const task = target.id
+        const auxiliary = target.id === view?.auxiliary?.id
+        const title = target.label[language]
         const draft = drafts[task]
         const effort = effortDrafts[task]
-        const current = routeKey(target.route)
+        const route = target.selection.mode === 'model' ? target.selection.route : null
+        const current = routeKey(route)
         const missing = current !== '' && !options.some((option) => routeKey(option.route) === current)
         const option = options.find((option) => routeKey(option.route) === draft)
         const selected = option?.route ?? null
         const efforts = option?.efforts ?? []
         const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
-        const automaticHint = task === 'target' ? text.automaticHint : text.worktreeAutomaticHint
+        const automaticHint = target.automaticReasoningLabel[language]
         const modelLabel =
           draft === 'auxiliary' ? text.useAuxiliary : (option?.name ?? (draft ? text.missing : text.inherit))
         const effortLabel =
@@ -405,7 +376,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const fieldId = `${id}-${task}`
         const modelTitle =
           (draft === 'auxiliary' ? text.auxiliaryHint : option?.label) ??
-          (draft ? `${text.missing}: ${target.route!.provider} / ${target.route!.model}` : text.inherit)
+          (draft ? `${text.missing}: ${route!.provider} / ${route!.model}` : text.inherit)
         const effortTitle =
           draft === 'auxiliary'
             ? text.auxiliaryHint
@@ -417,25 +388,19 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   ? effortLabel
                   : automaticHint
         return (
-          <div key={task} className="dsh-model-settings-field" data-task={task}>
-            {(task === 'target' ||
-              (task === 'worktree' && !view?.target) ||
-              (task === 'yoonmoon' && !view?.target && !view?.worktree)) && (
+          <div key={task} className="dsh-model-settings-field" data-task={task} data-auxiliary={auxiliary}>
+            {!auxiliary && index === (view?.auxiliary ? 1 : 0) && (
               <h3 className="dsh-model-settings-task-heading">{text.taskSettings}</h3>
             )}
             <SettingsRow
               label={
                 <>
                   <div>{title}</div>
-                  <div className="dsh-model-settings-description">
-                    {task === 'auxiliary'
-                      ? text.auxiliaryHint
-                      : task === 'target'
-                        ? text.titleDescription
-                        : task === 'worktree'
-                          ? text.worktreeDescription
-                          : text.yoonmoonDescription}
-                  </div>
+                  {!auxiliary &&
+                    view!.tasks.filter(
+                      (item) => item.owner.packageName === target.owner.packageName && item.key === target.key
+                    ).length > 1 && <div className="dsh-model-settings-description">{target.owner.entryId}</div>}
+                  <div className="dsh-model-settings-description">{target.description[language]}</div>
                 </>
               }
             >
@@ -448,13 +413,13 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   title={modelTitle}
                   selectedId={draft}
                   items={[
-                    ...(task === 'auxiliary' ? [] : [{ id: 'auxiliary', label: text.useAuxiliary }]),
+                    ...(auxiliary ? [] : [{ id: 'auxiliary', label: text.useAuxiliary }]),
                     ...(missing
                       ? [
                           ...modelItems,
                           {
                             id: current,
-                            label: `${text.missing}: ${target.route!.provider} / ${target.route!.model}`,
+                            label: `${text.missing}: ${route!.provider} / ${route!.model}`,
                             disabled: true,
                           },
                         ]
@@ -509,8 +474,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               >
                 <label htmlFor={`${fieldId}-instructions-input`}>{text.instructions}</label>
                 <div id={`${fieldId}-instructions-hint`} className="dsh-model-settings-description">
-                  {task === 'auxiliary' ? text.auxiliaryInstructionsHint : text.instructionsHint}
-                  {task === 'yoonmoon' && <> {text.yoonmoonInstructionsHint}</>}
+                  {target.instructionsHint?.[language] ?? text.instructionsHint}
                 </div>
                 <textarea
                   id={`${fieldId}-instructions-input`}
@@ -538,7 +502,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         )
       })}
       {view?.catalogError && <p role="alert">{text.catalog}</p>}
-      {notice && (!noticeTask || !view?.[noticeTask]) && <p role="alert">{text[notice]}</p>}
+      {notice && (!noticeTask || !snapshots.some((task) => task.id === noticeTask)) && (
+        <p role="alert">{text[notice]}</p>
+      )}
     </section>
   )
 }

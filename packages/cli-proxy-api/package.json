@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-cli-proxy-api",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CLIProxyAPI model provider and owner-only management settings for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
@@ -48,7 +48,9 @@
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
+    "happy-dom": "21.0.4",
     "react": "18.3.1",
+    "react-dom": "18.3.1",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {

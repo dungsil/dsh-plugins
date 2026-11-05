@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-model-settings",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Owner-only task model configuration API for DeepSeek Harness, starting with session titles.",
   "license": "MIT",
   "repository": {
@@ -19,6 +19,10 @@
     "./protocol": {
       "types": "./dist/protocol.d.ts",
       "default": "./dist/protocol.js"
+    },
+    "./contract": {
+      "types": "./dist/contract.d.ts",
+      "default": "./dist/contract.js"
     },
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -48,9 +52,7 @@
     "@deepseek-ai/dsh-session-title-first-prompt-llm": "0.2.2-rc.1",
     "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
     "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-tool-executor-native": "0.2.2-rc.1",
     "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
-    "@dungsil/dsh-plugin-yoonmoon": "workspace:*",
     "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",

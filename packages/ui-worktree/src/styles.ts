@@ -13,6 +13,7 @@ export const styles = `${settingsStyles}${composerStyles}
 .dsh-worktree-badge { flex: none; padding: 1px 5px; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; font-weight: 400; }
 .dsh-worktree-trigger { display: inline-flex; max-width: 220px; font-weight: 500; }
 .dsh-worktree-trigger .dsh-plugin-composer-icon svg { width: 14px; height: 14px; }
+.dsh-worktree-trigger:not([aria-haspopup]) .dsh-plugin-composer-chevron { display: none; }
 .dsh-worktree-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
 @container (width <= 460px) {
   .dsh-worktree-trigger .dsh-plugin-composer-label { display: none; }

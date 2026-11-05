@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -24,7 +24,6 @@ const copy = {
     invalid: '이름과 올바른 이메일을 함께 입력하거나 두 항목을 모두 비우세요.',
     cli: 'CLI 인증 상태',
     refresh: '새로고침',
-    selectSession: 'CLI 상태를 확인하려면 세션을 먼저 여세요.',
     authenticated: '인증됨',
     unauthenticated: '인증되지 않음',
     unavailable: '설치되지 않음',
@@ -50,7 +49,6 @@ const copy = {
     invalid: 'Enter both a name and a valid email, or leave both fields empty.',
     cli: 'CLI authentication',
     refresh: 'Refresh',
-    selectSession: 'Open a session to check CLI status.',
     authenticated: 'Authenticated',
     unauthenticated: 'Not authenticated',
     unavailable: 'Not installed',
@@ -74,7 +72,6 @@ const copy = {
     invalid: '请输入姓名和有效邮箱，或将两个字段都留空。',
     cli: 'CLI 认证状态',
     refresh: '刷新',
-    selectSession: '请先打开会话以检查 CLI 状态。',
     authenticated: '已认证',
     unauthenticated: '未认证',
     unavailable: '未安装',
@@ -91,10 +88,6 @@ function VcsSettings({ ctx }: { ctx: Context }) {
   const text = localized(active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const sessionId = useSyncExternalStore(
-    (listener) => ctx.sidebarRight.mounted.subscribe(listener),
-    () => ctx.sidebarRight.mounted.getSnapshot()
-  )
   const [view, setView] = useState<CommitSettingsView>()
   const [draft, setDraft] = useState<CommitSettings>()
   const [busy, setBusy] = useState(false)
@@ -130,23 +123,15 @@ function VcsSettings({ ctx }: { ctx: Context }) {
     const controller = new AbortController()
     lifetime.current = controller
     void load(controller.signal)
+    void check(controller.signal)
     return () => controller.abort()
   }, [])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    setCli(undefined)
-    setCliError(false)
-    setChecking(false)
-    if (sessionId) void check(controller.signal)
-    return () => controller.abort()
-  }, [sessionId])
 
   const check = async (signal: AbortSignal) => {
     setChecking(true)
     setCliError(false)
     try {
-      const result = await connection.rpc.call(channel, 'dungsil-vcs/cli-status', { sessionId }, signal)
+      const result = await connection.rpc.call(channel, 'dungsil-vcs/cli-status', {}, signal)
       if (signal.aborted) return
       if (!result.ok) throw new Error('unavailable')
       setCli(result.value as CliStatus[])
@@ -202,7 +187,6 @@ function VcsSettings({ ctx }: { ctx: Context }) {
 
   return (
     <section className="dsh-vcs-settings" aria-label={text.nav}>
-      <p>{text.scope}</p>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -212,6 +196,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
         {draft && (
           <fieldset disabled={blocked}>
             <h3>{text.author}</h3>
+            <p>{text.scope}</p>
             <p>{text.authorHint}</p>
             <SettingsRow label={<label htmlFor={`${id}-name`}>{text.name}</label>}>
               <Input
@@ -276,27 +261,21 @@ function VcsSettings({ ctx }: { ctx: Context }) {
         )}
       </form>
       <h3>{text.cli}</h3>
-      {!sessionId ? (
-        <p role="status">{text.selectSession}</p>
-      ) : (
-        <>
-          {checking && <p role="status">{text.loading}</p>}
-          {cliError && <p role="alert">{text.error}</p>}
-          {cli?.map((item) => (
-            <div className="dsh-vcs-settings-cli" key={item.cli}>
-              <SettingsRow label={<strong>{item.cli}</strong>}>
-                <span>{text[item.status === 'error' ? 'errorStatus' : item.status]}</span>
-              </SettingsRow>
-              {item.accounts.map((account, index) => (
-                <p key={index}>
-                  <code>{account.host}</code> · {account.login}
-                  {account.method && <> · {text[account.method]}</>}
-                </p>
-              ))}
-            </div>
+      {checking && <p role="status">{text.loading}</p>}
+      {cliError && <p role="alert">{text.error}</p>}
+      {cli?.map((item) => (
+        <div className="dsh-vcs-settings-cli" key={item.cli}>
+          <SettingsRow label={<strong>{item.cli}</strong>}>
+            <span>{text[item.status === 'error' ? 'errorStatus' : item.status]}</span>
+          </SettingsRow>
+          {item.accounts.map((account, index) => (
+            <p key={index}>
+              <code>{account.host}</code> · {account.login}
+              {account.method && <> · {text[account.method]}</>}
+            </p>
           ))}
-        </>
-      )}
+        </div>
+      ))}
     </section>
   )
 }

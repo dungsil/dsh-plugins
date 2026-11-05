@@ -1,9 +1,34 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { profileFixture, titleConfig } from './profile.mjs'
+import { profileFixture, titleConfig } from './helpers/model-settings-profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
+  await test(`${strategy}: 제목 생성기가 활성화에 실패해도 나머지 모델 설정을 조회하고 저장하고 복원한다`, async (t) => {
+    const h = await profileFixture(strategy, { targetWords: 0 }, { naming: 'semantic' }, {})
+    t.after(h.close)
+    const initial = await h.rpc('describe')
+    assert.equal(initial.ok, true)
+    assert.equal(initial.value.target, null)
+    const route = { provider: 'auxiliary', model: 'title-small' }
+    for (const task of ['auxiliary', 'worktree', 'yoonmoon']) {
+      assert.ok(initial.value[task])
+      const current = (await h.rpc('describe')).value[task]
+      const saved = await h.rpc('save', { ...current, route, reasoningEffort: 'quick' })
+      assert.equal(saved.ok, true)
+      assert.deepEqual(saved.value.route, route)
+      assert.equal(saved.value.reasoningEffort, 'quick')
+    }
+    await h.restart()
+    const restored = await h.rpc('describe')
+    assert.equal(restored.ok, true)
+    assert.equal(restored.value.target, null)
+    for (const task of ['auxiliary', 'worktree', 'yoonmoon']) {
+      assert.deepEqual(restored.value[task].route, route)
+      assert.equal(restored.value[task].reasoningEffort, 'quick')
+    }
+  })
+
   await test(`${strategy}: 편집 가능한 기본 프롬프트는 작업 지침을 대체하고 유지되며 대화 호출에는 포함되지 않는다`, async (t) => {
     const h = await profileFixture(strategy, {}, { naming: 'semantic' }, {})
     t.after(h.close)
@@ -373,13 +398,16 @@ await test('워크트리 라우트는 제목과 독립적으로 유지되고 다
     reasoningEffort: 'thorough',
   })
   assert.equal(title.ok, true)
-  assert.deepEqual((await h.rpc('describe')).value.worktree, initial.worktree)
+  const currentWorktree = (await h.rpc('describe')).value.worktree
+  assert.deepEqual({ ...currentWorktree, revision: initial.worktree.revision }, initial.worktree)
+  assert.notEqual(currentWorktree.revision, initial.worktree.revision)
+  assert.equal((await h.rpc('save', { ...initial.worktree, route: null })).error.code, 'conflict')
   const route = { provider: 'auxiliary', model: 'title-small' }
   assert.equal(
     (await h.rpc('save', { ...initial.worktree, route, reasoningEffort: 'unsupported' })).error.code,
     'reasoning_unavailable'
   )
-  const saved = await h.rpc('save', { ...initial.worktree, route, reasoningEffort: 'quick' })
+  const saved = await h.rpc('save', { ...currentWorktree, route, reasoningEffort: 'quick' })
   assert.equal(saved.ok, true)
   assert.deepEqual(saved.value.route, route)
   assert.equal(saved.value.reasoningEffort, 'quick')
@@ -405,7 +433,7 @@ await test('워크트리 라우트는 제목과 독립적으로 유지되고 다
   await h.generate('after-worktree-reset')
   assert.equal(h.adapter.requests.at(-1).reasoningEffort, 'thorough')
   const entry = h.ctx.configEditor.entries().find((item) => item.options.id === restored.id)
-  assert.deepEqual(entry.options.config, { namingStyle: 'semantic' })
+  assert.deepEqual(entry.options.config, { namingStyle: 'semantic', modelSettings: { inherit: 'conversation' } })
   await h.restart()
   assert.equal((await h.rpc('describe')).value.worktree.route, null)
   const titleEntry = h.ctx.configEditor.entries().find((item) => item.options.id === initial.target.id)
@@ -460,4 +488,49 @@ await test('Yoonmoon 모델과 추론 강도는 독립적으로 유지되고 보
   const entry = h.ctx.configEditor.entries().find((entry) => entry.options.id === current.yoonmoon.id)
   await entry.fiber.dispose()
   assert.equal((await h.rpc('describe')).value.yoonmoon, null)
+})
+
+await test('구형 중앙 지침과 상속 선택은 첫 쓰기에 윤문 설정으로 이동하고 이후 중앙 값으로 되돌아가지 않는다', async (t) => {
+  const h = await profileFixture('first-prompt', {}, undefined, {})
+  t.after(h.close)
+  const central = () =>
+    h.ctx.configEditor.entries().find((entry) => entry.options.name === '@dungsil/dsh-plugin-model-settings')
+  const writing = () => h.ctx.configEditor.entries().find((entry) => entry.options.id === 'custom-yoonmoon-entry')
+  await h.ctx.configEditor.edit(central(), (config) => ({
+    ...config,
+    auxiliaryModel: { provider: 'auxiliary', model: 'title-small', reasoningEffort: 'quick' },
+    instructions: { 'custom-yoonmoon-entry': 'Legacy {{skill}}.' },
+    inheritAuxiliary: { 'custom-yoonmoon-entry': false },
+  }))
+  const initial = (await h.rpc('describe')).value.yoonmoon
+  assert.equal(writing().options.config.modelSettings, undefined)
+  assert.equal(initial.instructions, 'Legacy {{skill}}.')
+  assert.equal(initial.useAuxiliary, false)
+  assert.equal((await h.write('legacy-writing')).result.isError, false)
+  assert.equal(h.adapter.requests.at(-1).provider, 'conversation')
+  assert.equal(h.adapter.requests.at(-1).system, 'Legacy proofreading-korean.')
+  const saved = await h.rpc('save', { ...initial, route: null, reasoningEffort: null, useAuxiliary: false })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(writing().options.config.modelSettings, {
+    inherit: 'conversation',
+    instructions: 'Legacy {{skill}}.',
+  })
+  await h.ctx.configEditor.edit(central(), (config) => ({
+    ...config,
+    instructions: { 'custom-yoonmoon-entry': 'Stale central instructions.' },
+    inheritAuxiliary: { 'custom-yoonmoon-entry': true },
+  }))
+  await h.restart()
+  const restored = (await h.rpc('describe')).value.yoonmoon
+  assert.equal(restored.useAuxiliary, false)
+  assert.equal(restored.instructions, 'Legacy {{skill}}.')
+  assert.equal((await h.write('local-writing')).result.isError, false)
+  assert.equal(h.adapter.requests.at(-1).provider, 'conversation')
+  assert.equal(h.adapter.requests.at(-1).system, 'Legacy proofreading-korean.')
+  const cleared = await h.rpc('instructions', { ...restored, instructions: '' })
+  assert.equal(cleared.ok, true)
+  assert.deepEqual(writing().options.config.modelSettings, { inherit: 'conversation' })
+  assert.equal((await h.write('local-default-writing')).result.isError, false)
+  assert.ok(h.adapter.requests.at(-1).system.startsWith('Execute the proofreading-korean skill below.'))
+  assert.ok(!h.adapter.requests.at(-1).system.includes('Stale central instructions.'))
 })

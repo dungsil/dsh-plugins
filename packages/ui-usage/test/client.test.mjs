@@ -83,6 +83,7 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   const view = (total) => ({
     totals: { calls: 0, unreported: 0, input: total, output: 0, cacheRead: 0, cacheWrite: 0, total },
     models: [],
+    calls: [],
     days: [{ day: '2026-11-05', total }],
     sessions: 1,
     unreadable: 0,
@@ -105,15 +106,14 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   await mount()
   assert.equal(loading(), false)
   assert.equal(total(), '123')
-  assert.equal(container.querySelector('section').getAttribute('aria-busy'), 'true')
-  await reply(success(456))
-  assert.equal(total(), '456')
+  assert.equal(container.querySelector('section').getAttribute('aria-busy'), 'false')
+  assert.equal(pending.length, 0, 'navigation must not request cached usage again')
 
   const refreshButton = container.querySelector('.dsh-usage-refresh')
   assert.equal(refreshButton.textContent, 'Refresh')
   await React.act(async () => refreshButton.click())
   assert.equal(loading(), false)
-  assert.equal(total(), '456')
+  assert.equal(total(), '123')
   assert.equal(refreshButton.textContent, 'Refreshing…')
   assert.equal(refreshButton.getAttribute('aria-busy'), 'true')
   assert.equal(refreshButton.disabled, true)
@@ -137,11 +137,13 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   await changePeriod('7')
   assert.equal(loading(), false)
   assert.equal(total(), '789')
+  assert.equal(pending.length, 0, 'returning to a cached period must not request usage again')
+  await React.act(async () => refreshButton.click())
   await leave()
   await reply(success(999))
   await mount()
   assert.equal(total(), '789', 'an aborted response must not overwrite cached totals')
-  await reply(success(654))
+  assert.equal(pending.length, 0)
 
   await leave()
   connection = makeConnection()
@@ -153,5 +155,74 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   await mount()
   assert.equal(total(), '0', 'empty usage is also a successful cached result')
   assert.equal(loading(), false)
-  await reply(success(0))
+  assert.equal(pending.length, 0)
+
+  await t.test('토큰은 현재 언어의 단위로 축약하고 정확한 값과 호출 수는 유지한다', async () => {
+    for (const [language, expected] of [
+      ['en-US', ['0', '999', '1K', '10K', '10K', '12.3K', '1.2M', '1.2B']],
+      ['ko-KR', ['0', '999', '1천', '1만', '1만', '1.2만', '123.5만', '12.3억']],
+      ['zh-CN', ['0', '999', '1000', '9999', '1万', '1.2万', '123.5万', '12.3亿']],
+    ]) {
+      for (const [index, value] of [0, 999, 1000, 9999, 10000, 12345, 1234567, 1234567890].entries()) {
+        await leave()
+        Object.assign(snapshot, { active: language })
+        connection = makeConnection()
+        await mount()
+        const result = view(value)
+        Object.assign(result.totals, { calls: 12345, output: 999, cacheRead: 1000, cacheWrite: 0 })
+        result.models = [{ ...result.totals, provider: 'deepseek', model: 'deepseek-chat' }]
+        result.sessions = 12345
+        await reply({ ok: true, value: result })
+
+        assert.equal(total(), expected[index], `${String(language)}: ${value}`)
+        assert.equal(container.querySelector('.dsh-usage-total').title, value.toLocaleString(language))
+        const summary = [...container.querySelectorAll('.dsh-usage-summary dd')].map((dd) => dd.textContent)
+        assert.deepEqual(summary, [expected[index], expected[index], '999', expected[2], '0'])
+        assert.ok(container.querySelector('.dsh-usage-detail').textContent.endsWith(expected[index]))
+        assert.ok(
+          container.querySelector('.dsh-usage-bar').getAttribute('aria-label').includes(value.toLocaleString(language))
+        )
+        assert.equal(container.querySelector('.dsh-usage-model-heading > span:last-child').textContent, expected[index])
+        const model = [...container.querySelectorAll('.dsh-usage-model dd')].map((dd) => dd.textContent)
+        assert.deepEqual(model, ['12,345', expected[index], '999', expected[2], '0'])
+        assert.ok(container.querySelector('.dsh-usage-meta').textContent.includes('12,345'))
+      }
+    }
+  })
+
+  await t.test('호출 목록은 각 언어로 상태와 정확한 토큰을 표시하며 미보고 값을 0으로 표시하지 않는다', async () => {
+    for (const [language, labels] of [
+      ['en', ['Succeeded', 'Failed', 'Interrupted', 'Unconfirmed', 'Not reported']],
+      ['ko', ['성공', '실패', '중단', '미확정', '미보고']],
+      ['zh', ['成功', '失败', '已中断', '未确认', '未报告']],
+    ]) {
+      await leave()
+      snapshot.active = language
+      connection = makeConnection()
+      await mount()
+      const result = view(12345)
+      result.totals.calls = 4
+      result.calls = ['success', 'failure', 'interrupted', 'unknownStatus'].map((status, seq) => ({
+        ...result.totals,
+        session: 'session-a',
+        seq,
+        time: Date.parse('2026-11-05T01:02:03Z'),
+        provider: 'provider-a',
+        model: 'model-b',
+        status,
+        unreported: seq === 3 ? 1 : 0,
+      }))
+      await reply({ ok: true, value: result })
+      const log = container.querySelector('.dsh-usage-calls')
+      assert.equal(log.tabIndex, 0)
+      assert.equal(log.children.length, 4)
+      for (const [index, row] of [...log.children].entries()) {
+        assert.ok(row.querySelector('.dsh-usage-call-status').textContent.includes(labels[index]))
+        assert.ok(row.textContent.includes('provider-a / model-b'))
+        assert.ok(row.textContent.includes('session-a'))
+        assert.equal(row.querySelector('time').dateTime, '2026-11-05T01:02:03.000Z')
+        assert.equal(row.querySelector('dd').textContent, index === 3 ? labels[4] : '12,345')
+      }
+    }
+  })
 })

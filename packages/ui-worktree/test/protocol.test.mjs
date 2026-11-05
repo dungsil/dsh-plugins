@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
-import { currentWorktree, isWorktreeView } from '../src/protocol.ts'
+import { currentWorktree, isWorktreeSelectionView, isWorktreeView } from '../src/protocol.ts'
 import { failureCode } from '../src/errors.ts'
 
 await test('경로 비교는 Windows 드라이브와 UNC를 지원하며 워크트리 경로를 다시 쓰지 않는다', () => {
@@ -90,6 +90,23 @@ await test('워크트리 응답 검증은 렌더링 전에 잘못된 값을 거�
     })),
   ]) {
     assert.equal(isWorktreeView(value), false)
+  }
+})
+
+await test('선택 응답은 목록 없이 생성 예약과 잠금 상태를 검증한다', () => {
+  for (const selection of [
+    { cwd: '/repo' },
+    { cwd: '/repo', pendingCreation: { name: '', failed: false } },
+    { cwd: '/repo', locked: true },
+    { cwd: '/repo', locked: false },
+  ]) {
+    assert.equal(isWorktreeSelectionView(selection), true)
+    assert.equal(isWorktreeView(selection), false, 'Selection acknowledgements are not worktree lists')
+    assert.equal(isWorktreeView({ ...selection, worktrees: [] }), true)
+  }
+  for (const locked of [null, {}, '', 1]) {
+    assert.equal(isWorktreeSelectionView({ cwd: '/repo', locked }), false)
+    assert.equal(isWorktreeView({ cwd: '/repo', locked, worktrees: [] }), false)
   }
 })
 

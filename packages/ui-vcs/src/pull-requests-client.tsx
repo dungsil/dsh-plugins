@@ -188,6 +188,10 @@ export function apply(ctx: Context) {
   function SessionRequest({ sessionId }: PropsRuntime<'sidebar.workspaces.session.row.action'>) {
     useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
     const copy = text()
+    const current = useSyncExternalStore(
+      (listener) => ctx.sidebarRight.mounted.subscribe(listener),
+      () => ctx.sidebarRight.mounted.getSnapshot() === sessionId
+    )
     const running = useSyncExternalStore(
       (listener) => sessions.list.subscribe(listener),
       () => sessions.list.getSnapshot().byId[sessionId]?.running ?? false
@@ -213,29 +217,40 @@ export function apply(ctx: Context) {
       return () => node.remove()
     }, [sessionId])
     useEffect(() => {
-      let active: AbortController | undefined
       setView(undefined)
+    }, [sessionId, current, cwd])
+    useEffect(() => {
+      if (!current || running) return
+      let disposed = false
+      let active: AbortController | undefined
       const refresh = async () => {
-        active?.abort()
-        active = new AbortController()
-        const { signal } = active
+        // Keep one read in flight: aborting an RPC does not finish its child-process teardown.
+        if (disposed || active || document.visibilityState === 'hidden') return
+        const controller = new AbortController()
+        active = controller
+        const { signal } = controller
         try {
           const result = await connection.rpc.call(channel, method, { sessionId, summary: true }, signal)
           if (!signal.aborted) setView(result.ok ? (result.value as RequestView) : undefined)
         } catch {
           if (!signal.aborted) setView(undefined)
+        } finally {
+          if (active === controller) active = undefined
         }
       }
       void refresh()
       window.addEventListener('focus', refresh)
+      document.addEventListener('visibilitychange', refresh)
       const interval = window.setInterval(refresh, 60_000)
       return () => {
+        disposed = true
         active?.abort()
         window.removeEventListener('focus', refresh)
+        document.removeEventListener('visibilitychange', refresh)
         window.clearInterval(interval)
       }
-    }, [sessionId, running, cwd])
-    const item = view?.request
+    }, [sessionId, current, running, cwd])
+    const item = current ? view?.request : undefined
     const state = item?.state === 'open' && item.draft ? 'draft' : item?.state
     const icon =
       state === 'merged'

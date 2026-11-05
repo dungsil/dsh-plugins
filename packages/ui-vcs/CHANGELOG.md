@@ -1,5 +1,18 @@
 # @dungsil/dsh-plugin-ui-vcs
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.3.0...%40dungsil%2Fdsh-plugin-ui-vcs%400.4.0) (2026-11-05)
+
+### ⚠ BREAKING CHANGES
+
+- **session:** 비활성 세션 조회와 워크트리 전환을 막는다 ([#159](https://github.com/dungsil/dsh-plugins/issues/159))
+
+### Bug Fixes
+
+- **process:** Git 조회 동시 실행과 DSH 보조 프로세스 폭증을 제한한다 ([#161](https://github.com/dungsil/dsh-plugins/issues/161)) ([852855f](https://github.com/dungsil/dsh-plugins/commit/852855f22eb1dcc95fe352e3851b2997d9b0cd29))
+- **session:** 비활성 세션 조회와 워크트리 전환을 막는다 ([#159](https://github.com/dungsil/dsh-plugins/issues/159)) ([91b4d68](https://github.com/dungsil/dsh-plugins/commit/91b4d6873d5034e44e8d1b272d79f81d7848b1e7))
+- **ui-vcs:** 커밋 적용 범위 안내를 작성자 제목 아래로 옮긴다 ([#157](https://github.com/dungsil/dsh-plugins/issues/157)) ([7c9de3f](https://github.com/dungsil/dsh-plugins/commit/7c9de3f99f822c8ecc6aebaa86cb8ce74971facc))
+- **vcs:** 세션 없이 CLI 인증 상태를 조회한다 ([#154](https://github.com/dungsil/dsh-plugins/issues/154)) ([37a038d](https://github.com/dungsil/dsh-plugins/commit/37a038de5a484cec10da55878f1272aaae5efd76))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.2.0...%40dungsil%2Fdsh-plugin-ui-vcs%400.3.0) (2026-11-05)
 
 ### Features

@@ -2,7 +2,15 @@ import { defineConfig } from 'tsdown'
 import manifest from './package.json' with { type: 'json' }
 
 export default defineConfig([
-  { entry: ['src/index.ts'], format: 'esm', platform: 'node', target: 'node24', fixedExtension: false, dts: false },
+  {
+    entry: ['src/index.ts'],
+    format: 'esm',
+    platform: 'node',
+    target: 'node24',
+    fixedExtension: false,
+    dts: false,
+    deps: { alwaysBundle: ['@dungsil/dsh-async'] },
+  },
   {
     entry: ['src/client.tsx'],
     format: 'cjs',

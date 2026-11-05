@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-model-picker
 
+## [0.2.5](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.4...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.5) (2026-11-05)
+
+### Bug Fixes
+
+- **model-picker:** 입력 확정과 포커스 접근성을 개선한다 ([#160](https://github.com/dungsil/dsh-plugins/issues/160)) ([1f98854](https://github.com/dungsil/dsh-plugins/commit/1f98854db3d2ba5deb336f8b7cd569c41ef338c4))
+
 ## [0.2.4](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.3...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.4) (2026-11-05)
 
 ### Bug Fixes

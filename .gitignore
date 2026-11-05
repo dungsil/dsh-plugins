@@ -16,5 +16,6 @@ release/
 ### Plugin market index ###
 market/.market-index-*.json
 
-### Amp portals ###
-.amp/portals/*
+### Agents ###
+.agents/
+.amp/

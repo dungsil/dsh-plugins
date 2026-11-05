@@ -23,6 +23,46 @@ import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
 
+await test('브랜치 모델 설정 코덱은 모든 쓰기에 로컬 상태를 기록하고 사용하지 않는 라우트와 추론 강도를 제거한다', () => {
+  const definition = plugin.modelSettingsDefinition
+  assert.equal(definition.key, 'branch-name')
+  for (const locale of ['en', 'ko', 'zh'])
+    for (const field of ['label', 'description', 'automaticReasoningLabel']) assert.ok(definition[field][locale])
+  const legacy = { naming: 'semantic', provider: 'namer', model: 'small', reasoningEffort: 'quick', remote: true }
+  assert.deepEqual(definition.read(legacy), {
+    selection: { mode: 'model', route: { provider: 'namer', model: 'small' }, reasoningEffort: 'quick' },
+    instructions: null,
+  })
+  for (const mode of ['auxiliary', 'conversation']) {
+    const saved = definition.write(legacy, { selection: { mode }, instructions: 'Local branch instructions.' })
+    assert.deepEqual(saved, {
+      naming: 'semantic',
+      remote: true,
+      modelSettings: { inherit: mode, instructions: 'Local branch instructions.' },
+    })
+    assert.deepEqual(definition.read(saved), { selection: { mode }, instructions: 'Local branch instructions.' })
+  }
+  const automatic = definition.write(legacy, {
+    selection: { mode: 'model', route: { provider: 'namer', model: 'other' }, reasoningEffort: null },
+    instructions: null,
+  })
+  assert.deepEqual(automatic, {
+    naming: 'semantic',
+    remote: true,
+    provider: 'namer',
+    model: 'other',
+    modelSettings: { inherit: 'auxiliary' },
+  })
+  assert.deepEqual(definition.read({ provider: 'partial', reasoningEffort: 'stale' }), {
+    selection: { mode: 'auxiliary' },
+    instructions: null,
+  })
+  assert.equal(definition.defaultInstructions({}), definition.defaultInstructions({ naming: 'semantic' }))
+  assert.ok(definition.defaultInstructions({ naming: 'semantic' }).includes('semantic Git branch'))
+  for (const naming of ['dsh', 'custom']) assert.ok(definition.defaultInstructions({ naming }).includes('task slug'))
+  assert.equal(legacy.reasoningEffort, 'quick')
+})
+
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
@@ -41,7 +81,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'initial')
   git('worktree', 'add', '--detach', other)
   await writeFile(join(repo, 'draft.txt'), 'unsaved source file')
-  const dir = join(home, 'profiles/test')
+  const dir = join(home, 'profiles/web')
   initProfile(dir, ['test-bundle'])
   const bundle = join(dir, 'node_modules/test-bundle')
   await mkdir(bundle, { recursive: true })
@@ -70,7 +110,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   )
   await writeFile(join(dir, 'cordis.yml'), '[]\n')
   const profile = {
-    name: 'test',
+    name: 'web',
     startedBundles: ['test-bundle'],
     dir,
     patchPath: join(dir, 'cordis.patch.yml'),
@@ -130,12 +170,13 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     })
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (endpoint, payload = {}, peer = owner) => {
+  const rpc = async (endpoint, payload = {}, peer = owner, signal) => {
     const method = endpoint.includes('/') ? endpoint : `dungsil-worktree/${endpoint}`
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           type: 'client-request',
           rpcId: 'test',
@@ -152,6 +193,13 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
     await agent.whenIdle()
   }
+  // Independent tasks need independent sessions; never switch a started session back to the source.
+  let sessionNumber = 0
+  const newSession = async (cwd = repo) => {
+    const config = agent.session.requestHeader()?.config ?? agent.options
+    agent = await harness.create(SessionId(`worktree-task-${++sessionNumber}`), config, { cwd })
+    return agent
+  }
   const archive = async () => {
     const maintenance = agent.runMaintenance.bind(agent)
     let cleanup
@@ -166,6 +214,61 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       agent.runMaintenance = maintenance
     }
   }
+  const holdDescribeChildren = () => {
+    const subprocess = ctx.subprocess
+    const spawn = subprocess.spawn.bind(subprocess)
+    const handles = []
+    let changed = Promise.withResolvers()
+    let active = 0
+    let maximum = 0
+    let released = false
+    const releaseAll = () => {
+      released = true
+      for (const handle of handles) handle.exit.resolve()
+    }
+    subprocess.spawn = (spec) => {
+      const child = spawn(spec)
+      if (!spec.argv.includes('worktree') || !spec.argv.includes('--porcelain')) return child
+      active++
+      maximum = Math.max(maximum, active)
+      const handle = { spec, waiting: Promise.withResolvers(), exit: Promise.withResolvers() }
+      handles.push(handle)
+      if (released) handle.exit.resolve()
+      changed.resolve()
+      changed = Promise.withResolvers()
+      return {
+        ...child,
+        done: child.done,
+        collected: child.collected,
+        terminate: () => child.terminate(),
+        async waitForExit() {
+          const exited = await child.waitForExit()
+          handle.waiting.resolve()
+          await handle.exit.promise
+          active--
+          return exited
+        },
+      }
+    }
+    t.after(() => {
+      releaseAll()
+      subprocess.spawn = spawn
+    })
+    return {
+      handles,
+      releaseAll,
+      get active() {
+        return active
+      },
+      get maximum() {
+        return maximum
+      },
+      async waitForCount(count) {
+        while (handles.length < count) await changed.promise
+        await Promise.all(handles.slice(0, count).map((handle) => handle.waiting.promise))
+      },
+    }
+  }
   return {
     ctx,
     agent,
@@ -177,13 +280,140 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     profile,
     requests,
     submit,
+    newSession,
     harness,
     archive,
     resolutions,
+    holdDescribeChildren,
   }
 }
 
-await test('부작용 없이 예약하고, 프롬프트 작업 전에 생성하며, 기존 스위치는 즉시 동작하게 유지한다', async (t) => {
+await test('현재 선택은 부작용이 없고 첫 작업 이후 위치를 고정하며 기존 선택과 switch를 거부한다', async (t) => {
+  const { ctx, agent, repo, other, rpc, submit, requests } = await fixture(t)
+  const before = agent.session.snapshotEvents()
+  const commands = []
+  const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
+  ctx.subprocess.spawn = (spec) => {
+    commands.push(spec)
+    return spawn(spec)
+  }
+  assert.equal((await rpc('select', { cwd: repo, choice: 'new' })).ok, true)
+  const cancelled = await rpc('select', { cwd: repo, choice: 'current' })
+  assert.deepEqual(cancelled, { ok: true, value: { cwd: repo } })
+  assert.equal((await rpc('select', { cwd: repo, choice: 'existing', path: gitPath(other) })).error.code, 'invalid')
+  assert.equal((await rpc('switch', { cwd: repo, path: gitPath(other) })).status, 404)
+  assert.deepEqual(commands, [], 'Selecting an execution location must not spawn Git')
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.deepEqual(agent.session.snapshotEvents(), before, 'Selection alone must not append maintenance or cwd events')
+  await submit('Work in the selected checkout')
+  assert.ok(requests.length > 0)
+  assert.ok(requests.every((request) => request.cwd === repo))
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  const described = await rpc('describe')
+  assert.equal(described.value.locked, true)
+  assert.equal(described.value.pendingCreation, undefined)
+  for (const choice of ['current', 'new'])
+    assert.equal((await rpc('select', { cwd: repo, choice })).error.code, 'conflict')
+  assert.equal((await rpc('create', { cwd: repo, name: 'late' })).error.code, 'conflict')
+})
+
+await test('생성 실패 후 현재 선택으로 취소하면 작업을 재개하고 위치를 고정한다', async (t) => {
+  const { ctx, agent, repo, rpc, submit, requests } = await fixture(t)
+  assert.equal((await rpc('select', { cwd: repo, choice: 'new', name: 'main' })).ok, true)
+  await submit('Do not run in the original directory')
+  assert.equal(requests.length, 0)
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
+  await submit('Do not retry without confirming a selection')
+  assert.equal(requests.length, 0)
+  assert.deepEqual(await rpc('select', { cwd: repo, choice: 'current' }), {
+    ok: true,
+    value: { cwd: repo, locked: true },
+  })
+  await submit('Continue in the source checkout')
+  assert.ok(requests.length > 0)
+  assert.ok(requests.every((request) => request.cwd === repo))
+})
+
+await test('실패한 생성 예약은 새 예약으로 복구하고 첫 작업 완료 후 추가 생성을 거부한다', async (t) => {
+  const { repo, rpc, submit, requests } = await fixture(t)
+  await rpc('select', { cwd: repo, choice: 'new', name: 'main' })
+  await submit()
+  const failed = (await rpc('describe')).value
+  assert.equal(failed.pendingCreation.failed, true)
+  assert.equal(failed.locked, undefined)
+  const retry = await rpc('select', { cwd: repo, choice: 'new', name: 'fix/recovered' })
+  assert.deepEqual(retry.value.pendingCreation, { name: 'fix/recovered', failed: false })
+  await submit('Retry with a new branch')
+  const recovered = (await rpc('describe')).value
+  assert.equal(recovered.cwd, join(repo, '.agents/worktrees/fix/recovered'))
+  assert.equal(recovered.pendingCreation, undefined)
+  assert.equal(recovered.locked, true)
+  assert.ok(requests.length > 0)
+  assert.ok(requests.every((request) => request.cwd === recovered.cwd))
+  assert.equal((await rpc('create', { cwd: recovered.cwd, name: 'late' })).error.code, 'conflict')
+})
+
+for (const kind of ['user', 'user-rpc']) {
+  await test(`${kind} 작업의 pre-step 실패는 durable claim으로 기록되고 플러그인 재시작과 콜드 복원 후에도 위치를 고정한다`, async (t) => {
+    const { ctx, agent, repo, rpc, requests } = await fixture(t, {}, { defaultSelection: 'new' })
+    const remove = ctx.on('agent/pre-step', async () => {
+      throw new Error('Rejected before user/message')
+    })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'First task' }], source: { kind } }))
+    await agent.whenIdle()
+    remove()
+    assert.equal(requests.length, 0)
+    assert.equal(
+      agent.session.deriveMessages().filter((message) => ['user', 'user-rpc'].includes(message.source.kind)).length,
+      0
+    )
+    assert.ok(
+      agent.session
+        .snapshotEvents()
+        .some(
+          (event) =>
+            event.type === 'agent/inbox/spliced' && event.data.removedCount === 1 && event.data.outcome !== 'canceled'
+        )
+    )
+    assert.equal((await rpc('describe')).value.locked, true)
+    const settings = (await rpc('settings')).value
+    assert.equal(
+      (await rpc('save-settings', { ...settings, settings: { ...settings.settings, directory: '../reloaded-pool' } }))
+        .ok,
+      true
+    )
+    const initialized = await rpc('initialize', { cwd: repo })
+    assert.equal(initialized.value.locked, true)
+    assert.equal(initialized.value.pendingCreation, undefined)
+    for (const choice of ['current', 'new'])
+      assert.equal((await rpc('select', { cwd: repo, choice })).error.code, 'conflict')
+    assert.equal((await rpc('create', { cwd: repo, name: 'late' })).error.code, 'conflict')
+    const id = SessionId(`restored-${kind}`)
+    const stored = await ctx.sessionPersistence.create({ ...agent.session.header, id }, { inheritedEventCount: 0 })
+    try {
+      await stored.append(agent.session.snapshotEvents())
+    } finally {
+      await stored.close()
+    }
+    assert.equal((await rpc('describe', { sessionId: id })).value.locked, true)
+    assert.equal(ctx.agents.get(id), undefined)
+  })
+}
+
+await test('initialize는 워크트리 목록을 한 번만 조회한다', async (t) => {
+  const { ctx, repo, rpc } = await fixture(t)
+  const commands = []
+  const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
+  ctx.subprocess.spawn = (spec) => {
+    commands.push(spec)
+    return spawn(spec)
+  }
+  assert.equal((await rpc('initialize', { cwd: repo })).ok, true)
+  assert.equal(commands.filter(({ argv }) => argv.includes('worktree') && argv.includes('list')).length, 1)
+})
+
+await test('부작용 없이 예약하고 프롬프트 작업 전에 생성하며 완료 후 위치를 고정한다', async (t) => {
   const { ctx, agent, repo, other, git, rpc, requests, submit } = await fixture(t)
   const progress = []
   ctx.on('session/event', (session, event) => {
@@ -206,8 +436,6 @@ await test('부작용 없이 예약하고, 프롬프트 작업 전에 생성하�
       { path: gitPath(other), branch: null },
     ],
   })
-  const mainPath = initial.value.worktrees.find((entry) => entry.branch === 'main').path
-  const otherPath = initial.value.worktrees.find((entry) => entry.branch === null).path
   const reserved = await rpc('create', { cwd: repo, name: 'fix/login-ui' })
   assert.equal(reserved.ok, true)
   assert.deepEqual(reserved.value, {
@@ -273,30 +501,13 @@ await test('부작용 없이 예약하고, 프롬프트 작업 전에 생성하�
   assert.equal(ctx.workingDirectory.get(agent.session), path, 'follow-ups stay in the same checkout and session')
   assert.equal((await rpc('describe')).value.worktrees.length, 3, 'follow-ups must not create another worktree')
 
-  assert.equal((await rpc('switch', { cwd: repo, path: otherPath })).error.code, 'conflict')
-  assert.equal((await rpc('switch', { cwd: path, path: tmpdir() })).error.code, 'invalid')
-  assert.equal(ctx.workingDirectory.get(agent.session), path)
-  const switched = await rpc('switch', { cwd: path, path: otherPath })
-  assert.equal(switched.ok, true)
-  assert.equal(switched.value.cwd, other)
-  assert.equal((await rpc('switch', { cwd: switched.value.cwd, path: mainPath })).ok, true)
-  const count = requests.length
-  assert.equal((await rpc('create', { cwd: repo, name: 'fix/login-ui' })).ok, true)
-  await submit()
-  assert.equal(requests.length, count, 'an existing branch must stop work, not run in the source checkout')
-  assert.equal(ctx.workingDirectory.get(agent.session), repo, 'an existing branch cannot change the checkout')
-  assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
-  await submit('Do not retry the failed creation')
-  assert.equal(requests.length, count)
-  assert.equal((await rpc('switch', { cwd: repo, path: mainPath })).ok, true)
-  assert.equal(
-    (await rpc('describe')).value.pendingCreation,
-    undefined,
-    'selecting the current checkout cancels a reservation'
-  )
+  assert.equal((await rpc('describe')).value.locked, true)
+  assert.equal((await rpc('create', { cwd: path, name: 'another' })).error.code, 'conflict')
+  assert.equal((await rpc('select', { cwd: path, choice: 'new' })).error.code, 'conflict')
+  assert.equal((await rpc('switch', { cwd: path, path: gitPath(other) })).status, 404)
   const events = agent.session.snapshotEvents()
   assert.ok(events.some((event) => event.type === 'user/message'))
-  assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 3)
+  assert.equal(events.filter((event) => event.type === 'working-directory/change').length, 1)
 })
 
 await test('새 워크트리 기본값은 부작용 없이 한 번 예약하고 프로필을 다시 불러와도 취소를 존중한다', async (t) => {
@@ -318,8 +529,7 @@ await test('새 워크트리 기본값은 부작용 없이 한 번 예약하고 
   assert.deepEqual((await rpc('describe')).value, initial.value)
   assert.deepEqual((await rpc('initialize', { cwd: repo })).value, initial.value)
   assert.deepEqual(agent.session.snapshotEvents(), initializedEvents, 'Initialization must be idempotent')
-  const main = initial.value.worktrees.find((entry) => entry.branch === 'main').path
-  assert.equal((await rpc('switch', { cwd: repo, path: main })).value.pendingCreation, undefined)
+  assert.equal((await rpc('select', { cwd: repo, choice: 'current' })).value.pendingCreation, undefined)
   const settings = (await rpc('settings')).value
   const saved = await rpc('save-settings', {
     ...settings,
@@ -374,7 +584,8 @@ await test('새 워크트리 기본값은 첫 프롬프트에서만 생성하며
 })
 
 await test('예약은 세션에 한정되고 취소할 수 있으며 제출 전에 바뀐 소스 디렉터리를 거부한다', async (t) => {
-  const { ctx, agent, repo, other, git, rpc, requests, submit, harness } = await fixture(t)
+  const h = await fixture(t)
+  const { ctx, agent, repo, other, git, rpc, requests, submit, harness } = h
   assert.equal((await rpc('create', { cwd: repo, name: 'cancelled-task' })).ok, true)
   const unrelated = await harness.create(
     SessionId('another-session'),
@@ -387,14 +598,14 @@ await test('예약은 세션에 한정되고 취소할 수 있으며 제출 전�
   await unrelated.whenIdle()
   assert.equal(git('branch', '--list', 'cancelled-task'), '', 'another session must not consume the reservation')
   assert.equal((await rpc('describe')).value.pendingCreation.name, 'cancelled-task')
-  const main = (await rpc('describe')).value.worktrees.find((entry) => entry.branch === 'main').path
-  assert.equal((await rpc('switch', { cwd: repo, path: main })).ok, true)
+  assert.equal((await rpc('select', { cwd: repo, choice: 'current' })).ok, true)
   await submit()
   assert.equal(ctx.workingDirectory.get(agent.session), repo)
   assert.equal(git('branch', '--list', 'cancelled-task'), '', 'cancelling before submission must never create a branch')
 
+  const fresh = await h.newSession()
   assert.equal((await rpc('create', { cwd: repo, name: 'stale-source' })).ok, true)
-  await agent.runMaintenance((signal) => ctx.workingDirectory.set(agent, other, signal))
+  await fresh.runMaintenance((signal) => ctx.workingDirectory.set(fresh, other, signal))
   const count = requests.length
   await submit()
   assert.equal(requests.length, count, 'a changed source must stop before either naming or work')
@@ -403,7 +614,9 @@ await test('예약은 세션에 한정되고 취소할 수 있으며 제출 전�
 })
 
 await test('예약된 이름이 비어 있으면 이전 기록이 아니라 새로 제출된 프롬프트를 이름 짓기에만 사용한다', async (t) => {
-  const { ctx, agent, repo, git, rpc, submit } = await fixture(t, { provider: 'fallback', model: 'fallback-model' })
+  const h = await fixture(t, { provider: 'fallback', model: 'fallback-model' })
+  const { ctx, repo, git, rpc, submit, newSession } = h
+  let { agent } = h
   const requests = []
   let answer = 'fix/session-isolation'
   let reason = { kind: 'stop' }
@@ -424,6 +637,23 @@ await test('예약된 이름이 비어 있으면 이전 기록이 아니라 새�
     }
   }
   ctx.llm.registerAdapter(['conversation', 'fallback'], new NamingAdapter())
+  const named = await rpc('create', { cwd: repo, name: ' manual-name ' })
+  assert.equal(named.ok, true)
+  assert.equal(requests.length, 0, 'a supplied name must not incur a model request')
+  await submit()
+  assert.ok(
+    requests.every((request) => !request.system?.startsWith('Return only a short')),
+    'a supplied name bypasses naming'
+  )
+  agent = await newSession()
+  requests.length = 0
+  agent.session.append('request/header', {
+    header: { config: { provider: 'conversation', model: 'selected-model' } },
+    reason: 'initial',
+  })
+  assert.equal((await rpc('create', { cwd: repo, name: '  ' })).ok, true)
+  assert.equal(requests.length, 0, 'an empty name must wait for the submitted prompt too')
+  // Replay earlier model history after reserving; only the admitted task may name this reservation.
   agent.session.append('turn/start', { turn: 1 })
   agent.session.append(
     'user/message',
@@ -433,23 +663,6 @@ await test('예약된 이름이 비어 있으면 이전 기록이 아니라 새�
     }),
     { surfaceOp: 'append' }
   )
-  const named = await rpc('create', { cwd: repo, name: ' manual-name ' })
-  assert.equal(named.ok, true)
-  assert.equal(requests.length, 0, 'a supplied name must not incur a model request')
-  await submit()
-  assert.ok(
-    requests.every((request) => !request.system?.startsWith('Return only a short')),
-    'a supplied name bypasses naming'
-  )
-  const mainPath = named.value.worktrees.find((entry) => entry.branch === 'main').path
-  assert.equal((await rpc('switch', { cwd: ctx.workingDirectory.get(agent.session), path: mainPath })).ok, true)
-  requests.length = 0
-  agent.session.append('request/header', {
-    header: { config: { provider: 'conversation', model: 'selected-model' } },
-    reason: 'initial',
-  })
-  assert.equal((await rpc('create', { cwd: repo, name: '  ' })).ok, true)
-  assert.equal(requests.length, 0, 'an empty name must wait for the submitted prompt too')
   const started = new Promise((resolve) => {
     namingStarted = resolve
   })
@@ -494,6 +707,7 @@ await test('예약된 이름이 비어 있으면 이전 기록이 아니라 새�
     'naming must not duplicate the submitted message'
   )
   const cwd = generated.value.cwd
+  agent = await newSession(cwd)
   for (const invalid of ['not a branch', 'git worktree add /tmp/evil', '../escape', '']) {
     answer = invalid
     assert.equal((await rpc('create', { cwd })).ok, true)
@@ -658,7 +872,7 @@ await test('이름 짓기는 명시적 추론 강도, 모델 기본값, 추론�
     },
     { label: '추론을 지원하지 않는 모델', expected: undefined },
   ]) {
-    await t.test(label, async (t) => {
+    await t.test(`${label}을 유지한다`, async (t) => {
       const { ctx, repo, rpc, submit } = await fixture(
         t,
         { provider: 'namer', model: 'small' },
@@ -698,6 +912,59 @@ await test('이름 짓기는 명시적 추론 강도, 모델 기본값, 추론�
   }
 })
 
+await test('workspace-write 세션의 조회와 선택은 쓰기 권한을 준비하지 않는다', async (t) => {
+  const { ctx, agent, repo, rpc } = await fixture(t)
+  setSandboxMode(agent.session, 'workspace-write')
+  const confined = []
+  const confine = ctx.sandbox.confine.bind(ctx.sandbox)
+  ctx.sandbox.confine = async (argv, policy, signal) => {
+    confined.push({ argv, policy })
+    assert.equal(policy.mode, 'read-only', 'Passive Git reads must not materialize workspace write ACLs')
+    return confine(argv, policy, signal)
+  }
+  const initial = await rpc('describe')
+  assert.deepEqual(
+    confined.map(({ policy }) => policy.mode),
+    ['read-only']
+  )
+  assert.equal(initial.ok, true, JSON.stringify(initial))
+  const before = agent.session.snapshotEvents()
+  const concurrent = await Promise.all([rpc('describe'), rpc('describe')])
+  assert.ok(concurrent.every((result) => result.ok && result.value.cwd === repo))
+  assert.deepEqual(agent.session.snapshotEvents(), before)
+  assert.equal(confined.length, 3)
+  assert.equal((await rpc('initialize', { cwd: repo })).ok, true)
+  const reserved = await rpc('create', { cwd: repo, name: 'fix/read-only-lookup' })
+  assert.equal(reserved.ok, true)
+  assert.equal(reserved.value.pendingCreation.failed, false)
+  const cancelled = await rpc('select', { cwd: repo, choice: 'current' })
+  assert.equal(cancelled.ok, true, JSON.stringify(cancelled))
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.equal(cancelled.value.pendingCreation, undefined)
+  assert.ok(confined.length > 0)
+  assert.ok(confined.every(({ policy }) => policy.workspaceRoot === repo && policy.sessionId === agent.id))
+  assert.equal(ctx.sandboxPolicy.resolve({ session: agent.session }).mode, 'workspace-write')
+})
+
+await test('실제 생성의 쓰기 정책은 조회 모드로 낮추거나 우회하지 않는다', async (t) => {
+  const { ctx, agent, repo, rpc, submit, requests, git } = await fixture(t)
+  setSandboxMode(agent.session, 'workspace-write')
+  const modes = []
+  const confine = ctx.sandbox.confine.bind(ctx.sandbox)
+  ctx.sandbox.confine = async (argv, policy, signal) => {
+    modes.push(policy.mode)
+    if (policy.mode === 'workspace-write') throw new Error('Write confinement unavailable')
+    return confine(argv, policy, signal)
+  }
+  assert.equal((await rpc('create', { cwd: repo, name: 'fix/write-policy' })).ok, true)
+  await submit()
+  assert.deepEqual(modes, ['read-only', 'workspace-write'])
+  assert.equal(requests.length, 0, 'A failed write boundary must stop the original task')
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.equal(git('branch', '--list', 'fix/write-policy'), '')
+  assert.equal((await rpc('describe')).value.pendingCreation.failed, true)
+})
+
 await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지 않고 읽는다', async (t) => {
   const { ctx, agent, repo, other, rpc, resolutions } = await fixture(t)
   const id = SessionId('cold-worktree-read')
@@ -724,6 +991,129 @@ await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지
   assert.equal(ctx.agents.get(id), undefined, 'Reading a cold session must not publish an Agent')
   assert.deepEqual(resolutions, [], 'Lookup must not call the activating resolver')
   assert.deepEqual(cold.snapshotEvents(), events, 'Lookup must not close interrupted turns or initialize selection')
+})
+
+await test('다수의 동시 조회는 waitForExit가 끝나기 전까지 자식 핸들을 두 개만 유지한다', async (t) => {
+  const { ctx, agent, rpc, resolutions, holdDescribeChildren } = await fixture(t)
+  const id = SessionId('cold-concurrent-read')
+  const cold = Session.create(id, agent.session.snapshotEvents(), { ...agent.session.header, id })
+  cold.append('working-directory/change', { cwd: agent.session.header.cwd })
+  const stored = await ctx.sessionPersistence.create(cold.header, {
+    inheritedEventCount: cold.inheritedEventCount,
+  })
+  try {
+    await stored.append(cold.snapshotEvents())
+  } finally {
+    await stored.close()
+  }
+  const before = agent.session.snapshotEvents()
+  const children = holdDescribeChildren()
+  const requests = Array.from({ length: 16 }, (_, index) => rpc('describe', index % 2 ? { sessionId: id } : {}))
+  let results
+  try {
+    await children.waitForCount(2)
+    assert.equal(children.active, 2)
+    assert.equal(children.maximum, 2)
+    assert.equal(children.handles.length, 2)
+    children.handles[0].exit.resolve()
+    await children.waitForCount(3)
+    assert.equal(children.active, 2, 'The second child still occupies its slot after done resolves')
+    assert.equal(children.maximum, 2)
+  } finally {
+    children.releaseAll()
+    results = await Promise.all(requests)
+  }
+  assert.ok(results.every((result) => result.ok))
+  assert.equal(children.handles.length, 16)
+  assert.equal(children.maximum, 2)
+  assert.equal(children.active, 0)
+  assert.deepEqual(resolutions, [], 'Cold reads must not activate an Agent')
+  assert.deepEqual(agent.session.snapshotEvents(), before)
+})
+
+await test('대기 중 취소된 콜드 조회는 세션을 검사하거나 자식 프로세스를 생성하지 않는다', async (t) => {
+  const { ctx, rpc, holdDescribeChildren } = await fixture(t)
+  const children = holdDescribeChildren()
+  const active = [rpc('describe'), rpc('describe')]
+  const controller = new AbortController()
+  const open = ctx.sessionPersistence.open.bind(ctx.sessionPersistence)
+  let inspections = 0
+  ctx.sessionPersistence.open = async (...args) => {
+    inspections++
+    return open(...args)
+  }
+  let queued
+  try {
+    await children.waitForCount(2)
+    queued = rpc('describe', { sessionId: 'cancelled-cold-read' }, owner, controller.signal)
+    await rpc('settings')
+    controller.abort()
+    assert.equal((await queued).ok, false)
+    assert.equal(inspections, 0, 'The queue must include cold session inspection, not just Git')
+    assert.equal(children.handles.length, 2)
+    assert.equal(children.active, 2)
+  } finally {
+    controller.abort()
+    children.releaseAll()
+    await Promise.all([...active, ...(queued ? [queued] : [])])
+    ctx.sessionPersistence.open = open
+  }
+  assert.equal((await rpc('describe')).ok, true)
+  assert.equal(children.handles.length, 3, 'Only the later non-cancelled request may spawn')
+  assert.equal(children.maximum, 2)
+})
+
+await test('조회 대기열이 가득 차면 busy를 반환하고 취소된 대기는 자식 프로세스를 생성하지 않는다', async (t) => {
+  const { rpc, holdDescribeChildren } = await fixture(t)
+  const children = holdDescribeChildren()
+  const active = [rpc('describe'), rpc('describe')]
+  const controller = new AbortController()
+  let queued = []
+  try {
+    await children.waitForCount(2)
+    queued = Array.from({ length: 128 }, () => rpc('describe', {}, owner, controller.signal))
+    const overflow = await rpc('describe')
+    assert.equal(overflow.ok, false)
+    assert.equal(overflow.error.code, 'busy')
+    controller.abort()
+    assert.ok((await Promise.all(queued)).every((result) => !result.ok))
+    assert.equal(children.handles.length, 2)
+  } finally {
+    controller.abort()
+    children.releaseAll()
+    await Promise.all([...active, ...queued])
+  }
+  assert.equal(children.active, 0)
+  assert.equal(children.maximum, 2)
+})
+
+await test('플러그인을 폐기하면 대기 중인 콜드 조회는 검사와 자식 생성을 하지 않는다', async (t) => {
+  const { ctx, rpc, holdDescribeChildren } = await fixture(t)
+  const children = holdDescribeChildren()
+  const active = [rpc('describe'), rpc('describe')]
+  let inspections = 0
+  ctx.sessionPersistence.open = async () => {
+    inspections++
+    throw { code: 'session/not-found' }
+  }
+  let queued = []
+  let disposal
+  try {
+    await children.waitForCount(2)
+    queued = Array.from({ length: 8 }, () => rpc('describe', { sessionId: 'disposed-cold-read' }))
+    await rpc('settings')
+    disposal = ctx.fiber.dispose()
+    assert.ok((await Promise.all(queued)).every((result) => !result.ok))
+    assert.equal(inspections, 0)
+    assert.equal(children.handles.length, 2)
+    assert.equal(children.active, 2, 'Disposal must not free a slot before waitForExit settles')
+  } finally {
+    children.releaseAll()
+    await Promise.all([...active, ...queued])
+    await disposal
+  }
+  assert.equal(children.active, 0)
+  assert.equal(children.maximum, 2)
 })
 
 await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크아웃을 읽는다', async (t) => {
@@ -757,7 +1147,7 @@ await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크�
     }
     assert.deepEqual(agent.session.snapshotEvents(), before, 'Lookup must not append session records')
     assert.equal((await rpc('create', { cwd, name: 'must-not-create' })).error.code, 'busy')
-    assert.equal((await rpc('switch', { cwd, path: gitPath(repo) })).error.code, 'busy')
+    assert.equal((await rpc('select', { cwd, choice: 'current' })).error.code, 'busy')
   } finally {
     work.resolve()
     await submitted
@@ -770,7 +1160,7 @@ await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크�
 
 await test('소유자가 아닌 요청, 형식이 잘못된 입력, 동시 유지 보수, 읽기 전용 상태의 생성을 거부한다', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
-  for (const endpoint of ['describe', 'initialize', 'create', 'switch', 'settings', 'save-settings']) {
+  for (const endpoint of ['describe', 'initialize', 'select', 'create', 'settings', 'save-settings']) {
     assert.equal(
       (
         await rpc(
@@ -819,8 +1209,7 @@ await test('소유자가 아닌 요청, 형식이 잘못된 입력, 동시 유�
   assert.equal(results.find((result) => !result.ok).error.code, 'busy')
   const cwd = ctx.workingDirectory.get(agent.session)
   assert.equal(cwd, repo, 'concurrent reservations must not create anything')
-  const mainPath = results.find((result) => result.ok).value.worktrees.find((entry) => entry.branch === 'main').path
-  assert.equal((await rpc('switch', { cwd, path: mainPath })).ok, true)
+  assert.equal((await rpc('select', { cwd, choice: 'current' })).ok, true)
   setSandboxMode(agent.session, 'read-only')
   assert.equal((await rpc('describe')).ok, true, 'read-only policy still permits listing')
   assert.equal((await rpc('create', { cwd: repo, name: 'read-only' })).ok, true)
@@ -834,7 +1223,7 @@ await test('소유자가 아닌 요청, 형식이 잘못된 입력, 동시 유�
 })
 
 await test('Loader를 다시 불러와도 설정을 유지하고 로컬 HEAD가 아니라 절대 경로와 추적된 리모트 커밋을 사용한다', async (t) => {
-  const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(t)
+  const { repo, home, git, rpc, profile, submit, newSession } = await fixture(t)
   const initial = (await rpc('settings')).value
   assert.deepEqual(initial.settings, {
     defaultSelection: 'current',
@@ -868,7 +1257,6 @@ await test('Loader를 다시 불러와도 설정을 유지하고 로컬 HEAD가 
   assert.equal(git('rev-parse', 'remote-base'), remoteCommit)
   assert.notEqual(git('rev-parse', 'remote-base'), git('rev-parse', 'main'))
   await assert.rejects(readFile(join(created.value.cwd, 'local-only.txt')), { code: 'ENOENT' })
-  assert.equal((await rpc('switch', { cwd: created.value.cwd, path: gitPath(repo) })).ok, true)
 
   // A relative pool is resolved from the repository root even when the Session is nested.
   const latest = (await rpc('settings')).value
@@ -879,7 +1267,7 @@ await test('Loader를 다시 불러와도 설정을 유지하고 로컬 HEAD가 
   )
   const nested = join(repo, 'src/nested')
   await mkdir(nested, { recursive: true })
-  await ctx.workingDirectory.set(agent, nested)
+  await newSession(nested)
   assert.equal((await rpc('create', { cwd: nested, name: 'local-base' })).ok, true)
   await submit()
   const relative = await rpc('describe')
@@ -890,7 +1278,7 @@ await test('Loader를 다시 불러와도 설정을 유지하고 로컬 HEAD가 
 })
 
 await test('저장된 DSH와 사용자 지정 접두사는 생성된 이름에만 영향을 주며, 잘못된 설정과 없는 업스트림은 절대 브랜치를 만들지 않는다', async (t) => {
-  const { ctx, repo, git, rpc, submit } = await fixture(t, { provider: 'namer', model: 'small' })
+  const { ctx, repo, git, rpc, submit, newSession } = await fixture(t, { provider: 'namer', model: 'small' })
   let modelCalls = 0
   class NamingAdapter extends LlmAdapter {
     async resolveModel(provider, model) {
@@ -916,7 +1304,7 @@ await test('저장된 DSH와 사용자 지정 접두사는 생성된 이름에�
     assert.equal(created.ok, true)
     assert.equal(created.value.cwd, join(repo, '.agents/worktrees', branch))
     assert.equal(git('rev-parse', branch), git('rev-parse', 'HEAD'))
-    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: gitPath(repo) })).ok, true)
+    await newSession()
   }
   assert.equal((await rpc('create', { cwd: repo, name: 'explicit-name' })).ok, true)
   await submit()
@@ -924,7 +1312,7 @@ await test('저장된 DSH와 사용자 지정 접두사는 생성된 이름에�
   assert.equal(manual.ok, true)
   assert.equal(manual.value.cwd, join(repo, '.agents/worktrees/explicit-name'))
   assert.equal(modelCalls, 2)
-  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: gitPath(repo) })).ok, true)
+  await newSession()
   const view = (await rpc('settings')).value
   for (const change of [
     { defaultSelection: 'other' },
@@ -978,7 +1366,7 @@ await test('작업 모델과 워크트리 설정은 프로필을 다시 불러�
     naming: 'custom',
     prefix: 'team/',
   }
-  const { ctx, agent, repo, home, git, rpc, profile, submit } = await fixture(
+  const { ctx, agent, repo, home, git, rpc, profile, submit, newSession } = await fixture(
     t,
     { provider: 'fallback', model: 'large' },
     initialSettings
@@ -1034,8 +1422,9 @@ await test('작업 모델과 워크트리 설정은 프로필을 다시 불러�
   assert.equal(requests.length, 0, 'saving a model and supplying a branch name must not generate text')
   await submit()
   const manual = await rpc('describe')
+  assert.equal(manual.value.locked, true)
   assert.equal(requests.length, 0, 'an explicit name must bypass the configured naming model')
-  assert.equal((await rpc('switch', { cwd: manual.value.cwd, path: gitPath(repo) })).ok, true)
+  await newSession()
 
   for (const [naming, generated, branch] of [
     ['semantic', 'fix/task-1', 'fix/task-1'],
@@ -1064,7 +1453,7 @@ await test('작업 모델과 워크트리 설정은 프로필을 다시 불러�
     const created = await rpc('describe')
     assert.equal(created.ok, true)
     assert.equal(created.value.cwd, join(home, 'naming pool', branch))
-    assert.equal((await rpc('switch', { cwd: created.value.cwd, path: gitPath(repo) })).ok, true)
+    await newSession()
   }
   assert.deepEqual(
     requests.map(({ provider, model, tools, reasoningEffort }) => ({ provider, model, tools, reasoningEffort })),
@@ -1083,7 +1472,7 @@ await test('작업 모델과 워크트리 설정은 프로필을 다시 불러�
   const autoNamed = await rpc('describe')
   assert.equal(autoNamed.ok, true)
   assert.equal(requests.at(-1).reasoningEffort, 'thorough', 'automatic uses the model default')
-  assert.equal((await rpc('switch', { cwd: autoNamed.value.cwd, path: gitPath(repo) })).ok, true)
+  await newSession()
   assert.equal((await rpc('dungsil-model-settings/save', { ...automatic.value, reasoningEffort: 'quick' })).ok, true)
 
   const beforeReset = (await rpc('settings')).value
@@ -1110,9 +1499,65 @@ await test('작업 모델과 워크트리 설정은 프로필을 다시 불러�
   })
 })
 
+await test('모델 설정 서비스가 없어도 로컬 지침과 명시적 라우트를 사용하고 대화 추론 강도를 상속하지 않는다', async (t) => {
+  const localInstructions = 'Local branch instructions.'
+  const h = await fixture(
+    t,
+    {},
+    {
+      provider: 'local',
+      model: 'namer',
+      reasoningEffort: 'quick',
+      modelSettings: { inherit: 'auxiliary', instructions: localInstructions },
+    }
+  )
+  const { ctx, repo, git, rpc, submit, newSession } = h
+  const requests = []
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: { efforts: ['quick', 'thorough'].map((id) => ({ id, name: id })), defaultEffort: 'thorough' },
+      }
+    }
+    async *stream(request) {
+      const naming = request.system === localInstructions
+      if (naming) requests.push(request)
+      yield { type: 'text-delta', index: 0, text: naming ? `fix/local-${requests.length}` : 'Finished' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['local'], new NamingAdapter())
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].system, localInstructions)
+  assert.equal(requests[0].provider, 'local')
+  assert.equal(requests[0].reasoningEffort, 'quick')
+  const agent = await newSession()
+  const entry = ctx.configEditor.entries().find((item) => item.options.name === '@dungsil/dsh-plugin-ui-worktree')
+  await ctx.configEditor.edit(entry, (config) => {
+    const { provider: _provider, model: _model, reasoningEffort: _effort, ...rest } = config
+    return rest
+  })
+  agent.session.append('request/header', {
+    header: { config: { provider: 'local', model: 'conversation', reasoningEffort: 'quick' } },
+    reason: 'initial',
+  })
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(requests.length, 2)
+  assert.equal(requests[1].model, 'conversation')
+  assert.equal(requests[1].reasoningEffort, 'thorough')
+  assert.equal(requests[1].system, localInstructions)
+  assert.ok(git('branch', '--list', 'fix/local-2'))
+})
+
 await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않고 실시간 보조 설정을 따른다', async (t) => {
   const route = { provider: 'auxiliary', model: 'small' }
-  const { ctx, agent, repo, rpc, requests, submit } = await fixture(
+  const { ctx, agent, repo, rpc, requests, submit, newSession } = await fixture(
     t,
     {},
     {},
@@ -1150,7 +1595,7 @@ await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않�
       namingRequests.at(-1).system,
       customInstructions + (expected.provider === 'auxiliary' ? '\n\nShared instructions.' : '')
     )
-    assert.equal((await rpc('switch', { cwd: created.cwd, path: gitPath(repo) })).ok, true)
+    await newSession()
   }
   const describe = async () => (await rpc('dungsil-model-settings/describe')).value
   const save = (payload) => rpc('dungsil-model-settings/save', payload)
@@ -1159,7 +1604,7 @@ await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않�
   await submit()
   assert.equal(namingRequests.at(-1).system, defaults.instructions)
   assert.equal(defaults.instructions, defaults.defaultInstructions)
-  assert.equal((await rpc('switch', { cwd: (await rpc('describe')).value.cwd, path: gitPath(repo) })).ok, true)
+  await newSession()
   for (const [task, instructions] of [
     ['auxiliary', 'Shared instructions.'],
     ['worktree', customInstructions],
@@ -1190,7 +1635,7 @@ await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않�
   assert.equal((await rpc('create', { cwd: repo })).ok, true)
   await submit()
   assert.equal(namingRequests.at(-1).system, `${defaults.defaultInstructions}\n\nShared instructions.`)
-  assert.equal((await rpc('switch', { cwd: (await rpc('describe')).value.cwd, path: gitPath(repo) })).ok, true)
+  await newSession()
   assert.equal(
     (
       await rpc('dungsil-model-settings/instructions', {
@@ -1252,7 +1697,7 @@ await test('대상 디렉터리에만 적용되는 조건부 필터는 체크아
 
 await test('저장소 심볼릭 링크는 풀이나 브랜치 접두사 할당 경로를 다른 곳으로 돌릴 수 없다', async (t) => {
   for (const component of ['.agents', '.agents/worktrees', '.agents/worktrees/fix']) {
-    await t.test(component, async (t) => {
+    await t.test(`${component} 심볼릭 링크를 따라 생성하지 않는다`, async (t) => {
       const { repo, home, git, rpc, submit } = await fixture(t)
       const outside = join(home, 'outside')
       await mkdir(outside)
@@ -1265,28 +1710,6 @@ await test('저장소 심볼릭 링크는 풀이나 브랜치 접두사 할당 �
       assert.equal(git('branch', '--list', 'fix/escape'), '')
       await assert.rejects(readFile(join(outside, 'escape/.git')), { code: 'ENOENT' })
       assert.deepEqual(await (await import('node:fs/promises')).readdir(outside), [])
-    })
-  }
-})
-
-await test('오래되었거나 위조된 워크트리 메타데이터로는 관련 없는 디렉터리로 전환할 수 없다', async (t) => {
-  for (const replacement of ['plain', 'repository', 'forged-link', 'symlink-git']) {
-    await t.test(replacement, async (t) => {
-      const { ctx, agent, repo, other, git, rpc } = await fixture(t)
-      const link = await readFile(join(other, '.git'), 'utf8')
-      await rm(other, { recursive: true })
-      await mkdir(other)
-      if (replacement === 'repository') execFileSync('git', ['init', '-b', 'main', other])
-      if (replacement === 'forged-link' || replacement === 'symlink-git') {
-        const valid = join(repo, 'valid')
-        git('worktree', 'add', '--detach', valid)
-        if (replacement === 'symlink-git') await symlink(join(valid, '.git'), join(other, '.git'), 'file')
-        else await writeFile(join(other, '.git'), await readFile(join(valid, '.git')))
-        assert.notEqual(await readFile(join(other, '.git'), 'utf8'), link)
-      }
-      const response = await rpc('switch', { cwd: repo, path: gitPath(other) })
-      assert.equal(response.ok, false)
-      assert.equal(ctx.workingDirectory.get(agent.session), repo)
     })
   }
 })
@@ -1345,7 +1768,7 @@ await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된
     'shared-stored',
     'fork',
   ]) {
-    await t.test(scenario, async (t) => {
+    await t.test(`${scenario} 상태의 체크아웃을 보존한다`, async (t) => {
       const { ctx, agent, repo, other, git, rpc, submit, harness, archive } = await fixture(
         t,
         {},
@@ -1354,7 +1777,7 @@ await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된
         }
       )
       if (scenario === 'foreign') {
-        assert.equal((await rpc('switch', { cwd: repo, path: gitPath(other) })).ok, true)
+        await ctx.workingDirectory.set(agent, other)
       } else {
         await writeFile(join(repo, 'tracked.txt'), 'committed')
         await writeFile(join(repo, '.gitignore'), 'ignored.txt\n')

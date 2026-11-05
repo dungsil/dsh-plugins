@@ -12,6 +12,7 @@ import { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
@@ -38,6 +39,7 @@ async function fixture(t, options = {}) {
   await writeFile(join(repo, 'unrelated.txt'), 'another task\n')
   git('add', 'unrelated.txt')
   await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
+  await ctx.plugin(SessionPersistenceJsonl, { root: join(home, 'sessions') })
   await ctx.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
   await ctx.plugin(SubprocessLocal)

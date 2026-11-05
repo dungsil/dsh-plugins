@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -51,6 +51,13 @@ const styles = `
 .dsh-usage-model-heading > span:first-child { min-width: 0; }
 .dsh-usage-model-heading > span:last-child { flex: none; font-variant-numeric: tabular-nums; }
 .dsh-usage-model dl { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 12px; font-size: 12px; }
+.dsh-usage-calls { list-style: none; margin: 0; padding: 0 12px; max-height: 520px; overflow: auto; border: .5px solid var(--dsw-alias-border-l2); border-radius: 8px; }
+.dsh-usage-calls:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.dsh-usage-calls .dsh-usage-model:last-child { border-bottom: none; }
+.dsh-usage-calls dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dsh-usage-call-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.dsh-usage-call-status { flex: none; font-size: 12px; }
+.dsh-usage-call-status[data-status=failure] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-usage [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 @container (max-width: 480px) {
   .dsh-usage-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -66,24 +73,33 @@ function Usage({ ctx }: { ctx: Context }) {
   const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const number = new Intl.NumberFormat(locale.active)
+  const tokens = new Intl.NumberFormat(locale.active, { notation: 'compact', maximumFractionDigits: 1 })
   const [period, setPeriod] = useState(7)
   const [periodOpen, setPeriodOpen] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  const refreshRequested = useRef(false)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const cacheKey = JSON.stringify([period, timeZone])
   let cache = cachedViews.get(connection)
   if (!cache) cachedViews.set(connection, (cache = new Map()))
   const [view, setView] = useState<UsageView | undefined>(() => cache.get(cacheKey))
-  const [busy, setBusy] = useState(true)
+  const [busy, setBusy] = useState(() => !cache.has(cacheKey))
   const [error, setError] = useState(false)
   const [selectedDay, setSelectedDay] = useState(() => view?.days.at(-1)?.day ?? '')
 
   useEffect(() => {
+    const cached = cache.get(cacheKey)
+    setError(false)
+    setView(cached)
+    if (cached && !refreshRequested.current) {
+      setBusy(false)
+      setSelectedDay((day) => (cached.days.some((entry) => entry.day === day) ? day : (cached.days.at(-1)?.day ?? '')))
+      return
+    }
+    refreshRequested.current = false
     const controller = new AbortController()
     setBusy(true)
-    setError(false)
-    setView(cache.get(cacheKey))
     void (async () => {
       try {
         const result = await connection.rpc.call(channel, method, { days: period, timeZone }, controller.signal)
@@ -148,7 +164,10 @@ function Usage({ ctx }: { ctx: Context }) {
           aria-busy={busy}
           icon={<IconRefreshOutlineRegular />}
           disabled={busy}
-          onClick={() => setRefresh((value) => value + 1)}
+          onClick={() => {
+            refreshRequested.current = true
+            setRefresh((value) => value + 1)
+          }}
         >
           {busy ? text.refreshing : text.refresh}
         </Button>
@@ -165,12 +184,14 @@ function Usage({ ctx }: { ctx: Context }) {
           <dl className="dsh-usage-summary">
             <div>
               <dt>{text.total}</dt>
-              <dd className="dsh-usage-total">{number.format(view.totals.total)}</dd>
+              <dd className="dsh-usage-total" title={number.format(view.totals.total)}>
+                {tokens.format(view.totals.total)}
+              </dd>
             </div>
             {metrics.map((key) => (
               <div key={key}>
                 <dt>{text[key]}</dt>
-                <dd>{number.format(view.totals[key])}</dd>
+                <dd title={number.format(view.totals[key])}>{tokens.format(view.totals[key])}</dd>
               </div>
             ))}
           </dl>
@@ -215,9 +236,44 @@ function Usage({ ctx }: { ctx: Context }) {
                 <span>{date(view.days[0].day)}</span>
                 <span>{date(view.days.at(-1)!.day)}</span>
               </div>
-              <p className="dsh-usage-detail" aria-live="polite">
-                {selected && `${date(selected.day)} · ${text.total}: ${number.format(selected.total)}`}
+              <p className="dsh-usage-detail" aria-live="polite" title={selected && number.format(selected.total)}>
+                {selected && `${date(selected.day)} · ${text.total}: ${tokens.format(selected.total)}`}
               </p>
+              <h3>{text.requests}</h3>
+              <p className="dsh-usage-muted">{text.requestScope}</p>
+              <ol className="dsh-usage-calls" tabIndex={0} aria-label={text.requests}>
+                {view.calls.map((call) => (
+                  <li className="dsh-usage-model" key={JSON.stringify([call.session, call.seq])}>
+                    <div className="dsh-usage-call-meta">
+                      <time className="dsh-usage-muted" dateTime={new Date(call.time).toISOString()}>
+                        {text.time}:{' '}
+                        {new Intl.DateTimeFormat(locale.active, {
+                          dateStyle: 'medium',
+                          timeStyle: 'medium',
+                          timeZone: view.timeZone,
+                        }).format(call.time)}
+                      </time>
+                      <span className="dsh-usage-call-status" data-status={call.status}>
+                        {text.status}: {text[call.status]}
+                      </span>
+                    </div>
+                    <div>
+                      {call.provider || text.unknown} / {call.model || text.unknown}
+                    </div>
+                    <div className="dsh-usage-muted">
+                      {text.session}: {call.session}
+                    </div>
+                    <dl>
+                      {(['total', ...metrics] as const).map((key) => (
+                        <div key={key}>
+                          <dt>{text[key]}</dt>
+                          <dd>{call.unreported ? text.notReported : number.format(call[key])}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </li>
+                ))}
+              </ol>
               <h3>{text.models}</h3>
               {view.models.map((row) => (
                 <div className="dsh-usage-model" key={JSON.stringify([row.provider, row.model])}>
@@ -225,13 +281,15 @@ function Usage({ ctx }: { ctx: Context }) {
                     <span>
                       {row.provider || text.unknown} / {row.model || text.unknown}
                     </span>
-                    <span>{number.format(row.total)}</span>
+                    <span title={number.format(row.total)}>{tokens.format(row.total)}</span>
                   </div>
                   <dl>
                     {(['calls', ...metrics] as const).map((key) => (
                       <div key={key}>
                         <dt>{text[key]}</dt>
-                        <dd>{number.format(row[key])}</dd>
+                        <dd title={number.format(row[key])}>
+                          {key === 'calls' ? number.format(row[key]) : tokens.format(row[key])}
+                        </dd>
                       </div>
                     ))}
                   </dl>

@@ -9,6 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
@@ -173,8 +174,36 @@ async function fixture(
     return spawn(spec)
   }
   ctx.provide('workingDirectory', { get: () => dir })
+  const inspections = []
+  const activations = []
+  const closes = []
   ctx.provide('sessionController', {
-    resolveAgent: async (id) => (id === 'test' ? { agent: { session: {} } } : { error: { code: 'missing' } }),
+    resolveAgent: async (id) => {
+      activations.push(id)
+      return id === 'test' ? { agent: { session: {} } } : { error: { code: 'missing' } }
+    },
+  })
+  ctx.provide('sessionPersistence', {
+    open: async (id, access, { signal }) => {
+      assert.equal(access, 'read')
+      signal.throwIfAborted()
+      inspections.push(id)
+      if (id !== 'test') throw new Error('missing')
+      return {
+        header: { version: SESSION_FORMAT_VERSION, id, cwd: dir, createdAt: 0, isSeeded: false },
+        inheritedEventCount: 0,
+        read: async (start, end, options) => {
+          assert.equal(start, undefined)
+          assert.equal(end, undefined)
+          assert.equal(options.signal, signal)
+          signal.throwIfAborted()
+          return { events: [] }
+        },
+        close: async () => {
+          closes.push(id)
+        },
+      }
+    },
   })
   let mode = 'danger-full-access'
   const confined = []
@@ -207,6 +236,9 @@ async function fixture(
   }
   return {
     rpc,
+    inspections,
+    activations,
+    closes,
     summary: (peer = owner, requestUrl) => rpc(peer, 'test', undefined, requestUrl, true),
     lookup: (requestUrl, peer = owner) => rpc(peer, 'test', undefined, requestUrl),
     action: (input = {}, peer = owner) =>
@@ -236,7 +268,16 @@ async function fixture(
 }
 
 // Each test owns its repository, Cordis context and CLI responses.
-await describe('PR RPC', { concurrency: 4 }, async () => {
+await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrency: 4 }, async () => {
+  await test('콜드 세션의 PR 조회는 Agent를 활성화하지 않고 저장된 세션만 읽는다', async (t) => {
+    const f = await fixture(t)
+    assert.equal((await f.summary()).ok, true)
+    assert.equal((await f.rpc()).ok, true)
+    assert.deepEqual(f.inspections, ['test', 'test'])
+    assert.deepEqual(f.activations, [])
+    assert.deepEqual(f.closes, ['test', 'test'])
+  })
+
   await test('현재 브랜치의 PR만 표시하고, 없는 요청·실패한 조회·CLI 없음을 구분한다', async (t) => {
     const f = await fixture(t)
     assert.deepEqual(await f.rpc(), {

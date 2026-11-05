@@ -12,14 +12,7 @@ import { cliProxyIconSvg } from '@dungsil/dsh-ui/icons'
 import { channel, endpointPrefix, type ConnectionView, type QuotaAccount, type QuotaResult } from './protocol.js'
 import { localizedCopy } from './copy.js'
 import { QuotaPanel, quotaStyles } from './quota-panel.js'
-import {
-  isQuotaCacheFresh,
-  loadQuotaSnapshot,
-  QuotaCache,
-  quotaKey,
-  subscribeQuotaGeneration,
-  type QuotaSnapshot,
-} from './quota-cache.js'
+import { loadQuotaSnapshot, QuotaCache, quotaKey, subscribeQuotaGeneration, type QuotaSnapshot } from './quota-cache.js'
 
 export const name = 'dungsil-cli-proxy-api'
 export const inject = ['connection', 'locale', 'slots']
@@ -65,19 +58,21 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
   const id = useId()
   const [connectionVersion, setConnectionVersion] = useState(0)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const [view, setView] = useState<ConnectionView>()
-  const [baseURL, setBaseURL] = useState('')
+  const cachedView = settings ? undefined : cache.connection
+  const cached = cachedView && cache.read(cachedView)
+  const [view, setView] = useState<ConnectionView | undefined>(cachedView)
+  const [baseURL, setBaseURL] = useState(cachedView?.baseURL ?? '')
   // Secrets live only in the input draft and the in-flight RPC payload, never in persisted state.
   const [apiKey, setAPIKey] = useState('')
   const [managementKey, setManagementKey] = useState('')
   const [removeAPIKey, setRemoveAPIKey] = useState(false)
   const [removeManagementKey, setRemoveManagementKey] = useState(false)
-  const [synchronized, setSynchronized] = useState(false)
-  const [busy, setBusy] = useState(true)
+  const [synchronized, setSynchronized] = useState(!!cached)
+  const [busy, setBusy] = useState(!cached)
   const [notice, setNotice] = useState<Notice>()
-  const [quotaAccounts, setQuotaAccounts] = useState<QuotaAccount[]>()
-  const [quotas, setQuotas] = useState<Record<string, QuotaResult | null | undefined>>({})
-  const [fetchedAt, setFetchedAt] = useState<number>()
+  const [quotaAccounts, setQuotaAccounts] = useState<QuotaAccount[] | undefined>(cached?.accounts)
+  const [quotas, setQuotas] = useState<Record<string, QuotaResult | null | undefined>>(cached?.quotas ?? {})
+  const [fetchedAt, setFetchedAt] = useState<number | undefined>(cached?.fetchedAt)
   const [uncertain, setUncertain] = useState(false)
   const lock = useRef(true)
   const lifetime = useRef<AbortController>()
@@ -97,6 +92,7 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
     async (controller: AbortController) => {
       setSynchronized(false)
       const next = await call<ConnectionView>('describe', {}, controller)
+      cache.read(next)
       setView(next)
       setBaseURL(next.baseURL)
       setSynchronized(true)
@@ -109,7 +105,7 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
       setFetchedAt(undefined)
       return next
     },
-    [call]
+    [call, cache]
   )
 
   const showSnapshot = useCallback((snapshot: QuotaSnapshot) => {
@@ -171,6 +167,20 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
   useEffect(() => {
     const controller = new AbortController()
     lifetime.current = controller
+    const restoreView = settings ? undefined : cache.connection
+    const restore = restoreView && cache.read(restoreView)
+    if (restore && restoreView) {
+      setView(restoreView)
+      setBaseURL(restoreView.baseURL)
+      setSynchronized(true)
+      showSnapshot(restore)
+      lock.current = false
+      setBusy(false)
+      return () => {
+        controller.abort()
+        if (lifetime.current === controller) lifetime.current = undefined
+      }
+    }
     lock.current = true
     setBusy(true)
     setSynchronized(false)
@@ -185,12 +195,7 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
     void describe(controller)
       .then(async (next) => {
         if (settings) return
-        const cached = cache.read(next)
         if (!next.managementKeySaved) return
-        if (cached) {
-          showSnapshot(cached)
-          if (isQuotaCacheFresh(cached)) return
-        }
         await loadAccounts(next, controller)
       })
       .catch(() => {

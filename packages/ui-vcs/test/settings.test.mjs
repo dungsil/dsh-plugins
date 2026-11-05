@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
 await test('소유자만 커밋 설정을 영속 저장하며 오래된 값과 잘못된 작성자는 기존 설정을 덮어쓰지 않는다', async (t) => {
@@ -59,10 +61,35 @@ await test('소유자만 커밋 설정을 영속 저장하며 오래된 값과 �
       root.loader.internal = { version: 'v2', import: async () => plugin }
       await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
       await root.plugin(Connection)
-      // These services are unused by settings reads/writes. The real CLI route
-      // still requires a resolved Session before it can run a command.
+      await root.plugin(SessionPersistenceJsonl, { root: join(home, 'sessions') })
       root.provide('sessionController', { resolveAgent: async () => ({ error: { code: 'not-found' } }) })
-      for (const service of ['workingDirectory', 'subprocess', 'sandbox', 'sandboxPolicy']) root.provide(service, {})
+      root.provide('workingDirectory', {})
+      await root.plugin(SubprocessLocal)
+      const spawn = root.subprocess.spawn.bind(root.subprocess)
+      root.subprocess.resolveExecutable = async (command) => {
+        if (command === 'tea') {
+          const error = new Error('not installed')
+          error.name = 'SubprocessExecutableNotFoundError'
+          throw error
+        }
+        return command
+      }
+      root.subprocess.spawn = (spec) =>
+        spawn({
+          ...spec,
+          argv: [
+            process.execPath,
+            '--input-type=module',
+            '-e',
+            `if (process.cwd() !== ${JSON.stringify(homedir())}) process.exit(1);
+             console.log(process.argv[1] === 'gh'
+               ? JSON.stringify({ hosts: { 'github.com': [{ state: 'success', host: 'github.com', login: 'alice', tokenSource: 'keyring' }] } })
+               : JSON.stringify({ hosts: [] }));`,
+            spec.argv[0],
+          ],
+        })
+      root.provide('sandboxPolicy', { resolve: () => ({ mode: 'read-only', workspaceRoot: home }) })
+      root.provide('sandbox', { confine: async (argv) => ({ argv }) })
     })
   ctx = await start()
   const rpc = async (endpoint, payload = {}, principal = { kind: 'owner' }) => {
@@ -103,7 +130,16 @@ await test('소유자만 커밋 설정을 영속 저장하며 오래된 값과 �
   for (const endpoint of ['settings', 'save-settings', 'cli-status']) {
     assert.deepEqual(await rpc(endpoint, {}, { kind: 'anonymous' }), { status: 403 })
   }
-  assert.equal((await rpc('cli-status', { sessionId: 'missing' })).ok, false)
+  await t.test('열린 세션 없이 PC의 CLI 인증 상태와 미설치 상태를 조회한다', async () => {
+    assert.deepEqual(await rpc('cli-status'), {
+      ok: true,
+      value: [
+        { cli: 'gh', status: 'authenticated', accounts: [{ host: 'github.com', login: 'alice', method: 'keyring' }] },
+        { cli: 'glab', status: 'unauthenticated', accounts: [] },
+        { cli: 'tea', status: 'unavailable', accounts: [] },
+      ],
+    })
+  })
   await ctx.fiber.dispose()
   ctx = await start()
   assert.deepEqual((await rpc('settings')).value.settings, settings)

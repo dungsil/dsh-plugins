@@ -210,3 +210,150 @@ await test('파이프라인 스킬 이름과 로컬 참조 경로는 번들 안�
   }
   assert.match(pipeline, /skill\(\{ name:/u)
 })
+
+await test('모델 설정 코덱은 관련 없는 설정을 보존하고 모든 쓰기에 마이그레이션 완료 상태를 기록한다', () => {
+  const definition = plugin.modelSettingsDefinition
+  assert.equal(definition.key, 'writing')
+  for (const locale of ['en', 'ko', 'zh']) {
+    for (const field of ['label', 'description', 'automaticReasoningLabel', 'instructionsHint'])
+      assert.ok(definition[field][locale])
+  }
+  const legacy = { provider: 'writing', model: 'editor', reasoningEffort: 'high', unrelated: { keep: true } }
+  assert.deepEqual(definition.read(legacy), {
+    selection: { mode: 'model', route: { provider: 'writing', model: 'editor' }, reasoningEffort: 'high' },
+    instructions: null,
+  })
+  for (const mode of ['auxiliary', 'conversation']) {
+    const saved = definition.write(legacy, { selection: { mode }, instructions: 'Local instructions.' })
+    assert.deepEqual(saved, {
+      unrelated: { keep: true },
+      modelSettings: { inherit: mode, instructions: 'Local instructions.' },
+    })
+    assert.deepEqual(definition.read(saved), { selection: { mode }, instructions: 'Local instructions.' })
+  }
+  const automatic = definition.write(legacy, {
+    selection: { mode: 'model', route: { provider: 'writing', model: 'other' }, reasoningEffort: null },
+    instructions: null,
+  })
+  assert.deepEqual(automatic, {
+    provider: 'writing',
+    model: 'other',
+    unrelated: { keep: true },
+    modelSettings: { inherit: 'auxiliary' },
+  })
+  assert.deepEqual(definition.read({ provider: 'partial', reasoningEffort: 'stale' }), {
+    selection: { mode: 'auxiliary' },
+    instructions: null,
+  })
+  assert.deepEqual(definition.read({ modelSettings: { inherit: 'conversation' } }), {
+    selection: { mode: 'conversation' },
+    instructions: null,
+  })
+  assert.ok(definition.defaultInstructions({}).includes('{{resources}}'))
+  assert.equal(legacy.reasoningEffort, 'high')
+})
+
+await test('선택적 모델 설정 서비스는 나중에 연결되고 해제되면 로컬 모델과 지침으로 돌아간다', async (t) => {
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Llm)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
+  await ctx.plugin(SkillRegistry)
+  class RecordingAdapter extends LlmAdapter {
+    requests = []
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: { efforts: ['low', 'high'].map((id) => ({ id, name: id })), defaultEffort: 'high' },
+      }
+    }
+    async *stream(request) {
+      this.requests.push(request)
+      yield { type: 'text-delta', index: 0, text: '완성된 문장' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  const adapter = new RecordingAdapter()
+  ctx.llm.registerAdapter(['local', 'shared'], adapter)
+  const fork = ctx.plugin(plugin, {
+    provider: 'local',
+    model: 'editor',
+    reasoningEffort: 'low',
+    modelSettings: { inherit: 'conversation', instructions: 'Local {{skill}}.' },
+  })
+  await fork
+  const run = async () => {
+    const batch = await ctx.tools.execute({
+      calls: [
+        {
+          type: 'tool-call',
+          id: 'optional-service',
+          name: 'yoonmoon',
+          arguments: JSON.stringify({ skill: 'proofreading-korean', text: '안되요.' }),
+        },
+      ],
+      signal: new AbortController().signal,
+    })
+    assert.equal(batch.results.length, 1)
+    assert.equal(batch.results[0].callId, 'optional-service')
+    assert.equal(batch.results[0].result.isError, false)
+    return adapter.requests.at(-1)
+  }
+  assert.equal((await run()).system, 'Local proofreading-korean.')
+  assert.equal(adapter.requests.at(-1).reasoningEffort, 'low')
+  let registered = 0
+  let disposed = 0
+  const service = {
+    apply(child) {
+      child.provide('dungsilModelSettings', {
+        register(owner, definition) {
+          registered++
+          assert.equal(owner, fork.ctx)
+          assert.equal(definition.key, 'writing')
+          return {
+            resolve(conversation) {
+              assert.deepEqual(conversation, { provider: '', model: '' })
+              return {
+                route: { provider: 'shared', model: 'writer' },
+                reasoningEffort: 'low',
+                instructions: 'Shared {{skill}}.\n{{resources}}',
+                additionalInstructions: 'Additional {{skill}}.',
+              }
+            },
+            dispose() {
+              disposed++
+            },
+          }
+        },
+      })
+    },
+  }
+  const shared = ctx.plugin(service)
+  await shared
+  await new Promise((resolve) => setImmediate(resolve))
+  const request = await run()
+  assert.equal(registered, 1)
+  assert.equal(request.provider, 'shared')
+  assert.equal(request.model, 'writer')
+  assert.equal(request.reasoningEffort, 'low')
+  assert.ok(request.system.startsWith('Shared proofreading-korean.\n# proofreading-korean\n'))
+  assert.ok(request.system.endsWith('\n\nAdditional {{skill}}.'))
+  await shared.dispose()
+  await new Promise((resolve) => setImmediate(resolve))
+  const local = await run()
+  assert.equal(disposed, 1)
+  assert.equal(local.provider, 'local')
+  assert.equal(local.system, 'Local proofreading-korean.')
+  const reloaded = ctx.plugin(service)
+  await reloaded
+  await new Promise((resolve) => setImmediate(resolve))
+  await run()
+  assert.equal(registered, 2)
+  await fork.dispose()
+  assert.equal(disposed, 2)
+  assert.equal(ctx.tools.get('yoonmoon'), undefined)
+})

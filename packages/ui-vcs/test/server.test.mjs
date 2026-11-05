@@ -10,7 +10,8 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
@@ -30,6 +31,7 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
   git('symbolic-ref', 'refs/remotes/upstream/HEAD', 'refs/remotes/upstream/trunk')
   const initial = git('rev-parse', 'HEAD')
   await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
+  await ctx.plugin(SessionPersistenceJsonl, { root: join(home, '.git', 'sessions') })
   await ctx.plugin(LocalCredentialProvider, { path: join(home, '.git', 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)
   await ctx.plugin(SubprocessLocal)
@@ -37,8 +39,24 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
   await ctx.plugin(SandboxPolicy, { mode: 'danger-full-access' })
   const harness = await mountAgentLoopTestHarness(ctx)
   const agent = await harness.create(SessionId('git-action-test'), { provider: 'test', model: 'test' }, { cwd: home })
+  const id = SessionId('cold-session')
+  const cold = Session.create(id, agent.session.snapshotEvents(), {
+    ...agent.session.header,
+    id,
+    cwd: join(home, 'old'),
+  })
+  cold.append('working-directory/change', { cwd: home })
+  cold.append('turn/start', { turn: 1 })
+  cold.append('step/start', { turn: 1, step: 1 })
+  const events = cold.snapshotEvents()
+  const stored = await ctx.sessionPersistence.create(cold.header, { inheritedEventCount: cold.inheritedEventCount })
+  try {
+    await stored.append(events)
+  } finally {
+    await stored.close()
+  }
   ctx.provide('sessionController', {
-    resolveAgent: async (id) => (id === agent.id ? { agent } : { error: { code: 'session/not-found' } }),
+    resolveAgent: () => assert.fail('읽기 조회는 Agent를 활성화하지 않는다'),
   })
   await ctx.plugin(plugin)
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -56,6 +74,21 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
     return (await response.json()).result
   }
   assert.deepEqual(await read(), { ok: true, value: { operation: 'push', headSha: initial, dirty: false } })
+  const before = agent.session.snapshotEvents()
+  assert.deepEqual(await read('cold-session'), {
+    ok: true,
+    value: { operation: 'push', headSha: initial, dirty: false },
+  })
+  const persisted = await ctx.sessionPersistence.open(id, 'read')
+  try {
+    assert.deepEqual((await persisted.read()).events, events)
+    assert.equal(persisted.header.cwd, join(home, 'old'))
+  } finally {
+    await persisted.close()
+  }
+  assert.deepEqual(cold.snapshotEvents(), events)
+  assert.deepEqual(agent.session.snapshotEvents(), before)
+  assert.equal(ctx.agents.get('cold-session'), undefined)
   git('switch', '-c', 'main') // A familiar name is not necessarily the default branch.
   assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } })
   await writeFile(join(home, 'change.txt'), 'new file')
