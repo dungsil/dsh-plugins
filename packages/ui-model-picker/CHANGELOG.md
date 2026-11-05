@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-model-picker
 
+## [0.2.4](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.3...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.4) (2026-11-05)
+
+### Bug Fixes
+
+- **model-picker:** 추론 강도 적용 후 슬라이더 포커스를 유지한다 ([#147](https://github.com/dungsil/dsh-plugins/issues/147)) ([c0d7c08](https://github.com/dungsil/dsh-plugins/commit/c0d7c08044ec61467f1b65f9cbf0cef3e54e0a7a))
+
 ## [0.2.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.2...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.3) (2026-11-05)
 
 ### Bug Fixes
