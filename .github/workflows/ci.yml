@@ -63,9 +63,10 @@ jobs:
       - uses: pnpm/action-setup@v4.4.0
       - uses: actions/setup-node@v5.0.0
         with:
-          node-version: 26.13.0
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          pnpm install --frozen-lockfile
       - run: pnpm check
         env:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
