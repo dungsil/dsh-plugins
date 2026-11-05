@@ -76,7 +76,8 @@ export function apply(ctx: Context, config: Config) {
   const list = async (
     agent: Agent,
     signal: AbortSignal,
-    action?: RequestAction
+    action?: RequestAction,
+    summary = false
   ): Promise<RequestView | { completed: true }> => {
     const cwd = ctx.workingDirectory.get(agent.session)
     const run = async (executable: string, args: string[], failure = 'command_failed', allowed = [0], trim = true) => {
@@ -131,6 +132,20 @@ export function apply(ctx: Context, config: Config) {
         const outcome = await child.done
         signal.throwIfAborted()
         const output = child.collected!.stdout!.readFrom(0)
+        // gh pr view resolves the current branch without fetching assigned/created PRs.
+        // Only its explicit "no PR" result is empty; authentication/network failures still fail.
+        if (
+          executable === 'gh' &&
+          args[0] === 'pr' &&
+          args[1] === 'view' &&
+          !args.includes('--repo') &&
+          outcome.exitCode === 1 &&
+          !output.lossy &&
+          !output.text.trim()
+        ) {
+          const stderr = child.collected!.stderr!.readFrom(0)
+          if (!stderr.lossy && /^no pull requests found for branch "[^\n]+"\s*$/.test(stderr.text)) return 'null'
+        }
         if (outcome.exitCode === null || !allowed.includes(outcome.exitCode) || output.lossy) throw new Error(failure)
         // tea 0.12's API command exits successfully even for HTTP errors.
         // --include keeps the body on stdout and writes the HTTP status to stderr.
@@ -272,13 +287,11 @@ export function apply(ctx: Context, config: Config) {
       : provider === 'github'
         ? await run('gh', [
             'pr',
-            'status',
+            'view',
             // --repo disables gh's currentBranch lookup. Only discovery uses cwd;
             // every subsequent read/write is pinned to the validated repository/URL.
             '--json',
-            'number,title,url,author,headRefName,baseRefName,isDraft,state,headRepository',
-            '--jq',
-            '.currentBranch',
+            'number,title,url,author,headRefName,baseRefName,isDraft,state,headRepository,body',
           ])
         : await run('glab', [
             'mr',
@@ -360,6 +373,12 @@ export function apply(ctx: Context, config: Config) {
             row.source_project_id !== row.target_project_id))
       )
         return view
+      // Render the overview before fetching CI, discussions, files and the diff.
+      // Summary snapshots never authorize mutations; actions always reload full details.
+      if (summary && !action) {
+        item.body = string((provider === 'gitlab' ? row.description : row.body) ?? '')
+        return { ...view, request: item }
+      }
       // Resolve detail and mutation targets explicitly, including upstream fork PRs.
       const targetRepo =
         provider === 'github'
@@ -887,7 +906,7 @@ export function apply(ctx: Context, config: Config) {
               { type: 'server-response', rpcId: body.data.rpcId, result },
               { headers: { 'Cache-Control': 'no-store' } }
             )
-          const input = body.data.payload as { sessionId?: unknown } | null
+          const input = body.data.payload as { sessionId?: unknown; summary?: unknown } | null
           if (!input || typeof input.sessionId !== 'string' || !input.sessionId)
             return reply({ ok: false, error: { code: 'unavailable', message: 'Invalid session', details: {} } })
           let inFlight: string | undefined
@@ -906,7 +925,7 @@ export function apply(ctx: Context, config: Config) {
             const resolved = await ctx.sessionController.resolveAgent(SessionId(input.sessionId))
             if ('error' in resolved) throw new Error('unavailable')
             const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(20_000)])
-            const value = await list(resolved.agent, signal, action)
+            const value = await list(resolved.agent, signal, action, input.summary === true)
             if (action && !('completed' in value)) throw new Error('stale_request')
             return reply({ ok: true, value })
           } catch (error) {

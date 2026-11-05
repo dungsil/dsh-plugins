@@ -122,6 +122,8 @@ function Choice<Value extends string>({
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const views = new Map<string, RequestView>()
+  ctx.effect(() => () => views.clear())
   const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
   const text = () => {
     const language = ctx.locale.getSnapshot().active
@@ -133,7 +135,7 @@ export function apply(ctx: Context) {
     const copy = text()
     const { tab } = useTabInfo()
     const running = useSession((session) => session.running)
-    const [view, setView] = useState<RequestView>()
+    const [view, setView] = useState<RequestView | undefined>(() => views.get(sessionId))
     const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState<'overview' | 'changes' | 'conversation'>('overview')
@@ -195,10 +197,19 @@ export function apply(ctx: Context) {
       setConfirmation(undefined)
       setNotice(undefined)
       try {
-        const result = await connection.rpc.call(channel, method, { sessionId }, signal)
-        signal.throwIfAborted()
-        if (!result.ok) throw result.error
-        setView(result.value as RequestView)
+        // A cached snapshot is display-only while the fresh, full read is in flight.
+        // On first open, show the cheap overview without waiting for CI or a large diff.
+        for (const summary of views.has(sessionId) ? [false] : [true, false]) {
+          const result = await connection.rpc.call(channel, method, { sessionId, summary }, signal)
+          signal.throwIfAborted()
+          if (!result.ok) throw result.error
+          const next = result.value as RequestView
+          setView(next)
+          views.delete(sessionId)
+          views.set(sessionId, next)
+          if (views.size > 20) views.delete(views.keys().next().value!)
+          if (!next.request) break
+        }
       } catch (cause) {
         if (signal.aborted) return
         const code = (cause as { code?: string } | null)?.code
@@ -213,7 +224,7 @@ export function apply(ctx: Context) {
     }
 
     useEffect(() => {
-      setView(undefined)
+      setView(views.get(sessionId))
       setBody('')
       setConfirmation(undefined)
       setNotice(undefined)

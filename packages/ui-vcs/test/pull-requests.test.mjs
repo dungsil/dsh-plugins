@@ -101,7 +101,7 @@ async function fixture(
       if (endpoint.includes('/files?')) return [{ filename: 'src/main.ts', additions: 2, deletions: 1 }]
       return { full_name: 'team/project', allow_merge_commits: true, allow_squash_merge: true, allow_rebase: true }
     }
-    if (args[1] === 'status' || args[1] === 'list') return rows
+    if ((args[1] === 'view' && !args.includes('--repo')) || args[1] === 'list') return rows
     if (args[1] === 'view' && args[0] === 'pr')
       return {
         ...rows,
@@ -155,9 +155,13 @@ async function fixture(
         argv: [
           process.execPath,
           cli,
-          typeof value === 'string' ? value : JSON.stringify(value),
+          value instanceof Error ? '' : typeof value === 'string' ? value : JSON.stringify(value),
           String(value instanceof Error ? 1 : exitCode),
-          spec.argv[0] === 'tea' && args[0] === 'api' ? `HTTP/1.1 ${httpStatus} Test\n` : '',
+          value instanceof Error
+            ? value.message
+            : spec.argv[0] === 'tea' && args[0] === 'api'
+              ? `HTTP/1.1 ${httpStatus} Test\n`
+              : '',
         ],
       })
     }
@@ -178,7 +182,7 @@ async function fixture(
   ctx.provide('sandboxPolicy', { resolve: () => ({ mode }) })
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (peer = owner, sessionId = 'test', action) => {
+  const rpc = async (peer = owner, sessionId = 'test', action, summary = false) => {
     const method = action === undefined ? 'dungsil-vcs/pull-requests/list' : 'dungsil-vcs/pull-requests/action'
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
@@ -188,7 +192,7 @@ async function fixture(
           type: 'client-request',
           rpcId: 'test',
           method,
-          payload: action === undefined ? { sessionId } : action,
+          payload: action === undefined ? { sessionId, summary } : action,
         }),
       }),
       peer
@@ -197,6 +201,7 @@ async function fixture(
   }
   return {
     rpc,
+    summary: (peer = owner) => rpc(peer, 'test', undefined, true),
     action: (input = {}, peer = owner) =>
       rpc(peer, 'test', { sessionId: 'test', requestUrl: github.url, headSha: sha, action: 'approve', ...input }),
     calls,
@@ -256,6 +261,33 @@ await test('shows only the current branch PR and distinguishes absent requests, 
   assert.equal((await f.rpc()).error.code, 'command_failed')
   f.missing()
   assert.equal((await f.rpc()).error.code, 'cli_missing')
+})
+
+await test('GitHub distinguishes a branch without a PR from authentication or transport errors', async (t) => {
+  const f = await fixture(t)
+  f.dispatch(() => new Error('no pull requests found for branch "feat/sidebar"\n'))
+  assert.equal((await f.summary()).value.request, null)
+  for (const message of ['HTTP 401: Bad credentials', 'error connecting to api.github.com']) {
+    f.dispatch(() => new Error(message))
+    assert.equal((await f.summary()).error.code, 'command_failed')
+  }
+})
+
+await test('overview is available when slow detail endpoints fail, without enabling review or bypassing identity checks', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, body: 'Overview without waiting for CI or diff' })
+  f.dispatch((args, next) => (!args.includes('--repo') ? next(args) : new Error('detail unavailable')))
+  const result = await f.summary()
+  assert.equal(result.ok, true)
+  assert.equal(result.value.request.title, github.title)
+  assert.equal(result.value.request.body, 'Overview without waiting for CI or diff')
+  assert.equal(result.value.request.headSha, '')
+  assert.equal(result.value.request.diff, '')
+  assert.equal((await f.rpc()).value.request.detailsError, true)
+  assert.equal((await f.action({ action: 'comment', body: 'Do not send' })).error.code, 'stale_request')
+  f.setRows({ ...github, headRepository: { nameWithOwner: 'other/project' } })
+  assert.equal((await f.summary()).value.request, null)
+  assert.equal((await f.summary({ principal: { kind: 'viewer', sessionId: 'test' } })).status, 403)
 })
 
 await test('uses the tracked GitLab remote, preserves nested groups, and normalizes MR draft fields', async (t) => {
@@ -369,7 +401,7 @@ await test('GitHub actions return completion only, pin reviews and merge to the 
     const before = f.calls.length
     assert.deepEqual(await f.action(action), { ok: true, value: { completed: true } })
     const calls = f.calls.slice(before).map((call) => call.argv)
-    assert.equal(calls[0][2], 'status')
+    assert.equal(calls[0][2], 'view')
     assert.equal(calls[1][2], 'view')
     const mutation = calls.at(-1)
     if (action.action !== 'merge') {
