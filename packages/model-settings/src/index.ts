@@ -22,18 +22,20 @@ export async function apply(ctx: Context) {
     editor
       .entries()
       .find((entry) => entry.options.name === '@dungsil/dsh-plugin-model-settings' && entry.fiber?.state === 2)
-  const targetEntry = (task: 'title' | 'worktree') => {
+  const targetEntry = (task: 'title' | 'worktree' | 'yoonmoon') => {
     const entries = editor
       .entries()
       .filter(
         (entry) =>
           (task === 'title'
             ? titlePlugins.has(entry.options.name)
-            : entry.options.name === '@dungsil/dsh-plugin-ui-worktree') && entry.fiber?.state === 2
+            : entry.options.name ===
+              (task === 'worktree' ? '@dungsil/dsh-plugin-ui-worktree' : '@dungsil/dsh-plugin-yoonmoon')) &&
+          entry.fiber?.state === 2
       )
     return entries.length === 1 ? entries[0] : undefined
   }
-  const snapshot = (task: 'title' | 'worktree' | 'auxiliary'): TitleTarget | null => {
+  const snapshot = (task: 'title' | 'worktree' | 'yoonmoon' | 'auxiliary'): TitleTarget | null => {
     const owner = settingsEntry()
     const entry = task === 'auxiliary' ? owner : targetEntry(task)
     if (!entry) return null
@@ -84,7 +86,9 @@ export async function apply(ctx: Context) {
       ? 'title'
       : entry?.options.name === '@dungsil/dsh-plugin-ui-worktree' || consumer.fiber.name === 'dungsil-ui-worktree'
         ? 'worktree'
-        : null
+        : entry?.options.name === '@dungsil/dsh-plugin-yoonmoon' || consumer.fiber.name === 'yoonmoon'
+          ? 'yoonmoon'
+          : null
     if (!task) return next()
     if (service === 'sessionTitle') {
       if (task !== 'title') return next()
@@ -160,6 +164,7 @@ export async function apply(ctx: Context) {
           auxiliary: snapshot('auxiliary'),
           target: snapshot('title'),
           worktree: snapshot('worktree'),
+          yoonmoon: snapshot('yoonmoon'),
           providers,
           catalogError,
         },
@@ -204,9 +209,15 @@ export async function apply(ctx: Context) {
     }
     const owner = settingsEntry()
     const task =
-      owner?.options.id === input.id ? 'auxiliary' : snapshot('worktree')?.id === input.id ? 'worktree' : 'title'
+      owner?.options.id === input.id
+        ? 'auxiliary'
+        : snapshot('worktree')?.id === input.id
+          ? 'worktree'
+          : snapshot('yoonmoon')?.id === input.id
+            ? 'yoonmoon'
+            : 'title'
     const entry = task === 'auxiliary' ? owner : targetEntry(task)
-    if (!entry || (task !== 'worktree' && !owner)) return failure('unavailable')
+    if (!entry || (task === 'title' && !owner)) return failure('unavailable')
     if (task === 'auxiliary' && useAuxiliary) return failure('invalid')
     try {
       signal.throwIfAborted()
@@ -224,7 +235,7 @@ export async function apply(ctx: Context) {
           delete next.provider
           delete next.model
         }
-        if (task === 'worktree') {
+        if (task !== 'title') {
           if (route && reasoningEffort !== null) next.reasoningEffort = reasoningEffort
           else delete next.reasoningEffort
         }
