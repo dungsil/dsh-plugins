@@ -6,6 +6,34 @@ export interface Route {
   model: string
 }
 
+export type LocalizedText = Record<'en' | 'ko' | 'zh', string>
+
+export type ModelSelection =
+  | { mode: 'conversation' }
+  | { mode: 'auxiliary' }
+  | { mode: 'model'; route: Route; reasoningEffort: string | null }
+
+export interface TaskSnapshot {
+  id: string
+  revision: string
+  key: string
+  owner: { entryId: string; packageName: string }
+  label: LocalizedText
+  description: LocalizedText
+  automaticReasoningLabel: LocalizedText
+  instructionsHint?: LocalizedText
+  selection: ModelSelection
+  instructions: string
+  defaultInstructions: string
+}
+
+export interface ModelSettingsViewV2 {
+  auxiliary: TaskSnapshot | null
+  tasks: TaskSnapshot[]
+  providers: ModelSettingsView['providers']
+  catalogError: boolean
+}
+
 export interface TitleTarget {
   id: string
   revision: string

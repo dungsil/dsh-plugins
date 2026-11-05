@@ -37,6 +37,7 @@ function fixture(t, config = {}) {
       const cleanup = start()
       if (typeof cleanup === 'function') cleanups.push(cleanup)
     },
+    inject() {},
     on(name, listener) {
       listeners.set(name, listener)
     },

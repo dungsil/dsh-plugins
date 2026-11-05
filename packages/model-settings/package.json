@@ -20,6 +20,10 @@
       "types": "./dist/protocol.d.ts",
       "default": "./dist/protocol.js"
     },
+    "./contract": {
+      "types": "./dist/contract.d.ts",
+      "default": "./dist/contract.js"
+    },
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
@@ -49,7 +53,6 @@
     "@deepseek-ai/dsh-skill": "0.2.1-rc.5",
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
     "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
-    "@dungsil/dsh-plugin-yoonmoon": "workspace:*",
     "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",

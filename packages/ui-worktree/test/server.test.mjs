@@ -23,6 +23,46 @@ import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
 
+await test('브랜치 모델 설정 코덱은 모든 쓰기에 로컬 상태를 기록하고 사용하지 않는 라우트와 추론 강도를 제거한다', () => {
+  const definition = plugin.modelSettingsDefinition
+  assert.equal(definition.key, 'branch-name')
+  for (const locale of ['en', 'ko', 'zh'])
+    for (const field of ['label', 'description', 'automaticReasoningLabel']) assert.ok(definition[field][locale])
+  const legacy = { naming: 'semantic', provider: 'namer', model: 'small', reasoningEffort: 'quick', remote: true }
+  assert.deepEqual(definition.read(legacy), {
+    selection: { mode: 'model', route: { provider: 'namer', model: 'small' }, reasoningEffort: 'quick' },
+    instructions: null,
+  })
+  for (const mode of ['auxiliary', 'conversation']) {
+    const saved = definition.write(legacy, { selection: { mode }, instructions: 'Local branch instructions.' })
+    assert.deepEqual(saved, {
+      naming: 'semantic',
+      remote: true,
+      modelSettings: { inherit: mode, instructions: 'Local branch instructions.' },
+    })
+    assert.deepEqual(definition.read(saved), { selection: { mode }, instructions: 'Local branch instructions.' })
+  }
+  const automatic = definition.write(legacy, {
+    selection: { mode: 'model', route: { provider: 'namer', model: 'other' }, reasoningEffort: null },
+    instructions: null,
+  })
+  assert.deepEqual(automatic, {
+    naming: 'semantic',
+    remote: true,
+    provider: 'namer',
+    model: 'other',
+    modelSettings: { inherit: 'auxiliary' },
+  })
+  assert.deepEqual(definition.read({ provider: 'partial', reasoningEffort: 'stale' }), {
+    selection: { mode: 'auxiliary' },
+    instructions: null,
+  })
+  assert.equal(definition.defaultInstructions({}), definition.defaultInstructions({ naming: 'semantic' }))
+  assert.ok(definition.defaultInstructions({ naming: 'semantic' }).includes('semantic Git branch'))
+  for (const naming of ['dsh', 'custom']) assert.ok(definition.defaultInstructions({ naming }).includes('task slug'))
+  assert.equal(legacy.reasoningEffort, 'quick')
+})
+
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const gitPath = (path) => (process.platform === 'win32' ? path.replaceAll('\\', '/') : path)
 
@@ -1379,6 +1419,61 @@ await test('작업 모델과 워크트리 설정은 프로필을 다시 불러�
     model: 'selected',
     reasoningEffort: 'quick',
   })
+})
+
+await test('모델 설정 서비스가 없어도 로컬 지침과 명시적 라우트를 사용하고 대화 추론 강도를 상속하지 않는다', async (t) => {
+  const localInstructions = 'Local branch instructions.'
+  const { ctx, repo, git, rpc, submit, agent } = await fixture(
+    t,
+    {},
+    {
+      provider: 'local',
+      model: 'namer',
+      reasoningEffort: 'quick',
+      modelSettings: { inherit: 'auxiliary', instructions: localInstructions },
+    }
+  )
+  const requests = []
+  class NamingAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return {
+        provider,
+        id: model,
+        name: model,
+        reasoning: { efforts: ['quick', 'thorough'].map((id) => ({ id, name: id })), defaultEffort: 'thorough' },
+      }
+    }
+    async *stream(request) {
+      const naming = request.system === localInstructions
+      if (naming) requests.push(request)
+      yield { type: 'text-delta', index: 0, text: naming ? `fix/local-${requests.length}` : 'Finished' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['local'], new NamingAdapter())
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].system, localInstructions)
+  assert.equal(requests[0].provider, 'local')
+  assert.equal(requests[0].reasoningEffort, 'quick')
+  assert.equal((await rpc('switch', { cwd: ctx.workingDirectory.get(agent.session), path: gitPath(repo) })).ok, true)
+  const entry = ctx.configEditor.entries().find((item) => item.options.name === '@dungsil/dsh-plugin-ui-worktree')
+  await ctx.configEditor.edit(entry, (config) => {
+    const { provider: _provider, model: _model, reasoningEffort: _effort, ...rest } = config
+    return rest
+  })
+  agent.session.append('request/header', {
+    header: { config: { provider: 'local', model: 'conversation', reasoningEffort: 'quick' } },
+    reason: 'initial',
+  })
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(requests.length, 2)
+  assert.equal(requests[1].model, 'conversation')
+  assert.equal(requests[1].reasoningEffort, 'thorough')
+  assert.equal(requests[1].system, localInstructions)
+  assert.ok(git('branch', '--list', 'fix/local-2'))
 })
 
 await test('자동 워크트리 이름 짓기는 대화 호출을 바꾸지 않고 실시간 보조 설정을 따른다', async (t) => {

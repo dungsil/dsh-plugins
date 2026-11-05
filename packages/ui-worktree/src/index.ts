@@ -16,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import { workspaceDomainState } from '@deepseek-ai/dsh-workspace'
 import { createTaskQueue } from '@dungsil/dsh-async'
+import type { TaskDefinition, TaskRegistration } from '@dungsil/dsh-plugin-model-settings/contract'
 import { worktreeInstructions } from '@dungsil/dsh-task-prompts'
 import {
   channel,
@@ -57,6 +58,10 @@ export const Config = z.object({
   provider: z.string(),
   model: z.string(),
   reasoningEffort: z.string(),
+  modelSettings: z.object({
+    inherit: z.union(['auxiliary', 'conversation']).default('auxiliary'),
+    instructions: z.string(),
+  }),
 })
 
 function validSettings(value: unknown): value is WorktreeSettings {
@@ -103,6 +108,49 @@ export interface Config extends WorktreeSettings {
   provider?: string
   model?: string
   reasoningEffort?: string
+  modelSettings?: { inherit: 'auxiliary' | 'conversation'; instructions?: string }
+}
+
+export const modelSettingsDefinition: TaskDefinition = {
+  key: 'branch-name',
+  label: { en: 'Worktree branch name', ko: '워크트리 브랜치 이름', zh: '工作树分支名称' },
+  description: {
+    en: 'Model and instructions for naming new worktree branches.',
+    ko: '새 워크트리 브랜치 이름을 생성하는 모델과 지침입니다.',
+    zh: '生成新工作树分支名称的模型和指令。',
+  },
+  automaticReasoningLabel: { en: 'Model default', ko: '모델 기본값', zh: '模型默认值' },
+  read(config) {
+    const local = config.modelSettings as Config['modelSettings']
+    return {
+      selection:
+        typeof config.provider === 'string' && config.provider && typeof config.model === 'string' && config.model
+          ? {
+              mode: 'model',
+              route: { provider: config.provider, model: config.model },
+              reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : null,
+            }
+          : { mode: local?.inherit === 'conversation' ? 'conversation' : 'auxiliary' },
+      instructions: local?.instructions ?? null,
+    }
+  },
+  write(config, settings) {
+    const { provider: _provider, model: _model, reasoningEffort: _effort, modelSettings: _settings, ...rest } = config
+    return {
+      ...rest,
+      ...(settings.selection.mode === 'model'
+        ? {
+            ...settings.selection.route,
+            ...(settings.selection.reasoningEffort ? { reasoningEffort: settings.selection.reasoningEffort } : {}),
+          }
+        : {}),
+      modelSettings: {
+        inherit: settings.selection.mode === 'conversation' ? 'conversation' : 'auxiliary',
+        ...(settings.instructions !== null ? { instructions: settings.instructions } : {}),
+      },
+    }
+  },
+  defaultInstructions: (config) => worktreeInstructions(typeof config.naming === 'string' ? config.naming : 'semantic'),
 }
 
 export function apply(ctx: Context, config: Config) {
@@ -112,6 +160,15 @@ export function apply(ctx: Context, config: Config) {
   const lifetime = new AbortController()
   let saving = false
   ctx.effect(() => () => lifetime.abort(), 'ui-worktree: cancel disposed operations')
+  let registration: TaskRegistration | undefined
+  ctx.inject(['dungsilModelSettings'], (child) => {
+    const current = child.dungsilModelSettings.register(ctx, modelSettingsDefinition)
+    registration = current
+    child.effect(() => () => {
+      current.dispose()
+      if (registration === current) registration = undefined
+    })
+  })
   // Reservations follow the live Agent, including browser navigation and reloads.
   // Disposing the Agent or restarting the host cancels unexecuted reservations.
   type Creation = { cwd: string; name: string; failed: boolean }
@@ -219,9 +276,18 @@ export function apply(ctx: Context, config: Config) {
       if (ctx.workingDirectory.get(agent.session) !== creation.cwd) throw new Error('Working directory changed')
       let branch = creation.name
       if (!branch) {
-        const route =
-          config.provider && config.model ? config : (agent.session.requestHeader()?.config ?? agent.options)
+        const conversation = agent.session.requestHeader()?.config ?? agent.options
+        const resolved = registration?.resolve({
+          provider: conversation.provider ?? '',
+          model: conversation.model ?? '',
+        })
+        const route = resolved?.route ?? (config.provider && config.model ? config : conversation)
         if (!route.provider || !route.model) throw new Error('No model selected')
+        const effort = resolved
+          ? resolved.reasoningEffort
+          : config.provider && config.model
+            ? config.reasoningEffort
+            : undefined
         const context = submitted
           .flatMap((message) => message.content.filter((block) => block.type === 'text'))
           .map((block) => block.text)
@@ -231,10 +297,7 @@ export function apply(ctx: Context, config: Config) {
           {
             provider: route.provider,
             model: route.model,
-            reasoningEffort:
-              config.provider && config.model && config.reasoningEffort
-                ? ReasoningEffortId(config.reasoningEffort)
-                : undefined,
+            reasoningEffort: effort ? ReasoningEffortId(effort) : undefined,
           },
           operationSignal,
           (controls, model) => ({
@@ -250,7 +313,12 @@ export function apply(ctx: Context, config: Config) {
         // A naming-only call uses the submitted prompt, never a conversation turn or tools.
         for await (const chunk of call.stream({
           ...call.config,
-          system: worktreeInstructions(config.naming),
+          system: [
+            resolved?.instructions ?? config.modelSettings?.instructions ?? worktreeInstructions(config.naming),
+            resolved?.additionalInstructions,
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
           messages: [
             createUserMessage({
               content: [{ type: 'text', text: context || 'New worktree' }],

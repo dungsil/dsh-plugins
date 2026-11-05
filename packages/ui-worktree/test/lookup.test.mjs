@@ -18,6 +18,7 @@ function fixture(t, { mode = 'workspace-write', confine, spawn } = {}) {
       const cleanup = start()
       if (typeof cleanup === 'function') cleanups.push(cleanup)
     },
+    inject() {},
     on() {},
     workspaceRegistry: { archivedSessionIds: [] },
     agents: { get: () => ({ session }) },
