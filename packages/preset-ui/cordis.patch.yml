@@ -15,6 +15,10 @@
       name: '@dungsil/dsh-plugin-ui-setting-skills'
     - id: dungsil-ui-worktree
       name: '@dungsil/dsh-plugin-ui-worktree'
+    - id: dungsil-ui-vcs
+      name: '@dungsil/dsh-plugin-ui-vcs'
+    - id: dungsil-ui-usage
+      name: '@dungsil/dsh-plugin-ui-usage'
     - id: dungsil-ui-model-picker
       name: '@dungsil/dsh-plugin-ui-model-picker'
     - id: dungsil-turn-rail-left

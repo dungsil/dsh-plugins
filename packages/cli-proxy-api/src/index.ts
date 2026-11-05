@@ -66,6 +66,7 @@ function text(value: unknown, max = 1024): string {
 
 export function apply(ctx: Context, config: Config) {
   let busy = false
+  let readers = 0
   const sessions = new Map<string, { provider: string; baseURL: string; expires: number }>()
   const lifetime = new AbortController()
   ctx.effect(() => () => lifetime.abort())
@@ -433,6 +434,8 @@ export function apply(ctx: Context, config: Config) {
     'oauth-cancel',
     'oauth-callback',
   ]) {
+    // Only connection and quota reads share the lock. All other operations use an exclusive lock.
+    const readOnly = endpoint === 'describe' || endpoint === 'quota-list' || endpoint === 'quota-fetch'
     ctx.effect(
       () =>
         ctx.connection.fetch.register({
@@ -449,13 +452,14 @@ export function apply(ctx: Context, config: Config) {
             if (!body.success || body.data.method !== `${endpointPrefix}${endpoint}`)
               return new Response('Invalid request', { status: 400 })
             let result
-            if (busy)
+            if (busy || (!readOnly && readers > 0))
               result = {
                 ok: false,
                 error: { code: 'busy', message: 'CLIProxyAPI operation in progress.', details: {} },
               }
             else {
-              busy = true
+              if (readOnly) readers++
+              else busy = true
               try {
                 result = { ok: true, value: await handle(endpoint, body.data.payload, request.signal) }
               } catch (error) {
@@ -465,7 +469,8 @@ export function apply(ctx: Context, config: Config) {
                   error: { code, message: 'CLIProxyAPI operation could not be confirmed.', details: {} },
                 }
               } finally {
-                busy = false
+                if (readOnly) readers--
+                else busy = false
               }
             }
             return Response.json(
