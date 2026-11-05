@@ -4,7 +4,7 @@ import test from 'node:test'
 import { profileFixture, titleConfig } from './profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
-  await test(`${strategy}: editable default prompts replace task instructions, persist and stay out of conversation calls`, async (t) => {
+  await test(`${strategy}: 편집 가능한 기본 프롬프트는 작업 지침을 대체하고 유지되며 대화 호출에는 포함되지 않는다`, async (t) => {
     const h = await profileFixture(strategy, {}, { naming: 'semantic' }, {})
     t.after(h.close)
     const initial = (await h.rpc('describe')).value
@@ -101,7 +101,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     assert.equal(h.adapter.requests.at(-1).system, `${defaultWriting}\n\nOnly auxiliary.\nKeep it short.`)
   })
 
-  await test(`${strategy}: shared auxiliary defaults preserve provenance, explicit overrides and conversation opt-out across reloads`, async (t) => {
+  await test(`${strategy}: 공유 보조 기본값은 재로드 후에도 출처, 명시적 재정의, 대화 미사용 선택을 보존한다`, async (t) => {
     const h = await profileFixture(strategy)
     t.after(h.close)
     const initial = (await h.rpc('describe')).value
@@ -144,7 +144,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     await check('auxiliary-reset', { provider: 'conversation', model: 'chat-large' }, undefined)
   })
 
-  await test(`${strategy}: persists reasoning effort and applies it before request logging without affecting conversation calls`, async (t) => {
+  await test(`${strategy}: 추론 강도를 유지하고 요청 로깅 전에 적용하며 대화 호출에는 영향을 주지 않는다`, async (t) => {
     const h = await profileFixture(strategy)
     t.after(h.close)
     const view = (await h.rpc('describe')).value
@@ -201,7 +201,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     await checkTitle('plugin-unloaded', 'quick')
   })
 
-  await test(`${strategy}: saves, reloads and resets the title route without changing conversation config`, async (t) => {
+  await test(`${strategy}: 대화 설정을 바꾸지 않고 제목 라우트를 저장하고 재로드하고 초기화한다`, async (t) => {
     const h = await profileFixture(strategy, { provider: 'conversation', model: 'title-small' })
     t.after(h.close)
     const initial = (await h.rpc('describe')).value
@@ -245,7 +245,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
   })
 }
 
-await test('refuses unauthorized, invalid, unavailable and stale writes without losing existing config', async (t) => {
+await test('기존 설정을 잃지 않고 권한이 없거나 잘못되었거나 사용할 수 없거나 오래된 쓰기를 거부한다', async (t) => {
   const h = await profileFixture()
   t.after(h.close)
   const target = (await h.rpc('describe')).value.target
@@ -316,7 +316,7 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'unavailable')
 })
 
-await test('worktree routes persist independently of titles, preserve other settings and reject stale writes', async (t) => {
+await test('워크트리 라우트는 제목과 독립적으로 유지되고 다른 설정을 보존하며 오래된 쓰기를 거부한다', async (t) => {
   const h = await profileFixture('first-prompt', {}, { namingStyle: 'semantic' })
   t.after(h.close)
   const initial = (await h.rpc('describe')).value
@@ -373,7 +373,7 @@ await test('worktree routes persist independently of titles, preserve other sett
   assert.equal((await h.rpc('describe')).value.worktree, null)
 })
 
-await test('Yoonmoon model and effort persist independently, inherit auxiliary settings and leave the conversation unchanged', async (t) => {
+await test('Yoonmoon 모델과 추론 강도는 독립적으로 유지되고 보조 설정을 상속하며 대화는 바꾸지 않는다', async (t) => {
   const h = await profileFixture('first-prompt', {}, undefined, {})
   t.after(h.close)
   const initial = (await h.rpc('describe')).value

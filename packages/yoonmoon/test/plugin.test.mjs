@@ -19,7 +19,7 @@ const names = [
   'restyling-korean',
 ]
 
-await test('DSH discovers all six skills and replaces their registrations on in-place reload', async (t) => {
+await test('DSH는 여섯 스킬을 모두 찾아내고 제자리 재로드 시 등록을 교체한다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
@@ -80,7 +80,7 @@ await test('DSH discovers all six skills and replaces their registrations on in-
   assert.deepEqual(await ctx.skills.list(), [])
 })
 
-await test('bundled instructions do not shadow a higher-priority custom skill', async (t) => {
+await test('번들 지침은 우선순위가 더 높은 사용자 지정 스킬을 가리지 않는다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
@@ -104,7 +104,7 @@ await test('bundled instructions do not shadow a higher-priority custom skill', 
   }
 })
 
-await test('writing tool uses only the selected model and input, includes pipeline resources and rejects incomplete output', async (t) => {
+await test('쓰기 도구는 선택된 모델과 입력만 사용하고 파이프라인 리소스를 포함하며 불완전한 출력을 거부한다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
@@ -178,7 +178,7 @@ await test('writing tool uses only the selected model and input, includes pipeli
   assert.equal(ctx.tools.get('yoonmoon'), undefined)
 })
 
-await test('pipeline skill names and local reference paths resolve within the bundle', async () => {
+await test('파이프라인 스킬 이름과 로컬 참조 경로는 번들 안에서 확인된다', async () => {
   const root = fileURLToPath(new URL('../skills/', import.meta.url))
   for await (const path of glob('**/*.md', { cwd: root })) {
     const absolute = resolve(root, path)

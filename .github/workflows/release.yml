@@ -36,7 +36,7 @@ jobs:
           node-version: 26.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - run: pnpm check:all
       - name: Configure release author
         run: |
           git config user.name 'github-actions[bot]'

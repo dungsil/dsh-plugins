@@ -8,7 +8,7 @@ import * as SkillFilesystem from '@deepseek-ai/dsh-skill-filesystem'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as plugin from '../dist/index.js'
 
-await test('automatically includes the rules once per prompt across in-place reloads', async (t) => {
+await test('제자리 재로드 후에도 프롬프트마다 규칙을 한 번만 자동 포함한다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(SkillRegistry)

@@ -9,7 +9,7 @@ import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import * as plugin from '../dist/index.js'
 import { copy } from '../src/copy.ts'
 
-await test('usage HTTP API accounts for original calls, routes, cache, attempts and local calendar days', async (t) => {
+await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로컬 달력 날짜를 반영한다', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-04T13:00:00Z') })
   const home = await mkdtemp(join(tmpdir(), 'dsh-usage-'))
   const ctx = new Context()
@@ -97,7 +97,7 @@ await test('usage HTTP API accounts for original calls, routes, cache, attempts 
     assert.equal(response.headers.get('cache-control'), 'no-store')
     return (await response.json()).result
   }
-  await t.test('fork history is excluded, inherited route retained, provider identities stay distinct', async () => {
+  await t.test('포크 기록은 제외되고 상속된 라우트는 유지되며 공급자 식별자는 구분된다', async () => {
     const result = await read()
     assert.equal(result.ok, true)
     assert.deepEqual(result.value.totals, {
@@ -124,7 +124,7 @@ await test('usage HTTP API accounts for original calls, routes, cache, attempts 
     assert.deepEqual(result.value.days.at(-1), { day: '2026-11-04', total: 204 })
     assert.equal(JSON.stringify(result).includes('private/path'), false)
   })
-  await t.test('30-day and all-time totals include older calls without growing the daily graph', async () => {
+  await t.test('30일과 전체 기간 합계는 일별 그래프를 키우지 않고 더 오래된 호출을 포함한다', async () => {
     assert.equal((await read({ days: 30, timeZone: 'Asia/Seoul' })).value.totals.total, 252)
     const result = await read({ days: 0, timeZone: 'Asia/Seoul' })
     assert.equal(result.value.totals.total, 1253)
@@ -134,7 +134,7 @@ await test('usage HTTP API accounts for original calls, routes, cache, attempts 
       252
     )
   })
-  await t.test('anonymous reads and invalid queries are rejected', async () => {
+  await t.test('익명 읽기와 잘못된 쿼리는 거부된다', async () => {
     assert.deepEqual(await read(undefined, { kind: 'anonymous' }), { status: 403 })
     for (const payload of [
       null,
@@ -146,7 +146,7 @@ await test('usage HTTP API accounts for original calls, routes, cache, attempts 
       assert.equal((await read(payload)).error.code, 'invalid')
     }
   })
-  await t.test('empty corpus is a successful zero rather than a failure', async () => {
+  await t.test('빈 코퍼스는 실패가 아니라 성공적인 0이다', async () => {
     sessions = []
     const result = await read()
     assert.equal(result.value.totals.total, 0)
@@ -157,7 +157,7 @@ await test('usage HTTP API accounts for original calls, routes, cache, attempts 
   })
 })
 
-await test('all dashboard strings are available in English, Korean and Chinese', () => {
+await test('모든 대시보드 문자열을 영어, 한국어, 중국어로 사용할 수 있다', () => {
   for (const language of ['ko', 'zh']) {
     assert.deepEqual(Object.keys(copy[language]).sort(), Object.keys(copy.en).sort())
     for (const value of Object.values(copy[language])) assert.ok(value.trim())

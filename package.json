@@ -13,7 +13,8 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "prepare": "simple-git-hooks",
-    "check": "pnpm format:check && turbo run typecheck test && pnpm lint"
+    "check": "node scripts/check.mjs",
+    "check:all": "pnpm format:check && turbo run typecheck test && pnpm lint"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-plugin-market-index": "0.2.1-rc.5",
