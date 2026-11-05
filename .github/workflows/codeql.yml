@@ -22,6 +22,7 @@ on:
 jobs:
   changes:
     name: Detect changed languages
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -70,7 +71,11 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     needs: changes
-    if: needs.changes.outputs.languages != '[]'
+    # PRs always scan both languages, so they need no change-detection runner.
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'pull_request' ||
+      (needs.changes.result == 'success' && needs.changes.outputs.languages != '[]'))
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
@@ -91,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ${{ fromJSON(needs.changes.outputs.languages) }}
+        language: ${{ fromJSON(github.event_name == 'pull_request' && '["actions","javascript-typescript"]' || needs.changes.outputs.languages) }}
         build-mode: [none]
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
