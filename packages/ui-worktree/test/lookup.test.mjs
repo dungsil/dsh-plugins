@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { apply } from '../dist/index.js'
 
 const output = 'worktree C:/repo\0HEAD abc\0branch refs/heads/main\0\0'
 
 // Keep lifecycle and policy regressions independent of local Git and filesystem permissions.
-function fixture(t, { mode = 'workspace-write', confine, spawn } = {}) {
-  const session = Session.create(SessionId('lookup-test'))
+function fixture(t, { mode = 'workspace-write', confine, spawn, events = [], cold = false } = {}) {
+  const session = Session.create(SessionId('lookup-test'), events)
   const policy = { mode, workspaceRoot: 'C:/repo', sessionId: session.id }
   const routes = new Map()
   const cleanups = []
@@ -21,7 +22,10 @@ function fixture(t, { mode = 'workspace-write', confine, spawn } = {}) {
     inject() {},
     on() {},
     workspaceRegistry: { archivedSessionIds: [] },
-    agents: { get: () => ({ session }) },
+    agents: { get: () => (cold ? undefined : { session }) },
+    sessionController: {
+      inspect: async () => ({ events: session.snapshotEvents(), meta: session.header, inheritedEventCount: 0 }),
+    },
     workingDirectory: { get: () => 'C:/repo' },
     sandboxPolicy: { resolve: () => policy },
     sandbox: {
@@ -105,6 +109,37 @@ for (const mode of ['read-only', 'workspace-write', 'danger-full-access']) {
     assert.equal(h.children[0].terminated, true)
     assert.equal(h.children[0].waited, true)
   })
+}
+
+for (const cold of [false, true]) {
+  for (const kind of ['user', 'user-rpc', 'working-directory', 'user-approval']) {
+    for (const outcome of ['queued', 'canceled', 'claimed']) {
+      await test(`${cold ? '콜드' : '복원된'} 세션에서 ${kind} 입력의 ${outcome} 이력은 사용자 작업 claim인 경우에만 위치를 고정한다`, async (t) => {
+        const original = Session.create(SessionId('lookup-test'))
+        const message = createUserMessage({ content: [{ type: 'text', text: 'Pending task' }], source: { kind } })
+        original.append('agent/inbox/spliced', { target: 'next-turn', start: 0, inserted: [message] })
+        if (outcome !== 'queued')
+          original.append('agent/inbox/spliced', {
+            target: 'next-turn',
+            start: 0,
+            removedCount: 1,
+            inserted: [],
+            ...(outcome === 'canceled' ? { outcome: 'canceled' } : {}),
+          })
+        assert.equal(original.deriveMessages().length, 0, 'A failed pre-step has no committed user/message')
+        const events = original.snapshotEvents()
+        const h = fixture(t, { events, cold })
+        const before = h.session.snapshotEvents()
+        const result = await h.lookup()
+        assert.equal(result.ok, true)
+        assert.equal(
+          result.value.locked,
+          outcome === 'claimed' && ['user', 'user-rpc'].includes(kind) ? true : undefined
+        )
+        assert.deepEqual(h.session.snapshotEvents(), before)
+      })
+    }
+  }
 }
 
 await test('이미 취소된 조회는 격리 준비나 자식 실행을 시작하지 않는다', async (t) => {

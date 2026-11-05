@@ -5,7 +5,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
-import type {} from '@deepseek-ai/dsh-fs'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
@@ -38,7 +37,6 @@ export const inject = [
   'agents',
   'sessions',
   'configEditor',
-  'fs',
   'llm',
   'workingDirectory',
   'subprocess',
@@ -172,24 +170,46 @@ export function apply(ctx: Context, config: Config) {
   // Reservations follow the live Agent, including browser navigation and reloads.
   // Disposing the Agent or restarting the host cancels unexecuted reservations.
   type Creation = { cwd: string; name: string; failed: boolean }
-  type Switching = { cwd: string; path: string; failed: boolean }
-  type Selection = { creation?: Creation; switching?: Switching }
+  type Selection = { creation: Creation }
   const creations = new WeakMap<Agent, Creation>()
-  const switches = new WeakMap<Agent, Switching>()
+  const started = new WeakSet<Agent>()
   const explicitSelections = new WeakSet<Agent>()
   const creating = new WeakSet<Agent>()
   const admitted = new WeakMap<Agent, Map<string, Selection>>()
-  const completed = new WeakSet<Creation | Switching>()
+  const completed = new WeakSet<Creation>()
+
+  const hasStarted = (session: Session, agent?: Agent) => {
+    const user = (kind: string) => ['user', 'user-rpc'].includes(kind)
+    if ((agent && started.has(agent)) || session.deriveMessages().some((message) => user(message.source.kind)))
+      return true
+    // A failed/rejected pre-step can consume input without committing user/message.
+    // Replay durable claims too, so restarting an Agent or host cannot unlock it.
+    const inboxes = new Map<string, string[]>()
+    for (const event of session.snapshotEvents()) {
+      if (event.type !== 'agent/inbox/spliced') continue
+      const { target, start, removedCount, inserted, outcome } = event.data
+      const inbox = inboxes.get(target) ?? []
+      const removed = inbox.splice(start, removedCount ?? 0, ...inserted.map((message) => message.source.kind))
+      inboxes.set(target, inbox)
+      if (outcome !== 'canceled' && removed.some(user)) return true
+    }
+    return false
+  }
+  const locked = (agent: Agent) => !creations.has(agent) && hasStarted(agent.session, agent)
+
+  // Claims precede pre-step admission and survive downstream rejection or failure.
+  ctx.on('agent/inbox/claimed', ({ agent, message }) => {
+    if (['user', 'user-rpc'].includes(message.source.kind)) started.add(agent)
+  })
 
   // Freeze intent at prompt admission, not when a queued prompt eventually enters a step.
   ctx.on('agent/inbox/inserted', ({ agent, message }) => {
     if (!['user', 'user-rpc'].includes(message.source.kind)) return
     const creation = creations.get(agent)
-    const switching = switches.get(agent)
-    if (!creation && !switching) return
+    if (!creation) return
     let messages = admitted.get(agent)
     if (!messages) admitted.set(agent, (messages = new Map()))
-    messages.set(message.id, { creation, switching })
+    messages.set(message.id, { creation })
   })
   ctx.on('agent/inbox/discarded', ({ agent, message }) => {
     admitted.get(agent)?.delete(message.id)
@@ -204,14 +224,15 @@ export function apply(ctx: Context, config: Config) {
     const entered = new Set(decision.kind === 'enter' ? decision.messages.map((message) => message.id) : [])
     for (const message of proposed) if (!entered.has(message.id)) messages?.delete(message.id)
     if (decision.kind !== 'enter') return decision
-    if (creations.get(agent)?.failed || switches.get(agent)?.failed)
+    if (creations.get(agent)?.failed)
       throw new Error('Worktree selection needs confirmation. Select a worktree before retrying.')
     const submitted = decision.messages.filter((message) => ['user', 'user-rpc'].includes(message.source.kind))
     if (!submitted.length) return decision
-    const seen = new Set<Creation | Switching>()
+    started.add(agent)
+    const seen = new Set<Creation>()
     const selections = submitted.flatMap((message) => {
       const selection = messages?.get(message.id)
-      const intent = selection?.creation ?? selection?.switching
+      const intent = selection?.creation
       if (!intent) return []
       if (completed.has(intent)) {
         messages!.delete(message.id)
@@ -224,31 +245,8 @@ export function apply(ctx: Context, config: Config) {
     if (selections.length > 1) throw new Error('Conflicting worktree selections in one step')
     const selection = selections[0]
     const creation = selection?.creation
-    const switching = selection?.switching
-    if (creation?.failed || switching?.failed)
-      throw new Error('Worktree selection needs confirmation. Select a worktree before retrying.')
-    if (!selection) return decision
-    if (switching) {
-      switching.failed = true
-      const operationSignal = AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(60_000)])
-      pending.add(agent.id)
-      creating.add(agent)
-      try {
-        if (ctx.workingDirectory.get(agent.session) !== switching.cwd) throw new Error('Working directory changed')
-        if (!(await switchWorktree(agent, switching.path, operationSignal))) throw new Error('Invalid worktree')
-        await ctx.sessions.flush(agent.session)
-        completed.add(switching)
-        if (switches.get(agent) === switching) switches.delete(agent)
-        return decision
-      } catch {
-        throw new Error('Worktree switch could not be confirmed. Select a worktree before retrying.')
-      } finally {
-        for (const message of submitted) messages!.delete(message.id)
-        creating.delete(agent)
-        pending.delete(agent.id)
-      }
-    }
-    if (!creation) return decision
+    if (creation?.failed) throw new Error('Worktree selection needs confirmation. Select a worktree before retrying.')
+    if (!selection || !creation) return decision
     // Mark the reservation before any side effect. A timeout or partial failure
     // must never create another checkout on the next prompt.
     creation.failed = true
@@ -429,12 +427,11 @@ export function apply(ctx: Context, config: Config) {
 
   const selectionView = (session: Session, agent?: Agent): WorktreeSelectionView => {
     const creation = agent ? creations.get(agent) : undefined
-    const switching = agent ? switches.get(agent) : undefined
     const running = !!agent && creating.has(agent)
     return {
       cwd: ctx.workingDirectory.get(session),
       ...(creation ? { pendingCreation: { name: creation.name, failed: creation.failed && !running } } : {}),
-      ...(switching ? { pendingSwitch: { path: switching.path, failed: switching.failed && !running } } : {}),
+      ...(!creation && hasStarted(session, agent) ? { locked: true } : {}),
     }
   }
 
@@ -465,42 +462,12 @@ export function apply(ctx: Context, config: Config) {
       applyDefault &&
       config.defaultSelection === 'new' &&
       !explicitSelections.has(agent) &&
-      !switches.has(agent) &&
       !creations.has(agent) &&
-      !agent.session.deriveMessages().some((message) => ['user', 'user-rpc'].includes(message.source.kind))
+      !hasStarted(agent.session, agent)
     ) {
       creations.set(agent, { cwd, name: '', failed: false })
     }
     appendPluginRecord(agent.session, selectionRecord, { initialized: true })
-  }
-
-  // Shared by deferred prompt execution and the legacy immediate-switch RPC.
-  const switchWorktree = async (agent: Agent, targetPath: string, signal: AbortSignal) => {
-    const view = await describe(agent.session, signal, agent)
-    if (!view.worktrees.some((entry) => entry.path === targetPath)) return false
-    const resolve = (path: string, cwd: string) => ctx.fs.resolve(path, { cwd, signal })
-    const sourceCwd = await ctx.workingDirectory.ensure(agent, signal)
-    const rev = async (cwd: string, option: string) =>
-      (await readGit(agent.session, cwd, ['rev-parse', '--path-format=absolute', option], signal)).replace(/\r?\n$/, '')
-    const target = await resolve(targetPath, sourceCwd)
-    const top = await resolve(await rev(targetPath, '--show-toplevel'), targetPath)
-    const common = await resolve(await rev(sourceCwd, '--git-common-dir'), sourceCwd)
-    const targetCommon = await resolve(await rev(targetPath, '--git-common-dir'), targetPath)
-    if (target.targetKey !== top.targetKey || common.targetKey !== targetCommon.targetKey) return false
-    const admin = await resolve(await rev(targetPath, '--absolute-git-dir'), targetPath)
-    const dotGitInfo = await ctx.fs.lstat('.git', { cwd: targetPath }, signal)
-    if (!dotGitInfo || !['file', 'directory'].includes(dotGitInfo.type)) return false
-    const dotGit = await resolve('.git', targetPath)
-    if (admin.targetKey !== common.targetKey) {
-      const backlink = await resolve('gitdir', ctx.fs.processPath(admin))
-      const bytes = await ctx.fs.readBytes(backlink, signal, 8192)
-      const linkedPath = new TextDecoder().decode(bytes).replace(/\r?\n$/, '')
-      const linked = await resolve(linkedPath, ctx.fs.processPath(admin))
-      if (linked.targetKey !== dotGit.targetKey) return false
-    }
-    signal.throwIfAborted()
-    await ctx.workingDirectory.set(agent, ctx.fs.processPath(target), signal)
-    return true
   }
 
   const entry = () => {
@@ -790,7 +757,7 @@ export function apply(ctx: Context, config: Config) {
       }
     }
     if (!payload || typeof payload !== 'object') return failure('invalid')
-    const input = payload as { sessionId?: unknown; cwd?: unknown; name?: unknown; path?: unknown; choice?: unknown }
+    const input = payload as { sessionId?: unknown; cwd?: unknown; name?: unknown; choice?: unknown }
     if (typeof input.sessionId !== 'string' || !input.sessionId) return failure('invalid')
     if (endpoint !== 'describe' && typeof input.cwd !== 'string') return failure('invalid')
     if (
@@ -799,15 +766,7 @@ export function apply(ctx: Context, config: Config) {
       (typeof input.name !== 'string' || input.name.length > 200)
     )
       return failure('invalid')
-    if (endpoint === 'switch' && (typeof input.path !== 'string' || !input.path)) return failure('invalid')
-    if (endpoint === 'select') {
-      if (!['current', 'new', 'existing'].includes(input.choice as string)) return failure('invalid')
-      if (
-        input.choice === 'existing' &&
-        (typeof input.path !== 'string' || !input.path || input.path.length > 4096 || input.path.includes('\0'))
-      )
-        return failure('invalid')
-    }
+    if (endpoint === 'select' && !['current', 'new'].includes(input.choice as string)) return failure('invalid')
     const mutation = endpoint !== 'describe'
     if (mutation && (saving || pending.has(input.sessionId))) return failure('busy')
     if (mutation) pending.add(input.sessionId)
@@ -836,22 +795,19 @@ export function apply(ctx: Context, config: Config) {
         (message) => !['working-directory', 'user-approval'].includes(message.source.kind)
       )
       if (agent.status !== 'idle' || queued) return failure('busy')
+      if ((endpoint === 'select' || endpoint === 'create') && locked(agent)) return failure('conflict')
       if (endpoint === 'select') {
         // Intent only: no maintenance, filesystem access, Git, log writes, or list refresh.
-        // Git membership and backlink validation happen only when the admitted prompt executes.
         AbortSignal.any([signal, lifetime.signal]).throwIfAborted()
         if (ctx.workingDirectory.get(agent.session) !== input.cwd) return failure('conflict')
         explicitSelections.add(agent)
         creations.delete(agent)
-        switches.delete(agent)
         if (input.choice === 'new')
           creations.set(agent, {
             cwd: input.cwd as string,
             name: typeof input.name === 'string' ? input.name.trim() : '',
             failed: false,
           })
-        else if (input.choice === 'existing')
-          switches.set(agent, { cwd: input.cwd as string, path: input.path as string, failed: false })
         return { ok: true as const, value: selectionView(agent.session, agent) }
       }
       return await maintain(agent, async (maintenanceSignal) => {
@@ -866,18 +822,12 @@ export function apply(ctx: Context, config: Config) {
         if (endpoint === 'initialize') {
           const cwd = await ctx.workingDirectory.ensure(agent, operationSignal)
           if (cwd !== input.cwd) return failure('conflict')
-          await describe(agent.session, operationSignal, agent)
         } else if (endpoint === 'create') {
-          switches.delete(agent)
           creations.set(agent, {
             cwd: input.cwd as string,
             name: typeof input.name === 'string' ? input.name.trim() : '',
             failed: false,
           })
-        } else {
-          if (!(await switchWorktree(agent, input.path as string, operationSignal))) return failure('invalid')
-          creations.delete(agent)
-          switches.delete(agent)
         }
         initializeSelection(agent, ctx.workingDirectory.get(agent.session), endpoint === 'initialize')
         await ctx.sessions.flush(agent.session)
@@ -893,7 +843,7 @@ export function apply(ctx: Context, config: Config) {
   }
 
   // Exact Connection routes admit only authenticated owner Peers, not shared Session viewers.
-  for (const endpoint of ['describe', 'initialize', 'select', 'create', 'switch', 'settings', 'save-settings']) {
+  for (const endpoint of ['describe', 'initialize', 'select', 'create', 'settings', 'save-settings']) {
     ctx.effect(
       () =>
         ctx.connection.fetch.register({

@@ -42,6 +42,7 @@ export function apply(ctx: Context) {
   ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconSvg))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   installProgress(ctx)
+  const synced = new Map<Props['sessionId'], WorktreeView>()
   // Keep unresolved gates across keyed navigation until that session is reconciled.
   // ComposerBlocks is a shared single-value registry, not an owner-keyed stack.
   const ownedBlocks = new Map<Props['sessionId'], { reason: string }>()
@@ -67,18 +68,23 @@ export function apply(ctx: Context) {
     const unreadableRef = useRef(unreadable)
     unreadableRef.current = unreadable
     const cwd = useProjection('workingDirectory')
+    const started = useProjection('sessionListMetadata')?.blank === false
+    const cached = synced.get(sessionId)
+    const initialView = cached?.cwd === cwd ? cached : undefined
     const previousReadiness = useRef({ unreadable: true, unavailable, cwd })
-    const [view, setView] = useState<WorktreeView>()
-    const [loading, setLoading] = useState(true)
+    const [view, setView] = useState<WorktreeView | undefined>(initialView)
+    const [loading, setLoading] = useState(!initialView)
     const viewRef = useRef(view)
     viewRef.current = view
-    type Selection = { version: number; cwd: string; choice: 'current' | 'new' | 'existing'; path?: string }
+    type Selection = { version: number; cwd: string; choice: 'current' | 'new' }
     const selected = useRef<Selection>()
     const saving = useRef(false)
     const version = useRef(0)
     const [error, setError] = useState<WorktreeFailure>()
     const [changed, setChanged] = useState(false)
     const [open, setOpen] = useState(false)
+    const needsSync = useRef(true)
+    needsSync.current = !view || (!view.locked && (!!view.needsInitialization || !!view.pendingCreation))
     const pending = useRef(false)
     const reloadRequested = useRef(false)
     const needsRefresh = useRef(false)
@@ -88,14 +94,11 @@ export function apply(ctx: Context) {
     const errorTitle = useId()
     const errorDescription = useId()
     const status = useId()
-    const disabled = unavailable || loading || !view
     const creation = view?.pendingCreation
-    const switching = view?.pendingSwitch
+    const locked = !!view?.locked || (started && !creation)
+    const disabled = locked || unavailable || loading || !view
     const detailError: WorktreeFailure | undefined =
-      error ??
-      (creation?.failed || switching?.failed
-        ? { operation: creation ? 'create' : 'switch', code: 'operation_failed', uncertain: true }
-        : undefined)
+      error ?? (creation?.failed ? { operation: 'create', code: 'operation_failed', uncertain: true } : undefined)
     const errorLabel = detailError?.uncertain ? text.mutationError : text.lookupError
 
     const gate = (reason?: string) => {
@@ -106,6 +109,7 @@ export function apply(ctx: Context) {
         ownedBlocks.delete(sessionId)
         if (owned && current === owned) blocks.set(sessionId, undefined)
       } else {
+        synced.delete(sessionId)
         const block = owned?.reason === reason ? owned : { reason }
         ownedBlocks.set(sessionId, block)
         if (!current || current === owned) blocks.set(sessionId, block)
@@ -144,7 +148,7 @@ export function apply(ctx: Context) {
         ...previous,
         cwd: next.cwd,
         pendingCreation: next.pendingCreation,
-        pendingSwitch: next.pendingSwitch,
+        locked: next.locked,
         needsInitialization: false,
       })
     }
@@ -173,7 +177,7 @@ export function apply(ctx: Context) {
         const view = await request('describe', { sessionId }, controller.signal)
         if (controller.signal.aborted) return
         updateView(view)
-        if (view.needsInitialization && !unavailableRef.current) {
+        if (view.needsInitialization && !view.locked && !unavailableRef.current) {
           operation = 'initialize'
           gate(text.savingSelection)
           const initialized = await request('initialize', { sessionId, cwd: view.cwd }, controller.signal)
@@ -213,7 +217,7 @@ export function apply(ctx: Context) {
       restoreGate()
       const unsubscribe = store.subscribe(restoreGate)
       const focus = () => {
-        void load()
+        if (needsSync.current && !pending.current) void load()
       }
       const resize = () => {
         setOpen(false)
@@ -231,18 +235,28 @@ export function apply(ctx: Context) {
     useEffect(() => {
       const previous = previousReadiness.current
       previousReadiness.current = { unreadable, unavailable, cwd }
-      if (!unreadable && (previous.unreadable || (previous.unavailable && !unavailable) || previous.cwd !== cwd))
+      if (
+        !unreadable &&
+        (((previous.unreadable || (previous.unavailable && !unavailable)) && needsSync.current) || previous.cwd !== cwd)
+      )
         void load()
     }, [unreadable, unavailable, cwd])
+
+    useEffect(() => {
+      if (locked && view && !creation && view.cwd === cwd && !error && !ownedBlocks.has(sessionId))
+        synced.set(sessionId, { ...view, locked: true, needsInitialization: false })
+      else synced.delete(sessionId)
+    }, [sessionId, view, locked, creation, cwd, error])
 
     useEffect(() => {
       if (disabled) setOpen(false)
     }, [disabled])
 
-    const change = async (choice: Selection['choice'], path?: string) => {
+    const change = async (choice: Selection['choice']) => {
       const controller = lifetime.current
       const currentView = viewRef.current
       if (
+        locked ||
         unavailableRef.current ||
         loading ||
         pending.current ||
@@ -251,12 +265,11 @@ export function apply(ctx: Context) {
         controller.signal.aborted
       )
         return
-      const intent = { version: ++version.current, cwd: currentView.cwd, choice, path }
+      const intent = { version: ++version.current, cwd: currentView.cwd, choice }
       selected.current = intent
       mergeSelection({
         cwd: currentView.cwd,
         pendingCreation: choice === 'new' ? { name: text.create, failed: false } : undefined,
-        pendingSwitch: choice === 'existing' && path ? { path, failed: false } : undefined,
       })
       setError(undefined)
       setChanged(true)
@@ -276,7 +289,6 @@ export function apply(ctx: Context) {
                 sessionId,
                 cwd: next.cwd,
                 choice: next.choice,
-                ...(next.path ? { path: next.path } : {}),
               },
               controller.signal
             )
@@ -304,7 +316,7 @@ export function apply(ctx: Context) {
 
     useEffect(() => {
       if (!detailError && errorDialog.current?.open) errorDialog.current.close()
-    }, [error, creation?.failed, switching?.failed])
+    }, [error, creation?.failed])
 
     const restoreErrorFocus = () => {
       trigger.current?.focus()
@@ -318,18 +330,13 @@ export function apply(ctx: Context) {
       return installSidebarLabel(sessionId, name, current.path)
     }, [sessionId, current, view])
 
-    const selectedWorktree = switching ? view?.worktrees.find((item) => item.path === switching.path) : current
-    const isSelected = (item: WorktreeView['worktrees'][number]) =>
-      !creation && (switching ? switching.path === item.path : current === item)
-    const selectWorktree = (item: WorktreeView['worktrees'][number]) => {
+    const selectCurrent = () => {
       setOpen(false)
       if (disabled) return
       const latest = viewRef.current
-      const actual = currentWorktree(latest)
-      if (latest?.pendingCreation || latest?.pendingSwitch || needsRefresh.current || actual !== item)
-        void change(actual === item ? 'current' : 'existing', actual === item ? undefined : item.path)
+      if (latest?.pendingCreation || needsRefresh.current) void change('current')
     }
-    const branch = creation ? text.create : selectedWorktree ? (selectedWorktree.branch ?? text.detached) : text.unknown
+    const branch = creation ? text.create : current ? (current.branch ?? text.detached) : text.unknown
     const label = detailError ? errorLabel : view ? branch : loading ? text.loading : text.title
     const notice = loading
       ? text.loading
@@ -337,14 +344,12 @@ export function apply(ctx: Context) {
         ? errorLabel
         : unavailable
           ? text.wait
-          : creation
-            ? creation.failed
-              ? text.creationError
-              : text.reservationHint
-            : switching
-              ? switching.failed
-                ? text.switchError
-                : text.switchHint
+          : locked
+            ? text.locked
+            : creation
+              ? creation.failed
+                ? text.creationError
+                : text.reservationHint
               : changed
                 ? text.changed
                 : view?.worktrees.length === 0
@@ -368,14 +373,14 @@ export function apply(ctx: Context) {
               label={label}
               disabled={detailError ? loading : disabled}
               aria-label={`${text.title}: ${label}`}
-              aria-haspopup={detailError ? 'dialog' : 'menu'}
-              aria-expanded={detailError ? undefined : open}
+              aria-haspopup={detailError ? 'dialog' : locked ? undefined : 'menu'}
+              aria-expanded={detailError || locked ? undefined : open}
               aria-describedby={status}
               aria-busy={loading}
-              title={`${text.title}: ${branch}${switching ? ` — ${text.switchHint}` : creation ? ` — ${text.reservationHint}` : ''}`}
+              title={locked ? text.locked : `${text.title}: ${branch}${creation ? ` — ${text.reservationHint}` : ''}`}
               onClick={() => {
                 if (detailError) errorDialog.current?.showModal()
-                else setOpen((value) => !value)
+                else if (!disabled) setOpen((value) => !value)
               }}
               onKeyDown={(event) => {
                 if (!detailError && !disabled && !open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
@@ -401,35 +406,21 @@ export function apply(ctx: Context) {
                 {creation && <IconCheckOutlineRegular />}
               </span>
             </MenuItemButton>
-            {view?.worktrees.slice(0, 1).map((item) => (
+            {current && (
               <MenuItemButton
-                key={item.path}
+                key={current.path}
                 icon={<IconBranchOutlineRegular />}
-                current={isSelected(item)}
-                onSelect={() => selectWorktree(item)}
+                current={!creation}
+                onSelect={selectCurrent}
               >
                 <span className="dsh-worktree-option">
-                  <span>{item.branch ?? text.detached}</span>
+                  <span>{current.branch ?? text.detached}</span>
                   <span className="dsh-worktree-badge">{text.primaryBranch}</span>
-                  {isSelected(item) && <IconCheckOutlineRegular />}
+                  {!creation && <IconCheckOutlineRegular />}
                 </span>
               </MenuItemButton>
-            ))}
+            )}
           </div>
-          {view?.worktrees.slice(1).map((item, index) => (
-            <MenuItemButton
-              key={item.path}
-              icon={<IconBranchOutlineRegular />}
-              current={isSelected(item)}
-              separatorBefore={index === 0}
-              onSelect={() => selectWorktree(item)}
-            >
-              <span className="dsh-worktree-option">
-                <span>{item.branch ?? text.detached}</span>
-                {isSelected(item) && <IconCheckOutlineRegular />}
-              </span>
-            </MenuItemButton>
-          ))}
         </Menu>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
@@ -448,13 +439,7 @@ export function apply(ctx: Context) {
             </button>
           </header>
           <p id={errorDescription}>
-            {creation?.failed
-              ? text.creationError
-              : switching?.failed
-                ? text.switchError
-                : error?.uncertain
-                  ? text.error
-                  : text.readError}
+            {creation?.failed ? text.creationError : error?.uncertain ? text.error : text.readError}
           </p>
           {detailError && (
             <>
