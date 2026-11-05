@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
-import { channel, method, saveMethod, translateMethod, type SkillsView } from './protocol.js'
+import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
@@ -126,6 +126,9 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const [error, setError] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [opening, setOpening] = useState<string>()
+  const [openError, setOpenError] = useState<string>()
+  const openingPending = useRef(false)
   const pending = useRef(false)
   const mounted = useRef(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -172,6 +175,22 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     } finally {
       pending.current = false
       if (mounted.current) setBusy(false)
+    }
+  }
+
+  async function openFolder(path: string) {
+    if (openingPending.current) return
+    openingPending.current = true
+    setOpening(path)
+    setOpenError(undefined)
+    try {
+      const result = await connection.rpc.call(channel, openFolderMethod, { path })
+      if (!result.ok) throw new Error('Could not open skill folder')
+    } catch {
+      if (mounted.current) setOpenError(path)
+    } finally {
+      openingPending.current = false
+      if (mounted.current) setOpening(undefined)
     }
   }
 
@@ -244,9 +263,24 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                               expanded={expanded[skill.path ?? skill.name] ?? false}
                             />
                             {skill.path && (
-                              <p className="dsh-skills-muted">
-                                <code>{skill.path}</code>
-                              </p>
+                              <>
+                                <p className="dsh-skills-muted">
+                                  <code>{skill.path}</code>
+                                </p>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={!view.folderOpenAvailable || opening !== undefined}
+                                  title={view.folderOpenAvailable ? text.openFolderHint : text.openFolderUnavailable}
+                                  onClick={() => void openFolder(skill.path!)}
+                                >
+                                  {opening === skill.path ? text.openingFolder : text.openFolder}
+                                </Button>
+                                {!view.folderOpenAvailable && (
+                                  <p className="dsh-skills-muted">{text.openFolderUnavailable}</p>
+                                )}
+                                {openError === skill.path && <p role="alert">{text.openFolderError}</p>}
+                              </>
                             )}
                           </div>
                         </details>
