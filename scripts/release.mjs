@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { relative } from 'node:path'
 import { parseArgs } from 'node:util'
 import conventionalCommits from 'conventional-changelog-conventionalcommits'
 import release from 'release-it'
 import semver from 'semver'
 import { generateIndex, INDEX_FILE } from './market-index.mjs'
 
-export function releaseOptions({ dryRun = false } = {}) {
+export function releaseOptions({ dryRun = false, dependenciesUpdated = false } = {}) {
   const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
   const tags = execFileSync('git', ['tag', '--merged', 'HEAD', '--list', `${name}@*`], { encoding: 'utf8' })
   // Only locale-ko was published under the old repository-wide v* tags.
@@ -44,6 +45,7 @@ export function releaseOptions({ dryRun = false } = {}) {
           const bump = conventionalCommits().whatBump(commits)
           // Keep feature and fix bumps unchanged; only cap breaking changes in 0.x.
           if (bump?.level === 0 && semver.major(version) === 0) bump.level = 1
+          if (!bump && dependenciesUpdated) return { level: 2, reason: 'Preset dependencies updated' }
           return bump
         },
         infile: 'CHANGELOG.md',
@@ -88,8 +90,17 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line))
-  const selected = packages.filter((pkg) => !pkg.private && (!packageName || pkg.name === packageName))
-  if (packageName && selected.length === 0) throw new Error(`Unknown public package: ${packageName}`)
+  const selected = []
+  for (const pkg of packages) {
+    if (pkg.private) continue
+    const dependsOnSelected =
+      pkg.name.startsWith('@dungsil/dsh-preset-') &&
+      selected.some((dependency) => Object.hasOwn(pkg.dependencies ?? {}, dependency.name))
+    if (!packageName || pkg.name === packageName || dependsOnSelected) selected.push(pkg)
+  }
+  if (packageName && !selected.some((pkg) => pkg.name === packageName)) {
+    throw new Error(`Unknown public package: ${packageName}`)
+  }
   const releases = []
   try {
     // Publish dependencies first, but defer workspace Git and GitHub releases
@@ -102,13 +113,33 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
           break
         }
       }
+      const presetTag = `${pkg.name}@${pkg.version}`
+      const dependenciesUpdated =
+        pkg.name.startsWith('@dungsil/dsh-preset-') &&
+        packages.some((dependency) => {
+          if (!Object.hasOwn(pkg.dependencies ?? {}, dependency.name)) return false
+          // Include projected versions in dry runs, which do not write manifests.
+          const published = releases.find(({ pkg }) => pkg.name === dependency.name)
+          if (published && published.result.version !== dependency.version) return true
+          if (!git(['tag', '--merged', 'HEAD', '--list', presetTag]).trim()) return false
+          try {
+            const previous = JSON.parse(
+              git(['show', `${presetTag}:${relative(root, dependency.path)}/package.json`], { stdio: 'pipe' })
+            )
+            return previous.version !== dependency.version
+          } catch {
+            // A newly added dependency did not exist when the preset was released.
+            return true
+          }
+        })
       process.chdir(pkg.path)
-      const settings = releaseOptions({ dryRun })
+      const settings = releaseOptions({ dryRun, dependenciesUpdated })
+      const exactVersion = pkg.name === packageName ? version : undefined
       const result = await release({
         ...settings,
-        ...(version ? { increment: version } : {}),
+        ...(exactVersion ? { increment: exactVersion } : {}),
         ...options,
-        npm: { ...settings.npm, ...options.npm, ...(version ? { allowSameVersion: true } : {}) },
+        npm: { ...settings.npm, ...options.npm, ...(exactVersion ? { allowSameVersion: true } : {}) },
         git: {
           ...settings.git,
           commit: false,
@@ -136,9 +167,10 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
         ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`]),
         INDEX_FILE,
       ])
-      const message = packageName
-        ? `chore(release): ${packageName}@${releases[0].result.version} [skip ci]`
-        : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
+      const message =
+        releases.length === 1
+          ? `chore(release): ${releases[0].pkg.name}@${releases[0].result.version} [skip ci]`
+          : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
       // Formatting already ran once for the entire release, so do not repeat it in lint-staged.
       git(['commit', '-m', message], { env: { ...process.env, SKIP_SIMPLE_GIT_HOOKS: '1' } })
       for (const { pkg, result } of releases) {
