@@ -39,8 +39,8 @@ export function apply(ctx: Context) {
     const unavailable = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
-    const running = useSession((s) => s.running)
-    const wasRunning = useRef(running)
+    const unavailableRef = useRef(unavailable)
+    unavailableRef.current = unavailable
     const [view, setView] = useState<WorktreeView>()
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
@@ -48,6 +48,7 @@ export function apply(ctx: Context) {
     const [changed, setChanged] = useState(false)
     const [open, setOpen] = useState(false)
     const pending = useRef(false)
+    const reloadRequested = useRef(false)
     const needsRefresh = useRef(false)
     const lifetime = useRef<AbortController | null>(null)
     const trigger = useRef<HTMLButtonElement>(null)
@@ -81,7 +82,13 @@ export function apply(ctx: Context) {
     // and ignore replies after unmount (including navigation to another Session).
     const load = async (explicit = false) => {
       const controller = lifetime.current
-      if (!controller || controller.signal.aborted || pending.current || (needsRefresh.current && !explicit)) return
+      if (!controller || controller.signal.aborted || unavailableRef.current || (needsRefresh.current && !explicit))
+        return
+      if (pending.current) {
+        reloadRequested.current = true
+        return
+      }
+      reloadRequested.current = false
       pending.current = true
       setLoading(true)
       try {
@@ -91,11 +98,16 @@ export function apply(ctx: Context) {
         needsRefresh.current = false
         setError(undefined)
       } catch (cause) {
-        if (!controller.signal.aborted) recordFailure('describe', cause)
+        // A busy read changes nothing. Keep prior errors until an explicit read succeeds.
+        if (!controller.signal.aborted && failureCode(cause) !== 'busy') recordFailure('describe', cause)
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
           setLoading(false)
+          if (reloadRequested.current) {
+            reloadRequested.current = false
+            void load()
+          }
         }
       }
     }
@@ -104,7 +116,6 @@ export function apply(ctx: Context) {
       const controller = new AbortController()
       lifetime.current = controller
       pending.current = false
-      void load()
       const focus = () => {
         void load()
       }
@@ -121,9 +132,8 @@ export function apply(ctx: Context) {
     }, [])
 
     useEffect(() => {
-      if (wasRunning.current && !running) void load()
-      wasRunning.current = running
-    }, [running])
+      if (!unavailable) void load()
+    }, [unavailable])
 
     useEffect(() => {
       if (disabled) setOpen(false)

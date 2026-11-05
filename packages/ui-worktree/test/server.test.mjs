@@ -638,6 +638,38 @@ await test('naming preserves explicit efforts, model defaults and non-reasoning 
   }
 })
 
+await test('lookup returns busy during work in a new checkout and succeeds after the task stops', async (t) => {
+  const { ctx, agent, repo, rpc, submit } = await fixture(t, { provider: 'paused', model: 'paused-model' })
+  const started = Promise.withResolvers()
+  const work = Promise.withResolvers()
+  class PausedWorkAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream() {
+      started.resolve()
+      await work.promise
+      yield { type: 'text-delta', index: 0, text: 'Finished' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['paused'], new PausedWorkAdapter())
+  assert.equal((await rpc('create', { cwd: repo, name: 'fix/navigation' })).ok, true)
+  const submitted = submit()
+  await started.promise
+  try {
+    assert.equal(ctx.workingDirectory.get(agent.session), join(repo, '.agents/worktrees/fix/navigation'))
+    assert.equal((await rpc('describe')).error.code, 'busy')
+  } finally {
+    work.resolve()
+    await submitted
+  }
+  const restored = await rpc('describe')
+  assert.equal(restored.ok, true)
+  assert.equal(restored.value.cwd, join(repo, '.agents/worktrees/fix/navigation'))
+  assert.ok(restored.value.worktrees.some((entry) => entry.branch === 'fix/navigation'))
+})
+
 await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
   for (const endpoint of ['describe', 'create', 'switch', 'settings', 'save-settings']) {
