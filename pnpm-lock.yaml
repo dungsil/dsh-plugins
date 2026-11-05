@@ -280,9 +280,15 @@ importers:
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
       react:
         specifier: 18.3.1
         version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
@@ -977,6 +983,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: ~3.18.5
         version: 3.18.5
+      '@dungsil/dsh-async':
+        specifier: workspace:*
+        version: link:../../tools/async
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig
@@ -1113,6 +1122,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: ~3.18.5
         version: 3.18.5
+      '@dungsil/dsh-async':
+        specifier: workspace:*
+        version: link:../../tools/async
       '@dungsil/dsh-plugin-model-settings':
         specifier: workspace:*
         version: link:../model-settings
@@ -1210,6 +1222,12 @@ importers:
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
+
+  tools/async:
+    devDependencies:
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   tools/task-prompts: {}
 

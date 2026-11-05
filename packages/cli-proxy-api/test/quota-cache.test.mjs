@@ -1,14 +1,7 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import {
-  isQuotaCacheFresh,
-  loadQuotaSnapshot,
-  QuotaCache,
-  quotaCacheTTL,
-  quotaKey,
-  subscribeQuotaGeneration,
-} from '../src/quota-cache.ts'
+import { loadQuotaSnapshot, QuotaCache, quotaKey, subscribeQuotaGeneration } from '../src/quota-cache.ts'
 import { copy, localizedCopy } from '../src/copy.ts'
 
 void test('자동 로딩과 캐시 문구에 영어, 한국어, 중국어 로케일이 모두 갖춰져 있다', () => {
@@ -62,39 +55,20 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-void test('캐시 신선도는 만료 경계를 배타적으로 두는 5분 TTL을 사용한다', () => {
-  const value = snapshot()
-  assert.equal(quotaCacheTTL, 300_000)
-  for (const [age, expected] of [
-    [-1, false],
-    [0, true],
-    [299_999, true],
-    [300_000, false],
-    [300_001, false],
-  ]) {
-    assert.equal(isQuotaCacheFresh(value, value.fetchedAt + age), expected, `age ${age}ms`)
-  }
-})
-
-void test('캐시 신선도는 기본적으로 현재 시계를 사용한다', (t) => {
-  const value = snapshot()
-  t.mock.method(Date, 'now', () => value.fetchedAt + quotaCacheTTL - 1)
-  assert.equal(isQuotaCacheFresh(value), true)
-  Date.now.mock.mockImplementation(() => value.fetchedAt + quotaCacheTTL)
-  assert.equal(isQuotaCacheFresh(value), false)
-})
-
 void test('캐시는 같은 연결을 읽고 스냅샷을 교체하며 명시적으로 비운다', () => {
   const cache = new QuotaCache()
+  assert.equal(cache.connection, undefined)
   assert.equal(cache.read(connection), undefined)
   const first = snapshot()
   cache.write(connection, first)
+  assert.deepEqual(cache.connection, connection)
   assert.strictEqual(cache.read({ ...connection }), first)
   const replacement = snapshot([])
   cache.write(connection, replacement)
   assert.strictEqual(cache.read(connection), replacement)
   cache.clear()
   assert.equal(cache.read(connection), undefined)
+  assert.equal(cache.connection, undefined)
 })
 
 for (const [field, value] of [
@@ -129,7 +103,7 @@ void test('쿼터 키는 구분자 충돌 없이 이름과 인증 인덱스를 �
   assert.equal(quotaKey(values[0]), quotaKey({ ...values[0] }))
 })
 
-void test('쿼터 업데이트는 계정, 다른 쿼터, 원래 TTL 타임스탬프를 보존한다', () => {
+void test('쿼터 업데이트는 계정, 다른 쿼터, 원래 조회 시각을 보존한다', () => {
   const cache = new QuotaCache()
   const first = account('same', { authIndex: 'auth-1' })
   const second = account('same', { authIndex: 'auth-2' })
@@ -295,7 +269,6 @@ void test('빈 계정 목록은 쿼터를 가져오지 않고 재사용 가능�
   assert.deepEqual(loaded.quotas, {})
   assert.equal(published.length, 1)
   assert.strictEqual(loaded, published[0])
-  assert.equal(isQuotaCacheFresh(loaded, loaded.fetchedAt), true)
 })
 
 void test('건너뛴 계정만 있는 목록은 쿼터를 가져오지 않고 한 번만 게시한다', async () => {

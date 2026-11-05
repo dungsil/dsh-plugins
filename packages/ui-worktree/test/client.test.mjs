@@ -30,6 +30,11 @@ const readReadinessCases = [
 ]
 const uninitializedView = () => ({ ...view(), needsInitialization: true })
 const pendingCreationView = () => ({ ...view(), pendingCreation: { name: 'New worktree', failed: false } })
+const selection = ({ cwd = '/repo', choice, path }) => ({
+  cwd,
+  ...(choice === 'new' ? { pendingCreation: { name: 'New worktree', failed: false } } : {}),
+  ...(choice === 'existing' ? { pendingSwitch: { path, failed: false } } : {}),
+})
 const operations = (h) => h.calls.map((call) => call.operation)
 
 function elements(node) {
@@ -47,9 +52,38 @@ function visibleText(node) {
 
 // Exercise the shipped entry point using the same VM boundary as ui-vcs. Unlike
 // a hook-value stub, this runner commits effect cleanups and remounts on JSX keys.
-async function mount(t, { initial = {}, rpc = () => success() } = {}) {
+async function mount(
+  t,
+  {
+    initial = {},
+    language = 'en',
+    rpc = ({ operation, payload }) => success(operation === 'select' ? selection(payload) : view()),
+  } = {}
+) {
   const sessions = new Map()
   const directories = new Map()
+  const blockStores = new Map()
+  const blockValues = new Map()
+  const blockListeners = new Map()
+  const blocks = {
+    set(id, block) {
+      blockValues.set(id, block)
+      for (const listener of blockListeners.get(id) ?? []) listener()
+    },
+    storeFor(id) {
+      if (!blockStores.has(id))
+        blockStores.set(id, {
+          getSnapshot: () => blockValues.get(id),
+          subscribe(listener) {
+            if (!blockListeners.has(id)) blockListeners.set(id, new Set())
+            blockListeners.get(id).add(listener)
+            return () => blockListeners.get(id).delete(listener)
+          },
+        })
+      return blockStores.get(id)
+    },
+  }
+  const rootCleanups = []
   const calls = []
   const warnings = []
   const listeners = new Map()
@@ -147,7 +181,8 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     AbortController,
     console: { warn: (...args) => warnings.push(args) },
     document: {
-      createElement: () => ({}),
+      createElement: () => ({ remove() {} }),
+      head: { append() {} },
       querySelectorAll: () => [],
       defaultView: { MutationObserver },
       body: {},
@@ -155,6 +190,7 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     MutationObserver,
     window,
   })
+  assert.ok(plugin.inject.includes('conversation'), 'ComposerBlocks must be an explicit plugin dependency')
   plugin.apply({
     get(name) {
       assert.equal(name, 'connection')
@@ -168,7 +204,8 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
         },
       }
     },
-    locale: { getSnapshot: () => ({ active: 'en' }), subscribe: () => () => {} },
+    locale: { getSnapshot: () => ({ active: language }), subscribe: () => () => {} },
+    conversation: { blocks },
     uiConversation: { events: { register() {} } },
     slots: {
       inject: (_slot, setup) => setup(),
@@ -176,8 +213,14 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
         if (options.name === 'conversation.input.left') registered = render
       },
     },
-    effect() {},
+    effect(start) {
+      const cleanup = start()
+      if (typeof cleanup === 'function') rootCleanups.push(cleanup)
+    },
   })
+  function disposePlugin() {
+    for (const cleanup of rootCleanups.splice(0).reverse()) cleanup()
+  }
   function unmount() {
     if (!instance) return
     instance.mounted = false
@@ -188,6 +231,7 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     const element = registered({
       sessionId,
       useSession: (select) => select(session(sessionId)),
+      useInput: (select) => select({ phase: session(sessionId).inputPhase ?? 'plain' }),
       useProjection: (key) => {
         assert.equal(key, 'workingDirectory')
         return directories.get(sessionId) ?? '/repo'
@@ -229,6 +273,14 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     calls,
     warnings,
     listeners,
+    blocks,
+    get block() {
+      return blocks.storeFor(sessionId).getSnapshot()
+    },
+    send() {
+      // Mirror the native composer's public gate; no submit hook is invented.
+      return !blocks.storeFor(sessionId).getSnapshot()
+    },
     get tree() {
       return instance.tree
     },
@@ -272,6 +324,15 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
       item.onSelect()
       await flush()
     },
+    async chooseAfterError() {
+      harness.menu.anchor.props.onClick()
+      const button = elements(instance.tree).find((element) => element.props['data-worktree-choose'])
+      assert.ok(button, 'The error dialog must offer manual selection without requiring a lookup')
+      assert.equal(button.props.disabled, false)
+      button.props.onClick()
+      await flush()
+      assert.equal(harness.menu.open, true)
+    },
     async retry() {
       const button = elements(instance.tree).find((element) => element.props['data-worktree-retry'])
       assert.ok(button, 'The explicit refresh control must remain available')
@@ -280,8 +341,12 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     },
     flush,
     unmount,
+    disposePlugin,
   }
-  t.after(unmount)
+  t.after(() => {
+    unmount()
+    disposePlugin()
+  })
   render()
   await flush()
   return harness
@@ -327,7 +392,9 @@ await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링�
 })
 
 await test('컴포넌트 메뉴는 생성 항목과 기본 체크아웃을 연결된 워크트리보다 앞에 고정한다', async (t) => {
-  const h = await mount(t, { rpc: () => success(linkedView()) })
+  const h = await mount(t, {
+    rpc: ({ operation, payload }) => success(operation === 'select' ? selection(payload) : linkedView()),
+  })
   assert.deepEqual(
     h.menuItems.map((item) => item.id),
     ['create', 'path:/repo', 'path:/other-worktree']
@@ -344,9 +411,12 @@ await test('컴포넌트 메뉴는 생성 항목과 기본 체크아웃을 연�
   )
   assert.equal(h.menuItems[2].separatorBefore, true)
   await h.select('path:/repo')
-  const switches = h.calls.filter((call) => call.operation === 'switch')
-  assert.equal(switches.length, 1)
-  assert.equal(switches[0].payload.path, '/repo')
+  const selections = h.calls.filter((call) => call.operation === 'select')
+  assert.equal(selections.length, 1)
+  assert.equal(selections[0].payload.choice, 'existing')
+  assert.equal(selections[0].payload.path, '/repo')
+  assert.equal(h.selectedId, 'path:/repo')
+  assert.deepEqual(operations(h), ['describe', 'select'])
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
@@ -411,32 +481,35 @@ for (const { name, blocked, ready } of readReadinessCases) {
   })
 }
 
-await test('워크트리를 생성하고 다른 곳으로 이동한 뒤 실행 중에 돌아오면 선택된 브랜치를 읽는다', async (t) => {
+await test('새 워크트리를 선택하고 다른 곳으로 이동한 뒤 실행 중에 돌아오면 예약을 읽는다', async (t) => {
   let selected = view()
   const h = await mount(t, {
-    rpc: ({ operation }) => {
-      if (operation === 'create') selected = linkedView()
+    rpc: ({ operation, payload }) => {
+      if (operation === 'select') {
+        selected = { ...selected, ...selection(payload) }
+        return success(selection(payload))
+      }
       return success(selected)
     },
   })
   await h.select('create')
-  assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
-  assert.match(h.text, /feature\/worktree/)
+  assert.deepEqual(operations(h), ['describe', 'select'])
+  assert.equal(h.selectedId, 'create')
   await h.update({ running: true })
   await h.navigate('other')
   assert.equal(h.calls[0].signal.aborted, true, 'The keyed navigation must run the old Picker cleanup')
   const beforeReturn = h.calls.length
   await h.navigate('original')
   assert.equal(h.calls.length, beforeReturn + 1)
-  assert.match(h.text, /feature\/worktree/)
+  assert.equal(h.menu.anchor.props.label, 'New worktree')
   await h.focus()
   assert.equal(h.calls.length, beforeReturn + 2, 'Return and focus must each read during the original task')
   assert.equal(h.menu.anchor.props.disabled, true)
   assert.doesNotMatch(h.text, /Lookup failed/)
   await h.update({ running: false })
-  assert.match(h.text, /feature\/worktree/)
+  assert.equal(h.menu.anchor.props.label, 'New worktree')
   assert.equal(h.menu.anchor.props.disabled, false)
-  assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
+  assert.equal(h.calls.filter((call) => call.operation === 'select').length, 1)
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
@@ -755,28 +828,29 @@ for (const code of ['forbidden', 'connection_error', 'invalid_response']) {
   })
 }
 
-for (const operation of ['create', 'switch']) {
-  for (const code of ['timeout', 'busy']) {
-    await test(`불확실한 ${operation} ${code} 결과는 포커스나 준비 상태에서 절대 재시도하지 않는다`, async (t) => {
+for (const choice of ['new', 'existing']) {
+  for (const code of ['timeout', 'busy', 'invalid_response']) {
+    await test(`불확실한 ${choice} 선택 ${code} 결과는 포커스나 준비 상태에서 절대 재시도하지 않는다`, async (t) => {
       const h = await mount(t, {
-        rpc: ({ operation: requested }) =>
-          requested === operation ? failure(code) : success({ ...linkedView(), cwd: '/repo' }),
+        rpc: ({ operation }) => (operation === 'select' ? failure(code) : success({ ...linkedView(), cwd: '/repo' })),
       })
-      await h.select(operation === 'create' ? 'create' : 'path:/other-worktree')
+      await h.select(choice === 'new' ? 'create' : 'path:/other-worktree')
       assert.equal(h.calls.length, 2)
-      assert.equal(h.calls.at(-1).operation, operation)
+      assert.equal(h.calls.at(-1).operation, 'select')
+      assert.equal(h.calls.at(-1).payload.choice, choice)
+      assert.equal(h.send(), false)
       assert.match(h.text, /Check worktree state/)
       await h.changeDirectory('/other-worktree')
       await h.focus()
       await h.update({ running: true })
       await h.update({ running: false })
       await h.focus()
-      assert.equal(h.calls.length, 2, 'An uncertain mutation requires an explicit lookup, not any automatic retry')
-      assert.match(h.text, /Check worktree state/)
+      assert.equal(h.calls.length, 2, 'An uncertain selection requires explicit reconciliation, not automatic replay')
       await h.retry()
       assert.equal(h.calls.length, 3)
-      assert.equal(h.calls.at(-1).operation, 'describe', 'Explicit refresh must read state, not repeat the mutation')
-      assert.equal(h.calls.filter((call) => call.operation === operation).length, 1)
+      assert.equal(h.calls.at(-1).operation, 'describe')
+      assert.equal(h.calls.filter((call) => call.operation === 'select').length, 1)
+      assert.equal(h.send(), true)
       assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
       assert.equal(h.menu.anchor.props.disabled, false)
     })
@@ -787,7 +861,7 @@ await test('불확실한 변경 뒤의 수동 확인이 사용 중이면 수동 
   let reads = 0
   const h = await mount(t, {
     rpc: ({ operation }) => {
-      if (operation === 'create') return failure('timeout')
+      if (operation === 'select') return failure('timeout')
       return ++reads === 2 ? failure('busy') : success()
     },
   })
@@ -804,27 +878,26 @@ await test('불확실한 변경 뒤의 수동 확인이 사용 중이면 수동 
   await h.retry()
   assert.equal(h.calls.length, 4)
   assert.equal(h.calls.at(-1).operation, 'describe')
-  assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
+  assert.equal(h.calls.filter((call) => call.operation === 'select').length, 1)
+  assert.equal(h.send(), true)
   assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
 })
 
-await test('변경이 성공한 뒤 describe가 사용 중이면 읽기만 재시도한다', async (t) => {
-  let reads = 0
+await test('선택 성공은 목록을 보존하고 describe나 변경 중 표시 없이 다음 작업 위치만 갱신한다', async (t) => {
   const h = await mount(t, {
-    rpc: ({ operation }) => {
-      if (operation === 'create') return success(linkedView())
-      return ++reads === 2 ? failure('busy') : success(reads > 1 ? linkedView() : view())
-    },
+    rpc: ({ operation, payload }) =>
+      success(operation === 'select' ? selection(payload) : { ...linkedView(), cwd: '/repo' }),
   })
-  await h.select('create')
-  assert.equal(h.calls.length, 3)
-  assert.match(h.text, /feature\/worktree/)
-  assert.doesNotMatch(h.text, /Lookup failed|Check worktree state/)
-  await h.focus()
-  assert.equal(h.calls.length, 4)
-  assert.equal(h.calls.at(-1).operation, 'describe')
-  assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
+  await h.select('path:/other-worktree')
+  assert.deepEqual(operations(h), ['describe', 'select'])
+  assert.equal(h.menu.anchor.props.label, 'feature/worktree')
+  assert.match(h.menu.anchor.props.title, /Next task location.*next prompt/)
+  assert.equal(h.selectedId, 'path:/other-worktree')
+  assert.equal(h.menuItems.length, 3, 'Selection-only responses must retain the last described worktree list')
+  assert.equal(h.menu.anchor.props['aria-busy'], false)
   assert.equal(h.menu.anchor.props.disabled, false)
+  assert.equal(h.send(), true)
+  assert.doesNotMatch(h.text, /Changing worktree|Loading worktrees/)
 })
 
 await test('키 기반 이동은 진행 중인 조회를 중단하고 늦게 도착한 사용 중 응답을 무시한다', async (t) => {
@@ -914,3 +987,214 @@ await test('실제 조회 오류에 대한 확인이 사용 중이면 수동 새
   assert.equal(h.calls.length, 3)
   assert.doesNotMatch(h.text, /Lookup failed/)
 })
+
+await test('새 워크트리와 현재 위치를 빠르게 번갈아 선택하면 최신 의도만 직렬 저장한다', async (t) => {
+  const first = deferred()
+  const last = deferred()
+  let writes = 0
+  const h = await mount(t, {
+    rpc: ({ operation }) => (operation === 'select' ? (++writes === 1 ? first.promise : last.promise) : success()),
+  })
+  const chooseNew = h.menuItems.find((item) => item.id === 'create').onSelect
+  const chooseCurrent = h.menuItems.find((item) => item.id === 'path:/repo').onSelect
+  chooseNew()
+  assert.equal(h.send(), false, 'The native composer must be gated synchronously before the RPC settles')
+  chooseCurrent()
+  chooseNew()
+  chooseCurrent()
+  await h.flush()
+  assert.equal(
+    h.selectedId,
+    'path:/repo',
+    'Even handlers from the same render must observe the latest optimistic value'
+  )
+  assert.deepEqual(operations(h), ['describe', 'select'])
+  assert.equal(h.calls[1].payload.choice, 'new')
+  assert.equal(h.menu.anchor.props.disabled, false)
+  assert.equal(h.menu.anchor.props['aria-busy'], false)
+  await h.focus()
+  assert.equal(h.calls.length, 2, 'Focus must not introduce describe while selection synchronization is pending')
+  first.resolve(success(selection({ choice: 'new' })))
+  await h.flush()
+  assert.equal(
+    h.selectedId,
+    'path:/repo',
+    'An older successful snapshot must not replace the current optimistic choice'
+  )
+  assert.equal(h.calls.length, 3)
+  assert.equal(h.calls[2].payload.choice, 'current')
+  assert.equal(h.send(), false, 'An intermediate success must not release the latest selection gate')
+  last.resolve(success({ cwd: '/repo' }))
+  await h.flush()
+  assert.deepEqual(operations(h), ['describe', 'select', 'select'])
+  assert.equal(h.selectedId, 'path:/repo')
+  assert.equal(h.block, undefined)
+  assert.equal(h.send(), true)
+})
+
+await test('오래된 선택 실패는 더 최신 선택의 저장과 낙관적 값을 막지 않는다', async (t) => {
+  const first = deferred()
+  let writes = 0
+  const h = await mount(t, {
+    rpc: ({ operation, payload }) =>
+      operation !== 'select' ? success() : ++writes === 1 ? first.promise : success(selection(payload)),
+  })
+  await h.select('create')
+  assert.equal(h.selectedId, 'create')
+  await h.select('path:/repo')
+  first.resolve(failure('timeout'))
+  await h.flush()
+  assert.deepEqual(operations(h), ['describe', 'select', 'select'])
+  assert.equal(h.calls.at(-1).payload.choice, 'current')
+  assert.equal(h.selectedId, 'path:/repo')
+  assert.equal(h.send(), true)
+  assert.equal(h.warnings.length, 0)
+  assert.doesNotMatch(h.text, /Check worktree state/)
+})
+
+await test('선택 실패 뒤 현재 위치를 직접 선택하면 예약과 전송 차단을 해제한다', async (t) => {
+  let writes = 0
+  const h = await mount(t, {
+    rpc: ({ operation, payload }) =>
+      operation !== 'select' ? success() : ++writes === 1 ? failure('timeout') : success(selection(payload)),
+  })
+  await h.select('create')
+  assert.equal(h.send(), false)
+  assert.match(h.block.reason, /Confirm the worktree selection/)
+  await h.chooseAfterError()
+  await h.select('path:/repo')
+  assert.deepEqual(operations(h), ['describe', 'select', 'select'])
+  assert.equal(h.calls.at(-1).payload.choice, 'current')
+  assert.equal(h.selectedId, 'path:/repo')
+  assert.equal(h.send(), true)
+  assert.doesNotMatch(h.text, /Check worktree state/)
+})
+
+await test('실패한 생성이나 기존 워크트리 예약도 현재 위치 선택으로 취소한다', async (t) => {
+  for (const pending of [
+    { pendingCreation: { name: 'New worktree', failed: true } },
+    { pendingSwitch: { path: '/other-worktree', failed: true } },
+  ]) {
+    const h = await mount(t, {
+      rpc: ({ operation, payload }) =>
+        success(operation === 'select' ? selection(payload) : { ...linkedView(), cwd: '/repo', ...pending }),
+    })
+    assert.match(h.text, /Check worktree state/)
+    await h.select('path:/repo')
+    assert.equal(h.calls.at(-1).payload.choice, 'current')
+    assert.equal(h.selectedId, 'path:/repo')
+    assert.doesNotMatch(h.text, /Check worktree state/)
+    h.unmount()
+  }
+})
+
+await test('플러그인 해제는 마운트된 구독이 있어도 자기 차단을 복원하거나 다른 차단을 지우지 않는다', async (t) => {
+  const result = deferred()
+  const h = await mount(t, {
+    rpc: ({ operation }) => (operation === 'select' ? result.promise : success()),
+  })
+  await h.select('create')
+  assert.ok(h.block)
+  h.disposePlugin()
+  assert.equal(h.block, undefined, 'Disposal must remove ownership before notifying restoration subscribers')
+  h.unmount()
+  result.resolve(success(selection({ choice: 'new' })))
+  await h.flush()
+
+  const otherResult = deferred()
+  const other = await mount(t, {
+    rpc: ({ operation }) => (operation === 'select' ? otherResult.promise : success()),
+  })
+  await other.select('create')
+  const foreign = { reason: 'Another plugin owns this block' }
+  other.blocks.set('original', foreign)
+  other.disposePlugin()
+  assert.equal(other.block, foreign)
+  other.unmount()
+  otherResult.resolve(success(selection({ choice: 'new' })))
+  await other.flush()
+})
+
+await test('선택 저장과 완료는 다른 플러그인의 차단 객체를 덮어쓰거나 지우지 않는다', async (t) => {
+  const result = deferred()
+  const h = await mount(t, {
+    rpc: ({ operation }) => (operation === 'select' ? result.promise : success()),
+  })
+  const other = { reason: 'Another plugin owns this block' }
+  h.blocks.set('original', other)
+  await h.select('create')
+  assert.equal(h.block, other)
+  result.resolve(success(selection({ choice: 'new' })))
+  await h.flush()
+  assert.equal(h.block, other)
+  h.blocks.set('original', undefined)
+  assert.equal(h.block, undefined)
+})
+
+await test('저장 중 차단 소유권이 바뀌면 다른 차단을 보존하고 비어 있을 때만 자기 차단을 복원한다', async (t) => {
+  const result = deferred()
+  const h = await mount(t, {
+    rpc: ({ operation }) => (operation === 'select' ? result.promise : success()),
+  })
+  await h.select('create')
+  const own = h.block
+  const other = { reason: own.reason }
+  h.blocks.set('original', other)
+  assert.equal(h.block, other, 'Equal text does not imply ownership')
+  h.blocks.set('original', undefined)
+  assert.equal(h.block, own)
+  result.resolve(success(selection({ choice: 'new' })))
+  await h.flush()
+  assert.equal(h.block, undefined)
+})
+
+await test('선택 저장 중 이동하면 원래 세션의 차단을 보존하고 늦은 응답을 화면에 적용하지 않는다', async (t) => {
+  const result = deferred()
+  const h = await mount(t, {
+    rpc: ({ operation, payload }) =>
+      operation === 'select' ? result.promise : success(view(payload.sessionId === 'original' ? 'main' : 'other')),
+  })
+  await h.select('create')
+  const request = h.calls.at(-1)
+  const own = h.block
+  await h.navigate('other')
+  assert.equal(request.signal.aborted, true)
+  assert.equal(h.block, undefined)
+  assert.equal(h.blocks.storeFor('original').getSnapshot(), own)
+  result.resolve(success(selection({ choice: 'new' })))
+  await h.flush()
+  assert.equal(h.menu.anchor.props.label, 'other')
+  assert.equal(h.warnings.length, 0)
+  await h.navigate('original')
+  assert.equal(h.menu.anchor.props.label, 'main')
+  assert.equal(h.block, undefined, 'A fresh read on return reconciles the aborted selection')
+  assert.equal(h.calls.filter((call) => call.operation === 'select').length, 1)
+})
+
+for (const phase of ['adjudicating', 'claimed', 'submitting']) {
+  await test(`네이티브 입력이 ${phase} 단계이면 조회는 허용하지만 선택과 초기화는 금지한다`, async (t) => {
+    const h = await mount(t, { initial: { inputPhase: phase }, rpc: () => success(uninitializedView()) })
+    assert.deepEqual(operations(h), ['describe'])
+    assert.equal(h.menu.anchor.props.disabled, true)
+    await h.select('create')
+    assert.deepEqual(operations(h), ['describe'])
+  })
+}
+
+for (const [language, title, hint] of [
+  ['en', 'Next task location', /next prompt/],
+  ['ko', '다음 작업 위치', /다음 프롬프트/],
+  ['zh', '下一任务的位置', /下一条提示/],
+]) {
+  await test(`${language} 로케일은 선택된 기존 워크트리를 다음 작업 위치로 안내한다`, async (t) => {
+    const h = await mount(t, {
+      language,
+      rpc: ({ operation, payload }) =>
+        success(operation === 'select' ? selection(payload) : { ...linkedView(), cwd: '/repo' }),
+    })
+    await h.select('path:/other-worktree')
+    assert.match(h.menu.anchor.props['aria-label'], new RegExp(title))
+    assert.match(h.menu.anchor.props.title, hint)
+    assert.match(h.text, hint)
+  })
+}

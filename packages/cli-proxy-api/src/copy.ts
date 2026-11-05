@@ -22,7 +22,7 @@ export const copy = {
       'Accounts and quota load automatically with a saved management key. If loading fails, refresh accounts to try again.',
     accountsObservedAt: 'Accounts checked at',
     quotaHint:
-      'Accounts and quota load automatically. The memory cache is valid for 5 minutes. Expired results update when you reopen this panel. Refresh accounts to update all results now. Cooldown reset only clears proxy routing blocks; it does not refill quota. No paid inference or reset credits are used.',
+      'Accounts and quota load once and stay cached in memory when you reopen this panel. Refresh accounts to update all results. Connection changes clear the cache. Cooldown reset only clears proxy routing blocks; it does not refill quota. No paid inference or reset credits are used.',
     refreshQuotaAccounts: 'Refresh accounts',
     searchAccounts: 'Search name / provider',
     refreshQuota: 'Refresh quota',
@@ -95,7 +95,7 @@ export const copy = {
       '관리 키가 저장되어 있으면 계정과 할당량을 자동으로 불러옵니다. 불러오기에 실패했다면 계정을 새로고침하세요.',
     accountsObservedAt: '계정 확인 시각',
     quotaHint:
-      '계정과 할당량을 자동으로 불러옵니다. 메모리 캐시는 5분간 유효하며, 화면을 다시 열 때 만료된 결과를 갱신합니다. 계정을 새로고침하면 전체 결과를 즉시 갱신합니다. 대기 시간 초기화는 프록시의 라우팅 차단만 해제하며 할당량을 충전하지 않습니다. 유료 추론이나 초기화 크레딧을 사용하지 않습니다.',
+      '계정과 할당량은 한 번 불러온 뒤 메모리에 캐시하며, 화면을 다시 열 때 그대로 표시합니다. 계정을 새로고침하면 전체 결과를 갱신합니다. 연결이 변경되면 캐시를 비웁니다. 대기 시간 초기화는 프록시의 라우팅 차단만 해제하며 할당량을 충전하지 않습니다. 유료 추론이나 초기화 크레딧을 사용하지 않습니다.',
     refreshQuotaAccounts: '계정 새로고침',
     searchAccounts: '이름 / 공급자 검색',
     refreshQuota: '할당량 새로고침',
@@ -165,7 +165,7 @@ export const copy = {
     quotaLoadHint: '保存管理密钥后，账户和配额会自动加载。加载失败时，请刷新账户重试。',
     accountsObservedAt: '账户检查时间',
     quotaHint:
-      '账户和配额会自动加载。内存缓存有效期为 5 分钟，重新打开此面板时会更新已过期的结果。刷新账户可立即更新全部结果。重置冷却时间仅解除代理路由限制，不会补充配额。不会使用付费推理或重置额度。',
+      '账户和配额加载一次后会缓存在内存中，重新打开此面板时直接显示。刷新账户可更新全部结果。连接变更会清除缓存。重置冷却时间仅解除代理路由限制，不会补充配额。不会使用付费推理或重置额度。',
     refreshQuotaAccounts: '刷新账户',
     searchAccounts: '搜索名称 / 提供商',
     refreshQuota: '刷新配额',
