@@ -49,6 +49,7 @@ function visibleText(node) {
 // a hook-value stub, this runner commits effect cleanups and remounts on JSX keys.
 async function mount(t, { initial = {}, rpc = () => success() } = {}) {
   const sessions = new Map()
+  const directories = new Map()
   const calls = []
   const warnings = []
   const listeners = new Map()
@@ -184,7 +185,14 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     instance = undefined
   }
   function render() {
-    const element = registered({ sessionId, useSession: (select) => select(session(sessionId)) })
+    const element = registered({
+      sessionId,
+      useSession: (select) => select(session(sessionId)),
+      useProjection: (key) => {
+        assert.equal(key, 'workingDirectory')
+        return directories.get(sessionId) ?? '/repo'
+      },
+    })
     if (instance && (instance.key !== element.key || instance.type !== element.type)) unmount()
     if (!instance) instance = { key: element.key, type: element.type, hooks: [], mounted: true }
     active = instance
@@ -240,6 +248,11 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     },
     async update(patch) {
       Object.assign(session(sessionId), patch)
+      render()
+      await flush()
+    },
+    async changeDirectory(cwd) {
+      directories.set(sessionId, cwd)
       render()
       await flush()
     },
@@ -372,6 +385,8 @@ for (const { name, blocked, ready } of readReadinessCases) {
   await test(`${name} mount and focus defer lookup until the session is ready`, async (t) => {
     const h = await mount(t, { initial: blocked })
     assert.equal(h.calls.length, 0, `A ${name} session must not issue its initial describe`)
+    await h.changeDirectory('/other-worktree')
+    assert.equal(h.calls.length, 0, 'Directory changes must not query an unreadable session')
     assert.equal(h.menu.anchor.props.disabled, true)
     assert.doesNotMatch(h.text, /Lookup failed/)
     await h.focus()
@@ -455,6 +470,39 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.equal(h.calls.filter((call) => call.operation === 'create').length, 0)
   })
 }
+
+await test('worktree readiness refreshes the reserved label while the task is still running', async (t) => {
+  let selected = pendingCreationView()
+  const h = await mount(t, { rpc: () => success(selected) })
+  assert.equal(h.menu.anchor.props.label, 'New worktree')
+  await h.update({ running: true })
+  selected = linkedView()
+  const beforeReady = h.calls.length
+  await h.changeDirectory(selected.cwd)
+  assert.equal(h.menu.anchor.props.label, 'feature/worktree', 'Readiness must replace the reserved label before idle')
+  assert.equal(h.selectedId, 'path:/other-worktree')
+  assert.deepEqual(operations(h).slice(beforeReady), ['describe'])
+  assert.equal(h.menu.anchor.props.disabled, true, 'Refreshing the label must not allow mutations while running')
+  await h.update({})
+  await h.changeDirectory(selected.cwd)
+  assert.equal(h.calls.length, beforeReady + 1, 'An unchanged directory must not trigger another read')
+})
+
+await test('a directory change during an in-flight read queues a fresh view without overlapping requests', async (t) => {
+  const response = deferred()
+  let reads = 0
+  const h = await mount(t, {
+    initial: { running: true },
+    rpc: () => (++reads === 1 ? response.promise : success(linkedView())),
+  })
+  await h.changeDirectory('/other-worktree')
+  assert.equal(h.calls.length, 1, 'Directory updates must not overlap a pending read')
+  response.resolve(success(pendingCreationView()))
+  await h.flush()
+  assert.deepEqual(operations(h), ['describe', 'describe'])
+  assert.equal(h.menu.anchor.props.label, 'feature/worktree')
+  assert.equal(h.menu.anchor.props.disabled, true)
+})
 
 await test('successful initialization is not repeated until describe explicitly requests initialization again', async (t) => {
   let needsInitialization = true
@@ -718,6 +766,7 @@ for (const operation of ['create', 'switch']) {
       assert.equal(h.calls.length, 2)
       assert.equal(h.calls.at(-1).operation, operation)
       assert.match(h.text, /Check worktree state/)
+      await h.changeDirectory('/other-worktree')
       await h.focus()
       await h.update({ running: true })
       await h.update({ running: false })
