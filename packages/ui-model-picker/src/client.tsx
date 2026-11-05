@@ -87,6 +87,7 @@ export function apply(ctx: Context) {
     const anchor = useRef<HTMLDivElement>(null)
     const popup = useRef<HTMLDivElement>(null)
     const pending = useRef(false)
+    const sliderSelection = useRef<ModelSelection | null>(null)
     const mounted = useRef(true)
     const id = useId()
     const current = state.current
@@ -117,6 +118,7 @@ export function apply(ctx: Context) {
     }, [directory])
 
     const close = () => {
+      sliderSelection.current = null
       setPanel(null)
       setStaged(null)
       if (trigger.current) focusWithoutRing(trigger.current)
@@ -126,6 +128,7 @@ export function apply(ctx: Context) {
       anchor,
       panel !== null,
       () => {
+        sliderSelection.current = null
         setPanel(null)
         setStaged(null)
       },
@@ -185,27 +188,46 @@ export function apply(ctx: Context) {
 
     useEffect(() => {
       if (locked) {
+        sliderSelection.current = null
         setPanel(null)
         setStaged(null)
       }
     }, [locked])
-    // /model and other clients share this selection. Never apply an old slider
-    // draft to a newly projected route or effort.
+    // Keep the slider mounted for its own committed selection, including when
+    // the shared projection arrives after the RPC response. External changes
+    // still discard the draft so it cannot be applied to another selection.
     useEffect(() => {
+      const selection = sliderSelection.current
+      sliderSelection.current = null
+      if (
+        selection &&
+        current?.provider === selection.provider &&
+        current?.model === selection.model &&
+        current?.reasoningEffort === selection.reasoningEffort
+      ) {
+        setStaged(null)
+        return
+      }
       setPanel(null)
       setStaged(null)
     }, [current?.provider, current?.model, current?.reasoningEffort])
 
-    const select = async (selection: ModelSelection) => {
+    const select = async (selection: ModelSelection, keepSlider = false) => {
       if (disabled || pending.current) return
       pending.current = true
+      sliderSelection.current = keepSlider ? selection : null
       setFailed(false)
       try {
         const result = await directory.select(selection)
         if (!mounted.current) return
-        if (result.ok) close()
-        else setFailed(true)
+        if (result.ok) {
+          if (!keepSlider) close()
+        } else {
+          sliderSelection.current = null
+          setFailed(true)
+        }
       } catch {
+        sliderSelection.current = null
         if (mounted.current) setFailed(true)
       } finally {
         pending.current = false
@@ -227,11 +249,14 @@ export function apply(ctx: Context) {
       const target = staged ?? (current ? { provider: current.provider, model: current.model } : null)
       const effort = stagedEfforts[index]
       if (!target || !effort) return
-      void select({
-        provider: target.provider,
-        model: target.model,
-        reasoningEffort: effort.id,
-      })
+      void select(
+        {
+          provider: target.provider,
+          model: target.model,
+          reasoningEffort: effort.id,
+        },
+        true
+      )
     }
     // A model picked from the list is staged only while its effort is unset.
     // A model without a choice of efforts keeps applying immediately; the rest
@@ -425,10 +450,13 @@ export function apply(ctx: Context) {
                         max={stagedEfforts.length - 1}
                         step={1}
                         value={draft}
-                        disabled={disabled || stagedEfforts.length < 2}
+                        disabled={locked || stagedEfforts.length < 2}
+                        aria-disabled={disabled || stagedEfforts.length < 2}
                         aria-label={text.effort}
                         aria-valuetext={stagedEfforts[draft]?.name}
-                        onChange={(event) => setDraft(Number(event.target.value))}
+                        onChange={(event) => {
+                          if (!disabled) setDraft(Number(event.target.value))
+                        }}
                         onPointerUp={(event) => selectEffort(Number(event.currentTarget.value))}
                         onKeyUp={(event) => {
                           if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))
