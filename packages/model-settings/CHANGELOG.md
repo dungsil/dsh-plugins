@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.5.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.5.0...%40dungsil%2Fdsh-plugin-model-settings%400.5.1) (2026-11-05)
+
+### Bug Fixes
+
+- **model-settings:** 설정이 없는 플러그인으로 인한 전체 조회 실패를 방지한다 ([#150](https://github.com/dungsil/dsh-plugins/issues/150)) ([2bf065c](https://github.com/dungsil/dsh-plugins/commit/2bf065c4fdbff60fb697dace1bd29ba49c564382))
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.4.0...%40dungsil%2Fdsh-plugin-model-settings%400.5.0) (2026-11-05)
 
 ### Features

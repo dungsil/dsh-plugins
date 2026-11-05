@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-cli-proxy-api
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.0...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.1) (2026-11-05)
+
+### Bug Fixes
+
+- **cli-proxy-api:** 할당량 병렬 조회 시 불필요한 busy 오류를 방지한다 ([3e3ebbe](https://github.com/dungsil/dsh-plugins/commit/3e3ebbe1caeba0fa80dc3aa6da09384359f376e0))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.1.0...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.0) (2026-11-05)
 
 ### Features

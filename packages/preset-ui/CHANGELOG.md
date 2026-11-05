@@ -1,5 +1,11 @@
 # @dungsil/dsh-preset-ui
 
+## [0.1.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.1.0...%40dungsil%2Fdsh-preset-ui%400.1.1) (2026-11-05)
+
+### Bug Fixes
+
+- **preset-ui:** 버전 관리와 사용량 플러그인 누락을 수정한다 ([#149](https://github.com/dungsil/dsh-plugins/issues/149)) ([17d0ddd](https://github.com/dungsil/dsh-plugins/commit/17d0ddd3278f22857b8076fe038d779acd98610d))
+
 ## 0.1.0 (2026-11-05)
 
 ### Features

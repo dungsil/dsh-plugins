@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-ui-vcs
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.2.0...%40dungsil%2Fdsh-plugin-ui-vcs%400.3.0) (2026-11-05)
+
+### Features
+
+- **ui-vcs:** 커밋 설정과 CLI 인증 상태 메뉴를 추가한다 ([#146](https://github.com/dungsil/dsh-plugins/issues/146)) ([c54732d](https://github.com/dungsil/dsh-plugins/commit/c54732d807862a3f0baa70bc8cae4a72b0fccfb0))
+
+### Bug Fixes
+
+- **ui-vcs:** 버튼 밖에 표시되는 상태 문구를 제거한다 ([#151](https://github.com/dungsil/dsh-plugins/issues/151)) ([38fad12](https://github.com/dungsil/dsh-plugins/commit/38fad12fddac5eb9c1c450bdd561c51f82ac9aaa))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.1.0...%40dungsil%2Fdsh-plugin-ui-vcs%400.2.0) (2026-11-05)
 
 ### Features
