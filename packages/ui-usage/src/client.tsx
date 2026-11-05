@@ -5,12 +5,8 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { Button, Menu, StateDot } from '@dungsil/dsh-ui'
-import {
-  IconChevronDownOutlineRegular,
-  IconGaugeOutlineRegular,
-  IconRefreshOutlineRegular,
-} from '@dungsil/dsh-ui/icons'
+import { Button, ButtonPicker, PluginPage, pageStyles, StateDot } from '@dungsil/dsh-ui'
+import { IconGaugeOutlineRegular, IconRefreshOutlineRegular } from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { localizedCopy } from './copy.js'
 import { channel, method, type UsageView } from './protocol.js'
@@ -20,10 +16,7 @@ export const inject = ['connection', 'locale', 'slots']
 
 const cachedViews = new WeakMap<ConnectionHandle, Map<string, UsageView>>()
 
-const styles = `
-.dsh-usage-page { box-sizing: border-box; height: 100%; overflow: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
-.dsh-usage-page > .dsh-usage { max-width: 960px; margin: 0 auto; }
-.dsh-usage h1 { margin: 0 0 24px; font-size: 20px; line-height: 28px; font-weight: 500; }
+const styles = `${pageStyles}
 .dsh-usage { container-type: inline-size; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-usage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dsh-usage-status { display: flex; align-items: center; gap: 6px; }
@@ -75,7 +68,6 @@ function Usage({ ctx }: { ctx: Context }) {
   const number = new Intl.NumberFormat(locale.active)
   const tokens = new Intl.NumberFormat(locale.active, { notation: 'compact', maximumFractionDigits: 1 })
   const [period, setPeriod] = useState(7)
-  const [periodOpen, setPeriodOpen] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const refreshRequested = useRef(false)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
@@ -135,28 +127,12 @@ function Usage({ ctx }: { ctx: Context }) {
     <section className="dsh-usage" aria-label={text.nav} aria-busy={busy}>
       <h1>{text.nav}</h1>
       <div className="dsh-usage-toolbar">
-        <Menu
-          open={periodOpen}
-          onClose={() => setPeriodOpen(false)}
-          selectedId={String(period)}
+        <ButtonPicker
+          variant="outline"
+          label={text.period}
+          value={String(period)}
           items={periods}
-          onSelect={(id) => {
-            setPeriodOpen(false)
-            setPeriod(Number(id))
-          }}
-          portal
-          anchor={
-            <Button
-              variant="outline"
-              aria-label={text.period}
-              aria-haspopup="menu"
-              aria-expanded={periodOpen}
-              onClick={() => setPeriodOpen((open) => !open)}
-            >
-              {periods.find(({ id }) => id === String(period))!.label}
-              <IconChevronDownOutlineRegular />
-            </Button>
-          }
+          onChange={(id) => setPeriod(Number(id))}
         />
         <Button
           variant="outline"
@@ -324,9 +300,9 @@ export function apply(ctx: Context) {
         inject: () => ({ ctx }),
       },
       ({ ctx }) => (
-        <div className="dsh-usage-page">
+        <PluginPage>
           <Usage ctx={ctx} />
-        </div>
+        </PluginPage>
       )
     )
   )

@@ -6,7 +6,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { Button, Input, installSettingsIcon, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import {
+  Button,
+  Input,
+  installSettingsIcon,
+  PluginPage,
+  pageStyles,
+  SettingsRow,
+  settingsStyles,
+} from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { cliProxyIconSvg } from '@dungsil/dsh-ui/icons'
 import { channel, endpointPrefix, type ConnectionView, type QuotaAccount, type QuotaResult } from './protocol.js'
@@ -23,13 +31,10 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-const styles = `${settingsStyles}${quotaStyles}
+const styles = `${settingsStyles}${quotaStyles}${pageStyles}
 .dsh-cli-proxy-icon { display: inline-flex; }
 .dsh-cli-proxy-icon > svg { width: 100%; height: 100%; }
 .dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
-.dsh-cli-proxy-page { height: 100%; min-height: 0; box-sizing: border-box; overflow-y: auto; padding: 24px; padding-inline-start: max(24px, var(--dsh-frame-leading-clearance, 0px)); }
-.dsh-cli-proxy-page > .dsh-cli-proxy { max-width: 960px; margin: 0 auto; }
-.dsh-cli-proxy h1 { font-size: 20px; line-height: 28px; font-weight: 500; margin: 0 0 24px; }
 .dsh-cli-proxy h3 { margin: 24px 0 0; font: inherit; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-proxy .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-cli-proxy .controls > span:has(> input) { box-sizing: border-box; width: 280px; min-width: 0; max-width: 100%; }
@@ -416,12 +421,10 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
 
 function ProxyPanel({ ctx, cache }: { ctx: Context; cache: QuotaCache }) {
   return (
-    <div className="dsh-cli-proxy-page">
-      <div className="dsh-cli-proxy">
-        <h1>CLIProxyAPI</h1>
-        <ProxyPage ctx={ctx} cache={cache} />
-      </div>
-    </div>
+    <PluginPage contentClassName="dsh-cli-proxy">
+      <h1>CLIProxyAPI</h1>
+      <ProxyPage ctx={ctx} cache={cache} />
+    </PluginPage>
   )
 }
 
