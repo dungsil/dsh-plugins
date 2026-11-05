@@ -106,10 +106,12 @@ async function mount(operation, language = 'en', request = null) {
   await render()
   await render()
   const tree = await render()
-  const actions = tree.props.children[0].props.children
+  let actions = tree.props.children[0].props.children
   return {
     primary: actions[0].props,
-    menu: actions[1].props,
+    get menu() {
+      return actions[1]?.props
+    },
     messages,
     openedTabs,
     session,
@@ -117,7 +119,8 @@ async function mount(operation, language = 'en', request = null) {
     focus: () => listeners.get('focus')?.(),
     async refresh() {
       await render()
-      return (await render()).props.children[0].props.children[0].props
+      actions = (await render()).props.children[0].props.children
+      return actions[0].props
     },
   }
 }
@@ -181,6 +184,7 @@ await test('PR creation changes to a sidebar view action after the agent finishe
   ]) {
     const mounted = await mount('pr', language)
     assert.equal(mounted.primary.children[1], createLabel)
+    assert.ok(mounted.menu)
     mounted.primary.onClick()
     await new Promise((resolve) => setImmediate(resolve))
     mounted.session.running = true
@@ -190,6 +194,7 @@ await test('PR creation changes to a sidebar view action after the agent finishe
     const primary = await mounted.refresh()
     assert.equal(primary.children[1], viewLabel)
     assert.equal(primary.disabled, false)
+    assert.equal(mounted.menu, undefined)
     primary.onClick()
     assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
     assert.equal(mounted.messages.length, 1) // Viewing never submits another agent request.
@@ -199,12 +204,14 @@ await test('PR creation changes to a sidebar view action after the agent finishe
 await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
   const mounted = await mount('pr', 'ko', { number: 42 })
   assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.equal(mounted.menu, undefined)
   mounted.primary.onClick()
   assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
   assert.equal(mounted.messages.length, 0)
   mounted.setRequestResult({ ok: true, value: { request: null } })
   await mounted.focus()
   assert.equal((await mounted.refresh()).children[1], 'PR 생성')
+  assert.ok(mounted.menu)
   mounted.setRequestResult({ ok: false, error: { code: 'cli_missing' } })
   await mounted.focus()
   const primary = await mounted.refresh()

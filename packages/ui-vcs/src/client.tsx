@@ -143,8 +143,8 @@ export function apply(ctx: Context) {
     }, [sessionId, cwd, hasChanges, hidden, unavailable])
 
     useEffect(() => {
-      if (disabled) setOpen(false)
-    }, [disabled])
+      if (disabled || hasRequest) setOpen(false)
+    }, [disabled, hasRequest])
 
     useEffect(() => {
       const conversation = anchor.current?.closest('[data-conversation-session]')
@@ -218,33 +218,35 @@ export function apply(ctx: Context) {
                   ? text.push
                   : text.pr}
           </Pill>
-          <Menu
-            open={open}
-            side="top"
-            portal
-            compact
-            items={[{ id: 'commit', label: text.commit }]}
-            onClose={() => setOpen(false)}
-            onSelect={() => void send('commit')}
-            anchor={
-              <Pill
-                className="dsh-vcs-trigger dsh-vcs-menu"
-                disabled={disabled}
-                aria-label={text.menu}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                onClick={() => setOpen((value) => !value)}
-                onKeyDown={(event) => {
-                  if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
-                    event.preventDefault()
-                    setOpen(true)
-                  }
-                }}
-              >
-                <IconChevronDownOutlineRegular aria-hidden="true" />
-              </Pill>
-            }
-          />
+          {!hasRequest && (
+            <Menu
+              open={open}
+              side="top"
+              portal
+              compact
+              items={[{ id: 'commit', label: text.commit }]}
+              onClose={() => setOpen(false)}
+              onSelect={() => void send('commit')}
+              anchor={
+                <Pill
+                  className="dsh-vcs-trigger dsh-vcs-menu"
+                  disabled={disabled}
+                  aria-label={text.menu}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={() => setOpen((value) => !value)}
+                  onKeyDown={(event) => {
+                    if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                      event.preventDefault()
+                      setOpen(true)
+                    }
+                  }}
+                >
+                  <IconChevronDownOutlineRegular aria-hidden="true" />
+                </Pill>
+              }
+            />
+          )}
         </div>
         <span id={statusId} role={status === 'error' ? 'alert' : 'status'} className="dsh-vcs-status">
           {status === 'error' ? text.error : status === 'sent' ? text.sent : ''}
@@ -269,6 +271,7 @@ export function apply(ctx: Context) {
 .dsh-vcs { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance)); max-width: var(--dsh-composer-card-max-width); margin: 0 auto; padding-bottom: 8px; }
 .dsh-vcs-actions { display: inline-flex; align-items: center; }
 .dsh-vcs-actions > .dsh-vcs-trigger { border-radius: 14px 0 0 14px; }
+.dsh-vcs-actions > .dsh-vcs-trigger:only-child { border-radius: 14px; }
 .dsh-vcs-actions .dsh-vcs-menu { border-radius: 0 14px 14px 0; border-left: 0; padding: 0 7px; }
 .dsh-vcs-notice { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .dsh-vcs-trigger { height: 28px; max-width: 100%; padding: 0 10px; border: 1px solid var(--dsw-alias-border-l2); font: inherit; font-size: 12px; line-height: 18px; }
