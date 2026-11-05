@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, SegmentedControl, Switch } from '@dungsil/dsh-ui'
-import { IconChevronRightOutlineRegular } from '@dungsil/dsh-ui/icons'
+import { Button, installSettingsIcon, SegmentedControl, Switch } from '@dungsil/dsh-ui'
+import { IconChevronRightOutlineRegular, IconSkillOutlineRegular } from '@dungsil/dsh-ui/icons'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
@@ -272,6 +273,13 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
 }
 
 export function apply(ctx: Context) {
+  ctx.effect(() =>
+    installSettingsIcon(name, [en.ui.nav, ko.ui.nav, zh.ui.nav], (container) => {
+      const root = createRoot(container)
+      root.render(<IconSkillOutlineRegular size={16} />)
+      return () => root.unmount()
+    })
+  )
   ctx.effect(() => {
     const style = document.createElement('style')
     style.textContent = styles

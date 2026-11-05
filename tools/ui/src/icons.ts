@@ -22,6 +22,7 @@ export {
   IconRefreshOutlineRegular,
   IconRightUpOutlineRegular,
   IconSearchOutlineRegular,
+  IconSkillOutlineRegular,
   IconStopFillRegular,
   IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
