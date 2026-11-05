@@ -4,8 +4,15 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { installSettingsIcon, SettingsPicker, SettingsRow, settingsStyles, type MenuEntry } from '@dungsil/dsh-ui'
-import { modelSettingsIconSvg } from '@dungsil/dsh-ui/icons'
+import {
+  Button,
+  installSettingsIcon,
+  SettingsPicker,
+  SettingsRow,
+  settingsStyles,
+  type MenuEntry,
+} from '@dungsil/dsh-ui'
+import { IconChevronDownOutlineRegular, modelSettingsIconSvg } from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
@@ -35,6 +42,13 @@ const copy = {
     auxiliary: 'Auxiliary model',
     useAuxiliary: 'Use auxiliary model',
     auxiliaryHint: 'Uses the auxiliary model and its reasoning effort. If unset, uses the conversation model.',
+    instructions: 'Instructions',
+    editInstructions: 'Edit instructions',
+    instructionsHint: 'Added to the default task instructions. Clear and save to remove your instructions.',
+    auxiliaryInstructionsHint:
+      'Shared with tasks set to use the auxiliary model, even when no auxiliary model is selected.',
+    save: 'Save',
+    discard: 'Discard changes',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
@@ -72,6 +86,12 @@ const copy = {
     auxiliary: '보조 모델',
     useAuxiliary: '보조 모델 따르기',
     auxiliaryHint: '보조 모델과 추론 수준을 따릅니다. 보조 모델을 지정하지 않으면 대화 모델을 따릅니다.',
+    instructions: '지침',
+    editInstructions: '지침 수정',
+    instructionsHint: '기본 작업 지침에 추가합니다. 내용을 비우고 저장하면 추가한 지침을 제거합니다.',
+    auxiliaryInstructionsHint: '보조 모델을 지정하지 않아도 보조 모델 따르기를 선택한 작업에 공통으로 적용합니다.',
+    save: '저장',
+    discard: '변경 취소',
     effort: '추론 수준',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
@@ -107,6 +127,12 @@ const copy = {
     auxiliary: '辅助模型',
     useAuxiliary: '使用辅助模型',
     auxiliaryHint: '使用辅助模型及其推理级别。未指定辅助模型时使用对话模型。',
+    instructions: '指令',
+    editInstructions: '编辑指令',
+    instructionsHint: '添加到默认任务指令中。清空并保存即可移除自定义指令。',
+    auxiliaryInstructionsHint: '应用于选择使用辅助模型的任务，即使未指定辅助模型。',
+    save: '保存',
+    discard: '放弃更改',
     effort: '推理级别',
     automatic: '自动',
     automaticHint: '自动（支持的最低级别）',
@@ -134,17 +160,32 @@ const localizedCopy = (language: string) =>
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
-.dsh-model-settings [data-task=auxiliary] .dsh-plugin-settings-row { border-bottom: none; }
+.dsh-model-settings-field { border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-model-settings-field[data-task=auxiliary] { border-bottom: none; }
+.dsh-model-settings .dsh-plugin-settings-row { border-bottom: none; gap: 8px; }
 .dsh-model-settings-task-heading { margin: 32px 0 0; padding-bottom: 8px; border-bottom: .5px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
+.dsh-model-settings-expander { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: var(--dsw-radius-xs); color: var(--dsw-alias-label-tertiary); background: transparent; cursor: pointer; }
+.dsh-model-settings-expander:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsh-model-settings-expander svg { transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out); }
+.dsh-model-settings-expander[aria-expanded=true] svg { transform: rotate(180deg); }
+.dsh-model-settings-expander:focus-visible, .dsh-model-settings-instructions textarea:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color); outline-offset: 2px; }
+.dsh-model-settings-instructions { padding: 0 0 16px; }
+.dsh-model-settings-instructions label { display: block; }
+.dsh-model-settings-instructions textarea { box-sizing: border-box; display: block; width: 100%; min-height: 112px; resize: vertical; margin-top: 12px; padding: 10px 12px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); color: inherit; font: inherit; }
+.dsh-model-settings-instructions textarea:disabled { opacity: .5; }
+.dsh-model-settings-instruction-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .dsh-model-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); margin: 12px 0; }
 .dsh-model-settings [role=status] { margin: 12px 0; }
 @container (max-width: 480px) {
   .dsh-model-settings .dsh-plugin-settings-row { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .dsh-model-settings-controls { flex-direction: column; align-items: stretch; width: 100%; max-width: 100%; }
+  .dsh-model-settings-controls { flex-wrap: wrap; width: 100%; max-width: 100%; }
   .dsh-model-settings-controls .dsh-model-settings-picker { width: 100%; max-width: 100%; }
+  .dsh-model-settings-controls .dsh-model-settings-picker:first-child { width: calc(100% - 32px); }
+  .dsh-model-settings-expander { order: 1; }
+  .dsh-model-settings-picker + .dsh-model-settings-picker { order: 2; }
   .dsh-model-settings-controls .dsh-plugin-settings-selector { width: 100%; justify-content: space-between; }
 }
 `
@@ -163,6 +204,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const [view, setView] = useState<ModelSettingsView>()
   const [drafts, setDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
   const [effortDrafts, setEffortDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
+  const [instructionDrafts, setInstructionDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
+  const [expanded, setExpanded] = useState<Partial<Record<Task, boolean>>>({})
   const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
   const [synchronized, setSynchronized] = useState(false)
   const [notice, setNotice] = useState<Notice>()
@@ -178,6 +221,12 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       if (!result.ok) throw new Error('describe failed')
       const next = result.value as unknown as ModelSettingsView
       setView(next)
+      setInstructionDrafts({
+        auxiliary: next.auxiliary?.instructions ?? '',
+        target: next.target?.instructions ?? '',
+        worktree: next.worktree?.instructions ?? '',
+        yoonmoon: next.yoonmoon?.instructions ?? '',
+      })
       setEffortDrafts({
         auxiliary: next.auxiliary?.reasoningEffort ?? '',
         target: next.target?.reasoningEffort ?? '',
@@ -249,7 +298,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     ) ?? []),
   ]
 
-  const save = async (task: Task, draft: string, effort: string) => {
+  const save = async (task: Task, draft: string, effort: string, instructions?: string) => {
     const controller = lifetime.current
     const target = view?.[task]
     const option = options.find((option) => routeKey(option.route) === draft)
@@ -261,9 +310,11 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       controller.signal.aborted ||
       !target ||
       !synchronized ||
-      (draft === selectionKey(target) && effort === (target.reasoningEffort ?? '')) ||
-      (draft && draft !== 'auxiliary' && !selected) ||
-      missingEffort
+      (instructions === undefined &&
+        ((draft === selectionKey(target) && effort === (target.reasoningEffort ?? '')) ||
+          (draft && draft !== 'auxiliary' && !selected) ||
+          missingEffort)) ||
+      (instructions !== undefined && instructions.trim() === target.instructions)
     )
       return
     lock.current = true
@@ -278,14 +329,16 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     try {
       const result = await connection.rpc.call(
         channel,
-        `${endpointPrefix}save`,
-        {
-          id: target.id,
-          revision: target.revision,
-          route: selected,
-          reasoningEffort: effort || null,
-          useAuxiliary: draft === 'auxiliary',
-        },
+        `${endpointPrefix}${instructions === undefined ? 'save' : 'instructions'}`,
+        instructions !== undefined
+          ? { id: target.id, revision: target.revision, instructions }
+          : {
+              id: target.id,
+              revision: target.revision,
+              route: selected,
+              reasoningEffort: effort || null,
+              useAuxiliary: draft === 'auxiliary',
+            },
         controller.signal
       )
       if (!active()) return
@@ -294,6 +347,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         setView((current) => current && { ...current, [task]: saved })
         setDrafts((current) => ({ ...current, [task]: selectionKey(saved) }))
         setEffortDrafts((current) => ({ ...current, [task]: saved?.reasoningEffort ?? '' }))
+        if (instructions !== undefined)
+          setInstructionDrafts((current) => ({ ...current, [task]: saved?.instructions ?? '' }))
       } else {
         const code = result.error.code
         failure =
@@ -426,8 +481,61 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                     void save(task, draft, value)
                   }}
                 />
+                <button
+                  type="button"
+                  className="dsh-model-settings-expander"
+                  aria-label={`${title} ${text.editInstructions}`}
+                  title={text.editInstructions}
+                  aria-expanded={!!expanded[task]}
+                  aria-controls={`${fieldId}-instructions`}
+                  onClick={() => setExpanded((current) => ({ ...current, [task]: !current[task] }))}
+                >
+                  <IconChevronDownOutlineRegular size={12} aria-hidden="true" />
+                </button>
               </div>
             </SettingsRow>
+            {expanded[task] && (
+              <form
+                id={`${fieldId}-instructions`}
+                className="dsh-model-settings-instructions"
+                aria-label={`${title} ${text.instructions}`}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void save(task, draft, effort, instructionDrafts[task])
+                }}
+              >
+                <label htmlFor={`${fieldId}-instructions-input`}>{text.instructions}</label>
+                <div id={`${fieldId}-instructions-hint`} className="dsh-model-settings-description">
+                  {text.instructionsHint}
+                  {task === 'auxiliary' && <> {text.auxiliaryInstructionsHint}</>}
+                </div>
+                <textarea
+                  id={`${fieldId}-instructions-input`}
+                  aria-describedby={`${fieldId}-instructions-hint`}
+                  value={instructionDrafts[task]}
+                  disabled={!!busy || !synchronized}
+                  onChange={(event) => setInstructionDrafts((current) => ({ ...current, [task]: event.target.value }))}
+                />
+                <div className="dsh-model-settings-instruction-actions">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!!busy || !synchronized || instructionDrafts[task] === target.instructions}
+                    onClick={() => setInstructionDrafts((current) => ({ ...current, [task]: target.instructions }))}
+                  >
+                    {text.discard}
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={!!busy || !synchronized || instructionDrafts[task].trim() === target.instructions}
+                  >
+                    {text.save}
+                  </Button>
+                </div>
+              </form>
+            )}
             {busy === 'saving' && noticeTask === task && <p role="status">{text.saving}</p>}
             {notice && noticeTask === task && <p role="alert">{text[notice]}</p>}
           </div>

@@ -1147,10 +1147,21 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     assert.equal(namingRequests.at(-1).provider, expected.provider)
     assert.equal(namingRequests.at(-1).model, expected.model)
     assert.equal(namingRequests.at(-1).reasoningEffort, effort)
+    assert.ok(namingRequests.at(-1).system.endsWith('Worktree instructions.'))
+    assert.equal(namingRequests.at(-1).system.includes('Shared instructions.'), expected.provider === 'auxiliary')
     assert.equal((await rpc('switch', { cwd: created.cwd, path: gitPath(repo) })).ok, true)
   }
   const describe = async () => (await rpc('dungsil-model-settings/describe')).value
   const save = (payload) => rpc('dungsil-model-settings/save', payload)
+  for (const [task, instructions] of [
+    ['auxiliary', 'Shared instructions.'],
+    ['worktree', 'Worktree instructions.'],
+  ]) {
+    assert.equal(
+      (await rpc('dungsil-model-settings/instructions', { ...(await describe())[task], instructions })).ok,
+      true
+    )
+  }
   assert.equal((await describe()).worktree.useAuxiliary, true)
   await check(route, 'quick')
   const nextRoute = { provider: 'auxiliary', model: 'updated' }
@@ -1176,6 +1187,14 @@ await test('automatic worktree naming follows live auxiliary settings without ch
   await submit()
   assert.equal(namingRequests.length, auxiliaryCalls)
   assert.ok(requests.some((request) => request.system?.startsWith('Return only a short')))
+  const naming = requests.findLast((request) => request.system?.startsWith('Return only a short'))
+  assert.ok(naming.system.endsWith('Worktree instructions.'))
+  assert.ok(!naming.system.includes('Shared instructions.'))
+  assert.ok(
+    requests
+      .filter((request) => request !== naming)
+      .every((request) => !request.system?.includes('Worktree instructions.'))
+  )
   assert.deepEqual(
     { provider: agent.options.provider, model: agent.options.model },
     { provider: 'test', model: 'test-model' }

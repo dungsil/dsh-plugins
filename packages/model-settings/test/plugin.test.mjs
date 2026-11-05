@@ -4,6 +4,58 @@ import test from 'node:test'
 import { profileFixture, titleConfig } from './profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
+  await test(`${strategy}: task instructions persist, compose with auxiliary instructions and stay out of conversation calls`, async (t) => {
+    const h = await profileFixture(strategy, {}, { namingStyle: 'semantic' }, {})
+    t.after(h.close)
+    const initial = (await h.rpc('describe')).value
+    for (const task of ['auxiliary', 'target', 'worktree', 'yoonmoon']) {
+      const target = (await h.rpc('describe')).value[task]
+      const saved = await h.rpc('instructions', { ...target, instructions: `  Only ${task}.\nKeep it short.  ` })
+      assert.equal(saved.ok, true)
+      assert.equal(saved.value.instructions, `Only ${task}.\nKeep it short.`)
+      assert.deepEqual(saved.value.route, initial[task].route)
+      assert.equal((await h.rpc('instructions', { ...target, instructions: 'stale' })).error.code, 'conflict')
+    }
+    assert.equal(h.adapter.requests.length, 0)
+    await h.restart()
+    const restored = (await h.rpc('describe')).value
+    for (const task of ['auxiliary', 'target', 'worktree', 'yoonmoon']) {
+      assert.equal(restored[task].instructions, `Only ${task}.\nKeep it short.`)
+    }
+    await h.generate('instructions-title')
+    const titleSystem = h.adapter.requests.at(-1).system
+    assert.ok(titleSystem.endsWith('Only auxiliary.\nKeep it short.\n\nOnly target.\nKeep it short.'))
+    assert.ok(titleSystem.startsWith('Create a concise title for an AI coding-assistant session'))
+    await h.write('instructions-yoonmoon')
+    const writingSystem = h.adapter.requests.at(-1).system
+    assert.ok(writingSystem.startsWith('Execute the proofreading-korean skill'))
+    assert.ok(writingSystem.endsWith('Only auxiliary.\nKeep it short.\n\nOnly yoonmoon.\nKeep it short.'))
+    assert.ok(!writingSystem.includes('Only target.'))
+    const conversation = await h.ctx.llm.prepareCall({ provider: 'conversation', model: 'chat-large' })
+    for await (const _ of conversation.stream({ ...conversation.config, messages: [], system: 'Conversation only.' })) {
+    }
+    assert.equal(h.adapter.requests.at(-1).system, 'Conversation only.')
+    const own = await h.rpc('save', {
+      ...restored.target,
+      route: { provider: 'auxiliary', model: 'title-small' },
+      reasoningEffort: 'thorough',
+    })
+    assert.equal(own.ok, true)
+    assert.equal(own.value.instructions, restored.target.instructions)
+    await h.generate('instructions-own-route')
+    assert.ok(h.adapter.requests.at(-1).system.endsWith('Only target.\nKeep it short.'))
+    assert.ok(!h.adapter.requests.at(-1).system.includes('Only auxiliary.'))
+    const cleared = await h.rpc('instructions', { ...own.value, instructions: ' \n ' })
+    assert.equal(cleared.ok, true)
+    assert.equal(cleared.value.instructions, '')
+    assert.deepEqual(cleared.value.route, own.value.route)
+    assert.equal(cleared.value.reasoningEffort, 'thorough')
+    await h.generate('instructions-cleared')
+    assert.ok(!h.adapter.requests.at(-1).system.includes('Only target.'))
+    assert.equal(h.adapter.requests.at(-1).reasoningEffort, 'thorough')
+    assert.equal((await h.rpc('describe')).value.worktree.instructions, restored.worktree.instructions)
+  })
+
   await test(`${strategy}: shared auxiliary defaults preserve provenance, explicit overrides and conversation opt-out across reloads`, async (t) => {
     const h = await profileFixture(strategy)
     t.after(h.close)
@@ -152,7 +204,7 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   const h = await profileFixture()
   t.after(h.close)
   const target = (await h.rpc('describe')).value.target
-  for (const endpoint of ['describe', 'save']) {
+  for (const endpoint of ['describe', 'save', 'instructions']) {
     assert.equal(
       (await h.rpc(endpoint, target, { principal: { kind: 'anonymous' }, interactions: 'deny' })).status,
       403
@@ -160,6 +212,9 @@ await test('refuses unauthorized, invalid, unavailable and stale writes without 
   }
   for (const route of [undefined, {}, { provider: 'auxiliary' }, { provider: '', model: 'title-small' }]) {
     assert.equal((await h.rpc('save', { ...target, route })).error.code, 'invalid')
+  }
+  for (const instructions of [undefined, null, 2, {}, []]) {
+    assert.equal((await h.rpc('instructions', { ...target, instructions })).error.code, 'invalid')
   }
   for (const reasoningEffort of ['', ' ', 2, {}, []]) {
     assert.equal(
