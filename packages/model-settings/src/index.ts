@@ -45,14 +45,17 @@ export async function apply(ctx: Context) {
     const owner = settingsEntry()
     const entry = task === 'auxiliary' ? owner : targetEntry(task)
     if (!entry) return null
-    const config = (task === 'auxiliary' ? (owner?.options.config?.auxiliaryModel ?? {}) : entry.fiber!.config) as {
-      provider?: string
-      model?: string
-      reasoningEffort?: string
-      naming?: string
-      targetWords: number
-      targetCjkCharacters: number
-    }
+    const config = (task === 'auxiliary' ? (owner?.options.config?.auxiliaryModel ?? {}) : entry.fiber!.config) as
+      | {
+          provider?: string
+          model?: string
+          reasoningEffort?: string
+          naming?: string
+          targetWords: number
+          targetCjkCharacters: number
+        }
+      | undefined
+    if (!config) return null
     const inheritance = owner?.options.config?.inheritAuxiliary as Record<string, boolean> | undefined
     const useAuxiliary =
       task !== 'auxiliary' && !config.provider && !config.model && (inheritance?.[entry.options.id] ?? true)
