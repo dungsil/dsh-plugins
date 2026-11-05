@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { currentWorktree, isWorktreeView } from '../src/protocol.ts'
 import { failureCode } from '../src/errors.ts'
@@ -30,6 +31,43 @@ await test('POSIX names keep literal backslashes and case while roots and nested
   assert.equal(currentWorktree({ cwd: '/repo', worktrees: [] }), undefined)
   const driveRoot = { path: 'C:/', branch: 'root' }
   assert.equal(currentWorktree({ cwd: 'c:\\src', worktrees: [driveRoot] }), driveRoot)
+})
+
+await test('path comparison trims only trailing separators and preserves path boundaries', () => {
+  for (const path of ['/repo', 'C:/repo', '//server/share/repo']) {
+    const worktree = { path: path + '///', branch: 'main' }
+    for (const cwd of [path, path + '////', path + '/src']) {
+      assert.equal(currentWorktree({ cwd, worktrees: [worktree] }), worktree)
+    }
+    assert.equal(currentWorktree({ cwd: path + '-other', worktrees: [worktree] }), undefined)
+  }
+  const worktree = { path: '/repo//nested', branch: 'nested' }
+  assert.equal(currentWorktree({ cwd: '/repo//nested///', worktrees: [worktree] }), worktree)
+  assert.equal(currentWorktree({ cwd: '/repo/nested', worktrees: [worktree] }), undefined)
+  assert.equal(currentWorktree({ cwd: '////', worktrees: [{ path: '/', branch: 'root' }] })?.branch, 'root')
+})
+
+await test('path comparison handles long slash runs without excessive backtracking', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      `
+        import assert from 'node:assert/strict'
+        import { currentWorktree } from ${JSON.stringify(new URL('../src/protocol.ts', import.meta.url).href)}
+        const slashes = '/'.repeat(100_000)
+        for (const prefix of ['/repo', 'C:/repo', '//server/share/repo']) {
+          const worktree = { path: prefix + slashes + 'nested', branch: 'main' }
+          assert.equal(currentWorktree({ cwd: worktree.path, worktrees: [worktree] }), worktree)
+          assert.equal(currentWorktree({ cwd: worktree.path + slashes, worktrees: [worktree] }), worktree)
+          assert.equal(currentWorktree({ cwd: worktree.path + '-other', worktrees: [worktree] }), undefined)
+        }
+      `,
+    ],
+    { timeout: 5_000, encoding: 'utf8' }
+  )
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr)
 })
 
 await test('worktree response validation rejects malformed values before render', () => {
