@@ -171,14 +171,14 @@ export function apply(ctx: Context) {
     const [view, setView] = useState<RequestView>()
     useEffect(() => {
       // The leading slot disappears during live activity, and row actions are
-      // hover-only. Keep a separate decoration beside the title in either state.
+      // hover-only. Use the worktree label's trailing seat before those actions.
       const row = anchor.current?.closest('[data-row-key]')
-      const title = row?.children.item(1)
-      if (row?.getAttribute('data-row-key') !== `session:${sessionId}` || !title) return
+      const actions = row?.lastElementChild
+      if (row?.getAttribute('data-row-key') !== `session:${sessionId}` || !actions) return
       const node = document.createElement('span')
       node.style.display = 'inline-flex'
       node.style.flex = 'none'
-      title.after(node)
+      row.insertBefore(node, actions)
       setHost(node)
       return () => node.remove()
     }, [sessionId])
@@ -235,7 +235,7 @@ export function apply(ctx: Context) {
                 display: 'inline-flex',
                 width: 14,
                 height: 14,
-                marginRight: 6,
+                marginInline: 6,
                 color:
                   state === 'open'
                     ? 'var(--dsw-alias-state-success-primary)'

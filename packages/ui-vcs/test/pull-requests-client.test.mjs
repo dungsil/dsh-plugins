@@ -172,7 +172,8 @@ function mount(language = 'en') {
     tree.props.children[0].props.ref.current = {
       closest: () => ({
         getAttribute: () => `session:${sessionId}`,
-        children: { item: () => ({ after: (host) => hosts.push(host) }) },
+        lastElementChild: {},
+        insertBefore: (host) => hosts.push(host),
       }),
     }
     for (const effect of effects.splice(0)) effect()
