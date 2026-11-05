@@ -236,8 +236,8 @@ async function fixture(
 }
 
 // Each test owns its repository, Cordis context and CLI responses.
-describe('pull request RPC', { concurrency: 4 }, () => {
-  test('shows only the current branch PR and distinguishes absent requests, failed lookup and missing CLI', async (t) => {
+await describe('pull request RPC', { concurrency: 4 }, async () => {
+  await test('shows only the current branch PR and distinguishes absent requests, failed lookup and missing CLI', async (t) => {
     const f = await fixture(t)
     assert.deepEqual(await f.rpc(), {
       ok: true,
@@ -272,7 +272,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.rpc()).error.code, 'cli_missing')
   })
 
-  test('GitHub distinguishes a branch without a PR from authentication or transport errors', async (t) => {
+  await test('GitHub distinguishes a branch without a PR from authentication or transport errors', async (t) => {
     const f = await fixture(t)
     f.dispatch(() => new Error('no pull requests found for branch "feat/sidebar"\n'))
     assert.equal((await f.summary()).value.request, null)
@@ -282,7 +282,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     }
   })
 
-  test('overview is available when slow detail endpoints fail, without enabling review or bypassing identity checks', async (t) => {
+  await test('overview is available when slow detail endpoints fail, without enabling review or bypassing identity checks', async (t) => {
     const f = await fixture(t)
     f.setRows({ ...github, body: 'Overview without waiting for CI or diff' })
     f.dispatch((args, next) => (!args.includes('--repo') ? next(args) : new Error('detail unavailable')))
@@ -299,7 +299,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.summary({ principal: { kind: 'viewer', sessionId: 'test' } })).status, 403)
   })
 
-  test('explicit GitHub URLs load the exact non-current PR while mutations still resolve the current branch', async (t) => {
+  await test('explicit GitHub URLs load the exact non-current PR while mutations still resolve the current branch', async (t) => {
     const f = await fixture(t)
     const clicked = {
       ...github,
@@ -339,7 +339,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
   })
 
-  test('explicit URLs reject unrelated repositories, hosts and malformed IDs without querying the clicked target', async (t) => {
+  await test('explicit URLs reject unrelated repositories, hosts and malformed IDs without querying the clicked target', async (t) => {
     const f = await fixture(t)
     for (const requestUrl of [
       'https://github.com/other/project/pull/29',
@@ -380,7 +380,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(f.calls.length, before)
   })
 
-  test('explicit GitHub links preserve repository casing and current upstream fork associations', async (t) => {
+  await test('explicit GitHub links preserve repository casing and current upstream fork associations', async (t) => {
     const mixed = await fixture(t, 'git@github.com:Team/Project.git')
     assert.equal((await mixed.lookup(github.url)).value.request.url, github.url)
     assert.equal((await mixed.lookup('https://github.com/TEAM/PROJECT/pull/17')).value.request.url, github.url)
@@ -400,7 +400,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.ok(!fork.calls.some((call) => call.argv.includes('18')))
   })
 
-  test('explicit GitHub lookup rejects a CLI response for a different request instead of falling back', async (t) => {
+  await test('explicit GitHub lookup rejects a CLI response for a different request instead of falling back', async (t) => {
     const f = await fixture(t)
     assert.equal((await f.lookup('https://github.com/team/project/pull/29')).error.code, 'invalid_response')
     assert.equal(f.calls.length, 1)
@@ -408,7 +408,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.lookup(github.url)).error.code, 'invalid_response')
   })
 
-  test('explicit GitLab URLs load an exact non-current MR in the trusted nested project', async (t) => {
+  await test('explicit GitLab URLs load an exact non-current MR in the trusted nested project', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/sub/project.git')
     const requestUrl = 'https://gitlab.com/team/sub/project/-/merge_requests/29'
     f.setRows([
@@ -444,7 +444,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.ok(!f.calls.some((call) => call.argv[2] === 'note'))
   })
 
-  test('uses the tracked GitLab remote, preserves nested groups, and normalizes MR draft fields', async (t) => {
+  await test('uses the tracked GitLab remote, preserves nested groups, and normalizes MR draft fields', async (t) => {
     const f = await fixture(t)
     f.git('remote', 'add', 'upstream', 'ssh://git@gitlab.com:2222/team/sub/project.git')
     f.git('config', 'branch.feat/sidebar.remote', 'upstream')
@@ -509,7 +509,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.rpc()).value.request, null)
   })
 
-  test('rejects malformed CLI data and unsafe links instead of exposing them', async (t) => {
+  await test('rejects malformed CLI data and unsafe links instead of exposing them', async (t) => {
     const f = await fixture(t)
     for (const rows of [
       { items: [] },
@@ -523,7 +523,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     }
   })
 
-  test('denies shared viewers and unknown sessions; reports missing remotes', async (t) => {
+  await test('denies shared viewers and unknown sessions; reports missing remotes', async (t) => {
     const f = await fixture(t)
     const viewer = { principal: { kind: 'session', sessionId: 'test' }, interactions: 'answer' }
     assert.equal((await f.rpc(viewer)).status, 403)
@@ -532,7 +532,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.rpc()).error.code, 'repository')
   })
 
-  test('requires an explicit provider for enterprise hosts and never forwards remote userinfo', async (t) => {
+  await test('requires an explicit provider for enterprise hosts and never forwards remote userinfo', async (t) => {
     const remote = 'https://user:private@git.example.com/team/project.git'
     const auto = await fixture(t, remote)
     assert.equal((await auto.rpc()).error.code, 'unsupported')
@@ -541,7 +541,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await enterprise.rpc()).value.repository, 'git.example.com/team/project')
   })
 
-  test('GitHub actions return completion only, pin reviews and merge to the fresh SHA, and never retry failures', async (t) => {
+  await test('GitHub actions return completion only, pin reviews and merge to the fresh SHA, and never retry failures', async (t) => {
     const f = await fixture(t)
     f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
     for (const action of [
@@ -581,7 +581,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 4)
   })
 
-  test('rejects stale SHA, URL, changed source, absent requests and closed requests without a mutation', async (t) => {
+  await test('rejects stale SHA, URL, changed source, absent requests and closed requests without a mutation', async (t) => {
     const f = await fixture(t)
     const mutations = () =>
       f.calls.filter(
@@ -601,7 +601,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(mutations().length, 0)
   })
 
-  test('validates action allowlist, lengths, URLs, strategy and owner access before invoking a CLI', async (t) => {
+  await test('validates action allowlist, lengths, URLs, strategy and owner access before invoking a CLI', async (t) => {
     const f = await fixture(t)
     for (const input of [
       { action: 'delete' },
@@ -625,7 +625,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(f.calls.length, 0)
   })
 
-  test('detail failures and unsafe secondary links are explicit and prevent actions; large diffs are bounded', async (t) => {
+  await test('detail failures and unsafe secondary links are explicit and prevent actions; large diffs are bounded', async (t) => {
     const f = await fixture(t)
     for (const dispatch of [
       (args, next) => (args[1] === 'diff' ? new Error('failed diff') : next(args)),
@@ -653,7 +653,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(item.detailsError, undefined)
   })
 
-  test('GitLab details and mutations use explicit nested repository and SHA; unsupported actions never write', async (t) => {
+  await test('GitLab details and mutations use explicit nested repository and SHA; unsupported actions never write', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/sub/project.git')
     const requestUrl = 'https://gitlab.com/team/sub/project/-/merge_requests/8'
     f.setRows([
@@ -727,7 +727,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     }
   })
 
-  test('enterprise GitHub review APIs use the explicit upstream hostname and never remote credentials', async (t) => {
+  await test('enterprise GitHub review APIs use the explicit upstream hostname and never remote credentials', async (t) => {
     const f = await fixture(t, 'https://user:secret@git.example.com/team/project.git', 'github')
     const requestUrl = 'https://git.example.com/upstream/project/pull/17'
     f.setRows({ ...github, url: requestUrl, isDraft: false })
@@ -738,7 +738,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.ok(!f.calls.some((call) => call.argv.some((arg) => arg.includes('user:secret'))))
   })
 
-  test('a moving GitHub or GitLab head marks the detail snapshot incomplete and prevents mutation', async (t) => {
+  await test('a moving GitHub or GitLab head marks the detail snapshot incomplete and prevents mutation', async (t) => {
     for (const provider of ['github', 'gitlab']) {
       const f = await fixture(
         t,
@@ -770,7 +770,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     }
   })
 
-  test('approval rejects truncated diffs; merge allows display truncation but rejects drafts, missing diffs and blocked states', async (t) => {
+  await test('approval rejects truncated diffs; merge allows display truncation but rejects drafts, missing diffs and blocked states', async (t) => {
     const f = await fixture(t)
     f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
     for (const action of ['approve', 'merge']) {
@@ -817,7 +817,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
   })
 
-  test('confines every CLI command and rejects simultaneous session actions without retrying', async (t) => {
+  await test('confines every CLI command and rejects simultaneous session actions without retrying', async (t) => {
     const f = await fixture(t)
     f.confine()
     const input = { action: 'comment', body: '@private-file; $(echo no)' }
@@ -835,7 +835,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 2)
   })
 
-  test('GitLab detail pagination loads later comments and fails explicitly on malformed pages', async (t) => {
+  await test('GitLab detail pagination loads later comments and fails explicitly on malformed pages', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/project.git')
     const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
     f.setRows([
@@ -870,7 +870,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await f.rpc()).value.request.detailsError, true)
   })
 
-  test('GitLab uses the newest head pipeline, keeps its status without jobs, and permits zero required approvals', async (t) => {
+  await test('GitLab uses the newest head pipeline, keeps its status without jobs, and permits zero required approvals', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/project.git')
     const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
     f.setRows([
@@ -920,7 +920,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(writes(), count)
   })
 
-  test('GitLab merged-result CI verifies the current head pipeline commit parent and never trusts older merge results', async (t) => {
+  await test('GitLab merged-result CI verifies the current head pipeline commit parent and never trusts older merge results', async (t) => {
     const f = await fixture(t, 'git@gitlab.com:team/project.git')
     const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
     const mergeSha = 'c'.repeat(40)
@@ -1020,7 +1020,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     changed_files: 1,
   }
 
-  test('explicit forge URLs read the exact PR using trusted login ports and prefixes, not branch discovery', async (t) => {
+  await test('explicit forge URLs read the exact PR using trusted login ports and prefixes, not branch discovery', async (t) => {
     for (const remote of [
       'https://forge.example:3443/git/team/project.git',
       'ssh://git@forge.example:2222/team/project.git',
@@ -1061,7 +1061,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     }
   })
 
-  test('Gitea and Forgejo load the same sidebar details and support comments, reviews and SHA-conditional merges', async (t) => {
+  await test('Gitea and Forgejo load the same sidebar details and support comments, reviews and SHA-conditional merges', async (t) => {
     for (const provider of ['gitea', 'forgejo']) {
       const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', provider)
       f.setRows(forge)
@@ -1121,7 +1121,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     }
   })
 
-  test('forge lookups select an exact configured instance, preserve SSH web ports and prefixes, and fail on HTTP errors', async (t) => {
+  await test('forge lookups select an exact configured instance, preserve SSH web ports and prefixes, and fail on HTTP errors', async (t) => {
     const f = await fixture(t, 'ssh://git@forge.example:2222/team/project.git', 'forgejo')
     f.setRows(forge)
     assert.equal((await f.rpc()).value.request.url, forge.html_url)
@@ -1157,7 +1157,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal((await publicForge.rpc()).value.request.detailsError, undefined)
   })
 
-  test('forge CI, required reviews, missing details, permissions and stale heads block mutations without bypasses', async (t) => {
+  await test('forge CI, required reviews, missing details, permissions and stale heads block mutations without bypasses', async (t) => {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'gitea')
     f.setRows(forge)
     const mutations = () => f.calls.filter((call) => call.argv.includes('POST')).length
@@ -1193,7 +1193,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.equal(mutations(), 1)
   })
 
-  test('forge pagination includes capped later pages and latest CI reruns, and finds PRs in the fork parent', async (t) => {
+  await test('forge pagination includes capped later pages and latest CI reruns, and finds PRs in the fork parent', async (t) => {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'forgejo')
     const parentRequest = {
       ...forge,
@@ -1246,7 +1246,7 @@ describe('pull request RPC', { concurrency: 4 }, () => {
     assert.ok(f.calls.at(-1).argv.at(-1).includes('/api/v1/repos/upstream/project/pulls/23/merge'))
   })
 
-  test('self-managed GitLab uses the configured provider, HTTPS port and nested namespace for reads and writes', async (t) => {
+  await test('self-managed GitLab uses the configured provider, HTTPS port and nested namespace for reads and writes', async (t) => {
     const f = await fixture(t, 'https://user:secret@gitlab.example:8443/team/sub/project.git', 'gitlab')
     const requestUrl = 'https://gitlab.example:8443/team/sub/project/-/merge_requests/8'
     f.setRows([
