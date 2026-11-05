@@ -53,6 +53,52 @@
   },
   "plugins": [
     {
+      "name": "@dungsil/dsh-preset-tools",
+      "title": {
+        "en": "Tools Preset",
+        "ko": "도구 프리셋",
+        "zh": "工具预设"
+      },
+      "description": {
+        "en": "Install Diff Notes and Secret input together.",
+        "ko": "변경 설명과 비밀값 입력 도구를 함께 설치합니다.",
+        "zh": "一起安装变更说明和私密凭据输入工具。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/preset-tools"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["preset", "bundle", "tools"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793860653,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1793860742,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-preset-ui",
       "title": {
         "en": "UI Preset",
@@ -77,8 +123,28 @@
       },
       "versions": [
         {
+          "version": "0.1.1",
+          "publishTimestamp": 1793860679,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1793854533,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1793860757,
           "source": {
             "type": "npm"
           },
@@ -721,6 +787,16 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1793860631,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1793853935,
           "source": {
@@ -852,6 +928,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.4",
+          "publishTimestamp": 1793860658,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.2.3",
           "publishTimestamp": 1793853871,
@@ -997,6 +1083,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1793860697,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5"
+          }
+        },
         {
           "version": "0.2.0",
           "publishTimestamp": 1793854230,
