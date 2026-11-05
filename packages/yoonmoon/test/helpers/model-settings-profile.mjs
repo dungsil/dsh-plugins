@@ -16,8 +16,23 @@ import * as AllPrompts from '@deepseek-ai/dsh-session-title-all-prompts-llm'
 import Skills from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
-import * as Yoonmoon from '@dungsil/dsh-plugin-yoonmoon'
-import * as plugin from '../dist/index.js'
+import * as plugin from '@dungsil/dsh-plugin-model-settings'
+import { worktreeInstructions } from '@dungsil/dsh-task-prompts'
+import * as Yoonmoon from '../../dist/index.js'
+
+const Worktree = {
+  apply(ctx) {
+    ctx.inject(['dungsilModelSettings'], (child) => {
+      const registration = child.dungsilModelSettings.register(ctx, {
+        ...Yoonmoon.modelSettingsDefinition,
+        key: 'branch-name',
+        label: { en: 'Worktree branch name', ko: '워크트리 브랜치 이름', zh: '工作树分支名称' },
+        defaultInstructions: (config) => worktreeInstructions(config.naming ?? 'semantic'),
+      })
+      child.effect(() => () => registration.dispose())
+    })
+  },
+}
 
 export const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 export const titleConfig = {
@@ -142,7 +157,7 @@ export async function profileFixture(
           if (specifier === '@dungsil/dsh-plugin-model-settings') return plugin
           if (specifier === '@dungsil/dsh-plugin-yoonmoon') return yoonmoonPlugin
           // This fixture exercises config ownership and persistence; real worktree calls are tested by ui-worktree.
-          if (specifier === '@dungsil/dsh-plugin-ui-worktree') return { apply() {} }
+          if (specifier === '@dungsil/dsh-plugin-ui-worktree') return Worktree
           throw new Error(`Unexpected import: ${specifier}`)
         },
       }

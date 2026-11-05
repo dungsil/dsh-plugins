@@ -7,6 +7,7 @@ import z from '@deepseek-ai/schemastery'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { BUNDLED_SKILL_RANK, type SkillCandidate, type SkillProvider } from '@deepseek-ai/dsh-skill'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { TaskDefinition, TaskRegistration } from '@dungsil/dsh-plugin-model-settings/contract'
 import { renderYoonmoonInstructions, yoonmoonInstructions } from '@dungsil/dsh-task-prompts'
 import { parse } from 'yaml'
 
@@ -17,12 +18,64 @@ export const Config = z.object({
   provider: z.string(),
   model: z.string(),
   reasoningEffort: z.string(),
+  modelSettings: z.object({
+    inherit: z.union(['auxiliary', 'conversation']).default('auxiliary'),
+    instructions: z.string(),
+  }),
 })
 
 export interface Config {
   provider?: string
   model?: string
   reasoningEffort?: string
+  modelSettings?: { inherit: 'auxiliary' | 'conversation'; instructions?: string }
+}
+
+export const modelSettingsDefinition: TaskDefinition = {
+  key: 'writing',
+  label: { en: 'Yoonmoon writing', ko: '윤문 글쓰기', zh: '韩语润色写作' },
+  description: {
+    en: 'Model and instructions for the Yoonmoon writing tool.',
+    ko: '윤문 글쓰기 도구의 모델과 지침입니다.',
+    zh: '韩语润色写作工具的模型和指令。',
+  },
+  automaticReasoningLabel: { en: 'Model default', ko: '모델 기본값', zh: '模型默认值' },
+  instructionsHint: {
+    en: 'Use {{skill}} for the skill name and {{resources}} for bundled skill instructions and references.',
+    ko: '{{skill}}은 스킬 이름, {{resources}}는 번들 스킬 지침과 참조 자료로 바뀝니다.',
+    zh: '{{skill}} 会替换为技能名称，{{resources}} 会替换为内置技能指令和参考资料。',
+  },
+  read(config) {
+    const local = config.modelSettings as Config['modelSettings']
+    return {
+      selection:
+        typeof config.provider === 'string' && config.provider && typeof config.model === 'string' && config.model
+          ? {
+              mode: 'model',
+              route: { provider: config.provider, model: config.model },
+              reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : null,
+            }
+          : { mode: local?.inherit === 'conversation' ? 'conversation' : 'auxiliary' },
+      instructions: local?.instructions ?? null,
+    }
+  },
+  write(config, settings) {
+    const { provider: _provider, model: _model, reasoningEffort: _effort, modelSettings: _settings, ...rest } = config
+    return {
+      ...rest,
+      ...(settings.selection.mode === 'model'
+        ? {
+            ...settings.selection.route,
+            ...(settings.selection.reasoningEffort ? { reasoningEffort: settings.selection.reasoningEffort } : {}),
+          }
+        : {}),
+      modelSettings: {
+        inherit: settings.selection.mode === 'conversation' ? 'conversation' : 'auxiliary',
+        ...(settings.instructions !== null ? { instructions: settings.instructions } : {}),
+      },
+    }
+  },
+  defaultInstructions: () => yoonmoonInstructions,
 }
 
 const skillNames = [
@@ -47,6 +100,15 @@ function parseSkill(raw: string, skillName: string) {
 export function apply(ctx: Context, config: Config = {}): void {
   const lifetime = new AbortController()
   ctx.effect(() => () => lifetime.abort(), 'yoonmoon: cancel disposed operations')
+  let registration: TaskRegistration | undefined
+  ctx.inject(['dungsilModelSettings'], (child) => {
+    const current = child.dungsilModelSettings.register(ctx, modelSettingsDefinition)
+    registration = current
+    child.effect(() => () => {
+      current.dispose()
+      if (registration === current) registration = undefined
+    })
+  })
   const candidates: SkillCandidate[] = skillNames.map((skillName) => {
     const directory = new URL(`../skills/${skillName}/`, import.meta.url)
     const path = fileURLToPath(new URL('SKILL.md', directory))
@@ -111,11 +173,18 @@ export function apply(ctx: Context, config: Config = {}): void {
           throw new Error('Provide a bundled Yoonmoon skill name and non-empty input text.')
         const signal = AbortSignal.any([exec.signal, lifetime.signal, AbortSignal.timeout(300_000)])
         signal.throwIfAborted()
-        const route =
-          config.provider && config.model
-            ? config
-            : (exec.agent?.session.requestHeader()?.config ?? exec.agent?.options)
+        const conversation = exec.agent?.session.requestHeader()?.config ?? exec.agent?.options
+        const resolved = registration?.resolve({
+          provider: conversation?.provider ?? '',
+          model: conversation?.model ?? '',
+        })
+        const route = resolved?.route ?? (config.provider && config.model ? config : conversation)
         if (!route?.provider || !route.model) throw new Error('No model selected for Yoonmoon.')
+        const effort = resolved
+          ? resolved.reasoningEffort
+          : config.provider && config.model
+            ? config.reasoningEffort
+            : undefined
         // Resolve only bundled paths. The writing model has no tools, so provide its local references upfront.
         const selected = args.skill === 'polishing-korean' ? skillNames : [args.skill]
         const resources = await Promise.all(
@@ -141,10 +210,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           {
             provider: route.provider,
             model: route.model,
-            reasoningEffort:
-              config.provider && config.model && config.reasoningEffort
-                ? ReasoningEffortId(config.reasoningEffort)
-                : undefined,
+            reasoningEffort: effort ? ReasoningEffortId(effort) : undefined,
           },
           signal,
           (controls, model) => ({
@@ -158,7 +224,16 @@ export function apply(ctx: Context, config: Config = {}): void {
         const assembler = new BlockAssembler()
         for await (const chunk of call.stream({
           ...call.config,
-          system: renderYoonmoonInstructions(yoonmoonInstructions, args.skill, resources.join('\n\n')),
+          system: [
+            renderYoonmoonInstructions(
+              resolved?.instructions ?? config.modelSettings?.instructions ?? yoonmoonInstructions,
+              args.skill,
+              resources.join('\n\n')
+            ),
+            resolved?.additionalInstructions,
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
           messages: [
             createUserMessage({
               content: [
