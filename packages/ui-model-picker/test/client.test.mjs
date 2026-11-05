@@ -101,7 +101,7 @@ async function mount(t) {
   )
   const click = (selector) => React.act(async () => document.querySelector(selector).click())
   const slider = () => document.querySelector('input[type=range]')
-  const commit = (value, event = 'pointerup') =>
+  const change = (value, event = 'change') =>
     React.act(async () => {
       const input = slider()
       // Use the native setter so React observes the input rather than its value tracker.
@@ -113,14 +113,37 @@ async function mount(t) {
           : new window.Event(event, { bubbles: true })
       )
     })
+  const commit = async (value, event) => {
+    await change(value, event)
+    await click('.dsh-codex-apply')
+  }
   const reply = (ok = true, project = true) =>
     React.act(async () => {
       const { selection, resolve } = requests.at(-1)
       update({ status: 'ready', ...(ok && project ? { current: selection } : {}) })
       resolve({ ok })
     })
-  return { document, slider, click, commit, reply, requests, update, snapshot: () => snapshot }
+  return { document, slider, click, change, commit, reply, requests, update, snapshot: () => snapshot }
 }
+
+await test('입력과 드래그 및 방향키는 초안만 변경하고 적용 버튼은 변경을 한 번만 확정한다', async (t) => {
+  const h = await mount(t)
+  await h.click('.dsh-codex-trigger')
+  await h.change(0)
+  await h.change(1, 'pointerup')
+  await h.change(2, 'keyup')
+  assert.equal(h.requests.length, 0)
+  assert.equal(h.slider().getAttribute('aria-valuetext'), 'high')
+  const modelButton = h.document.querySelector('.dsh-codex-model')
+  assert.equal(modelButton.getAttribute('aria-label'), null)
+  assert.match(modelButton.textContent, /high.*first/)
+  await h.click('.dsh-codex-apply')
+  await h.click('.dsh-codex-apply')
+  assert.equal(h.requests.length, 1)
+  assert.deepEqual({ ...h.requests[0].selection }, { provider: 'provider', model: 'first', reasoningEffort: 'high' })
+  await h.reply()
+  assert.equal(h.snapshot().current.reasoningEffort, 'high')
+})
 
 await test('추론 강도를 저장해도 슬라이더 포커스와 버튼의 활성 표시를 유지한다', async (t) => {
   const h = await mount(t)
@@ -159,7 +182,9 @@ await test('다른 모델의 추론 강도를 적용하고 늦게 선택 상태�
   const h = await mount(t)
   await h.click('.dsh-codex-trigger')
   await h.click('.dsh-codex-model')
-  await h.click('[role=radio]:last-child')
+  assert.equal(h.document.querySelector('[role=radio]'), null)
+  assert.equal(h.document.querySelector('[aria-current=true]').textContent, 'first')
+  await h.click('.dsh-codex-models button:last-child')
   const input = h.slider()
   await h.commit(2)
   await h.reply(true, false)
@@ -176,8 +201,20 @@ await test('다른 모델의 추론 강도를 적용하고 늦게 선택 상태�
   assert.equal(h.snapshot().current.reasoningEffort, 'medium')
   await React.act(async () => h.update({ current: { provider: 'provider', model: 'first', reasoningEffort: 'low' } }))
   assert.equal(h.slider(), null)
+  assert.ok(h.document.activeElement === h.document.querySelector('.dsh-codex-trigger'))
   await h.click('.dsh-codex-trigger')
   await h.click('.dsh-codex-reset')
   await h.reply()
   assert.equal(h.slider(), null)
+})
+
+await test('외부 변경으로 팝업을 닫아도 팝업 밖 컨트롤의 포커스를 빼앗지 않는다', async (t) => {
+  const h = await mount(t)
+  await h.click('.dsh-codex-trigger')
+  const outside = h.document.createElement('button')
+  h.document.body.append(outside)
+  outside.focus()
+  await React.act(async () => h.update({ current: { provider: 'provider', model: 'second', reasoningEffort: 'low' } }))
+  assert.equal(h.slider(), null)
+  assert.ok(h.document.activeElement === outside)
 })
