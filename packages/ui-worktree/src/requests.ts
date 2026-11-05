@@ -4,6 +4,7 @@ export const copy = {
     detached: '分离的 HEAD',
     unknown: '无法获取分支',
     create: '新工作树',
+    primaryBranch: '普通分支',
     reservationHint: '发送下一条提示后，将先创建并切换到新工作树再开始任务。选择现有工作树可取消。',
     creationError: '无法确认创建结果，尚未开始任务。请刷新列表，选择工作树或重新预约，然后重新发送提示。',
     close: '关闭',
@@ -41,6 +42,7 @@ export const copy = {
     detached: 'Detached HEAD',
     unknown: 'Branch unavailable',
     create: 'New worktree',
+    primaryBranch: 'Regular branch',
     reservationHint:
       'The next prompt will create and enter a new worktree before starting work. Select an existing worktree to cancel.',
     creationError:
@@ -81,6 +83,7 @@ export const copy = {
     detached: '분리된 HEAD',
     unknown: '브랜치 확인 불가',
     create: '새 워크트리',
+    primaryBranch: '일반 브랜치',
     reservationHint:
       '다음 프롬프트를 전송하면 새 워크트리를 생성·전환한 뒤 작업을 시작합니다. 기존 워크트리를 선택하면 예약을 취소합니다.',
     creationError:
