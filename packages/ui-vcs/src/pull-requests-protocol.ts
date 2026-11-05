@@ -2,6 +2,12 @@ export const channel = '/api'
 export const method = 'dungsil-vcs/pull-requests/list'
 export const actionMethod = 'dungsil-vcs/pull-requests/action'
 
+export interface GitContext {
+  operation: 'push' | 'pr'
+  headSha: string
+  dirty: boolean
+}
+
 export interface RequestAction {
   sessionId: string
   requestUrl: string

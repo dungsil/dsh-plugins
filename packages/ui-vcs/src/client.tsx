@@ -10,7 +10,7 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
-import { channel, method, type RequestView } from './pull-requests-protocol.js'
+import { channel, method, type GitContext, type RequestView } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-ui-vcs'
 export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection', 'sidebarRightTabs', 'sidebarRight']
@@ -35,6 +35,7 @@ Use the existing tools and approval flow without weakening permissions. If Git, 
 const copy = {
   en: {
     pr: 'Create PR',
+    updatePr: 'Update PR',
     viewPr: 'View PR',
     push: 'Push',
     commit: 'Commit only',
@@ -49,6 +50,7 @@ const copy = {
   },
   ko: {
     pr: 'PR 생성',
+    updatePr: 'PR 업데이트',
     viewPr: 'PR 보기',
     push: '푸시',
     commit: '커밋만',
@@ -62,6 +64,7 @@ const copy = {
   },
   zh: {
     pr: '创建 PR',
+    updatePr: '更新 PR',
     viewPr: '查看 PR',
     push: '推送',
     commit: '仅提交',
@@ -95,12 +98,14 @@ export function apply(ctx: Context) {
     const cwd = useProjection('workingDirectory')
     const [operation, setOperation] = useState<'push' | 'pr'>()
     const [hasRequest, setHasRequest] = useState(false)
+    const [needsUpdate, setNeedsUpdate] = useState(false)
     const [lookup, setLookup] = useState<'loading' | 'ready' | 'error'>('loading')
     const [open, setOpen] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
     const statusId = useId()
     const disabled = !canPrompt || unavailable || status === 'sending'
+    const viewOnly = hasRequest && !needsUpdate
 
     useEffect(() => {
       if (!hasChanges || hidden || unavailable) return
@@ -112,19 +117,25 @@ export function apply(ctx: Context) {
         setLookup('loading')
         setOperation(undefined)
         setHasRequest(false)
+        setNeedsUpdate(false)
         try {
           const result = await connection.rpc.call('/api', 'dungsil-vcs/describe', { sessionId }, signal)
           if (signal.aborted) return
-          if (!result.ok || (result.value !== 'push' && result.value !== 'pr'))
-            throw new Error('Git context unavailable')
-          setOperation(result.value)
-          if (result.value === 'pr') {
+          if (!result.ok) throw new Error('Git context unavailable')
+          const context = result.value as GitContext
+          if (context.operation !== 'push' && context.operation !== 'pr') throw new Error('Git context unavailable')
+          setOperation(context.operation)
+          if (context.operation === 'pr') {
             // Review lookup may be unavailable before the first push or without a hosting CLI.
             // Keep creation available in that case; the agent still checks for an existing PR.
             try {
               const requests = await connection.rpc.call(channel, method, { sessionId }, signal)
               if (signal.aborted) return
-              if (requests.ok) setHasRequest(!!(requests.value as RequestView).request)
+              if (requests.ok) {
+                const request = (requests.value as RequestView).request
+                setHasRequest(!!request)
+                setNeedsUpdate(!!request && (context.dirty || context.headSha !== request.headSha))
+              }
             } catch {
               if (signal.aborted) return
             }
@@ -143,8 +154,8 @@ export function apply(ctx: Context) {
     }, [sessionId, cwd, hasChanges, hidden, unavailable])
 
     useEffect(() => {
-      if (disabled || hasRequest) setOpen(false)
-    }, [disabled, hasRequest])
+      if (disabled || viewOnly) setOpen(false)
+    }, [disabled, viewOnly])
 
     useEffect(() => {
       const conversation = anchor.current?.closest('[data-conversation-session]')
@@ -173,8 +184,9 @@ export function apply(ctx: Context) {
         // Re-read before submission: another tool or terminal may have switched the branch.
         if (selected !== 'commit') {
           const result = await connection.rpc.call('/api', 'dungsil-vcs/describe', { sessionId })
-          if (!result.ok || result.value !== selected) {
-            setOperation(result.ok && (result.value === 'push' || result.value === 'pr') ? result.value : undefined)
+          const current = result.ok ? (result.value as GitContext).operation : undefined
+          if (current !== selected) {
+            setOperation(current === 'push' || current === 'pr' ? current : undefined)
             setLookup(result.ok ? 'ready' : 'error')
             setStatus('idle')
             return
@@ -200,33 +212,43 @@ export function apply(ctx: Context) {
         <div className="dsh-vcs-actions">
           <Pill
             className="dsh-vcs-trigger"
-            disabled={(!hasRequest && disabled) || !operation || lookup !== 'ready'}
-            title={hasRequest ? text.viewPr : text.hint}
+            disabled={(!viewOnly && disabled) || !operation || lookup !== 'ready'}
+            title={viewOnly ? text.viewPr : text.hint}
             aria-describedby={statusId}
             aria-busy={status === 'sending'}
             onClick={() => {
-              if (hasRequest) ctx.sidebarRight.openTab(PullRequests.name)
+              if (viewOnly) ctx.sidebarRight.openTab(PullRequests.name)
               else if (operation) void send(operation)
             }}
           >
             <IconBranchOutlineRegular aria-hidden="true" />
-            {hasRequest
+            {viewOnly
               ? text.viewPr
               : status === 'sending'
                 ? text.sending
                 : operation === 'push'
                   ? text.push
-                  : text.pr}
+                  : hasRequest
+                    ? text.updatePr
+                    : text.pr}
           </Pill>
-          {!hasRequest && (
+          {!viewOnly && (
             <Menu
               open={open}
               side="top"
               portal
               compact
-              items={[{ id: 'commit', label: text.commit }]}
+              items={[
+                ...(hasRequest ? [{ id: 'view', label: text.viewPr }] : []),
+                { id: 'commit', label: text.commit },
+              ]}
               onClose={() => setOpen(false)}
-              onSelect={() => void send('commit')}
+              onSelect={(id) => {
+                if (id === 'view') {
+                  setOpen(false)
+                  ctx.sidebarRight.openTab(PullRequests.name)
+                } else void send('commit')
+              }}
               anchor={
                 <Pill
                   className="dsh-vcs-trigger dsh-vcs-menu"
