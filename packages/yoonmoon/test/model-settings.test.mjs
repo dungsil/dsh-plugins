@@ -370,6 +370,22 @@ await test('기존 설정을 잃지 않고 권한이 없거나 잘못되었거�
   assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'unavailable')
 })
 
+await test('원본 설정이 없는 활성 워크트리도 조회하고 설정하고 다시 불러온다', async (t) => {
+  const h = await profileFixture('first-prompt', {}, null)
+  t.after(h.close)
+  const initial = (await h.rpc('describe')).value.worktree
+  assert.equal(initial.route, null)
+  assert.equal(initial.reasoningEffort, null)
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  const saved = await h.rpc('save', { ...initial, route, reasoningEffort: 'thorough' })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.route, route)
+  await h.restart()
+  const restored = (await h.rpc('describe')).value.worktree
+  assert.deepEqual(restored.route, route)
+  assert.equal(restored.reasoningEffort, 'thorough')
+})
+
 await test('워크트리 라우트는 제목과 독립적으로 유지되고 다른 설정을 보존하며 오래된 쓰기를 거부한다', async (t) => {
   const h = await profileFixture('first-prompt', {}, { namingStyle: 'semantic' })
   t.after(h.close)

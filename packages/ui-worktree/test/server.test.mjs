@@ -122,7 +122,6 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   }
   let agent, harness
   const requests = []
-  const inspections = new Map()
   const resolutions = []
   ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
     root.provide('profileContext', profile)
@@ -167,11 +166,6 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       resolveAgent: async (id) => {
         resolutions.push(id)
         return id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } }
-      },
-      inspect: async (id) => {
-        const inspection = inspections.get(id)
-        if (!inspection) throw { code: 'session/not-found' }
-        return inspection
       },
     })
   })
@@ -289,7 +283,6 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     newSession,
     harness,
     archive,
-    inspections,
     resolutions,
     holdDescribeChildren,
   }
@@ -363,7 +356,7 @@ await test('실패한 생성 예약은 새 예약으로 복구하고 첫 작업 
 
 for (const kind of ['user', 'user-rpc']) {
   await test(`${kind} 작업의 pre-step 실패는 durable claim으로 기록되고 플러그인 재시작과 콜드 복원 후에도 위치를 고정한다`, async (t) => {
-    const { ctx, agent, repo, rpc, inspections, requests } = await fixture(t, {}, { defaultSelection: 'new' })
+    const { ctx, agent, repo, rpc, requests } = await fixture(t, {}, { defaultSelection: 'new' })
     const remove = ctx.on('agent/pre-step', async () => {
       throw new Error('Rejected before user/message')
     })
@@ -397,11 +390,12 @@ for (const kind of ['user', 'user-rpc']) {
       assert.equal((await rpc('select', { cwd: repo, choice })).error.code, 'conflict')
     assert.equal((await rpc('create', { cwd: repo, name: 'late' })).error.code, 'conflict')
     const id = SessionId(`restored-${kind}`)
-    inspections.set(id, {
-      meta: { ...agent.session.header, id },
-      events: agent.session.snapshotEvents(),
-      inheritedEventCount: 0,
-    })
+    const stored = await ctx.sessionPersistence.create({ ...agent.session.header, id }, { inheritedEventCount: 0 })
+    try {
+      await stored.append(agent.session.snapshotEvents())
+    } finally {
+      await stored.close()
+    }
     assert.equal((await rpc('describe', { sessionId: id })).value.locked, true)
     assert.equal(ctx.agents.get(id), undefined)
   })
@@ -972,15 +966,20 @@ await test('실제 생성의 쓰기 정책은 조회 모드로 낮추거나 우�
 })
 
 await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지 않고 읽는다', async (t) => {
-  const { ctx, agent, repo, other, rpc, inspections, resolutions } = await fixture(t)
+  const { ctx, agent, repo, other, rpc, resolutions } = await fixture(t)
   const id = SessionId('cold-worktree-read')
   const cold = Session.create(id, agent.session.snapshotEvents(), { ...agent.session.header, id })
   cold.append('working-directory/change', { cwd: other })
   setSandboxMode(cold, 'read-only')
   cold.append('turn/start', { turn: 1 })
-  cold.append('step/start', { turn: 1, step: 0 })
+  cold.append('step/start', { turn: 1, step: 1 })
   const events = cold.snapshotEvents()
-  inspections.set(id, { meta: cold.header, inheritedEventCount: cold.inheritedEventCount, events })
+  const handle = await ctx.sessionPersistence.create(cold.header, { inheritedEventCount: cold.inheritedEventCount })
+  try {
+    await handle.append(events)
+  } finally {
+    await handle.close()
+  }
   assert.equal(ctx.agents.get(id), undefined)
   const result = await rpc('describe', { sessionId: id })
   assert.equal(result.ok, true)
@@ -995,13 +994,18 @@ await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지
 })
 
 await test('다수의 동시 조회는 waitForExit가 끝나기 전까지 자식 핸들을 두 개만 유지한다', async (t) => {
-  const { agent, rpc, inspections, resolutions, holdDescribeChildren } = await fixture(t)
+  const { ctx, agent, rpc, resolutions, holdDescribeChildren } = await fixture(t)
   const id = SessionId('cold-concurrent-read')
-  inspections.set(id, {
-    meta: { ...agent.session.header, id },
-    inheritedEventCount: agent.session.inheritedEventCount,
-    events: agent.session.snapshotEvents(),
+  const cold = Session.create(id, agent.session.snapshotEvents(), { ...agent.session.header, id })
+  cold.append('working-directory/change', { cwd: agent.session.header.cwd })
+  const stored = await ctx.sessionPersistence.create(cold.header, {
+    inheritedEventCount: cold.inheritedEventCount,
   })
+  try {
+    await stored.append(cold.snapshotEvents())
+  } finally {
+    await stored.close()
+  }
   const before = agent.session.snapshotEvents()
   const children = holdDescribeChildren()
   const requests = Array.from({ length: 16 }, (_, index) => rpc('describe', index % 2 ? { sessionId: id } : {}))
@@ -1032,11 +1036,11 @@ await test('대기 중 취소된 콜드 조회는 세션을 검사하거나 자�
   const children = holdDescribeChildren()
   const active = [rpc('describe'), rpc('describe')]
   const controller = new AbortController()
-  const inspect = ctx.sessionController.inspect
+  const open = ctx.sessionPersistence.open.bind(ctx.sessionPersistence)
   let inspections = 0
-  ctx.sessionController.inspect = async (...args) => {
+  ctx.sessionPersistence.open = async (...args) => {
     inspections++
-    return inspect(...args)
+    return open(...args)
   }
   let queued
   try {
@@ -1052,7 +1056,7 @@ await test('대기 중 취소된 콜드 조회는 세션을 검사하거나 자�
     controller.abort()
     children.releaseAll()
     await Promise.all([...active, ...(queued ? [queued] : [])])
-    ctx.sessionController.inspect = inspect
+    ctx.sessionPersistence.open = open
   }
   assert.equal((await rpc('describe')).ok, true)
   assert.equal(children.handles.length, 3, 'Only the later non-cancelled request may spawn')
@@ -1088,7 +1092,7 @@ await test('플러그인을 폐기하면 대기 중인 콜드 조회는 검사�
   const children = holdDescribeChildren()
   const active = [rpc('describe'), rpc('describe')]
   let inspections = 0
-  ctx.sessionController.inspect = async () => {
+  ctx.sessionPersistence.open = async () => {
     inspections++
     throw { code: 'session/not-found' }
   }

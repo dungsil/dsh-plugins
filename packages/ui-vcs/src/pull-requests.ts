@@ -19,7 +19,15 @@ import {
 } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-vcs-pull-requests'
-export const inject = ['connection', 'sessionController', 'workingDirectory', 'subprocess', 'sandbox', 'sandboxPolicy']
+export const inject = [
+  'connection',
+  'sessionController',
+  'sessionPersistence',
+  'workingDirectory',
+  'subprocess',
+  'sandbox',
+  'sandboxPolicy',
+]
 export const Config = z.object({
   provider: z.union(['auto', 'github', 'gitlab', 'gitea', 'forgejo']).default('auto'),
 })

@@ -55,7 +55,8 @@ export async function apply(ctx: Context) {
     tasks.clear()
   })
   // Locate our configuration by ownership, not by a conventional entry id.
-  const settingsEntry = () => editor.entries().find((entry) => entry.fiber === ctx.fiber && ctx.fiber.state === 2)
+  const settingsEntry = () =>
+    editor.entries().find((entry) => entry.fiber?.uid === ctx.fiber.uid && ctx.fiber.state === 2)
 
   const auxiliary = (): TaskSnapshot | null => {
     const entry = settingsEntry()
@@ -103,9 +104,11 @@ export async function apply(ctx: Context) {
   }
   const snapshot = (id: string): TaskSnapshot | null => {
     const task = tasks.get(id)
-    if (!task || task.entry.fiber !== task.owner.fiber || task.owner.fiber.state !== 2) return null
+    if (!task || task.entry.fiber?.uid !== task.owner.fiber.uid || task.owner.fiber.state !== 2) return null
     const settings = read(task)
-    const defaultInstructions = task.definition.defaultInstructions(task.owner.fiber.config ?? {})
+    const defaultInstructions = task.definition.defaultInstructions(
+      task.owner.fiber.effectiveConfig ?? task.owner.fiber.config ?? {}
+    )
     const { key, label, description, automaticReasoningLabel, instructionsHint } = task.definition
     return {
       id,
@@ -339,7 +342,7 @@ export async function apply(ctx: Context) {
         // Await only the optional child fibers belonging to this owner.
         const children = [...ctx.registry.values()]
           .flatMap((runtime) => [...runtime.fibers])
-          .filter((fiber) => fiber.parent.fiber === owner?.fiber && 'dungsilModelSettings' in fiber.inject)
+          .filter((fiber) => fiber.parent.fiber.uid === owner?.fiber?.uid && 'dungsilModelSettings' in fiber.inject)
         await Promise.all(children.map((fiber) => fiber.await()))
       }
       const saved = find(input.id, v2)

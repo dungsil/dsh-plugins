@@ -72,7 +72,7 @@ export function apply(ctx: Context, config: Config) {
   ctx.effect(() => () => lifetime.abort())
   const currentURL = () => serverURL(config.baseURL.get())
   const ownerEntry = () => {
-    const entries = ctx.configEditor.entries().filter((entry) => entry.fiber === ctx.fiber)
+    const entries = ctx.configEditor.entries().filter((entry) => entry.fiber?.uid === ctx.fiber.uid)
     if (entries.length !== 1) throw new Error('unavailable')
     return entries[0]!
   }

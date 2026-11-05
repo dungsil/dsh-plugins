@@ -20,6 +20,8 @@ async function fixture(t) {
   let peak = 0
   const children = []
   const inspections = []
+  const reads = []
+  const closes = []
   t.after(async () => {
     released = true
     for (const child of children) child.release()
@@ -58,13 +60,26 @@ async function fixture(t) {
   ctx.provide('sandbox', {})
   ctx.provide('sessionController', {
     resolveAgent: () => assert.fail('읽기 조회는 Agent를 활성화하지 않는다'),
-    inspect: async (id, signal) => {
+  })
+  ctx.provide('sessionPersistence', {
+    open: async (id, access, { signal }) => {
+      assert.equal(access, 'read')
       signal.throwIfAborted()
       inspections.push(id)
       return {
-        events: [],
-        meta: { version: SESSION_FORMAT_VERSION, id, cwd: home, createdAt: 0, isSeeded: false },
+        header: { version: SESSION_FORMAT_VERSION, id, cwd: home, createdAt: 0, isSeeded: false },
         inheritedEventCount: 0,
+        read: async (start, end, options) => {
+          assert.equal(start, undefined)
+          assert.equal(end, undefined)
+          assert.equal(options.signal, signal)
+          signal.throwIfAborted()
+          reads.push(id)
+          return { events: [] }
+        },
+        close: async () => {
+          closes.push(id)
+        },
       }
     },
   })
@@ -88,6 +103,8 @@ async function fixture(t) {
     rpc,
     children,
     inspections,
+    reads,
+    closes,
     fork,
     peak: () => peak,
     active: () => active,
@@ -114,6 +131,8 @@ await test('Git 문맥과 PR 조회는 같은 실행 한도를 공유하고 자�
   assert.equal(f.children.length, 24)
   assert.equal(f.peak(), 2)
   assert.equal(f.active(), 0)
+  assert.deepEqual(f.reads, f.inspections)
+  assert.deepEqual(f.closes, f.inspections)
 })
 
 await test('대기 중 취소된 VCS 조회는 세션 검사와 자식 프로세스를 시작하지 않는다', async (t) => {
@@ -127,6 +146,7 @@ await test('대기 중 취소된 VCS 조회는 세션 검사와 자식 프로세
   controller.abort()
   assert.equal((await cancelled).ok, false)
   assert.deepEqual(f.inspections, ['first', 'second'])
+  assert.deepEqual(f.closes, ['first', 'second'])
   assert.equal(f.children.length, 2)
   f.release()
   await Promise.all([first, second])

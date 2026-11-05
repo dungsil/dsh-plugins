@@ -21,7 +21,7 @@ export function createTitleAdapter(
   auxiliary: () => TaskSnapshot | null
 ) {
   const editor = ctx.configEditor
-  const wrapped = new WeakSet<object>()
+  const wrapped = new Set<Context['fiber']['uid']>()
   const targetEntry = () => {
     const entries = editor.entries().filter((entry) => titlePlugins.has(entry.options.name))
     return entries.length === 1 && entries[0]!.fiber?.state === 2 ? entries[0] : undefined
@@ -30,7 +30,7 @@ export function createTitleAdapter(
     const entry = targetEntry()
     if (!entry) return null
     const owner = settingsEntry()
-    const config = entry.fiber!.config as {
+    const config = (entry.fiber!.effectiveConfig ?? entry.fiber!.config) as {
       provider?: string
       model?: string
       targetWords: number
@@ -92,9 +92,10 @@ export function createTitleAdapter(
     if (service === 'sessionTitle') {
       const titles = next() as Context['sessionTitle']
       const register: Context['sessionTitle']['register'] = (provider) => {
-        wrapped.add(consumer.fiber)
+        const uid = consumer.fiber.uid
+        wrapped.add(uid)
         consumer.effect(() => () => {
-          wrapped.delete(consumer.fiber)
+          wrapped.delete(uid)
         })
         return titles.register({
           ...provider,
@@ -210,7 +211,7 @@ export function createTitleAdapter(
     if (!title) return
     try {
       await title.await()
-      if (title.state === 2 && !wrapped.has(title)) await title.restart()
+      if (title.state === 2 && !wrapped.has(title.uid)) await title.restart()
     } catch {
       // An optional provider's startup failure must not disable other tasks.
     }

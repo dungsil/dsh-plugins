@@ -31,15 +31,15 @@
     "prepack": "pnpm build"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-session-query": "0.2.1-rc.5",
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-query": "0.2.2-rc.1",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
@@ -50,13 +50,13 @@
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5",
-    "@deepseek-ai/dsh-session-query": "^0.2.1-rc.5"
+    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-query": "^0.2.1-rc.5 || ^0.2.2-rc.1"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5",
+    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {

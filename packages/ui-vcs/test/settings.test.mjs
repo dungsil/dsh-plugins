@@ -7,6 +7,7 @@ import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
@@ -60,6 +61,7 @@ await test('소유자만 커밋 설정을 영속 저장하며 오래된 값과 �
       root.loader.internal = { version: 'v2', import: async () => plugin }
       await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
       await root.plugin(Connection)
+      await root.plugin(SessionPersistenceJsonl, { root: join(home, 'sessions') })
       root.provide('sessionController', { resolveAgent: async () => ({ error: { code: 'not-found' } }) })
       root.provide('workingDirectory', {})
       await root.plugin(SubprocessLocal)

@@ -3,7 +3,7 @@ import { Menu, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import { IconChevronDownOutlineRegular } from './icons.js'
 import { installStyles } from './client.js'
 
-/** The rc.5 settings shell has no icon slot, so decorate only the matching navigation rows. */
+/** Decorate matching navigation rows in both the rc.5 and 0.2.2 settings shells. */
 export function installSettingsIcon(
   id: string,
   labels: readonly string[],
@@ -12,7 +12,8 @@ export function installSettingsIcon(
   const attribute = 'data-dsh-settings-icon'
   const selector = `[${attribute}="${id}"]`
   const removeStyles = installStyles(`
-${selector} > svg { display: none; }
+${selector} > svg,
+${selector} > [aria-hidden="true"]:not([data-dsh-settings-icon-glyph]) { display: none; }
 ${typeof icon === 'string' ? `${selector}::before { content: ''; display: block; flex: none; width: 16px; height: 16px; background: currentColor; mask: url("data:image/svg+xml,${encodeURIComponent(icon)}") center / contain no-repeat; }` : ''}
 ${selector} > [data-dsh-settings-icon-glyph] { display: inline-flex; flex: none; }
 `)

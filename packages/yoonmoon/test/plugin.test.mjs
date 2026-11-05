@@ -7,6 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Llm, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import SkillRegistry, { isModelInvocable, isUserInvocable, renderSkillContent } from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
 
@@ -110,6 +111,7 @@ await test('쓰기 도구는 선택된 모델과 입력만 사용하고 파이�
   await ctx.plugin(Llm)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   await ctx.plugin(SkillRegistry)
   class WritingAdapter extends LlmAdapter {
     requests = []
@@ -139,8 +141,15 @@ await test('쓰기 도구는 선택된 모델과 입력만 사용하고 파이�
   ctx.llm.registerAdapter(['writing'], adapter)
   const fork = ctx.plugin(plugin, { provider: 'writing', model: 'editor' })
   await fork
-  const run = (args, signal = new AbortController().signal) =>
-    ctx.tools.execute({ name: 'yoonmoon', callId: 'writing', arguments: args, signal })
+  const run = async (args, signal = new AbortController().signal) => {
+    const batch = await ctx.tools.execute({
+      calls: [{ type: 'tool-call', id: 'writing', name: 'yoonmoon', arguments: JSON.stringify(args) }],
+      signal,
+    })
+    assert.equal(batch.results.length, 1)
+    assert.equal(batch.results[0].callId, 'writing')
+    return batch.results[0].result
+  }
   for (const skill of names) {
     const result = await run({ skill, text: '원문입니다.', instructions: '해요체로 바꾸세요.' })
     assert.equal(result.isError, false)
@@ -250,6 +259,7 @@ await test('선택적 모델 설정 서비스는 나중에 연결되고 해제�
   await ctx.plugin(Llm)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   await ctx.plugin(SkillRegistry)
   class RecordingAdapter extends LlmAdapter {
     requests = []
@@ -277,13 +287,20 @@ await test('선택적 모델 설정 서비스는 나중에 연결되고 해제�
   })
   await fork
   const run = async () => {
-    const result = await ctx.tools.execute({
-      name: 'yoonmoon',
-      callId: 'optional-service',
-      arguments: { skill: 'proofreading-korean', text: '안되요.' },
+    const batch = await ctx.tools.execute({
+      calls: [
+        {
+          type: 'tool-call',
+          id: 'optional-service',
+          name: 'yoonmoon',
+          arguments: JSON.stringify({ skill: 'proofreading-korean', text: '안되요.' }),
+        },
+      ],
       signal: new AbortController().signal,
     })
-    assert.equal(result.isError, false)
+    assert.equal(batch.results.length, 1)
+    assert.equal(batch.results[0].callId, 'optional-service')
+    assert.equal(batch.results[0].result.isError, false)
     return adapter.requests.at(-1)
   }
   assert.equal((await run()).system, 'Local proofreading-korean.')

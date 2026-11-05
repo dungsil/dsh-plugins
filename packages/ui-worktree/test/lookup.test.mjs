@@ -23,8 +23,15 @@ function fixture(t, { mode = 'workspace-write', confine, spawn, events = [], col
     on() {},
     workspaceRegistry: { archivedSessionIds: [] },
     agents: { get: () => (cold ? undefined : { session }) },
-    sessionController: {
-      inspect: async () => ({ events: session.snapshotEvents(), meta: session.header, inheritedEventCount: 0 }),
+    sessionPersistence: {
+      async open() {
+        return {
+          header: session.header,
+          inheritedEventCount: 0,
+          read: async () => ({ events: session.snapshotEvents() }),
+          close: async () => {},
+        }
+      },
     },
     workingDirectory: { get: () => 'C:/repo' },
     sandboxPolicy: { resolve: () => policy },

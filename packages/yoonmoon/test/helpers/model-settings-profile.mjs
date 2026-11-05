@@ -15,6 +15,7 @@ import * as FirstPrompt from '@deepseek-ai/dsh-session-title-first-prompt-llm'
 import * as AllPrompts from '@deepseek-ai/dsh-session-title-all-prompts-llm'
 import Skills from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import Tools from '@deepseek-ai/dsh-tools'
 import * as plugin from '@dungsil/dsh-plugin-model-settings'
 import { worktreeInstructions } from '@dungsil/dsh-task-prompts'
@@ -108,8 +109,14 @@ export async function profileFixture(
           { id: 'editor', name: 'cordis:editor' },
           { id: 'custom-title-entry', name: providerName, config: { ...titleConfig, ...initialRoute } },
           { id: 'model-settings', name: '@dungsil/dsh-plugin-model-settings' },
-          ...(worktreeConfig
-            ? [{ id: 'custom-worktree-entry', name: '@dungsil/dsh-plugin-ui-worktree', config: worktreeConfig }]
+          ...(worktreeConfig !== undefined
+            ? [
+                {
+                  id: 'custom-worktree-entry',
+                  name: '@dungsil/dsh-plugin-ui-worktree',
+                  ...(worktreeConfig === null ? {} : { config: worktreeConfig }),
+                },
+              ]
             : []),
           ...(yoonmoonConfig
             ? [
@@ -168,6 +175,7 @@ export async function profileFixture(
         await root.plugin(Skills)
         await root.plugin(SystemPrompt)
         await root.plugin(Tools)
+        await root.plugin(NativeToolExecutor)
       }
       await root.plugin(Sessions)
       await root.plugin(Projections)
@@ -210,14 +218,20 @@ export async function profileFixture(
         reasoningEffort: 'quick',
       })
       agent.session.append('request/header', { header: { config: agent.options }, reason: 'initial' })
-      const result = await ctx.tools.execute({
-        name: 'yoonmoon',
-        callId: id,
-        arguments: { skill: 'proofreading-korean', text: '안되요.' },
+      const batch = await ctx.tools.execute({
+        calls: [
+          {
+            type: 'tool-call',
+            id,
+            name: 'yoonmoon',
+            arguments: JSON.stringify({ skill: 'proofreading-korean', text: '안되요.' }),
+          },
+        ],
         agent,
         signal: new AbortController().signal,
       })
-      return { result, config: agent.session.requestHeader().config }
+      if (batch.results.length !== 1 || batch.results[0].callId !== id) throw new Error('Unexpected tool batch result')
+      return { result: batch.results[0].result, config: agent.session.requestHeader().config }
     },
     async rpc(endpoint, payload = {}, peer = owner) {
       const method = `dungsil-model-settings/${endpoint}`

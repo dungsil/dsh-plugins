@@ -16,7 +16,15 @@ import { readQueue } from './read-queue.js'
 export { Config } from './settings.js'
 
 export const name = 'dungsil-ui-vcs'
-export const inject = ['connection', 'sessionController', 'subprocess', 'sandbox', 'sandboxPolicy', 'workingDirectory']
+export const inject = [
+  'connection',
+  'sessionController',
+  'sessionPersistence',
+  'subprocess',
+  'sandbox',
+  'sandboxPolicy',
+  'workingDirectory',
+]
 
 export function apply(ctx: Context, config: Settings.Config) {
   const lifetime = new AbortController()

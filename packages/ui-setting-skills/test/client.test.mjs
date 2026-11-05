@@ -58,32 +58,48 @@ await test('설정은 로케일, 내비게이션 재마운트, 플러그인 언�
   const nav = window.document.createElement('nav')
   modal.append(nav)
   window.document.body.append(modal)
-  const makeRow = (label) => {
+  const makeRow = (label, wrapped = false) => {
     const row = window.document.createElement('button')
-    row.innerHTML = `<svg aria-hidden="true"></svg><span>${label}</span>`
+    const icon = '<svg aria-hidden="true"></svg>'
+    row.innerHTML = `${wrapped ? `<span aria-hidden="true"><span data-slot="settings.section.icon">${icon}</span></span>` : icon}<span>${label}</span>`
     return row
   }
-  const neighbor = makeRow('General')
+  const neighbor = makeRow('General', true)
   const skills = makeRow('Skills')
-  nav.append(neighbor, skills)
+  const wrappedSkills = makeRow('Skills', true)
+  nav.append(neighbor, skills, wrappedSkills)
   await settle()
   for (const label of ['Skills', '스킬', '技能']) {
     skills.querySelector('span:last-child').textContent = label
+    wrappedSkills.querySelector(':scope > span:last-child').textContent = label
     await settle()
     assert.equal(skills.textContent, label)
     assert.equal(skills.querySelectorAll('svg[data-icon="skill"]').length, 1)
     assert.equal(skills.querySelector('svg[data-icon="skill"]').getAttribute('width'), '16')
     assert.equal(skills.querySelector('svg[data-icon="skill"]').parentElement.getAttribute('aria-hidden'), 'true')
     assert.equal(window.getComputedStyle(skills.querySelector(':scope > svg')).display, 'none')
+    assert.equal(wrappedSkills.textContent, label)
+    assert.equal(wrappedSkills.querySelectorAll('svg[data-icon="skill"]').length, 1)
+    assert.equal(
+      window.getComputedStyle(wrappedSkills.querySelector('[data-slot="settings.section.icon"]').parentElement).display,
+      'none'
+    )
+    assert.notEqual(
+      window.getComputedStyle(wrappedSkills.querySelector('svg[data-icon="skill"]').parentElement).display,
+      'none'
+    )
     assert.equal(neighbor.querySelectorAll('svg').length, 1)
     assert.notEqual(window.getComputedStyle(neighbor.querySelector('svg')).display, 'none')
+    assert.notEqual(window.getComputedStyle(neighbor.firstElementChild).display, 'none')
   }
   modal.remove()
   await settle()
   assert.equal(skills.querySelectorAll('svg[data-icon="skill"]').length, 0)
+  assert.equal(wrappedSkills.querySelectorAll('svg[data-icon="skill"]').length, 0)
   window.document.body.append(modal)
   await settle()
   assert.equal(skills.querySelectorAll('svg[data-icon="skill"]').length, 1)
+  assert.equal(wrappedSkills.querySelectorAll('svg[data-icon="skill"]').length, 1)
   await React.act(async () =>
     disposers
       .splice(0)
@@ -92,6 +108,8 @@ await test('설정은 로케일, 내비게이션 재마운트, 플러그인 언�
   )
   assert.equal(skills.querySelectorAll('svg[data-icon="skill"]').length, 0)
   assert.notEqual(window.getComputedStyle(skills.querySelector('svg')).display, 'none')
+  assert.equal(wrappedSkills.querySelectorAll('svg[data-icon="skill"]').length, 0)
+  assert.notEqual(window.getComputedStyle(wrappedSkills.firstElementChild).display, 'none')
 })
 
 await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요청과 오류에 영향을 주지 않는다', async (t) => {

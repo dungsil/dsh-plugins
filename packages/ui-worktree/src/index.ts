@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { Session, SessionId, appendPluginRecord, pluginRecordOf, type PluginRecordMap } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
-import type {} from '@deepseek-ai/dsh-session-persistence'
+import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import { workspaceDomainState } from '@deepseek-ai/dsh-workspace'
 import { createTaskQueue } from '@dungsil/dsh-async'
@@ -650,7 +650,8 @@ export function apply(ctx: Context, config: Config) {
     try {
       await agent.runMaintenance(async (maintenanceSignal) => {
         const signal = AbortSignal.any([maintenanceSignal, lifetime.signal, AbortSignal.timeout(60_000)])
-        if (!ctx.workspaceRegistry.archivedSessionIds.includes(sessionId)) return
+        // Domain events commit before the registry's cached state catches up.
+        if (!archived.has(sessionId)) return
         if ((await ctx.waterfall('workspace/session-activity', { sessionId }, () => Promise.resolve([]))).length) return
         const record = agent.session
           .snapshotEvents()
@@ -700,7 +701,7 @@ export function apply(ctx: Context, config: Config) {
             await handle.close()
           }
         }
-        if (!ctx.workspaceRegistry.archivedSessionIds.includes(sessionId)) return
+        if (!archived.has(sessionId)) return
         // Git refuses dirty, locked and primary checkouts. Never force removal
         // or delete the branch; restoring the conversation keeps its commits.
         await run(agent.session, source, ['worktree', 'remove', '--', path], signal, 'git', env)
@@ -782,8 +783,14 @@ export function apply(ctx: Context, config: Config) {
           operationSignal.throwIfAborted()
           const live = ctx.agents.get(sessionId)
           if (live) return { ok: true as const, value: await describe(live.session, operationSignal, live) }
-          const inspection = await ctx.sessionController.inspect(sessionId, operationSignal)
-          const session = Session.create(sessionId, inspection.events, inspection.meta, inspection.inheritedEventCount)
+          const handle = await ctx.sessionPersistence.open(sessionId, 'read', { signal: operationSignal })
+          let session: Session
+          try {
+            const { events } = await handle.read(undefined, undefined, { signal: operationSignal })
+            session = Session.create(sessionId, events, handle.header, handle.inheritedEventCount)
+          } finally {
+            await handle.close()
+          }
           return { ok: true as const, value: await describe(session, operationSignal) }
         })
       }
@@ -838,8 +845,7 @@ export function apply(ctx: Context, config: Config) {
         return { ok: true as const, value: await describe(agent.session, operationSignal, agent) }
       })
     } catch (error) {
-      if (!mutation && error && typeof error === 'object' && 'code' in error && error.code === 'session/not-found')
-        return failure('session/not-found')
+      if (!mutation && error instanceof SessionPersistenceNotFoundError) return failure('session/not-found')
       return failure(!mutation && error instanceof Error && error.message === 'busy' ? 'busy' : 'operation_failed')
     } finally {
       if (mutation) pending.delete(input.sessionId)

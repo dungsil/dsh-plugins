@@ -7,6 +7,7 @@ import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
 
@@ -15,15 +16,18 @@ await test('도구 런타임을 통해 추가와 삭제를 포함한 정확한 �
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   const fork = ctx.plugin(plugin)
   await fork
-  const run = (args) =>
-    ctx.tools.execute({
-      name: 'diff_note',
-      callId: 'note-test',
-      arguments: args,
+  const run = async (args) => {
+    const batch = await ctx.tools.execute({
+      calls: [{ type: 'tool-call', id: 'note-test', name: 'diff_note', arguments: JSON.stringify(args) }],
       signal: new AbortController().signal,
     })
+    assert.equal(batch.results.length, 1)
+    assert.equal(batch.results[0].callId, 'note-test')
+    return batch.results[0].result
+  }
   const args = {
     path: 'src/client.tsx',
     old_text: '  <section>\r\n    한글\r\n  </section>\r\n',

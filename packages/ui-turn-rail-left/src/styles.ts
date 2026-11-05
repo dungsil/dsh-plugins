@@ -1,4 +1,4 @@
-// DSH 0.2.1-rc.5 has no rail-position setting or rail Slot.
+// DSH 0.2.1-rc.5 and 0.2.2-rc.1 have no rail-position setting or rail Slot.
 // Keep its native rail and change only these version-specific CSS selectors.
 // Physical left is intentional, including in RTL layouts.
 export const STYLES = `

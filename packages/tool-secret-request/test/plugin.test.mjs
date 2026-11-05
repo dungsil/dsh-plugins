@@ -9,6 +9,7 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
 
@@ -29,6 +30,7 @@ async function setup(t, provider) {
   }
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   const agent = { session: { id: 'secret-test-session' } }
   ctx.provide('agents', { roots: () => [agent] })
   const fork = ctx.plugin(plugin)
@@ -48,14 +50,23 @@ async function setup(t, provider) {
     assert.equal(response.status, 200)
     return (await response.json()).result
   }
-  const run = (input = args, signal = new AbortController().signal, caller = agent) =>
-    ctx.tools.execute({
-      name: 'request_secret',
-      callId: 'secret-test-call',
-      arguments: input,
+  const run = async (input = args, signal = new AbortController().signal, caller = agent) => {
+    const batch = await ctx.tools.execute({
+      calls: [
+        {
+          type: 'tool-call',
+          id: 'secret-test-call',
+          name: 'request_secret',
+          arguments: JSON.stringify(input),
+        },
+      ],
       agent: caller,
       signal,
     })
+    assert.equal(batch.results.length, 1)
+    assert.equal(batch.results[0].callId, 'secret-test-call')
+    return batch.results[0].result
+  }
   const next = async () => {
     for (let i = 0; i < 100; i++) {
       const response = await rpc('pending')

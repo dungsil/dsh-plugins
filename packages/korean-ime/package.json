@@ -28,13 +28,13 @@
     "prepack": "pnpm build"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/cordis": "4.1.0",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "tsdown": "0.23.4"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.2",
+    "dsh": "^0.2.1-rc.2 || ^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {
