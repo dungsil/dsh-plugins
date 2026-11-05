@@ -8,16 +8,18 @@ import type {} from '@deepseek-ai/dsh-working-directory'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as PullRequests from './pull-requests.js'
 import * as Commands from './commands.js'
+import * as Settings from './settings.js'
 import type { GitContext } from './pull-requests-protocol.js'
 
-export { Config } from './pull-requests.js'
+export { Config } from './settings.js'
 
 export const name = 'dungsil-ui-vcs'
 export const inject = ['connection', 'sessionController', 'subprocess', 'sandbox', 'sandboxPolicy', 'workingDirectory']
 
-export function apply(ctx: Context, config: PullRequests.Config) {
+export function apply(ctx: Context, config: Settings.Config) {
   ctx.plugin(PullRequests, config)
   ctx.plugin(Commands, config)
+  ctx.plugin(Settings)
   ctx.effect(
     () =>
       ctx.connection.fetch.register({

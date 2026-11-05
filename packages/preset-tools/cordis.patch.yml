@@ -1,0 +1,5 @@
+- insert:
+    - id: dungsil-tool-diff-note
+      name: '@dungsil/dsh-plugin-tool-diff-note'
+    - id: dungsil-request-secret
+      name: '@dungsil/dsh-plugin-tool-secret-request'

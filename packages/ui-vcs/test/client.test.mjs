@@ -20,11 +20,12 @@ async function mount(operation, language = 'en', options = {}) {
   const openedTabs = []
   const listeners = new Map()
   const sidebar = options.sidebar === true
+  const settings = options.settings === true
   let requestResult = { ok: true, value: { request: options.request ?? null } }
   let gitContext = { operation, headSha: 'head', dirty: false }
   let cursor = 0
   let mountingSidebar = false
-  let registered, plugin
+  let registered, registeredProps, plugin
   const react = {
     useState(initial) {
       const index = cursor++
@@ -46,14 +47,17 @@ async function mount(operation, language = 'en', options = {}) {
     },
     useId: () => 'status',
     useMemo: (create) => create(),
+    useCallback: (callback) => callback,
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
   }
   const jsx = (type, props) => ({ type, props })
   runInNewContext(bundle, {
     AbortController,
     AbortSignal,
+    setTimeout,
+    clearTimeout,
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
-    document: { createElement: () => ({}) },
+    document: { head: { append() {} }, createElement: () => ({ remove() {} }) },
     MutationObserver: class {
       observe() {}
       disconnect() {}
@@ -85,7 +89,7 @@ async function mount(operation, language = 'en', options = {}) {
         rpc: {
           call: async (channel, method, payload) => {
             calls.push({ channel, method, payload })
-            if (sidebar) return operation(channel, method, payload)
+            if (sidebar || settings) return operation(channel, method, payload)
             if (method === 'dungsil-vcs/describe')
               return options.describe ? options.describe(gitContext) : { ok: true, value: gitContext }
             if (method === 'dungsil-vcs/pull-requests/list') return requestResult
@@ -99,17 +103,27 @@ async function mount(operation, language = 'en', options = {}) {
         },
       }
     },
-    sidebarRight: { openTab: (kind, options) => openedTabs.push(options ? { kind, options } : kind) },
+    sidebarRight: {
+      openTab: (kind, options) => openedTabs.push(options ? { kind, options } : kind),
+      mounted: { subscribe: () => () => {}, getSnapshot: () => 'session' },
+    },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
       register: (registration, render) => {
-        if (!sidebar || registration.name === 'sidebar.right.pane.tab') registered = render
+        if (
+          settings
+            ? registration.name === 'settings.section' && registration.id === 'dungsil-ui-vcs'
+            : !sidebar || registration.name === 'sidebar.right.pane.tab'
+        ) {
+          registered = render
+          registeredProps = registration.inject?.()
+        }
       },
     },
     sidebarRightTabs: { register() {} },
     plugin(module) {
-      if (sidebar) {
+      if (sidebar || settings) {
         mountingSidebar = true
         module.apply(this)
         mountingSidebar = false
@@ -128,14 +142,18 @@ async function mount(operation, language = 'en', options = {}) {
   }
   const render = async (sessionId = 'session') => {
     cursor = 0
-    const element = registered({
-      sessionId,
-      useTabInfo: () => ({ tab }),
-      useSession: (select) => select(session),
-      useAccess: () => options.canPrompt !== false,
-      useProjection: () => (options.cwd === null ? undefined : '/repo'),
-    })
-    const tree = sidebar ? element : element.type(element.props)
+    const element = registered(
+      settings
+        ? registeredProps
+        : {
+            sessionId,
+            useTabInfo: () => ({ tab }),
+            useSession: (select) => select(session),
+            useAccess: () => options.canPrompt !== false,
+            useProjection: () => (options.cwd === null ? undefined : '/repo'),
+          }
+    )
+    const tree = sidebar || settings ? element : element.type(element.props)
     const conversation = { getAttribute: () => sessionId, querySelector: () => ({}) }
     for (const hook of sidebar ? [] : hooks) {
       if (hook && typeof hook === 'object' && 'current' in hook && hook.current === null)
@@ -159,7 +177,7 @@ async function mount(operation, language = 'en', options = {}) {
       hooks.length = 0
     },
   }
-  if (sidebar) return common
+  if (sidebar || settings) return common
   await render()
   await render()
   let tree = await render()
@@ -212,6 +230,61 @@ await test('모든 로케일에서 브랜치 조회 중이거나 실패하면 �
     await view.focus()
     await assertHidden()
     assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
+  }
+})
+
+await test('설정은 유효한 변경만 자동 저장하고 저장 중에 입력한 값을 이전 응답으로 덮어쓰지 않는다', async () => {
+  let stored = { revision: 'initial', settings: { authorName: '', authorEmail: '', noSign: false } }
+  let finishSave
+  const mounted = await mount(
+    async (_channel, method, payload) => {
+      if (method === 'dungsil-vcs/settings') return { ok: true, value: stored }
+      if (method === 'dungsil-vcs/cli-status') return { ok: true, value: [] }
+      assert.equal(method, 'dungsil-vcs/save-settings')
+      assert.equal(payload.revision, stored.revision)
+      return new Promise((resolve) => {
+        finishSave = () => {
+          stored = { revision: `${stored.revision}-next`, settings: payload.settings }
+          resolve({ ok: true, value: stored })
+        }
+      })
+    },
+    'ko',
+    { settings: true }
+  )
+  const nodes = (node) =>
+    Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : []
+  const input = (tree, suffix) => nodes(tree).find((node) => node.props.id?.endsWith(suffix)).props
+  const saves = () => mounted.calls.filter((call) => call.method === 'dungsil-vcs/save-settings')
+  try {
+    await mounted.render()
+    let tree = await mounted.render()
+    assert.equal(nodes(tree).filter((node) => node.props.type === 'submit').length, 0)
+    input(tree, '-name').onChange({ target: { value: 'UI Author' } })
+    tree = await mounted.render()
+    await new Promise((resolve) => setTimeout(resolve, 650))
+    assert.equal(saves().length, 0)
+    input(tree, '-email').onChange({ target: { value: 'ui@example.invalid' } })
+    tree = await mounted.render()
+    await new Promise((resolve) => setTimeout(resolve, 650))
+    assert.equal(saves().length, 1)
+    tree = await mounted.render()
+    input(tree, '-name').onChange({ target: { value: 'New Author' } })
+    await mounted.render()
+    finishSave()
+    await mounted.render()
+    tree = await mounted.render()
+    assert.equal(input(tree, '-name').value, 'New Author')
+    await new Promise((resolve) => setTimeout(resolve, 650))
+    assert.equal(saves().length, 2)
+    finishSave()
+    await mounted.render()
+    tree = await mounted.render()
+    assert.equal(stored.settings.authorName, 'New Author')
+    assert.equal(stored.settings.authorEmail, 'ui@example.invalid')
+    assert.equal(nodes(tree).filter((node) => node.props.role === 'status').length, 0)
+  } finally {
+    mounted.unmount()
   }
 })
 

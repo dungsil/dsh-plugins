@@ -245,6 +245,35 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
   })
 }
 
+await test('설정이 없는 구형 윤문 플러그인이 활성화되어도 나머지 모델 설정을 불러오고 저장한다', async (t) => {
+  const h = await profileFixture(
+    'first-prompt',
+    {},
+    { naming: 'semantic' },
+    {},
+    {
+      yoonmoonPlugin: { name: 'yoonmoon', apply() {} },
+      omitYoonmoonConfig: true,
+    }
+  )
+  t.after(h.close)
+  const initial = await h.rpc('describe')
+  assert.equal(initial.ok, true)
+  assert.equal(initial.value.yoonmoon, null)
+  assert.ok(initial.value.auxiliary)
+  assert.ok(initial.value.target)
+  assert.ok(initial.value.worktree)
+  assert.ok(initial.value.providers.every((provider) => provider.models.length > 0))
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  const saved = await h.rpc('save', { ...initial.value.target, route })
+  assert.equal(saved.ok, true)
+  await h.restart()
+  const restored = await h.rpc('describe')
+  assert.equal(restored.ok, true)
+  assert.equal(restored.value.yoonmoon, null)
+  assert.deepEqual(restored.value.target.route, route)
+})
+
 await test('기존 설정을 잃지 않고 권한이 없거나 잘못되었거나 사용할 수 없거나 오래된 쓰기를 거부한다', async (t) => {
   const h = await profileFixture()
   t.after(h.close)
