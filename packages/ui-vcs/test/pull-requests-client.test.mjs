@@ -199,6 +199,11 @@ function texts(node) {
   if (Array.isArray(node)) return node.map(texts).join(' ')
   return texts(node?.props?.children ?? '')
 }
+function links(node) {
+  if (Array.isArray(node)) return node.flatMap(links)
+  if (!node?.props) return []
+  return [...(node.type === 'a' ? [node.props] : []), ...links(node.props.children)]
+}
 
 await test('the shipped client routes conversation PR links into its sidebar only for the mounted session', () => {
   const fixture = mount()
@@ -257,9 +262,16 @@ await test('unsupported linked requests show localized feedback and retain the o
       fixture.render()
       fixture.calls[0].resolve({ ok: false, error: { code: 'unsupported' } })
       await settle()
-      const text = texts(fixture.render())
+      const tree = fixture.render()
+      const text = texts(tree)
       assert.ok(text.includes(expected), language)
-      assert.ok(text.includes('https://github.com/team/repo/pull/42'), language)
+      const anchors = links(tree)
+      assert.equal(anchors.length, 1, language)
+      const [link] = anchors
+      assert.equal(link.href, 'https://github.com/team/repo/pull/42', language)
+      assert.equal(link.children, link.href, language)
+      assert.equal(link.target, '_blank', language)
+      assert.equal(link.rel, 'noopener noreferrer', language)
       assert.ok(!text.includes('Request 42'), language)
     } finally {
       fixture.dispose()
