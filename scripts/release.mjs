@@ -69,6 +69,8 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     throw new Error('An exact version requires a package name and a valid semantic version')
   }
   const root = process.cwd()
+  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  const releaseHead = dryRun ? undefined : git(['rev-parse', 'HEAD']).trim()
   // Unlike `pnpm list`, recursive exec honors dependency order. Serial output
   // keeps that order intact before release-it bumps and packs each package.
   const packages = execFileSync(
@@ -93,8 +95,15 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
   const releases = []
   try {
     // Publish dependencies first, but defer workspace Git and GitHub releases
-    // until every manifest and changelog is ready for one commit.
+    // until the published manifests and changelogs are ready for one commit.
     for (const pkg of selected) {
+      if (!dryRun) {
+        const remoteHead = git(['ls-remote', '--exit-code', 'origin', 'refs/heads/main']).split(/\s/)[0]
+        if (remoteHead !== releaseHead) {
+          console.log(`main changed; stopping publication and finalizing ${releases.length} published packages.`)
+          break
+        }
+      }
       process.chdir(pkg.path)
       const settings = releaseOptions({ dryRun })
       const result = await release({
@@ -115,11 +124,10 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     }
     if (!dryRun && releases.length > 0) {
       process.chdir(root)
-      const git = (args) => execFileSync('git', args, { encoding: 'utf8' })
       git(['add', '--', ...releases.flatMap(({ pkg }) => [`${pkg.path}/package.json`, `${pkg.path}/CHANGELOG.md`])])
       const message = packageName
         ? `chore(release): ${packageName}@${releases[0].result.version} [skip ci]`
-        : 'chore(release): 전체 패키지를 릴리즈한다 [skip ci]'
+        : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
       git(['commit', '-m', message])
       for (const { pkg, result } of releases) {
         git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
