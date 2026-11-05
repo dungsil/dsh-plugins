@@ -71,6 +71,8 @@ async function mount(operation, language = 'en', options = {}) {
   })
   plugin.apply({
     get(name) {
+      if (mountingSidebar && name === 'sessions')
+        return { list: { getSnapshot: () => ({ byId: {} }), subscribe: () => () => {} } }
       assert.equal(name, 'connection', 'UI must not access the current conversation or sessions service')
       return {
         rpc: {
