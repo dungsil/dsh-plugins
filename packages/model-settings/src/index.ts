@@ -381,7 +381,12 @@ export async function apply(ctx: Context) {
   const titles = editor.entries().filter((entry) => titlePlugins.has(entry.options.name))
   const title = titles.length === 1 ? titles[0]!.fiber : undefined
   if (title) {
-    await title.await()
-    if (title.state === 2 && !wrappedTitles.has(title)) await title.restart()
+    try {
+      await title.await()
+      if (title.state === 2 && !wrappedTitles.has(title)) await title.restart()
+    } catch {
+      // An optional title provider's startup error must not disable the settings API.
+      // The loader reports that provider's failure independently.
+    }
   }
 }
