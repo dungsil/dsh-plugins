@@ -33,7 +33,7 @@ const pendingCreationView = () => ({ ...view(), pendingCreation: { name: 'New wo
 const operations = (h) => h.calls.map((call) => call.operation)
 
 function elements(node) {
-  if (Array.isArray(node)) return node.flatMap(elements)
+  if (Array.isArray(node)) return Array.from(node).flatMap(elements)
   if (!node || typeof node !== 'object' || !node.props) return []
   return [node, ...elements(node.props.children), ...elements(node.props.anchor)]
 }
@@ -136,7 +136,7 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
         plugin = factory((id) => {
           if (id === 'react') return react
           if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' }
-          if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Menu: 'Menu' }
+          if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Menu: 'Menu', MenuItemButton: 'MenuItemButton' }
           throw new Error(`Unexpected dependency: ${id}`)
         })
       },
@@ -227,6 +227,14 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
     get menu() {
       return elements(instance.tree).find((element) => element.props.className === 'dsh-worktree-picker').props
     },
+    get menuItems() {
+      return elements(harness.menu.children)
+        .filter((element) => element.type === 'MenuItemButton')
+        .map((element) => ({ id: element.key == null ? 'create' : `path:${element.key}`, ...element.props }))
+    },
+    get selectedId() {
+      return harness.menuItems.find((item) => item.current)?.id
+    },
     get text() {
       return visibleText(instance.tree)
     },
@@ -246,11 +254,9 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
       await flush()
     },
     async select(id) {
-      assert.ok(
-        harness.menu.items.some((item) => item.id === id),
-        `Missing menu option: ${id}`
-      )
-      harness.menu.onSelect(id)
+      const item = harness.menuItems.find((item) => item.id === id)
+      assert.ok(item, `Missing menu option: ${id}`)
+      item.onSelect()
       await flush()
     },
     async retry() {
@@ -305,6 +311,29 @@ await test('idle mount loads once, stable renders do not reload, and idle focus 
   assert.equal(h.listeners.get('focus').size, 0)
   assert.equal(h.listeners.get('resize').size, 0)
   assert.equal(h.calls.at(-1).signal.aborted, true)
+})
+
+await test('component menu pins creation and the primary checkout before linked worktrees', async (t) => {
+  const h = await mount(t, { rpc: () => success(linkedView()) })
+  assert.deepEqual(
+    h.menuItems.map((item) => item.id),
+    ['create', 'path:/repo', 'path:/other-worktree']
+  )
+  assert.equal(h.selectedId, 'path:/other-worktree')
+  assert.equal(h.menuItems.filter((item) => item.current).length, 1)
+  const pinned = elements(h.menu.children).find((element) => element.props.className === 'dsh-worktree-pinned')
+  assert.ok(pinned)
+  assert.deepEqual(
+    elements(pinned)
+      .filter((element) => element.type === 'MenuItemButton')
+      .map((item) => item.key),
+    [undefined, '/repo']
+  )
+  assert.equal(h.menuItems[2].separatorBefore, true)
+  await h.select('path:/repo')
+  const switches = h.calls.filter((call) => call.operation === 'switch')
+  assert.equal(switches.length, 1)
+  assert.equal(switches[0].payload.path, '/repo')
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
@@ -417,7 +446,7 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.equal(initialization.endpoint, 'dungsil-worktree/initialize')
     assert.equal(initialization.payload.sessionId, 'original')
     assert.equal(initialization.payload.cwd, '/repo')
-    assert.equal(h.menu.selectedId, 'create', 'The initialize response must apply pendingCreation immediately')
+    assert.equal(h.selectedId, 'create', 'The initialize response must apply pendingCreation immediately')
     assert.match(h.menu.anchor.props.label, /New worktree/)
     assert.equal(h.menu.anchor.props.disabled, false)
     await h.update({})
@@ -436,7 +465,7 @@ await test('successful initialization is not repeated until describe explicitly 
     },
   })
   assert.deepEqual(operations(h), ['describe', 'initialize'])
-  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'create')
   await h.update({})
   await h.focus()
   assert.equal(h.calls.filter((call) => call.operation === 'initialize').length, 1)
@@ -475,7 +504,7 @@ await test('a busy initialization race preserves the read view and retries on re
   await h.update({ running: false })
   assert.deepEqual(operations(h).slice(beforeIdle), ['describe', 'initialize'])
   assert.equal(attempts, 2)
-  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'create')
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
@@ -498,7 +527,7 @@ await test('a busy initialization retries on a later idle focus rather than an u
   assert.equal(h.calls.length, 2)
   await h.focus()
   assert.deepEqual(operations(h), ['describe', 'initialize', 'describe', 'initialize'])
-  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'create')
 })
 
 await test('an idle transition during an in-flight initialization queues one serialized refresh', async (t) => {
@@ -523,7 +552,7 @@ await test('an idle transition during an in-flight initialization queues one ser
   response.resolve(failure('busy'))
   await h.flush()
   assert.deepEqual(operations(h), ['describe', 'initialize', 'describe', 'initialize'])
-  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'create')
 })
 
 await test('a describe reply rechecks every mutation condition before initializing', async (t) => {
@@ -549,7 +578,7 @@ await test('a describe reply rechecks every mutation condition before initializi
   const beforeReady = h.calls.length
   await h.update({ pendingSubmissions: [] })
   assert.deepEqual(operations(h).slice(beforeReady), ['describe', 'initialize'])
-  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'create')
 })
 
 await test('keyed navigation aborts initialization and ignores its late pendingCreation reply', async (t) => {
@@ -568,7 +597,7 @@ await test('keyed navigation aborts initialization and ignores its late pendingC
   response.resolve(success(pendingCreationView()))
   await h.flush()
   assert.match(h.text, /other-branch/)
-  assert.notEqual(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'path:/repo')
   assert.equal(h.warnings.length, 0)
   assert.equal(h.listeners.get('focus').size, 1)
   await h.navigate('original', { running: true })
@@ -653,7 +682,7 @@ for (const code of ['timeout', 'forbidden', 'invalid_response']) {
     assert.equal(h.calls.length, 2, 'An uncertain initialization must not be replayed automatically')
     await h.retry()
     assert.deepEqual(operations(h), ['describe', 'initialize', 'describe'])
-    assert.equal(h.menu.selectedId, 'create')
+    assert.equal(h.selectedId, 'create')
     assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
     assert.equal(h.menu.anchor.props.disabled, false)
   })
@@ -798,7 +827,7 @@ await test('describe needs an open present session, while initialization waits f
   const beforeReady = h.calls.length
   await h.update({ pendingSubmissions: [] })
   assert.deepEqual(operations(h).slice(beforeReady), ['describe', 'initialize'])
-  assert.equal(h.menu.selectedId, 'create')
+  assert.equal(h.selectedId, 'create')
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 

@@ -28,6 +28,9 @@ const copy = {
     worktree: 'Worktree branch name',
     worktreeDescription:
       'Choose the model and reasoning effort used to generate a branch name when creating a worktree without a name.',
+    yoonmoon: 'Yoonmoon',
+    yoonmoonDescription:
+      'Choose the model and reasoning effort used for separate polishing and diagnostic calls without changing the conversation model.',
     inherit: 'Use conversation model',
     auxiliary: 'Auxiliary model',
     useAuxiliary: 'Use auxiliary model',
@@ -62,6 +65,9 @@ const copy = {
     model: '모델',
     worktree: '워크트리 브랜치 이름',
     worktreeDescription: '이름을 입력하지 않고 워크트리를 만들 때 브랜치 이름을 생성할 모델과 추론 수준을 설정합니다.',
+    yoonmoon: '윤문',
+    yoonmoonDescription:
+      '대화 모델을 변경하지 않고 글다듬기·진단 작업을 별도로 호출할 때 사용할 모델과 추론 수준을 설정합니다.',
     inherit: '대화 모델 따르기',
     auxiliary: '보조 모델',
     useAuxiliary: '보조 모델 따르기',
@@ -95,6 +101,8 @@ const copy = {
     model: '模型',
     worktree: '工作树分支名称',
     worktreeDescription: '设置创建未指定名称的工作树时用于生成分支名称的模型和推理级别。',
+    yoonmoon: '韩语润色',
+    yoonmoonDescription: '设置单独调用文本润色和诊断任务时使用的模型和推理级别，不更改对话模型。',
     inherit: '使用对话模型',
     auxiliary: '辅助模型',
     useAuxiliary: '使用辅助模型',
@@ -144,7 +152,7 @@ const styles = `${settingsStyles}
 const routeKey = (route: Route | null) => (route ? JSON.stringify([route.provider, route.model]) : '')
 const selectionKey = (target?: TitleTarget | null) =>
   target?.useAuxiliary ? 'auxiliary' : routeKey(target?.route ?? null)
-type Task = 'auxiliary' | 'target' | 'worktree'
+type Task = 'auxiliary' | 'target' | 'worktree' | 'yoonmoon'
 type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailable'
 
 function ModelSettings({ ctx }: { ctx: Context }) {
@@ -153,8 +161,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsView>()
-  const [drafts, setDrafts] = useState({ auxiliary: '', target: '', worktree: '' })
-  const [effortDrafts, setEffortDrafts] = useState({ auxiliary: '', target: '', worktree: '' })
+  const [drafts, setDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
+  const [effortDrafts, setEffortDrafts] = useState({ auxiliary: '', target: '', worktree: '', yoonmoon: '' })
   const [busy, setBusy] = useState<'loading' | 'saving' | 'resyncing' | undefined>('loading')
   const [synchronized, setSynchronized] = useState(false)
   const [notice, setNotice] = useState<Notice>()
@@ -174,11 +182,13 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         auxiliary: next.auxiliary?.reasoningEffort ?? '',
         target: next.target?.reasoningEffort ?? '',
         worktree: next.worktree?.reasoningEffort ?? '',
+        yoonmoon: next.yoonmoon?.reasoningEffort ?? '',
       })
       setDrafts({
         auxiliary: selectionKey(next.auxiliary),
         target: selectionKey(next.target),
         worktree: selectionKey(next.worktree),
+        yoonmoon: selectionKey(next.yoonmoon),
       })
       setSynchronized(true)
       return true
@@ -317,10 +327,10 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       {busy === 'resyncing' && <p role="status">{text.resyncing}</p>}
       {readError && <p role="alert">{text[readError]}</p>}
       {view && !view.target && <p role="status">{text.unavailable}</p>}
-      {(['auxiliary', 'target', 'worktree'] as const).map((task) => {
+      {(['auxiliary', 'target', 'worktree', 'yoonmoon'] as const).map((task) => {
         const target = view?.[task]
         if (!target) return null
-        const title = task === 'auxiliary' ? text.auxiliary : task === 'target' ? text.title : text.worktree
+        const title = task === 'target' ? text.title : text[task]
         const draft = drafts[task]
         const effort = effortDrafts[task]
         const current = routeKey(target.route)
@@ -350,7 +360,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   : automaticHint
         return (
           <div key={task} className="dsh-model-settings-field" data-task={task}>
-            {(task === 'target' || (task === 'worktree' && !view?.target)) && (
+            {(task === 'target' ||
+              (task === 'worktree' && !view?.target) ||
+              (task === 'yoonmoon' && !view?.target && !view?.worktree)) && (
               <h3 className="dsh-model-settings-task-heading">{text.taskSettings}</h3>
             )}
             <SettingsRow
@@ -362,7 +374,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                       ? text.auxiliaryHint
                       : task === 'target'
                         ? text.titleDescription
-                        : text.worktreeDescription}
+                        : task === 'worktree'
+                          ? text.worktreeDescription
+                          : text.yoonmoonDescription}
                   </div>
                 </>
               }

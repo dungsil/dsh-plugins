@@ -59,6 +59,7 @@ export const quotaStyles = `
 export function QuotaPanel({
   accounts,
   quotas,
+  fetchedAt,
   language,
   text,
   busy,
@@ -70,6 +71,7 @@ export function QuotaPanel({
 }: {
   accounts?: QuotaAccount[]
   quotas: Record<string, QuotaResult | null | undefined>
+  fetchedAt?: number
   language: string
   text: ReturnType<typeof localizedCopy>
   busy: boolean
@@ -394,6 +396,11 @@ export function QuotaPanel({
             </div>
           )}
         </div>
+      )}
+      {fetchedAt !== undefined && (
+        <p className="hint">
+          {text.accountsObservedAt}: {date(new Date(fetchedAt).toISOString())}
+        </p>
       )}
       <p className="quota-note">{text.quotaHint}</p>
     </div>

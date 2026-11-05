@@ -13,9 +13,6 @@
 - UI는 기존 dsh와 같은 look and feel을 유지합니다.
 - 기존 dsh의 컴포넌트와 스타일을 우선 재사용하여 시각적 표현과 상호작용을 일관되게 구현합니다.
 - 플러그인은 `@deepseek-ai/dsh-client-ui-primitives`를 직접 가져오지 않고 `@dungsil/dsh-ui`의 기존 컴포넌트를 우선 사용합니다. 필요한 컴포넌트가 없으면 `tools/ui`에서 래핑하거나 명시적으로 재노출한 뒤 사용합니다. 원본 패키지의 의존성은 `tools/ui`에서 관리하며, 플러그인의 런타임 제공 모듈에 대한 `peerDependencies` 및 번들 외부화 선언은 유지합니다.
-- 자체 UI 컨트롤 아이콘은 [Lucide 아이콘 디자인 가이드](https://lucide.dev/guide/design/icon-design-guide)를 따릅니다. `tools/ui/src/icons/`에 아이콘별 SVG 파일로 두고 클라이언트 빌드에서 인라인합니다. 파일명은 용도보다 도형을 설명하는 영어 lower-kebab-case로 작성합니다. DSH가 제공하는 아이콘은 기존 공통 컴포넌트를 재사용합니다.
-- SVG 루트에 `xmlns="http://www.w3.org/2000/svg"`, `width="24"`, `height="24"`, `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `stroke-width="2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`, `aria-hidden="true"`를 명시합니다. 도형은 24×24 좌표계에 중심 정렬된 선으로 작성하고, 실제 표시 크기는 사용처의 CSS나 컴포넌트 속성으로 조절합니다. 아이콘만 있는 컨트롤의 접근성 이름은 해당 버튼에 지정합니다.
-- 선을 포함한 외곽 여백은 최소 1px, 연결되지 않은 도형 간 간격은 최소 2px로 유지합니다. 사각형의 모서리 반경은 크기가 8px 이상이면 2px, 그보다 작으면 1px로 설정합니다. 시각적 중심·부피·밀도를 맞추고 곡선은 매끄럽게 연결하며 가능한 한 픽셀 격자에 정렬합니다. SVG 내부에는 기본 도형(`path`, `line`, `polygon`, `polyline`, `circle`, `ellipse`, `rect`)과 좌표·크기 속성만 사용하고, `transform`, 필터, `use`, 개별 도형의 색상·선 속성은 사용하지 않습니다. 경로 좌표의 소수점 정밀도는 최대 세 자리로 제한합니다.
 
 ## Documentation Policy
 

@@ -11,11 +11,12 @@ import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   IconBranchOutlineRegular,
+  IconCheckOutlineRegular,
   IconPlusOutlineRegular,
   IconCloseOutlineRegular,
   worktreeSettingsIconSvg,
 } from '@dungsil/dsh-ui/icons'
-import { installSettingsIcon, Menu } from '@dungsil/dsh-ui'
+import { installSettingsIcon, Menu, MenuItemButton } from '@dungsil/dsh-ui'
 import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
@@ -232,24 +233,8 @@ export function apply(ctx: Context) {
           open={open}
           side="top"
           portal
-          selectedId={creation ? 'create' : current ? `path:${current.path}` : undefined}
-          items={[
-            { id: 'create', label: text.create, icon: <IconPlusOutlineRegular /> },
-            ...(view?.worktrees.map((item) => ({
-              id: `path:${item.path}`,
-              label: item.branch ?? text.detached,
-              icon: <IconBranchOutlineRegular />,
-            })) ?? []),
-          ]}
+          listClassName="dsh-worktree-menu"
           onClose={() => setOpen(false)}
-          onSelect={(id) => {
-            setOpen(false)
-            if (disabled || pending.current) return
-            if (id === 'create') {
-              if (!creation || creation.failed) void change('create')
-            } else if (id.startsWith('path:') && (creation || id !== `path:${current?.path}`))
-              void change('switch', id.slice(5))
-          }}
           anchor={
             <ComposerTrigger
               ref={trigger}
@@ -275,7 +260,57 @@ export function apply(ctx: Context) {
               }}
             />
           }
-        />
+        >
+          <div className="dsh-worktree-pinned">
+            <MenuItemButton
+              icon={<IconPlusOutlineRegular />}
+              current={!!creation}
+              onSelect={() => {
+                setOpen(false)
+                if (!creation || creation.failed) void change('create')
+              }}
+            >
+              <span className="dsh-worktree-option">
+                <span>{text.create}</span>
+                {creation && <IconCheckOutlineRegular />}
+              </span>
+            </MenuItemButton>
+            {view?.worktrees.slice(0, 1).map((item) => (
+              <MenuItemButton
+                key={item.path}
+                icon={<IconBranchOutlineRegular />}
+                current={!creation && current === item}
+                onSelect={() => {
+                  setOpen(false)
+                  if (creation || current !== item) void change('switch', item.path)
+                }}
+              >
+                <span className="dsh-worktree-option">
+                  <span>{item.branch ?? text.detached}</span>
+                  <span className="dsh-worktree-badge">{text.primaryBranch}</span>
+                  {!creation && current === item && <IconCheckOutlineRegular />}
+                </span>
+              </MenuItemButton>
+            ))}
+          </div>
+          {view?.worktrees.slice(1).map((item, index) => (
+            <MenuItemButton
+              key={item.path}
+              icon={<IconBranchOutlineRegular />}
+              current={!creation && current === item}
+              separatorBefore={index === 0}
+              onSelect={() => {
+                setOpen(false)
+                if (creation || current !== item) void change('switch', item.path)
+              }}
+            >
+              <span className="dsh-worktree-option">
+                <span>{item.branch ?? text.detached}</span>
+                {!creation && current === item && <IconCheckOutlineRegular />}
+              </span>
+            </MenuItemButton>
+          ))}
+        </Menu>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
         </span>
