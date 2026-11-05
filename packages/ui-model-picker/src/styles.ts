@@ -43,6 +43,7 @@ export const styles = `${composerStyles}
 .dsh-codex-slider input::-moz-range-track { height: 28px; background: transparent; }
 .dsh-codex-slider input::-moz-range-thumb { width: 26px; height: 26px; border: 1px solid #0000000a; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0002; }
 .dsh-codex-notice { padding: 6px 10px; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.dsh-codex-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .dsh-codex-popover [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-codex-popover :focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: -2px; }
 .dsh-codex-popover :disabled { color: var(--dsw-alias-label-dimmed); cursor: default; }

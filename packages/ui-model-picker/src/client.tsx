@@ -302,13 +302,16 @@ export function apply(ctx: Context) {
             icon={<IconDataOutlineRegular size={16} />}
             label={model?.name ?? current?.model ?? text.model}
             detail={effortLabel}
-            disabled={disabled}
+            disabled={locked}
+            aria-disabled={disabled}
             aria-label={`${efforts.length ? text.choose : text.model}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
             title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
             aria-haspopup="dialog"
             aria-expanded={panel !== null}
             aria-controls={panel ? id : undefined}
-            onClick={(event) => show(event.currentTarget)}
+            onClick={(event) => {
+              if (!disabled) show(event.currentTarget)
+            }}
           />
         </div>
         {panel &&
@@ -331,9 +334,12 @@ export function apply(ctx: Context) {
                   <button
                     type="button"
                     className="dsh-codex-model"
-                    disabled={disabled}
+                    disabled={locked}
+                    aria-disabled={disabled}
                     aria-label={`${text.model}: ${stagedName}`}
-                    onClick={() => setPanel('model')}
+                    onClick={() => {
+                      if (!disabled) setPanel('model')
+                    }}
                   >
                     <strong>{stagedEfforts[draft]?.name}</strong>
                     <span>
@@ -343,7 +349,8 @@ export function apply(ctx: Context) {
                   <button
                     type="button"
                     className="dsh-codex-reset"
-                    disabled={disabled || !(staged ?? current)}
+                    disabled={locked || !(staged ?? current)}
+                    aria-disabled={disabled || !(staged ?? current)}
                     aria-label={text.reset}
                     title={text.reset}
                     onClick={() => {
@@ -361,7 +368,7 @@ export function apply(ctx: Context) {
                 </p>
               )}
               {busy && (
-                <p className="dsh-codex-notice" role="status">
+                <p className={panel === 'effort' ? 'dsh-codex-status' : 'dsh-codex-notice'} role="status">
                   {text.busy}
                 </p>
               )}

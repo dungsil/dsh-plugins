@@ -122,7 +122,7 @@ async function mount(t) {
   return { document, slider, click, commit, reply, requests, update, snapshot: () => snapshot }
 }
 
-await test('추론 강도를 저장하는 동안과 저장한 뒤에도 슬라이더 포커스를 유지한다', async (t) => {
+await test('추론 강도를 저장해도 슬라이더 포커스와 버튼의 활성 표시를 유지한다', async (t) => {
   const h = await mount(t)
   await h.click('.dsh-codex-trigger')
   const input = h.slider()
@@ -130,6 +130,14 @@ await test('추론 강도를 저장하는 동안과 저장한 뒤에도 슬라�
   await h.commit(2)
   assert.equal(input.disabled, false)
   assert.ok(h.document.activeElement === input)
+  for (const selector of ['.dsh-codex-trigger', '.dsh-codex-model', '.dsh-codex-reset']) {
+    const control = h.document.querySelector(selector)
+    assert.equal(control.disabled, false)
+    assert.equal(control.getAttribute('aria-disabled'), 'true')
+    await h.click(selector)
+    assert.ok(h.slider() === input)
+    assert.equal(h.requests.length, 1)
+  }
   await h.commit(0)
   assert.equal(h.requests.length, 1)
   assert.equal(input.value, '2')
