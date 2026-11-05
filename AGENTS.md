@@ -13,7 +13,6 @@
 - UI는 기존 dsh와 같은 look and feel을 유지합니다.
 - 기존 dsh의 컴포넌트와 스타일을 우선 재사용하여 시각적 표현과 상호작용을 일관되게 구현합니다.
 - 플러그인은 `@deepseek-ai/dsh-client-ui-primitives`를 직접 가져오지 않고 `@dungsil/dsh-ui`의 기존 컴포넌트를 우선 사용합니다. 필요한 컴포넌트가 없으면 `tools/ui`에서 래핑하거나 명시적으로 재노출한 뒤 사용합니다. 원본 패키지의 의존성은 `tools/ui`에서 관리하며, 플러그인의 런타임 제공 모듈에 대한 `peerDependencies` 및 번들 외부화 선언은 유지합니다.
-- UI 컨트롤 아이콘을 추가·수정·교체하거나 검토할 때는 [creating-icons 스킬](.agents/skills/creating-icons/SKILL.md)을 먼저 읽고 따릅니다. 아이콘 재사용, SVG 작성, 공통 모듈 연결 및 검증 규칙은 해당 스킬에서 관리합니다.
 
 ## Documentation Policy
 
