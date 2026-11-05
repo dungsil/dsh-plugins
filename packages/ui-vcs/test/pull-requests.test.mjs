@@ -137,7 +137,7 @@ async function fixture(
   }
   await writeFile(
     cli,
-    `import { readFileSync } from 'node:fs'; process.stdout.write(readFileSync(process.argv[2])); process.stderr.write(process.argv[4] ?? ''); process.exit(Number(process.argv[3]))`
+    `import { readFileSync } from 'node:fs'; process.stdout.write(readFileSync(process.argv[2])); process.stderr.write(process.argv[4] ?? ''); process.exitCode = Number(process.argv[3])`
   )
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, 'credentials.yaml'), watch: false })
   await ctx.plugin(Connection)

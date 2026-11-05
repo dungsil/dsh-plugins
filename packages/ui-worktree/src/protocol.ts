@@ -62,7 +62,9 @@ export interface WorktreeView {
 function comparablePath(path: string) {
   const windows = /^[a-z]:[\\/]/i.test(path) || path.startsWith('\\\\') || path.startsWith('//')
   const value = windows ? path.replaceAll('\\', '/').replace(/^[A-Z]:/, (drive) => drive.toLowerCase()) : path
-  return value.replace(/\/+$/, '')
+  let end = value.length
+  while (end > 0 && value[end - 1] === '/') end--
+  return value.slice(0, end)
 }
 
 export function currentWorktree(view: WorktreeView | undefined) {

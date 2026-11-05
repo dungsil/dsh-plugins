@@ -43,7 +43,7 @@ jobs:
         run: |
           actions=false
           javascript=false
-          if [[ "$EVENT_NAME" == schedule ]]; then
+          if [[ "$EVENT_NAME" == schedule || "$EVENT_NAME" == pull_request ]]; then
             actions=true
             javascript=true
           else
@@ -51,9 +51,6 @@ jobs:
               git ls-tree -r --name-only -z "$HEAD_SHA" > "$RUNNER_TEMP/codeql-changed-files"
             else
               comparison="$BASE_SHA..$HEAD_SHA"
-              if [[ "$EVENT_NAME" == pull_request ]]; then
-                comparison="$BASE_SHA...$HEAD_SHA"
-              fi
               git diff --name-only --no-renames -z "$comparison" > "$RUNNER_TEMP/codeql-changed-files"
             fi
             while IFS= read -r -d '' path; do

@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -10,30 +9,21 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill, StateDot } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
-import { channel, method, type GitContext, type RequestView } from './pull-requests-protocol.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import {
+  channel,
+  describeMethod,
+  executeMethod,
+  isGitActionResult,
+  type GitActionResult,
+  type GitOperation,
+} from './protocol.js'
+import { method, type GitContext, type RequestView } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-ui-vcs'
-export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection', 'sidebarRightTabs', 'sidebarRight']
-
-const instructions = {
-  commit: 'Commit only the work completed in this session. Do not push, create or update a PR/MR, or switch branches.',
-  push: 'Commit the work completed in this session if needed, then push the current default branch. Do not create or update a PR/MR or switch branches. If branch protection prevents the push, report the blocker without bypassing it.',
-  pr: `Commit and push the work completed in this session if needed, then create or update a pull request (PR), or a merge request (MR) on GitLab. If on the default branch or detached HEAD, create a suitable feature branch rather than pushing directly to the default branch.
-Support GitHub, GitLab (including Self-Managed and Dedicated), Gitea, and Forgejo with the same commit, push, and create-or-update review workflow.
-Determine the hosting service and target repository from the actual push remote and intended upstream/base repository, including fork workflows. Resolve HTTPS, ssh://, and SCP-style Git URLs and SSH host aliases using existing Git/SSH configuration. Preserve custom ports, instance URL prefixes, and nested GitLab namespaces; do not treat an arbitrary hostname as GitHub or assume that GitLab only runs on gitlab.com.
-Use available authenticated tools for the identified service: gh for GitHub, glab for GitLab MRs, or a compatible tea CLI or the instance's supported API for Gitea/Forgejo PRs. Inspect the installed tool's help/version before choosing commands. Target the resolved instance and repository explicitly; never fall back to a public host or change global CLI host settings.
-For self-hosted services, confirm the service and instance base URL using existing host configuration or read-only instance metadata before sending credentials. Use only credentials already scoped to that instance through the existing tools and approval flow; never print tokens, send them to another host, disable TLS verification, or change authentication settings.
-Look up existing open PRs/MRs by source repository/branch and target repository/branch, not just the branch name. Read the current title and body before updating, preserve other contributors' edits, and create a new PR/MR only if no matching one exists. Use the remote default branch or repository/session instructions for the base, not a hard-coded main/master. Apply the repository's appropriate PR/MR template and report the resulting PR/MR URL.
-If the host, credentials, CLI, or API cannot be resolved safely, report the specific blocker without guessing, switching providers, or claiming that a PR/MR was created.`,
-}
-const request = `Write any required commit message, PR/MR title, and PR/MR body yourself based on the actual diff and session context. Follow the repository's AGENTS.md, commit conventions, PR/MR template, and language rules; do not ask the user to draft these messages.
-Inspect the working directory, current branch, Git status, staged and unstaged diffs, recent commits, remotes, and any existing PR/MR before making changes. Include only changes belonging to this task; preserve unrelated edits and staged changes, and never commit secrets.
-Run the relevant checks before committing. If this task is already committed, do not create an empty or duplicate commit. Do not force-push, rewrite published history, merge the PR/MR, or trigger a deployment.
-Only perform the selected operation. When a PR/MR is requested, create one if none exists for the selected source and target repositories/branches; otherwise read its current title and body, then update it while preserving other contributors' edits. Inspect remote state before retrying an uncertain push or PR/MR creation to avoid duplicates.
-Use the existing tools and approval flow without weakening permissions. If Git, remote access, authentication, or required tools are unavailable, report the specific blocker rather than claiming success. Report the commit, pushed branch, PR/MR URL, and checks actually run.`
+export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sidebarRight']
 
 const copy = {
   en: {
@@ -46,10 +36,15 @@ const copy = {
     loading: 'Checking branch…',
     lookupError:
       'Could not determine the default branch. Refocus this window to retry. Commit only is still available.',
-    hint: 'Ask the agent to commit and push, and create or update a PR on a feature branch or worktree.',
-    sending: 'Sending request…',
-    sent: 'Requested. Follow the agent’s progress in the conversation.',
-    error: 'Could not confirm the request. Check the conversation before trying again.',
+    hint: 'Commit and push changes, and create or update a PR on a feature branch or worktree.',
+    sending: 'Running Git action…',
+    sent: 'Git action completed.',
+    noChanges: 'No task changes to commit.',
+    error: 'Could not confirm the Git action. Check Git and remote state before retrying.',
+    partialStage: 'A selected file has staged and unstaged changes. Finish staging that file before retrying.',
+    readOnly: 'Git actions are unavailable in read-only mode.',
+    conflict: 'The repository changed. Check Git state before retrying.',
+    busy: 'Another task is active. Wait for it to finish.',
   },
   ko: {
     pr: 'PR 생성',
@@ -60,10 +55,16 @@ const copy = {
     menu: '다른 Git 작업',
     loading: '브랜치 확인 중…',
     lookupError: '기본 브랜치를 확인하지 못했습니다. 창으로 돌아오면 다시 확인합니다. 커밋만 요청할 수 있습니다.',
-    hint: '에이전트가 커밋·푸시하고, 기능 브랜치나 worktree에서는 PR을 생성하거나 업데이트합니다.',
-    sending: '요청 전송 중…',
-    sent: '요청했습니다. 대화에서 에이전트의 진행 상황을 확인하세요.',
-    error: '요청 결과를 확인하지 못했습니다. 다시 시도하기 전에 대화를 확인하세요.',
+    hint: '변경 사항을 커밋·푸시하고, 기능 브랜치나 worktree에서는 PR을 생성하거나 업데이트합니다.',
+    sending: 'Git 작업 실행 중…',
+    sent: 'Git 작업을 완료했습니다.',
+    noChanges: '커밋할 작업 변경 사항이 없습니다.',
+    error: 'Git 작업 결과를 확인하지 못했습니다. 다시 시도하기 전에 Git과 원격 저장소 상태를 확인하세요.',
+    partialStage:
+      '선택한 파일에 스테이징한 변경과 하지 않은 변경이 함께 있습니다. 해당 파일의 스테이징을 마친 뒤 다시 시도하세요.',
+    readOnly: '읽기 전용 모드에서는 Git 작업을 실행할 수 없습니다.',
+    conflict: '저장소 상태가 바뀌었습니다. Git 상태를 확인한 뒤 다시 시도하세요.',
+    busy: '다른 작업을 실행 중입니다. 작업이 끝날 때까지 기다리세요.',
   },
   zh: {
     pr: '创建 PR',
@@ -74,17 +75,21 @@ const copy = {
     menu: '更多 Git 操作',
     loading: '正在检查分支…',
     lookupError: '无法确定默认分支。重新聚焦窗口以重试。仍可选择仅提交。',
-    hint: '让智能体提交并推送更改，在功能分支或 worktree 中创建或更新 PR。',
-    sending: '正在发送请求…',
-    sent: '已请求。请在对话中查看智能体的进度。',
-    error: '无法确认请求结果。请先检查对话，再决定是否重试。',
+    hint: '提交并推送更改，在功能分支或 worktree 中创建或更新 PR。',
+    sending: '正在执行 Git 操作…',
+    sent: 'Git 操作已完成。',
+    noChanges: '没有可提交的任务更改。',
+    error: '无法确认 Git 操作结果。请先检查 Git 和远程仓库状态，再决定是否重试。',
+    partialStage: '所选文件同时包含已暂存和未暂存的更改。请完成该文件的暂存后重试。',
+    readOnly: '只读模式下无法执行 Git 操作。',
+    conflict: '仓库状态已更改。请检查 Git 状态后重试。',
+    busy: '另一个任务正在运行。请等待任务结束。',
   },
 }
 
 export function apply(ctx: Context) {
   ctx.plugin(PullRequests)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const sessions = ctx.get('sessions') as unknown as ISessions
   function Action({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const language = useSyncExternalStore(
       (listener) => ctx.locale.subscribe(listener),
@@ -108,8 +113,17 @@ export function apply(ctx: Context) {
     const [open, setOpen] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+    const [result, setResult] = useState<GitActionResult>()
+    const [errorCode, setErrorCode] = useState('')
+    const mounted = useRef(true)
+    useEffect(() => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+      }
+    }, [])
     const statusId = useId()
-    const disabled = !canPrompt || unavailable || status === 'sending'
+    const disabled = !canPrompt || unavailable || status === 'sending' || typeof cwd !== 'string'
     const viewOnly = hasRequest && !needsUpdate
     const ciState = ciRequest ? PullRequests.checksState(ciRequest) : 'warning'
     const ciLabel = {
@@ -133,7 +147,7 @@ export function apply(ctx: Context) {
         setCiRequest(null)
         setNeedsUpdate(false)
         try {
-          const result = await connection.rpc.call('/api', 'dungsil-vcs/describe', { sessionId }, signal)
+          const result = await connection.rpc.call(channel, describeMethod, { sessionId }, signal)
           if (signal.aborted) return
           if (!result.ok) throw new Error('Git context unavailable')
           const context = result.value as GitContext
@@ -141,7 +155,7 @@ export function apply(ctx: Context) {
           setOperation(context.operation)
           if (context.operation === 'pr') {
             // Review lookup may be unavailable before the first push or without a hosting CLI.
-            // Keep creation available in that case; the agent still checks for an existing PR.
+            // Keep creation available. The server checks for an existing PR before each write.
             try {
               const requests = await connection.rpc.call(channel, method, { sessionId }, signal)
               if (signal.aborted) return
@@ -190,31 +204,41 @@ export function apply(ctx: Context) {
       return () => observer.disconnect()
     }, [sessionId])
 
-    const send = async (selected: keyof typeof instructions) => {
-      if (disabled || pending.current) return
+    const send = async (selected: GitOperation) => {
+      if (disabled || pending.current || typeof cwd !== 'string') return
       pending.current = true
       setOpen(false)
+      setResult(undefined)
+      setErrorCode('')
       setStatus('sending')
       try {
-        // Re-read before submission: another tool or terminal may have switched the branch.
-        if (selected !== 'commit') {
-          const result = await connection.rpc.call('/api', 'dungsil-vcs/describe', { sessionId })
-          const current = result.ok ? (result.value as GitContext).operation : undefined
-          if (current !== selected) {
-            setOperation(current === 'push' || current === 'pr' ? current : undefined)
-            setLookup(result.ok ? 'ready' : 'error')
-            setStatus('idle')
-            return
-          }
+        const response = await connection.rpc.call(
+          channel,
+          executeMethod,
+          {
+            sessionId,
+            cwd,
+            operation: selected,
+            requestId: crypto.randomUUID(),
+          },
+          AbortSignal.timeout(300_000)
+        )
+        if (!mounted.current) return
+        if (!response.ok) {
+          setErrorCode(response.error.code)
+          setStatus('error')
+          return
         }
-        const conversation = sessions.scope(sessionId)?.get('conversation')
-        if (!conversation) throw new Error('Session conversation unavailable')
-        // Send only this action. Never submit, replace, or clear the composer's draft or attachments.
-        await conversation.send(`${instructions[selected]}\n${request}`)
+        if (!isGitActionResult(response.value) || response.value.operation !== selected)
+          throw new Error('Invalid Git response')
+        setResult(response.value)
+        if (response.value.operation === 'pr' && response.value.url) {
+          setHasRequest(true)
+          setNeedsUpdate(false)
+        }
         setStatus('sent')
       } catch {
-        // Admission may have succeeded before a disconnect. Never retry automatically.
-        setStatus('error')
+        if (mounted.current) setStatus('error')
       } finally {
         pending.current = false
       }
@@ -296,7 +320,30 @@ export function apply(ctx: Context) {
           </Pill>
         )}
         <span id={statusId} role={status === 'error' ? 'alert' : 'status'} className="dsh-vcs-status">
-          {status === 'error' ? text.error : status === 'sent' ? text.sent : ''}
+          {status === 'error'
+            ? errorCode === 'partial_stage'
+              ? text.partialStage
+              : errorCode === 'read_only'
+                ? text.readOnly
+                : errorCode === 'conflict'
+                  ? text.conflict
+                  : errorCode === 'busy'
+                    ? text.busy
+                    : text.error
+            : status === 'sent'
+              ? result?.operation === 'commit' && !result.commit
+                ? text.noChanges
+                : text.sent
+              : ''}
+          {status === 'sent' && result?.commit && <> {result.commit.slice(0, 12)}</>}
+          {status === 'sent' && result?.url && (
+            <>
+              {' '}
+              <a href={result.url} target="_blank" rel="noreferrer">
+                {result.url}
+              </a>
+            </>
+          )}
         </span>
         {lookup !== 'ready' && (
           <span className="dsh-vcs-notice" role="status">
@@ -327,7 +374,7 @@ export function apply(ctx: Context) {
 .dsh-vcs-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
 .dsh-vcs-status { flex-basis: 100%; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .dsh-vcs-status:empty { display: none; }
-.dsh-vcs-status[role=status] { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.dsh-vcs-status { overflow-wrap: anywhere; }
 .dsh-vcs-status[role=alert] { color: var(--dsw-alias-state-error-primary); }
 `
     document.head.append(style)
