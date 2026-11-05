@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "locale",
+    "assets",
     "cordis.patch.yml"
   ],
   "type": "module",

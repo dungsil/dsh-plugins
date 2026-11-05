@@ -1,6 +1,10 @@
 # @dungsil/dsh-plugin-ui-model-settings
 
+![상황별 모델 설정의 라이트 모드와 다크 모드를 꼭짓점 대각선으로 나눈 미리보기](./assets/light-dark-preview.webp)
+
 DSH 설정에 **상황별 모델** 페이지를 추가하는 UI 플러그인입니다. 모델과 추론 수준 조회·저장은 [`@dungsil/dsh-plugin-model-settings`](../model-settings)가 담당하며, UI 설치 시 기능 플러그인도 함께 설치·활성화합니다.
+
+위 이미지는 최신 빌드의 실제 플러그인 컴포넌트에 예시 모델·설정 응답과 공식 DSH 테마·UI primitives를 제공한 독립 브라우저 화면을 각각 캡처해 합성했습니다. 실제 DSH 세션 화면은 아니며, 표시된 모델과 추론 수준은 예시입니다.
 
 ## 사용 방법
 
