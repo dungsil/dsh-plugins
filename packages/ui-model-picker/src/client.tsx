@@ -348,20 +348,6 @@ export function apply(ctx: Context) {
                 <header className="dsh-codex-header">
                   <button
                     type="button"
-                    className="dsh-codex-model"
-                    disabled={locked}
-                    aria-disabled={disabled}
-                    onClick={() => {
-                      if (!disabled) setPanel('model')
-                    }}
-                  >
-                    <strong>{stagedEfforts[draft]?.name}</strong>
-                    <span>
-                      {stagedName} <IconChevronRightOutlineRegular size={14} />
-                    </span>
-                  </button>
-                  <button
-                    type="button"
                     className="dsh-codex-reset"
                     disabled={locked || !(staged ?? current)}
                     aria-disabled={disabled || !(staged ?? current)}
@@ -373,6 +359,30 @@ export function apply(ctx: Context) {
                     }}
                   >
                     <IconResetOutlineRegular />
+                  </button>
+                  <button
+                    type="button"
+                    className="dsh-codex-model"
+                    disabled={locked}
+                    aria-disabled={disabled}
+                    title={stagedName}
+                    onClick={() => {
+                      if (!disabled) setPanel('model')
+                    }}
+                  >
+                    <strong>{stagedEfforts[draft]?.name}</strong>
+                    <span>
+                      {stagedName} <IconChevronRightOutlineRegular size={14} />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="dsh-codex-apply"
+                    disabled={locked}
+                    aria-disabled={disabled}
+                    onClick={() => selectEffort(draft)}
+                  >
+                    {text.apply}
                   </button>
                 </header>
               )}
@@ -481,15 +491,6 @@ export function apply(ctx: Context) {
                         }}
                       />
                     </div>
-                    <button
-                      type="button"
-                      className="dsh-codex-apply dsh-codex-option"
-                      disabled={locked}
-                      aria-disabled={disabled}
-                      onClick={() => selectEffort(draft)}
-                    >
-                      {text.apply}
-                    </button>
                   </div>
                 )
               )}
