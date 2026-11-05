@@ -1,11 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react'
+import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button,
@@ -20,7 +23,10 @@ import {
 } from '@dungsil/dsh-ui'
 import {
   IconBranchOutlineRegular,
+  IconCheckCircleOutlineRegular,
   IconChevronDownOutlineRegular,
+  IconClockOutlineRegular,
+  IconCloseOutlineRegular,
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
   IconRefreshOutlineRegular,
@@ -34,7 +40,7 @@ import { styles } from './pull-requests-styles.js'
 import { bindPullRequestLinks, pullRequestUrl } from './pull-request-links.js'
 
 export const name = 'dungsil-vcs-pull-requests'
-export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sidebarRight']
+export const inject = ['slots', 'locale', 'connection', 'sessions', 'sidebarRightTabs', 'sidebarRight']
 
 declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
   interface SidebarRightTabParamsMap {
@@ -139,12 +145,111 @@ function Choice<Value extends string>({
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const sessions = ctx.get('sessions') as unknown as ISessions
   const views = new Map<string, RequestView>()
   ctx.effect(() => () => views.clear())
   const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
   const text = () => {
     const language = ctx.locale.getSnapshot().active
     return language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
+  }
+
+  function SessionRequest({ sessionId }: PropsRuntime<'sidebar.workspaces.session.row.action'>) {
+    useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
+    const copy = text()
+    const running = useSyncExternalStore(
+      (listener) => sessions.list.subscribe(listener),
+      () => sessions.list.getSnapshot().byId[sessionId]?.running ?? false
+    )
+    const cwd = useSyncExternalStore(
+      (listener) => sessions.list.subscribe(listener),
+      () => sessions.list.getSnapshot().byId[sessionId]?.cwd
+    )
+    const anchor = useRef<HTMLSpanElement>(null)
+    const [host, setHost] = useState<HTMLSpanElement>()
+    const [view, setView] = useState<RequestView>()
+    useEffect(() => {
+      // The leading slot disappears during live activity, and row actions are
+      // hover-only. Keep a separate decoration beside the title in either state.
+      const row = anchor.current?.closest('[data-row-key]')
+      const title = row?.children.item(1)
+      if (row?.getAttribute('data-row-key') !== `session:${sessionId}` || !title) return
+      const node = document.createElement('span')
+      node.style.display = 'inline-flex'
+      node.style.flex = 'none'
+      title.after(node)
+      setHost(node)
+      return () => node.remove()
+    }, [sessionId])
+    useEffect(() => {
+      let active: AbortController | undefined
+      setView(undefined)
+      const refresh = async () => {
+        active?.abort()
+        active = new AbortController()
+        const { signal } = active
+        try {
+          const result = await connection.rpc.call(channel, method, { sessionId, summary: true }, signal)
+          if (!signal.aborted) setView(result.ok ? (result.value as RequestView) : undefined)
+        } catch {
+          if (!signal.aborted) setView(undefined)
+        }
+      }
+      void refresh()
+      window.addEventListener('focus', refresh)
+      const interval = window.setInterval(refresh, 60_000)
+      return () => {
+        active?.abort()
+        window.removeEventListener('focus', refresh)
+        window.clearInterval(interval)
+      }
+    }, [sessionId, running, cwd])
+    const item = view?.request
+    const state = item?.state === 'open' && item.draft ? 'draft' : item?.state
+    const Icon =
+      state === 'merged'
+        ? IconCheckCircleOutlineRegular
+        : state === 'closed'
+          ? IconCloseOutlineRegular
+          : state === 'draft'
+            ? IconClockOutlineRegular
+            : IconBranchOutlineRegular
+    const label =
+      item && state ? `${copy.title} ${view?.provider === 'gitlab' ? '!' : '#'}${item.number}: ${copy[state]}` : ''
+    return (
+      <>
+        <span ref={anchor} hidden />
+        {host &&
+          item &&
+          state &&
+          createPortal(
+            <span
+              className="dsh-vcs-session-request"
+              role="img"
+              aria-label={label}
+              title={label}
+              data-state={state}
+              style={{
+                display: 'inline-flex',
+                width: 14,
+                height: 14,
+                marginRight: 6,
+                color:
+                  state === 'open'
+                    ? 'var(--dsw-alias-state-success-primary)'
+                    : state === 'closed'
+                      ? 'var(--dsw-alias-state-error-primary)'
+                      : state === 'merged'
+                        ? 'var(--dsw-alias-state-business-primary)'
+                        : 'var(--dsw-alias-label-tertiary)',
+              }}
+            >
+              <Icon aria-hidden="true" size={14} />
+            </span>,
+            host
+          )}
+      </>
+    )
   }
 
   function Links({ sessionId }: PropsRuntime<'conversation.input.dock'>) {
@@ -784,6 +889,9 @@ export function apply(ctx: Context) {
   )
   ctx.slots.inject('conversation.input.dock', () =>
     ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links` }, Links)
+  )
+  ctx.slots.inject('sidebar.workspaces.session.row.action', () =>
+    ctx.slots.register({ name: 'sidebar.workspaces.session.row.action', id: `${name}-status` }, SessionRequest)
   )
   ctx.slots.inject('sidebar.right.pane.tab', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab', key: name }, Requests)

@@ -12,6 +12,10 @@ function mount(language = 'en') {
     registrations = new Map(),
     cleanups = []
   const opens = []
+  const listeners = new Map()
+  const intervals = new Set()
+  const session = { running: false, cwd: '/repo' }
+  const hosts = []
   let cursor = 0,
     plugin,
     mounted = 'session',
@@ -61,16 +65,37 @@ function mount(language = 'en') {
     AbortSignal,
     URL,
     Element,
-    document: { createElement: () => ({}) },
+    document: {
+      createElement: () => ({
+        style: {},
+        remove() {
+          this.removed = true
+        },
+      }),
+    },
     window: {
-      addEventListener() {},
-      removeEventListener() {},
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      removeEventListener: (name, listener) => {
+        if (listeners.get(name) === listener) listeners.delete(name)
+      },
+      setInterval: (callback) => {
+        intervals.add(callback)
+        return callback
+      },
+      clearInterval: (callback) => intervals.delete(callback),
       __ModuleLoader__: {
         load({ factory }) {
           plugin = factory((id) => {
             if (id === 'react') return react
             if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
-            if (id === '@deepseek-ai/dsh-client-ui-primitives') return {}
+            if (id === 'react-dom') return { createPortal: (children) => children }
+            if (id === '@deepseek-ai/dsh-client-ui-primitives')
+              return {
+                IconBranchOutlineRegular: 'branch',
+                IconCheckCircleOutlineRegular: 'check-circle',
+                IconCloseOutlineRegular: 'close',
+                IconClockOutlineRegular: 'clock',
+              }
             throw new Error(`Unexpected dependency: ${id}`)
           })
         },
@@ -79,6 +104,7 @@ function mount(language = 'en') {
   })
   const ctx = {
     get: () => ({
+      list: { getSnapshot: () => ({ byId: { session, other: session } }), subscribe: () => () => {} },
       rpc: {
         call: (_channel, method, payload, signal) =>
           new Promise((resolve) => {
@@ -141,6 +167,20 @@ function mount(language = 'en') {
     }
     for (const effect of effects.splice(0)) effect()
   }
+  const renderBadge = (sessionId = 'session') => {
+    cursor = 0
+    const tree = registrations.get('sidebar.workspaces.session.row.action:dungsil-vcs-pull-requests-status')({
+      sessionId,
+    })
+    tree.props.children[0].props.ref.current = {
+      closest: () => ({
+        getAttribute: () => `session:${sessionId}`,
+        children: { item: () => ({ after: (host) => hosts.push(host) }) },
+      }),
+    }
+    for (const effect of effects.splice(0)) effect()
+    return tree.props.children[1] || null
+  }
   const click = (href) => {
     const target = new Element()
     target.href = href
@@ -163,6 +203,14 @@ function mount(language = 'en') {
     render,
     dispose,
     renderLinks,
+    renderBadge,
+    session,
+    hosts,
+    intervals,
+    focus: () => listeners.get('focus')?.(),
+    setLanguage: (value) => {
+      language = value
+    },
     click,
     opens,
     setMounted: (value) => {
@@ -194,6 +242,82 @@ const request = (number) => ({
     reviews: [],
   },
 })
+
+await test('session badges distinguish MR states in every locale and hide missing or failed associations', async () => {
+  const fixture = mount()
+  try {
+    assert.equal(fixture.renderBadge(), null)
+    for (const [state, draft, icon, labels] of [
+      ['open', false, 'branch', ['Open', '열림', '开放']],
+      ['open', true, 'clock', ['Draft', '초안', '草稿']],
+      ['merged', true, 'check-circle', ['Merged', '병합됨', '已合并']],
+      ['closed', true, 'close', ['Closed', '닫힘', '已关闭']],
+    ]) {
+      const view = request(17)
+      view.provider = 'gitlab'
+      Object.assign(view.request, { state, draft })
+      fixture.calls.at(-1).resolve({ ok: true, value: view })
+      await settle()
+      for (const [index, language] of ['en', 'ko', 'zh'].entries()) {
+        fixture.setLanguage(language)
+        const badge = fixture.renderBadge()
+        assert.equal(badge.props.role, 'img')
+        assert.equal(badge.props['data-state'], state === 'open' && draft ? 'draft' : state)
+        assert.ok(badge.props['aria-label'].includes(`!17: ${labels[index]}`), badge.props['aria-label'])
+        assert.equal(badge.props.children.type, icon)
+      }
+      fixture.focus()
+    }
+    fixture.calls.at(-1).resolve({ ok: true, value: { ...request(17), request: null } })
+    await settle()
+    assert.equal(fixture.renderBadge(), null)
+    fixture.focus()
+    fixture.calls.at(-1).resolve({ ok: false, error: { code: 'cli_missing' } })
+    await settle()
+    assert.equal(fixture.renderBadge(), null)
+  } finally {
+    fixture.dispose()
+  }
+  assert.equal(fixture.intervals.size, 0)
+  assert.ok(fixture.hosts.every((host) => host.removed))
+})
+
+await test('session badges refresh after agent activity and directory changes, discarding superseded replies', async () => {
+  const fixture = mount()
+  try {
+    fixture.renderBadge()
+    fixture.calls[0].resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+    fixture.session.running = true
+    fixture.renderBadge()
+    fixture.calls.at(-1).resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge()) // MR decoration also exists while the agent runs.
+    fixture.session.running = false
+    fixture.renderBadge()
+    const old = fixture.calls.at(-1)
+    fixture.session.cwd = '/different-repo'
+    fixture.renderBadge()
+    assert.equal(old.signal.aborted, true)
+    fixture.calls.at(-1).resolve({ ok: true, value: request(43) })
+    old.resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#43'))
+    for (const refresh of fixture.intervals) refresh()
+    const periodic = fixture.calls.at(-1)
+    fixture.renderBadge('other')
+    assert.equal(periodic.signal.aborted, true)
+    periodic.resolve({ ok: true, value: request(44) })
+    fixture.calls.at(-1).resolve({ ok: true, value: { ...request(45), request: null } })
+    await settle()
+    assert.equal(fixture.renderBadge('other'), null)
+    assert.ok(fixture.calls.every((call) => call.payload.summary === true && !call.payload.requestUrl))
+  } finally {
+    fixture.dispose()
+  }
+})
+
 function texts(node) {
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (Array.isArray(node)) return node.map(texts).join(' ')
