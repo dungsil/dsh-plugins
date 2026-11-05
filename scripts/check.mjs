@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 function output(command, args) {
   return execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd()
@@ -11,6 +11,7 @@ function run(args) {
 
 function check() {
   let changed
+  let rootConfigurationChanged = false
   try {
     const head = process.env.TURBO_SCM_HEAD || 'HEAD'
     let base = process.env.TURBO_SCM_BASE
@@ -32,6 +33,17 @@ function check() {
     diffs.push(output('git', ['diff', '--cached', '--name-only', '--no-renames', '-z', '--']))
     diffs.push(output('git', ['ls-files', '--others', '--exclude-standard', '-z']))
     changed = [...new Set(diffs.flatMap((diff) => diff.split('\0').filter(Boolean)))]
+    if (changed.includes('package.json')) {
+      // Script-only changes affect the runner, not every plugin's runtime or types.
+      const manifests = [base, head, ''].map((ref) => output('git', ['show', `${ref}:package.json`]))
+      manifests.push(readFileSync('package.json', 'utf8'))
+      const configurations = manifests.map((text) => {
+        const manifest = JSON.parse(text)
+        delete manifest.scripts
+        return JSON.stringify(manifest)
+      })
+      rootConfigurationChanged = new Set(configurations).size > 1
+    }
   } catch (error) {
     console.log(`Cannot determine changed packages; running all checks: ${error.message}`)
     run(['check:all'])
@@ -39,7 +51,6 @@ function check() {
   }
 
   const globalFiles = new Set([
-    'package.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
     'turbo.json',
@@ -48,10 +59,9 @@ function check() {
     '.oxlintrc.json',
     '.editorconfig',
     '.gitignore',
-    'scripts/check.mjs',
-    '.github/workflows/ci.yml',
   ])
   if (
+    rootConfigurationChanged ||
     changed.some(
       (file) => globalFiles.has(file) || file.startsWith('tools/tsconfig/') || /(^|\/)\.env($|\.)/.test(file)
     )
