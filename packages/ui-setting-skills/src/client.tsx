@@ -3,8 +3,13 @@ import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, installSettingsIcon, SegmentedControl, Switch } from '@dungsil/dsh-ui'
-import { IconChevronRightOutlineRegular, IconFolderOpenOutlineRegular, IconLoadingOutlineRegular,IconSkillOutlineRegular } from '@dungsil/dsh-ui/icons'
+import { Button, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
+import {
+  IconChevronRightOutlineRegular,
+  IconFolderOpenOutlineRegular,
+  IconLoadingOutlineRegular,
+  IconSkillOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
