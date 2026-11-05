@@ -4,6 +4,12 @@ import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-title'
+import {
+  renderYoonmoonInstructions,
+  titleInstructions,
+  worktreeInstructions,
+  yoonmoonInstructions,
+} from '@dungsil/dsh-task-prompts'
 import { channel, endpointPrefix, type Route, type TitleTarget } from './protocol.js'
 
 export const name = 'dungsil-model-settings'
@@ -43,6 +49,9 @@ export async function apply(ctx: Context) {
       provider?: string
       model?: string
       reasoningEffort?: string
+      naming?: string
+      targetWords: number
+      targetCjkCharacters: number
     }
     const inheritance = owner?.options.config?.inheritAuxiliary as Record<string, boolean> | undefined
     const useAuxiliary =
@@ -50,8 +59,21 @@ export async function apply(ctx: Context) {
     const settings = (task === 'title' ? owner?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
+    const defaultInstructions =
+      task === 'title'
+        ? titleInstructions(
+            config.targetWords,
+            config.targetCjkCharacters,
+            entry.options.name === '@deepseek-ai/dsh-session-title-all-prompts-llm'
+          )
+        : task === 'worktree'
+          ? worktreeInstructions(config.naming ?? 'semantic')
+          : task === 'yoonmoon'
+            ? yoonmoonInstructions
+            : ''
     const instructions =
-      (owner?.options.config?.instructions as Record<string, string> | undefined)?.[entry.options.id] ?? ''
+      (owner?.options.config?.instructions as Record<string, string> | undefined)?.[entry.options.id] ??
+      defaultInstructions
     return {
       id: entry.options.id,
       revision: createHash('sha256')
@@ -62,12 +84,14 @@ export async function apply(ctx: Context) {
             settings,
             useAuxiliary,
             instructions,
+            defaultInstructions,
           ])
         )
         .digest('hex'),
       route: config.provider && config.model ? { provider: config.provider, model: config.model } : null,
       useAuxiliary,
       instructions,
+      defaultInstructions,
       reasoningEffort:
         task !== 'title'
           ? config.provider && config.model
@@ -124,12 +148,22 @@ export async function apply(ctx: Context) {
         ...(configure ? configure(controls, model) : controls),
         ...(typeof effort === 'string' ? { reasoningEffort: ReasoningEffortId(effort) } : {}),
       }))
-      const instructions = [auxiliary?.instructions, target?.instructions].filter(Boolean).join('\n\n')
-      if (!instructions) return call
+      const instructions = target?.instructions !== target?.defaultInstructions ? target?.instructions : undefined
+      if (!instructions && !auxiliary?.instructions) return call
       return {
         ...call,
-        stream: (options) =>
-          call.stream({ ...options, system: [options.system, instructions].filter(Boolean).join('\n\n') }),
+        stream: (options) => {
+          let system = instructions ?? options.system
+          if (instructions && task === 'yoonmoon') {
+            // Read variables from the owning plugin's unmodified prompt, never user text.
+            const original = /^Execute the (\S+) skill below\.[^\n]*\n\n([\s\S]*)$/u.exec(options.system ?? '')!
+            system = renderYoonmoonInstructions(instructions, original[1]!, original[2]!)
+          }
+          return call.stream({
+            ...options,
+            system: [system, auxiliary?.instructions].filter(Boolean).join('\n\n'),
+          })
+        },
       }
     }
     return new Proxy(llm, {
@@ -205,7 +239,8 @@ export async function apply(ctx: Context) {
           if (snapshot(task)?.revision !== input.revision) throw new Error('conflict')
           const next = { ...current }
           const saved = { ...(current.instructions as Record<string, string> | undefined) }
-          if (instructions) saved[input.id as string] = instructions
+          if (instructions && instructions !== snapshot(task)?.defaultInstructions)
+            saved[input.id as string] = instructions
           else delete saved[input.id as string]
           if (Object.keys(saved).length) next.instructions = saved
           else delete next.instructions

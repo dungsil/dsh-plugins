@@ -13,6 +13,7 @@ export interface TitleTarget {
   reasoningEffort: string | null
   useAuxiliary?: boolean
   instructions: string
+  defaultInstructions: string
 }
 
 export interface ModelSettingsView {

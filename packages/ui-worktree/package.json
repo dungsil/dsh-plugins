@@ -63,6 +63,7 @@
     "@deepseek-ai/dsh-workspace": "0.2.1-rc.5",
     "@deepseek-ai/schemastery": "~3.18.5",
     "@dungsil/dsh-plugin-model-settings": "workspace:*",
+    "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",

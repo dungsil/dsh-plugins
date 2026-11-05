@@ -4,10 +4,28 @@ import test from 'node:test'
 import { profileFixture, titleConfig } from './profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
-  await test(`${strategy}: task instructions persist, compose with auxiliary instructions and stay out of conversation calls`, async (t) => {
-    const h = await profileFixture(strategy, {}, { namingStyle: 'semantic' }, {})
+  await test(`${strategy}: editable default prompts replace task instructions, persist and stay out of conversation calls`, async (t) => {
+    const h = await profileFixture(strategy, {}, { naming: 'semantic' }, {})
     t.after(h.close)
     const initial = (await h.rpc('describe')).value
+    assert.equal(initial.auxiliary.instructions, '')
+    assert.equal(initial.target.instructions, initial.target.defaultInstructions)
+    assert.ok(initial.target.instructions.includes('about 7 words in non-CJK languages or 13 CJK characters.'))
+    assert.ok(initial.worktree.instructions.startsWith('Return only a short lowercase ASCII semantic Git branch name'))
+    assert.ok(initial.yoonmoon.instructions.includes('{{skill}}'))
+    assert.ok(initial.yoonmoon.instructions.endsWith('{{resources}}'))
+    const session = await h.generate('default-title')
+    assert.equal(
+      h.adapter.requests.at(-1).system,
+      initial.target.instructions.split('\nAn existing title is supplied')[0]
+    )
+    if (strategy === 'all-prompts') {
+      await h.ctx.sessionTitle.refresh(session)
+      assert.equal(h.adapter.requests.at(-1).system, initial.target.instructions)
+    }
+    await h.write('default-writing')
+    const defaultWriting = h.adapter.requests.at(-1).system
+    const requestCount = h.adapter.requests.length
     for (const task of ['auxiliary', 'target', 'worktree', 'yoonmoon']) {
       const target = (await h.rpc('describe')).value[task]
       const saved = await h.rpc('instructions', { ...target, instructions: `  Only ${task}.\nKeep it short.  ` })
@@ -16,7 +34,7 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
       assert.deepEqual(saved.value.route, initial[task].route)
       assert.equal((await h.rpc('instructions', { ...target, instructions: 'stale' })).error.code, 'conflict')
     }
-    assert.equal(h.adapter.requests.length, 0)
+    assert.equal(h.adapter.requests.length, requestCount)
     await h.restart()
     const restored = (await h.rpc('describe')).value
     for (const task of ['auxiliary', 'target', 'worktree', 'yoonmoon']) {
@@ -24,12 +42,10 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     }
     await h.generate('instructions-title')
     const titleSystem = h.adapter.requests.at(-1).system
-    assert.ok(titleSystem.endsWith('Only auxiliary.\nKeep it short.\n\nOnly target.\nKeep it short.'))
-    assert.ok(titleSystem.startsWith('Create a concise title for an AI coding-assistant session'))
+    assert.equal(titleSystem, 'Only target.\nKeep it short.\n\nOnly auxiliary.\nKeep it short.')
     await h.write('instructions-yoonmoon')
     const writingSystem = h.adapter.requests.at(-1).system
-    assert.ok(writingSystem.startsWith('Execute the proofreading-korean skill'))
-    assert.ok(writingSystem.endsWith('Only auxiliary.\nKeep it short.\n\nOnly yoonmoon.\nKeep it short.'))
+    assert.equal(writingSystem, 'Only yoonmoon.\nKeep it short.\n\nOnly auxiliary.\nKeep it short.')
     assert.ok(!writingSystem.includes('Only target.'))
     const conversation = await h.ctx.llm.prepareCall({ provider: 'conversation', model: 'chat-large' })
     for await (const _ of conversation.stream({ ...conversation.config, messages: [], system: 'Conversation only.' })) {
@@ -47,13 +63,42 @@ for (const strategy of ['first-prompt', 'all-prompts']) {
     assert.ok(!h.adapter.requests.at(-1).system.includes('Only auxiliary.'))
     const cleared = await h.rpc('instructions', { ...own.value, instructions: ' \n ' })
     assert.equal(cleared.ok, true)
-    assert.equal(cleared.value.instructions, '')
+    assert.equal(cleared.value.instructions, initial.target.defaultInstructions)
     assert.deepEqual(cleared.value.route, own.value.route)
     assert.equal(cleared.value.reasoningEffort, 'thorough')
     await h.generate('instructions-cleared')
     assert.ok(!h.adapter.requests.at(-1).system.includes('Only target.'))
+    assert.equal(
+      h.adapter.requests.at(-1).system,
+      initial.target.instructions.split('\nAn existing title is supplied')[0]
+    )
     assert.equal(h.adapter.requests.at(-1).reasoningEffort, 'thorough')
     assert.equal((await h.rpc('describe')).value.worktree.instructions, restored.worktree.instructions)
+    const writing = (await h.rpc('describe')).value.yoonmoon
+    const customWriting = initial.yoonmoon.defaultInstructions.replace(
+      'Preserve the input meaning.',
+      'Use a formal tone.'
+    )
+    assert.equal((await h.rpc('instructions', { ...writing, instructions: customWriting })).ok, true)
+    await h.write('template-writing')
+    assert.equal(
+      h.adapter.requests.at(-1).system,
+      `${defaultWriting.replace('Preserve the input meaning.', 'Use a formal tone.')}\n\nOnly auxiliary.\nKeep it short.`
+    )
+    const currentWriting = (await h.rpc('describe')).value.yoonmoon
+    assert.equal(
+      (await h.rpc('instructions', { ...currentWriting, instructions: currentWriting.defaultInstructions })).ok,
+      true
+    )
+    const titleEntry = h.ctx.configEditor.entries().find((entry) => entry.options.id === initial.target.id)
+    await h.ctx.configEditor.edit(titleEntry, (config) => ({ ...config, targetWords: 11, targetCjkCharacters: 19 }))
+    const updated = (await h.rpc('describe')).value.target
+    assert.ok(updated.instructions.includes('about 11 words in non-CJK languages or 19 CJK characters.'))
+    await h.generate('changed-title-defaults')
+    assert.equal(h.adapter.requests.at(-1).system, updated.instructions.split('\nAn existing title is supplied')[0])
+    await h.restart()
+    await h.write('restored-writing-default')
+    assert.equal(h.adapter.requests.at(-1).system, `${defaultWriting}\n\nOnly auxiliary.\nKeep it short.`)
   })
 
   await test(`${strategy}: shared auxiliary defaults preserve provenance, explicit overrides and conversation opt-out across reloads`, async (t) => {

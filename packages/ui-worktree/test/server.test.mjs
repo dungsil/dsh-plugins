@@ -1123,6 +1123,7 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     }
   )
   const namingRequests = []
+  const customInstructions = 'Return only a short custom branch name. Worktree instructions.'
   class NamingAdapter extends LlmAdapter {
     async resolveModel(provider, model) {
       return {
@@ -1147,15 +1148,23 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     assert.equal(namingRequests.at(-1).provider, expected.provider)
     assert.equal(namingRequests.at(-1).model, expected.model)
     assert.equal(namingRequests.at(-1).reasoningEffort, effort)
-    assert.ok(namingRequests.at(-1).system.endsWith('Worktree instructions.'))
-    assert.equal(namingRequests.at(-1).system.includes('Shared instructions.'), expected.provider === 'auxiliary')
+    assert.equal(
+      namingRequests.at(-1).system,
+      customInstructions + (expected.provider === 'auxiliary' ? '\n\nShared instructions.' : '')
+    )
     assert.equal((await rpc('switch', { cwd: created.cwd, path: gitPath(repo) })).ok, true)
   }
   const describe = async () => (await rpc('dungsil-model-settings/describe')).value
   const save = (payload) => rpc('dungsil-model-settings/save', payload)
+  const defaults = (await describe()).worktree
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(namingRequests.at(-1).system, defaults.instructions)
+  assert.equal(defaults.instructions, defaults.defaultInstructions)
+  assert.equal((await rpc('switch', { cwd: (await rpc('describe')).value.cwd, path: gitPath(repo) })).ok, true)
   for (const [task, instructions] of [
     ['auxiliary', 'Shared instructions.'],
-    ['worktree', 'Worktree instructions.'],
+    ['worktree', customInstructions],
   ]) {
     assert.equal(
       (await rpc('dungsil-model-settings/instructions', { ...(await describe())[task], instructions })).ok,
@@ -1178,6 +1187,21 @@ await test('automatic worktree naming follows live auxiliary settings without ch
     true
   )
   await check(nextRoute, 'thorough')
+  const worktree = (await describe()).worktree
+  assert.equal((await rpc('dungsil-model-settings/instructions', { ...worktree, instructions: '' })).ok, true)
+  assert.equal((await rpc('create', { cwd: repo })).ok, true)
+  await submit()
+  assert.equal(namingRequests.at(-1).system, `${defaults.defaultInstructions}\n\nShared instructions.`)
+  assert.equal((await rpc('switch', { cwd: (await rpc('describe')).value.cwd, path: gitPath(repo) })).ok, true)
+  assert.equal(
+    (
+      await rpc('dungsil-model-settings/instructions', {
+        ...(await describe()).worktree,
+        instructions: customInstructions,
+      })
+    ).ok,
+    true
+  )
   assert.equal(
     (await save({ ...(await describe()).worktree, route: null, reasoningEffort: null, useAuxiliary: false })).ok,
     true
@@ -1188,7 +1212,7 @@ await test('automatic worktree naming follows live auxiliary settings without ch
   assert.equal(namingRequests.length, auxiliaryCalls)
   assert.ok(requests.some((request) => request.system?.startsWith('Return only a short')))
   const naming = requests.findLast((request) => request.system?.startsWith('Return only a short'))
-  assert.ok(naming.system.endsWith('Worktree instructions.'))
+  assert.equal(naming.system, customInstructions)
   assert.ok(!naming.system.includes('Shared instructions.'))
   assert.ok(
     requests
