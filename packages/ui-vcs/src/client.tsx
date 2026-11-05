@@ -10,9 +10,10 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
+import { channel, method, type RequestView } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-ui-vcs'
-export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection', 'sidebarRightTabs']
+export const inject = ['slots', 'locale', 'sessions', 'conversation', 'connection', 'sidebarRightTabs', 'sidebarRight']
 
 const instructions = {
   commit: 'Commit only the work completed in this session. Do not push, create or update a PR/MR, or switch branches.',
@@ -34,6 +35,7 @@ Use the existing tools and approval flow without weakening permissions. If Git, 
 const copy = {
   en: {
     pr: 'Create PR',
+    viewPr: 'View PR',
     push: 'Push',
     commit: 'Commit only',
     menu: 'More Git actions',
@@ -47,6 +49,7 @@ const copy = {
   },
   ko: {
     pr: 'PR 생성',
+    viewPr: 'PR 보기',
     push: '푸시',
     commit: '커밋만',
     menu: '다른 Git 작업',
@@ -59,6 +62,7 @@ const copy = {
   },
   zh: {
     pr: '创建 PR',
+    viewPr: '查看 PR',
     push: '推送',
     commit: '仅提交',
     menu: '更多 Git 操作',
@@ -90,6 +94,7 @@ export function apply(ctx: Context) {
     const anchor = useRef<HTMLSpanElement>(null)
     const cwd = useProjection('workingDirectory')
     const [operation, setOperation] = useState<'push' | 'pr'>()
+    const [hasRequest, setHasRequest] = useState(false)
     const [lookup, setLookup] = useState<'loading' | 'ready' | 'error'>('loading')
     const [open, setOpen] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
@@ -106,12 +111,24 @@ export function apply(ctx: Context) {
         const signal = controller.signal
         setLookup('loading')
         setOperation(undefined)
+        setHasRequest(false)
         try {
           const result = await connection.rpc.call('/api', 'dungsil-vcs/describe', { sessionId }, signal)
           if (signal.aborted) return
           if (!result.ok || (result.value !== 'push' && result.value !== 'pr'))
             throw new Error('Git context unavailable')
           setOperation(result.value)
+          if (result.value === 'pr') {
+            // Review lookup may be unavailable before the first push or without a hosting CLI.
+            // Keep creation available in that case; the agent still checks for an existing PR.
+            try {
+              const requests = await connection.rpc.call(channel, method, { sessionId }, signal)
+              if (signal.aborted) return
+              if (requests.ok) setHasRequest(!!(requests.value as RequestView).request)
+            } catch {
+              if (signal.aborted) return
+            }
+          }
           setLookup('ready')
         } catch {
           if (!signal.aborted) setLookup('error')
@@ -183,14 +200,23 @@ export function apply(ctx: Context) {
         <div className="dsh-vcs-actions">
           <Pill
             className="dsh-vcs-trigger"
-            disabled={disabled || !operation || lookup !== 'ready'}
-            title={text.hint}
+            disabled={(!hasRequest && disabled) || !operation || lookup !== 'ready'}
+            title={hasRequest ? text.viewPr : text.hint}
             aria-describedby={statusId}
             aria-busy={status === 'sending'}
-            onClick={() => operation && void send(operation)}
+            onClick={() => {
+              if (hasRequest) ctx.sidebarRight.openTab(PullRequests.name)
+              else if (operation) void send(operation)
+            }}
           >
             <IconBranchOutlineRegular aria-hidden="true" />
-            {status === 'sending' ? text.sending : operation === 'push' ? text.push : text.pr}
+            {hasRequest
+              ? text.viewPr
+              : status === 'sending'
+                ? text.sending
+                : operation === 'push'
+                  ? text.push
+                  : text.pr}
           </Pill>
           <Menu
             open={open}
