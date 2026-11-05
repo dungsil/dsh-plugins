@@ -52,12 +52,15 @@ export interface WorktreeSettingsView {
   settings: WorktreeSettings
 }
 
-export interface WorktreeView {
+export interface WorktreeSelectionView {
   cwd: string
-  worktrees: { path: string; branch: string | null }[]
-  locked?: boolean
-  needsInitialization?: boolean
   pendingCreation?: { name: string; failed: boolean }
+  pendingSwitch?: { path: string; failed: boolean }
+}
+
+export interface WorktreeView extends WorktreeSelectionView {
+  worktrees: { path: string; branch: string | null }[]
+  needsInitialization?: boolean
 }
 
 function comparablePath(path: string) {
@@ -79,17 +82,29 @@ export function currentWorktree(view: WorktreeView | undefined) {
     .sort((a, b) => comparablePath(b.path).length - comparablePath(a.path).length)[0]
 }
 
-export function isWorktreeView(value: unknown): value is WorktreeView {
+export function isWorktreeSelectionView(value: unknown): value is WorktreeSelectionView {
   if (!value || typeof value !== 'object') return false
-  const view = value as Partial<WorktreeView>
+  const view = value as Partial<WorktreeSelectionView>
   return (
     typeof view.cwd === 'string' &&
-    (view.locked === undefined || typeof view.locked === 'boolean') &&
-    (view.needsInitialization === undefined || typeof view.needsInitialization === 'boolean') &&
+    !(view.pendingCreation !== undefined && view.pendingSwitch !== undefined) &&
     (view.pendingCreation === undefined ||
       (view.pendingCreation !== null &&
         typeof view.pendingCreation.name === 'string' &&
         typeof view.pendingCreation.failed === 'boolean')) &&
+    (view.pendingSwitch === undefined ||
+      (view.pendingSwitch !== null &&
+        typeof view.pendingSwitch.path === 'string' &&
+        view.pendingSwitch.path.length > 0 &&
+        typeof view.pendingSwitch.failed === 'boolean'))
+  )
+}
+
+export function isWorktreeView(value: unknown): value is WorktreeView {
+  if (!isWorktreeSelectionView(value)) return false
+  const view = value as Partial<WorktreeView>
+  return (
+    (view.needsInitialization === undefined || typeof view.needsInitialization === 'boolean') &&
     Array.isArray(view.worktrees) &&
     view.worktrees.every(
       (item) => item && typeof item.path === 'string' && (item.branch === null || typeof item.branch === 'string')

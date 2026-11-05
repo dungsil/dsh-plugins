@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
-import { currentWorktree, isWorktreeView } from '../src/protocol.ts'
+import { currentWorktree, isWorktreeSelectionView, isWorktreeView } from '../src/protocol.ts'
 import { failureCode } from '../src/errors.ts'
 
 await test('경로 비교는 Windows 드라이브와 UNC를 지원하며 워크트리 경로를 다시 쓰지 않는다', () => {
@@ -75,7 +75,6 @@ await test('워크트리 응답 검증은 렌더링 전에 잘못된 값을 거�
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [] }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], needsInitialization: true }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], needsInitialization: false }), true)
-  assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], locked: true }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], pendingCreation: { name: '', failed: false } }), true)
   for (const value of [
     null,
@@ -83,7 +82,6 @@ await test('워크트리 응답 검증은 렌더링 전에 잘못된 값을 거�
     { cwd: 3, worktrees: [] },
     { cwd: '/repo', worktrees: [null] },
     { cwd: '/repo', worktrees: [{ path: '/repo', branch: 3 }] },
-    ...[null, 'true', 1, {}].map((locked) => ({ cwd: '/repo', worktrees: [], locked })),
     ...[null, 'true', 1, {}].map((needsInitialization) => ({ cwd: '/repo', worktrees: [], needsInitialization })),
     ...[null, {}, { name: 42, failed: false }, { name: '', failed: 'no' }].map((pendingCreation) => ({
       cwd: '/repo',
@@ -93,6 +91,36 @@ await test('워크트리 응답 검증은 렌더링 전에 잘못된 값을 거�
   ]) {
     assert.equal(isWorktreeView(value), false)
   }
+})
+
+await test('선택 응답은 목록 없이 검증하고 생성과 전환을 동시에 예약하지 않는다', () => {
+  for (const selection of [
+    { cwd: '/repo' },
+    { cwd: '/repo', pendingCreation: { name: '', failed: false } },
+    { cwd: '/repo', pendingSwitch: { path: '/other', failed: false } },
+    { cwd: '/repo', pendingSwitch: { path: '/other', failed: true } },
+  ]) {
+    assert.equal(isWorktreeSelectionView(selection), true)
+    assert.equal(isWorktreeView(selection), false, 'Selection acknowledgements are not worktree lists')
+    assert.equal(isWorktreeView({ ...selection, worktrees: [] }), true)
+  }
+  for (const pendingSwitch of [
+    null,
+    {},
+    { path: '', failed: false },
+    { path: 1, failed: false },
+    { path: '/x', failed: 'no' },
+  ]) {
+    assert.equal(isWorktreeSelectionView({ cwd: '/repo', pendingSwitch }), false)
+    assert.equal(isWorktreeView({ cwd: '/repo', pendingSwitch, worktrees: [] }), false)
+  }
+  const conflicting = {
+    cwd: '/repo',
+    pendingCreation: { name: '', failed: false },
+    pendingSwitch: { path: '/other', failed: false },
+  }
+  assert.equal(isWorktreeSelectionView(conflicting), false)
+  assert.equal(isWorktreeView({ ...conflicting, worktrees: [] }), false)
 })
 
 await test('실패 코드는 알려진 진단 정보만 유지하고 원본 메시지와 임의 코드는 버린다', () => {

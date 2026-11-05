@@ -3,7 +3,7 @@ import { IconChevronDownOutlineRegular } from './icons.js'
 
 // Each plugin bundles these defaults. Keep overrides independent of load order.
 export const composerStyles = `
-:where(.dsh-plugin-composer-trigger) { display: flex; align-items: center; gap: 4px; min-width: 0; height: 28px; padding: 0 4px 0 8px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 20px; cursor: pointer; }
+:where(.dsh-plugin-composer-trigger) { display: flex; align-items: center; gap: 4px; min-width: 0; height: 28px; padding: 0 4px 0 8px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 1.5385; cursor: pointer; }
 :where(.dsh-plugin-composer-trigger):disabled { color: var(--dsw-alias-label-dimmed); cursor: default; }
 .dsh-plugin-composer-icon, .dsh-plugin-composer-chevron { display: inline-flex; flex: none; }
 .dsh-plugin-composer-label, .dsh-plugin-composer-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

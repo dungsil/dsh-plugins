@@ -3,7 +3,7 @@ import { defineConfig, nodeConfig } from '@dungsil/dsh-tsdown'
 export default defineConfig([
   { ...nodeConfig, deps: { alwaysBundle: ['@dungsil/dsh-task-prompts'] } },
   {
-    entry: ['src/protocol.ts'],
+    entry: ['src/protocol.ts', 'src/contract.ts'],
     format: 'esm',
     platform: 'neutral',
     target: 'es2023',
