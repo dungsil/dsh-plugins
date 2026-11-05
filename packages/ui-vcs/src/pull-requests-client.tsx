@@ -29,7 +29,14 @@ import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
 import { splitMarkdownSections, type MarkdownSection } from './markdown-sections.js'
-import { actionMethod, channel, method, type RequestAction, type RequestView } from './pull-requests-protocol.js'
+import {
+  actionMethod,
+  channel,
+  method,
+  type RequestAction,
+  type RequestItem,
+  type RequestView,
+} from './pull-requests-protocol.js'
 import { styles } from './pull-requests-styles.js'
 import { bindPullRequestLinks, pullRequestUrl } from './pull-request-links.js'
 
@@ -38,7 +45,7 @@ export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sid
 
 declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
   interface SidebarRightTabParamsMap {
-    'dungsil-vcs-pull-requests': { requestUrl?: string }
+    'dungsil-vcs-pull-requests': { requestUrl?: string; section?: 'checks' }
   }
 }
 
@@ -50,6 +57,29 @@ const providerNames: Record<RequestView['provider'], string> = {
   gitlab: 'GitLab',
   gitea: 'Gitea',
   forgejo: 'Forgejo',
+}
+
+export function checksState(item: RequestItem): StateDotState {
+  const states = item.checks.map((check) => check.status.toLowerCase())
+  if (
+    states.some((state) =>
+      [
+        'failure',
+        'failed',
+        'error',
+        'timed_out',
+        'action_required',
+        'startup_failure',
+        'stale',
+        'cancelled',
+        'canceled',
+      ].includes(state)
+    )
+  )
+    return 'error'
+  if (item.detailsError || !states.length) return 'warning'
+  if (states.some((state) => !['success', 'passed', 'neutral', 'skipped'].includes(state))) return 'ongoing'
+  return states.every((state) => ['success', 'passed'].includes(state)) ? 'done' : 'idle'
 }
 
 function Loading({ label }: { label: string }) {
@@ -165,7 +195,7 @@ export function apply(ctx: Context) {
     useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
     const copy = text()
     const { tab } = useTabInfo()
-    const params = tab.navigation.params as { requestUrl?: unknown } | undefined
+    const params = tab.navigation.params as { requestUrl?: unknown; section?: unknown } | undefined
     const requestUrl = typeof params?.requestUrl === 'string' ? pullRequestUrl(params.requestUrl) : undefined
     const cacheKey = JSON.stringify([sessionId, requestUrl])
     const running = useSession((session) => session.running)
@@ -280,6 +310,13 @@ export function apply(ctx: Context) {
     }, [sessionId, requestUrl])
 
     useEffect(() => {
+      if (params?.section !== 'checks') return
+      setChecksOpen(true)
+      setPage('overview')
+      content.current?.scrollTo({ top: 0 })
+    }, [sessionId, requestUrl, params?.section, tab.navigation.revision])
+
+    useEffect(() => {
       if (!tab.visible) return
       void load()
       const focus = () => {
@@ -341,24 +378,14 @@ export function apply(ctx: Context) {
       return { label: `${copy.pending_check} · ${value}`, state: 'ongoing' }
     }
     const checkStates = item?.checks.map((check) => checkStatus(check.status).state) ?? []
-    const checksState: StateDotState =
-      checkStates.some((state) => state === 'error') ||
-      item?.checks.some((check) => ['cancelled', 'canceled'].includes(check.status.toLowerCase()))
-        ? 'error'
-        : item?.detailsError || !checkStates.length
-          ? 'warning'
-          : checkStates.some((state) => state === 'ongoing')
-            ? 'ongoing'
-            : checkStates.every((state) => state === 'done')
-              ? 'done'
-              : 'idle'
+    const state = item ? checksState(item) : 'warning'
     const checksLabel = {
       done: copy.success,
       error: copy.failure,
       warning: copy.checks_unknown,
       ongoing: copy.pending_check,
       idle: copy.checks_complete,
-    }[checksState]
+    }[state]
     const checksSummary = copy.checks_summary
       .replace('{passed}', String(checkStates.filter((state) => state === 'done').length))
       .replace('{total}', String(checkStates.length))
@@ -458,7 +485,7 @@ export function apply(ctx: Context) {
                       onClick={() => setChecksOpen(!checksOpen)}
                       aria-busy={loading}
                     >
-                      {loading ? <Loading label={copy.loading} /> : <StateDot state={checksState} appearance="step" />}
+                      {loading ? <Loading label={copy.loading} /> : <StateDot state={state} appearance="step" />}
                       <span>{item.headSha ? checksSummary : copy.checks}</span>
                       <IconChevronDownOutlineRegular aria-hidden="true" />
                     </Button>

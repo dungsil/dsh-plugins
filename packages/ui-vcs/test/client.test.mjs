@@ -80,7 +80,7 @@ async function mount(operation, language = 'en', request = null, sidebar = false
             },
           }
         : { scope: () => ({ get: () => ({ send: async (message) => messages.push(message) }) }) },
-    sidebarRight: { openTab: (kind) => openedTabs.push(kind) },
+    sidebarRight: { openTab: (kind, options) => openedTabs.push(options ? { kind, options } : kind) },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
@@ -139,8 +139,12 @@ async function mount(operation, language = 'en', request = null, sidebar = false
   await render()
   const tree = await render()
   let actions = tree.props.children[0].props.children
+  let ci = tree.props.children[1]
   return {
     primary: actions[0].props,
+    get ci() {
+      return ci?.props
+    },
     get menu() {
       return actions[1]?.props
     },
@@ -152,7 +156,9 @@ async function mount(operation, language = 'en', request = null, sidebar = false
     focus: () => listeners.get('focus')?.(),
     async refresh() {
       await render()
-      actions = (await render()).props.children[0].props.children
+      const tree = await render()
+      actions = tree.props.children[0].props.children
+      ci = tree.props.children[1]
       return actions[0].props
     },
   }
@@ -283,7 +289,7 @@ await test('PR creation changes to a sidebar view action after the agent finishe
     await new Promise((resolve) => setImmediate(resolve))
     mounted.session.running = true
     assert.equal((await mounted.refresh()).disabled, true)
-    mounted.setRequestResult({ ok: true, value: { request: { number: 42, headSha: 'head' } } })
+    mounted.setRequestResult({ ok: true, value: { request: { number: 42, headSha: 'head', checks: [] } } })
     mounted.session.running = false
     const primary = await mounted.refresh()
     assert.equal(primary.children[1], viewLabel)
@@ -296,7 +302,7 @@ await test('PR creation changes to a sidebar view action after the agent finishe
 })
 
 await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
-  const mounted = await mount('pr', 'ko', { number: 42, headSha: 'head' })
+  const mounted = await mount('pr', 'ko', { number: 42, headSha: 'head', checks: [] })
   assert.equal(mounted.primary.children[1], 'PR 보기')
   assert.equal(mounted.menu, undefined)
   mounted.primary.onClick()
@@ -320,7 +326,7 @@ await test('existing PRs offer updates for dirty files or unpublished commits an
     ['zh', '更新 PR', '查看 PR'],
   ]) {
     for (const context of [{ dirty: true }, { headSha: 'unpublished' }]) {
-      const mounted = await mount('pr', language, { number: 42, headSha: 'head' })
+      const mounted = await mount('pr', language, { number: 42, headSha: 'head', checks: [] })
       mounted.setGitContext(context)
       await mounted.focus()
       const primary = await mounted.refresh()
@@ -341,5 +347,44 @@ await test('existing PRs offer updates for dirty files or unpublished commits an
       assert.equal((await mounted.refresh()).children[1], viewLabel)
       assert.equal(mounted.menu, undefined)
     }
+  }
+})
+
+await test('CI pills show aggregate status in every locale and navigate directly to checks without prompting', async () => {
+  for (const [language, prefix, labels] of [
+    ['en', 'CI checks', ['Passed', 'Failed', 'Pending', 'Unverified', 'Completed']],
+    ['ko', 'CI 검사', ['통과', '실패', '대기 중', '확인 불가', '완료']],
+    ['zh', 'CI 检查', ['通过', '失败', '等待中', '未确认', '已完成']],
+  ]) {
+    const mounted = await mount('pr', language)
+    assert.equal(mounted.ci, undefined)
+    for (const [statuses, index, detailsError] of [
+      [['success', 'passed'], 0],
+      [['success', 'failure', 'pending'], 1],
+      [['cancelled', 'success'], 1],
+      [['success', 'in_progress'], 2],
+      [[], 3],
+      [['success'], 3, true],
+      [['success', 'skipped'], 4],
+    ]) {
+      mounted.setRequestResult({
+        ok: true,
+        value: {
+          request: {
+            number: 42,
+            headSha: 'head',
+            detailsError,
+            checks: statuses.map((status) => ({ name: status, status, url: '' })),
+          },
+        },
+      })
+      await mounted.focus()
+      await mounted.refresh()
+      assert.equal(mounted.ci.children[1], `${prefix}: ${labels[index]}`)
+    }
+    mounted.ci.onClick()
+    assert.equal(mounted.openedTabs[0].kind, 'dungsil-vcs-pull-requests')
+    assert.equal(mounted.openedTabs[0].options.params.section, 'checks')
+    assert.equal(mounted.messages.length, 0)
   }
 })
