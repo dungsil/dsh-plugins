@@ -92,9 +92,6 @@ function mount(language = 'en') {
             if (id === '@deepseek-ai/dsh-client-ui-primitives')
               return {
                 IconBranchOutlineRegular: 'branch',
-                IconCheckCircleOutlineRegular: 'check-circle',
-                IconCloseOutlineRegular: 'close',
-                IconClockOutlineRegular: 'clock',
               }
             throw new Error(`Unexpected dependency: ${id}`)
           })
@@ -245,13 +242,14 @@ const request = (number) => ({
 
 await test('session badges distinguish MR states in every locale and hide missing or failed associations', async () => {
   const fixture = mount()
+  const icons = new Set()
   try {
     assert.equal(fixture.renderBadge(), null)
-    for (const [state, draft, icon, labels] of [
-      ['open', false, 'branch', ['Open', '열림', '开放']],
-      ['open', true, 'clock', ['Draft', '초안', '草稿']],
-      ['merged', true, 'check-circle', ['Merged', '병합됨', '已合并']],
-      ['closed', true, 'close', ['Closed', '닫힘', '已关闭']],
+    for (const [state, draft, labels] of [
+      ['open', false, ['Open', '열림', '开放']],
+      ['open', true, ['Draft', '초안', '草稿']],
+      ['merged', true, ['Merged', '병합됨', '已合并']],
+      ['closed', true, ['Closed', '닫힘', '已关闭']],
     ]) {
       const view = request(17)
       view.provider = 'gitlab'
@@ -264,10 +262,13 @@ await test('session badges distinguish MR states in every locale and hide missin
         assert.equal(badge.props.role, 'img')
         assert.equal(badge.props['data-state'], state === 'open' && draft ? 'draft' : state)
         assert.ok(badge.props['aria-label'].includes(`!17: ${labels[index]}`), badge.props['aria-label'])
-        assert.equal(badge.props.children.type, icon)
+        const svg = badge.props.dangerouslySetInnerHTML.__html
+        assert.match(svg, /^<svg /)
+        icons.add(svg)
       }
       fixture.focus()
     }
+    assert.equal(icons.size, 4)
     fixture.calls.at(-1).resolve({ ok: true, value: { ...request(17), request: null } })
     await settle()
     assert.equal(fixture.renderBadge(), null)

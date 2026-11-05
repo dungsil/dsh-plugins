@@ -282,6 +282,7 @@ export function apply(ctx: Context) {
 .dsh-vcs-status:empty { display: none; }
 .dsh-vcs-status[role=status] { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .dsh-vcs-status[role=alert] { color: var(--dsw-alias-state-error-primary); }
+.dsh-vcs-session-request svg { width: 100%; height: 100%; }
 `
     document.head.append(style)
     return () => style.remove()

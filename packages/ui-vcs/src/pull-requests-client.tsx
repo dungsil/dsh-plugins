@@ -23,13 +23,14 @@ import {
 } from '@dungsil/dsh-ui'
 import {
   IconBranchOutlineRegular,
-  IconCheckCircleOutlineRegular,
   IconChevronDownOutlineRegular,
-  IconClockOutlineRegular,
-  IconCloseOutlineRegular,
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
   IconRefreshOutlineRegular,
+  mergeIconSvg,
+  pullRequestClosedIconSvg,
+  pullRequestDraftIconSvg,
+  pullRequestIconSvg,
 } from '@dungsil/dsh-ui/icons'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
@@ -206,14 +207,14 @@ export function apply(ctx: Context) {
     }, [sessionId, running, cwd])
     const item = view?.request
     const state = item?.state === 'open' && item.draft ? 'draft' : item?.state
-    const Icon =
+    const icon =
       state === 'merged'
-        ? IconCheckCircleOutlineRegular
+        ? mergeIconSvg
         : state === 'closed'
-          ? IconCloseOutlineRegular
+          ? pullRequestClosedIconSvg
           : state === 'draft'
-            ? IconClockOutlineRegular
-            : IconBranchOutlineRegular
+            ? pullRequestDraftIconSvg
+            : pullRequestIconSvg
     const label =
       item && state ? `${copy.title} ${view?.provider === 'gitlab' ? '!' : '#'}${item.number}: ${copy[state]}` : ''
     return (
@@ -229,6 +230,7 @@ export function apply(ctx: Context) {
               aria-label={label}
               title={label}
               data-state={state}
+              dangerouslySetInnerHTML={{ __html: icon }}
               style={{
                 display: 'inline-flex',
                 width: 14,
@@ -243,9 +245,7 @@ export function apply(ctx: Context) {
                         ? 'var(--dsw-alias-state-business-primary)'
                         : 'var(--dsw-alias-label-tertiary)',
               }}
-            >
-              <Icon aria-hidden="true" size={14} />
-            </span>,
+            />,
             host
           )}
       </>

@@ -4,6 +4,10 @@ import resetIconSvg from './icons/rotate-ccw.svg'
 export { default as cliProxyIconSvg } from './icons/diamond-interlocking-loops.svg'
 export { default as modelSettingsIconSvg } from './icons/circle-to-squares.svg'
 export { default as worktreeSettingsIconSvg } from './icons/git-branch.svg'
+export { default as pullRequestIconSvg } from './icons/git-pull-request.svg'
+export { default as pullRequestDraftIconSvg } from './icons/git-pull-request-draft.svg'
+export { default as pullRequestClosedIconSvg } from './icons/git-pull-request-closed.svg'
+export { default as mergeIconSvg } from './icons/git-merge.svg'
 
 export {
   IconBranchOutlineRegular,
