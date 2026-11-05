@@ -11,7 +11,7 @@ import {
 } from '../src/quota-cache.ts'
 import { copy, localizedCopy } from '../src/copy.ts'
 
-test('automatic loading and cache copy has complete English, Korean, and Chinese locales', () => {
+void test('automatic loading and cache copy has complete English, Korean, and Chinese locales', () => {
   const keys = Object.keys(copy.en).sort()
   for (const language of ['en', 'ko', 'zh']) {
     assert.deepEqual(Object.keys(copy[language]).sort(), keys)
@@ -62,7 +62,7 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-test('cache freshness uses a five-minute TTL with an exclusive expiry boundary', () => {
+void test('cache freshness uses a five-minute TTL with an exclusive expiry boundary', () => {
   const value = snapshot()
   assert.equal(quotaCacheTTL, 300_000)
   for (const [age, expected] of [
@@ -76,7 +76,7 @@ test('cache freshness uses a five-minute TTL with an exclusive expiry boundary',
   }
 })
 
-test('cache freshness defaults to the current clock', (t) => {
+void test('cache freshness defaults to the current clock', (t) => {
   const value = snapshot()
   t.mock.method(Date, 'now', () => value.fetchedAt + quotaCacheTTL - 1)
   assert.equal(isQuotaCacheFresh(value), true)
@@ -84,7 +84,7 @@ test('cache freshness defaults to the current clock', (t) => {
   assert.equal(isQuotaCacheFresh(value), false)
 })
 
-test('cache reads the same connection, replaces snapshots, and clears explicitly', () => {
+void test('cache reads the same connection, replaces snapshots, and clears explicitly', () => {
   const cache = new QuotaCache()
   assert.equal(cache.read(connection), undefined)
   const first = snapshot()
@@ -102,7 +102,7 @@ for (const [field, value] of [
   ['revision', 'revision-2'],
   ['managementKeySaved', false],
 ]) {
-  test(`changing connection ${field} permanently discards the previous snapshot`, () => {
+  void test(`changing connection ${field} permanently discards the previous snapshot`, () => {
     const cache = new QuotaCache()
     cache.write(connection, snapshot())
     assert.equal(cache.read({ ...connection, [field]: value }), undefined)
@@ -110,14 +110,14 @@ for (const [field, value] of [
   })
 }
 
-test('changing only the saved API key flag does not discard management quota data', () => {
+void test('changing only the saved API key flag does not discard management quota data', () => {
   const cache = new QuotaCache()
   const value = snapshot()
   cache.write(connection, value)
   assert.strictEqual(cache.read({ ...connection, apiKeySaved: false }), value)
 })
 
-test('quota keys distinguish both name and auth index without delimiter collisions', () => {
+void test('quota keys distinguish both name and auth index without delimiter collisions', () => {
   const values = [
     account('same', { authIndex: 'auth-1' }),
     account('same', { authIndex: 'auth-2' }),
@@ -129,7 +129,7 @@ test('quota keys distinguish both name and auth index without delimiter collisio
   assert.equal(quotaKey(values[0]), quotaKey({ ...values[0] }))
 })
 
-test('quota updates preserve accounts, other quotas, and the original TTL timestamp', () => {
+void test('quota updates preserve accounts, other quotas, and the original TTL timestamp', () => {
   const cache = new QuotaCache()
   const first = account('same', { authIndex: 'auth-1' })
   const second = account('same', { authIndex: 'auth-2' })
@@ -152,7 +152,7 @@ test('quota updates preserve accounts, other quotas, and the original TTL timest
   assert.equal(cache.read(connection).quotas[quotaKey(first)], null)
 })
 
-test('quota updates cannot create a cache entry or revive data from another connection', () => {
+void test('quota updates cannot create a cache entry or revive data from another connection', () => {
   const cache = new QuotaCache()
   const first = account('first')
   cache.update(connection, first, quota())
@@ -164,7 +164,7 @@ test('quota updates cannot create a cache entry or revive data from another conn
   assert.equal(cache.read(connection), undefined)
 })
 
-test('loading publishes accounts first and immutable incremental quota snapshots', async (t) => {
+void test('loading publishes accounts first and immutable incremental quota snapshots', async (t) => {
   const accounts = [account('first'), account('second')]
   const results = accounts.map((_, index) => quota(index * 10))
   const published = []
@@ -195,7 +195,7 @@ test('loading publishes accounts first and immutable incremental quota snapshots
   assert.strictEqual(loaded, published.at(-1))
 })
 
-test('disabled, unsupported, and missing-auth accounts stay visible without quota requests', async () => {
+void test('disabled, unsupported, and missing-auth accounts stay visible without quota requests', async () => {
   const accounts = [
     account('disabled', { disabled: true }),
     account('unsupported', { supported: false }),
@@ -221,7 +221,7 @@ test('disabled, unsupported, and missing-auth accounts stay visible without quot
   assert.equal(published.length, 2)
 })
 
-test('quota requests run with at most three workers and drain all queued accounts', async (t) => {
+void test('quota requests run with at most three workers and drain all queued accounts', async (t) => {
   const accounts = Array.from({ length: 8 }, (_, index) => account(`account-${index}`))
   const gates = accounts.map(() => deferred())
   const requested = []
@@ -259,7 +259,7 @@ test('quota requests run with at most three workers and drain all queued account
   assert.equal(Object.keys(loaded.quotas).length, accounts.length)
 })
 
-test('synchronous and asynchronous quota failures do not prevent other accounts loading', async () => {
+void test('synchronous and asynchronous quota failures do not prevent other accounts loading', async () => {
   const accounts = Array.from({ length: 5 }, (_, index) => account(`account-${index}`))
   const requested = []
   const published = []
@@ -283,7 +283,7 @@ test('synchronous and asynchronous quota failures do not prevent other accounts 
   assert.deepEqual(published[0].quotas, {})
 })
 
-test('empty account lists publish a reusable empty snapshot without fetching quotas', async () => {
+void test('empty account lists publish a reusable empty snapshot without fetching quotas', async () => {
   const published = []
   const loaded = await loadQuotaSnapshot(
     async () => [],
@@ -298,7 +298,7 @@ test('empty account lists publish a reusable empty snapshot without fetching quo
   assert.equal(isQuotaCacheFresh(loaded, loaded.fetchedAt), true)
 })
 
-test('lists containing only skipped accounts publish once without fetching quotas', async () => {
+void test('lists containing only skipped accounts publish once without fetching quotas', async () => {
   const accounts = [account('disabled', { disabled: true }), account('unsupported', { supported: false })]
   const published = []
   const loaded = await loadQuotaSnapshot(
@@ -312,7 +312,7 @@ test('lists containing only skipped accounts publish once without fetching quota
   assert.equal(published.length, 1)
 })
 
-test('an already aborted signal prevents even the account-list request', async () => {
+void test('an already aborted signal prevents even the account-list request', async () => {
   const controller = new AbortController()
   const reason = new Error('already inactive')
   controller.abort(reason)
@@ -327,7 +327,7 @@ test('an already aborted signal prevents even the account-list request', async (
   )
 })
 
-test('aborting while listing prevents publishing accounts or starting quota requests', async () => {
+void test('aborting while listing prevents publishing accounts or starting quota requests', async () => {
   const controller = new AbortController()
   const gate = deferred()
   const reason = new Error('view unmounted')
@@ -343,7 +343,7 @@ test('aborting while listing prevents publishing accounts or starting quota requ
   await rejected
 })
 
-test('aborting from the initial accounts publish stops every quota request', async () => {
+void test('aborting from the initial accounts publish stops every quota request', async () => {
   const controller = new AbortController()
   const reason = new Error('view changed during publish')
   const published = []
@@ -364,7 +364,7 @@ test('aborting from the initial accounts publish stops every quota request', asy
 })
 
 for (const outcome of ['resolve', 'reject']) {
-  test(`aborting pending quota requests prevents late ${outcome} publishes and queued requests`, async (t) => {
+  void test(`aborting pending quota requests prevents late ${outcome} publishes and queued requests`, async (t) => {
     const controller = new AbortController()
     const accounts = Array.from({ length: 6 }, (_, index) => account(`account-${index}`))
     const gates = accounts.map(() => deferred())
@@ -398,7 +398,7 @@ for (const outcome of ['resolve', 'reject']) {
   })
 }
 
-test('aborting after a quota publish preserves that snapshot but stops later work', async () => {
+void test('aborting after a quota publish preserves that snapshot but stops later work', async () => {
   const controller = new AbortController()
   const accounts = Array.from({ length: 6 }, (_, index) => account(`account-${index}`))
   const requested = []
@@ -425,7 +425,7 @@ test('aborting after a quota publish preserves that snapshot but stops later wor
   assert.equal(Object.keys(published[1].quotas).length, 1)
 })
 
-test('generation loss cancels pending quota work before clearing the cache and waits for readiness', async () => {
+void test('generation loss cancels pending quota work before clearing the cache and waits for readiness', async () => {
   const cache = new QuotaCache()
   cache.write(connection, snapshot())
   const controller = new AbortController()
@@ -482,7 +482,7 @@ test('generation loss cancels pending quota work before clearing the cache and w
 })
 
 for (const accounts of [[], [account('last')]]) {
-  test(`abort during the final publish cannot complete a snapshot with ${accounts.length} accounts`, async () => {
+  void test(`abort during the final publish cannot complete a snapshot with ${accounts.length} accounts`, async () => {
     const controller = new AbortController()
     await assert.rejects(
       loadQuotaSnapshot(
@@ -498,7 +498,7 @@ for (const accounts of [[], [account('last')]]) {
   })
 }
 
-test('account-list rejection is propagated without publishing or fetching quotas', async () => {
+void test('account-list rejection is propagated without publishing or fetching quotas', async () => {
   const reason = new Error('management list failed')
   await assert.rejects(
     loadQuotaSnapshot(

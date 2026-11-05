@@ -91,7 +91,7 @@ await test('cached usage survives navigation and refresh without hiding totals o
   })
   const success = (total) => ({ ok: true, value: view(total) })
   const changePeriod = (value) =>
-    React.act(() => {
+    React.act(async () => {
       const select = container.querySelector('select')
       select.value = value
       select.dispatchEvent(new window.Event('change', { bubbles: true }))
