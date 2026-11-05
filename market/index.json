@@ -60,9 +60,9 @@
         "zh": "界面预设"
       },
       "description": {
-        "en": "Install Korean UI, Sidebar Inbox, Task Models UI, Skills Settings, Git Worktree UI, Model Picker, and Left Turn Rail together.",
-        "ko": "한국어 UI, 사이드바 수신함, 상황별 모델, 스킬 설정, Git Worktree UI, 모델 피커, 왼쪽 턴 레일을 함께 설치합니다.",
-        "zh": "一起安装韩语界面、侧边栏收件箱、任务模型设置、技能设置、Git 工作树界面、模型选择器和左侧轮次导航栏。"
+        "en": "A preset that installs UI plugins for DeepSeek Harness.",
+        "ko": "DeepSeek Harness UI 플러그인을 함께 설치하는 프리셋입니다.",
+        "zh": "用于统一安装 DeepSeek Harness 界面插件的预设。"
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
