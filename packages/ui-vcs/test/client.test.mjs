@@ -5,14 +5,15 @@ import { runInNewContext } from 'node:vm'
 
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
-// Exercise the shipped client entry point without a browser or a live agent.
-async function mount(operation, language = 'en', request = null, sidebar = false) {
+async function mount(operation, language = 'en', options = {}) {
   const hooks = []
   const effects = []
+  const calls = []
   const messages = []
   const openedTabs = []
   const listeners = new Map()
-  let requestResult = { ok: true, value: { request } }
+  const sidebar = options.sidebar === true
+  let requestResult = { ok: true, value: { request: options.request ?? null } }
   let gitContext = { operation, headSha: 'head', dirty: false }
   let cursor = 0
   let mountingSidebar = false
@@ -44,8 +45,7 @@ async function mount(operation, language = 'en', request = null, sidebar = false
   runInNewContext(bundle, {
     AbortController,
     AbortSignal,
-    // The sidebar's Markdown decoder initializes a DOM node on module load;
-    // these composer tests do not invoke that decoder or mount the sidebar.
+    crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     document: { createElement: () => ({}) },
     MutationObserver: class {
       observe() {}
@@ -69,23 +69,31 @@ async function mount(operation, language = 'en', request = null, sidebar = false
     },
   })
   plugin.apply({
-    get: (name) =>
-      name === 'connection'
-        ? {
-            rpc: {
-              call: sidebar
-                ? operation
-                : async (_channel, method) =>
-                    method === 'dungsil-vcs/describe' ? { ok: true, value: gitContext } : requestResult,
-            },
-          }
-        : { scope: () => ({ get: () => ({ send: async (message) => messages.push(message) }) }) },
+    get(name) {
+      assert.equal(name, 'connection', 'UI must not access the current conversation or sessions service')
+      return {
+        rpc: {
+          call: async (channel, method, payload) => {
+            calls.push({ channel, method, payload })
+            if (sidebar) return operation(channel, method, payload)
+            if (method === 'dungsil-vcs/describe') return { ok: true, value: gitContext }
+            if (method === 'dungsil-vcs/pull-requests/list') return requestResult
+            assert.equal(method, 'dungsil-vcs/execute')
+            if (options.execute) return options.execute(payload)
+            return {
+              ok: true,
+              value: { operation: payload.operation, branch: 'feat/test', commit: 'a'.repeat(40), checks: [] },
+            }
+          },
+        },
+      }
+    },
     sidebarRight: { openTab: (kind) => openedTabs.push(kind) },
     locale: { getSnapshot: () => ({ active: language }) },
     slots: {
       inject: (_slot, setup) => setup(),
-      register: (options, render) => {
-        if (!sidebar || options.name === 'sidebar.right.pane.tab') registered = render
+      register: (registration, render) => {
+        if (!sidebar || registration.name === 'sidebar.right.pane.tab') registered = render
       },
     },
     sidebarRightTabs: { register() {} },
@@ -100,7 +108,7 @@ async function mount(operation, language = 'en', request = null, sidebar = false
       if (mountingSidebar) setup()
     },
   })
-  const session = { openState: 'open', pendingSubmissions: [] }
+  const session = { openState: 'open', pendingSubmissions: [], ...options.session }
   const tab = {
     signal: new AbortController().signal,
     visible: true,
@@ -113,12 +121,11 @@ async function mount(operation, language = 'en', request = null, sidebar = false
       sessionId,
       useTabInfo: () => ({ tab }),
       useSession: (select) => select(session),
-      useAccess: () => true,
-      useProjection: () => '/repo',
+      useAccess: () => options.canPrompt !== false,
+      useProjection: () => (options.cwd === null ? undefined : '/repo'),
     })
     const tree = sidebar ? element : element.type(element.props)
-    // React attaches the anchor before running effects. A changed-files card is present.
-    const conversation = { getAttribute: () => 'session', querySelector: () => ({}) }
+    const conversation = { getAttribute: () => sessionId, querySelector: () => ({}) }
     for (const hook of sidebar ? [] : hooks) {
       if (hook && typeof hook === 'object' && 'current' in hook && hook.current === null)
         hook.current = { closest: () => conversation }
@@ -127,29 +134,32 @@ async function mount(operation, language = 'en', request = null, sidebar = false
     await new Promise((resolve) => setImmediate(resolve))
     return tree
   }
-  if (sidebar)
-    return {
-      render,
-      unmount() {
-        for (const hook of hooks) hook?.cleanup?.()
-        hooks.length = 0
-      },
-    }
-  await render()
-  await render()
-  const tree = await render()
-  let actions = tree.props.children[0].props.children
-  return {
-    primary: actions[0].props,
-    get menu() {
-      return actions[1]?.props
-    },
+  const common = {
+    calls,
     messages,
     openedTabs,
     session,
+    render,
     setRequestResult: (result) => (requestResult = result),
     setGitContext: (value) => (gitContext = { ...gitContext, ...value }),
     focus: () => listeners.get('focus')?.(),
+    unmount() {
+      for (const hook of hooks) hook?.cleanup?.()
+      hooks.length = 0
+    },
+  }
+  if (sidebar) return common
+  await render()
+  await render()
+  let actions = (await render()).props.children[0].props.children
+  return {
+    ...common,
+    get primary() {
+      return actions[0].props
+    },
+    get menu() {
+      return actions[1]?.props
+    },
     async refresh() {
       await render()
       actions = (await render()).props.children[0].props.children
@@ -157,6 +167,115 @@ async function mount(operation, language = 'en', request = null, sidebar = false
     },
   }
 }
+
+await test('all Git actions use typed server RPC without sending conversation prompts in every locale', async () => {
+  for (const language of ['en', 'ko', 'zh']) {
+    for (const operation of ['commit', 'push', 'pr']) {
+      const view = await mount(operation === 'commit' ? 'pr' : operation, language)
+      assert.equal(view.primary.disabled, false)
+      if (operation === 'commit') view.menu.onSelect('commit')
+      else view.primary.onClick()
+      await new Promise((resolve) => setImmediate(resolve))
+      const commands = view.calls.filter((call) => call.method === 'dungsil-vcs/execute')
+      assert.equal(commands.length, 1)
+      assert.deepEqual(JSON.parse(JSON.stringify(commands[0])), {
+        channel: '/api',
+        method: 'dungsil-vcs/execute',
+        payload: { sessionId: 'session', cwd: '/repo', operation, requestId: '11111111-1111-4111-8111-111111111111' },
+      })
+      assert.ok(JSON.stringify((await view.render()).props.children).includes('aaaaaaaaaaaa'))
+      assert.equal(view.messages.length, 0)
+    }
+  }
+})
+
+await test('rapid repeated clicks cannot submit a duplicate command', async () => {
+  const waiting = Promise.withResolvers()
+  const view = await mount('pr', 'en', { execute: () => waiting.promise })
+  view.menu.onSelect('commit')
+  view.menu.onSelect('commit')
+  assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+  waiting.resolve({ ok: true, value: { operation: 'commit', branch: 'feat/test', checks: [] } })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(view.messages.length, 0)
+})
+
+await test('server errors are localized and never retried automatically', async () => {
+  for (const language of ['en', 'ko', 'zh']) {
+    const view = await mount('pr', language, { execute: () => ({ ok: false, error: { code: 'partial_stage' } }) })
+    view.menu.onSelect('commit')
+    await new Promise((resolve) => setImmediate(resolve))
+    const status = (await view.render()).props.children[1]
+    assert.equal(status.props.role, 'alert')
+    assert.match(
+      JSON.stringify(status.props.children),
+      language === 'ko' ? /스테이징/ : language === 'zh' ? /暂存/ : /staged/
+    )
+    assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+    assert.equal(view.messages.length, 0)
+  }
+})
+
+await test('busy, read-only viewers and missing directories disable Git actions', async () => {
+  for (const options of [{ session: { running: true } }, { canPrompt: false }, { cwd: null }]) {
+    const view = await mount('pr', 'en', options)
+    assert.equal(view.menu.anchor.props.disabled, true)
+    view.menu.onSelect('commit')
+    assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
+    assert.equal(view.messages.length, 0)
+  }
+})
+
+await test('PR creation changes immediately to a sidebar view action after execute RPC succeeds in every locale', async () => {
+  for (const [language, createLabel, viewLabel] of [
+    ['en', 'Create PR', 'View PR'],
+    ['ko', 'PR 생성', 'PR 보기'],
+    ['zh', '创建 PR', '查看 PR'],
+  ]) {
+    const executed = Promise.withResolvers()
+    const mounted = await mount('pr', language, { execute: () => executed.promise })
+    assert.equal(mounted.primary.children[1], createLabel)
+    assert.ok(mounted.menu)
+    mounted.primary.onClick()
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
+    executed.resolve({
+      ok: true,
+      value: { operation: 'pr', branch: 'feat/test', url: 'https://github.com/team/project/pull/42', checks: [] },
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    const primary = await mounted.refresh()
+    assert.equal(mounted.session.running, undefined)
+    assert.equal(primary.children[1], viewLabel)
+    assert.equal(primary.disabled, false)
+    assert.equal(mounted.menu, undefined)
+    primary.onClick()
+    assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+    assert.equal(mounted.messages.length, 0)
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
+  }
+})
+
+await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
+  const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head' } })
+  assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.equal(mounted.menu, undefined)
+  mounted.primary.onClick()
+  assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+  assert.equal(mounted.messages.length, 0)
+  assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
+  const beforeFocus = mounted.calls.filter((call) => call.method === 'dungsil-vcs/pull-requests/list').length
+  assert.ok(beforeFocus > 0)
+  mounted.setRequestResult({ ok: true, value: { request: null } })
+  await mounted.focus()
+  assert.equal((await mounted.refresh()).children[1], 'PR 생성')
+  assert.ok(mounted.menu)
+  assert.ok(mounted.calls.filter((call) => call.method === 'dungsil-vcs/pull-requests/list').length > beforeFocus)
+  mounted.setRequestResult({ ok: false, error: { code: 'cli_missing' } })
+  await mounted.focus()
+  const primary = await mounted.refresh()
+  assert.equal(primary.children[1], 'PR 생성')
+  assert.equal(primary.disabled, false)
+})
 
 await test('sidebar shows an overview before details, reopens from cache, and keeps cached actions disabled while refreshing', async () => {
   const overview = Promise.withResolvers()
@@ -184,8 +303,7 @@ await test('sidebar shows an overview before details, reopens from cache, and ke
       return payload.summary ? overview.promise : details.promise
     },
     'en',
-    null,
-    true
+    { sidebar: true }
   )
   const initial = await f.render()
   assert.equal(initial.props.children[2].props.children[0].type, 'div')
@@ -210,107 +328,12 @@ await test('sidebar shows an overview before details, reopens from cache, and ke
   assert.equal(cached.props.children[2].props['aria-busy'], true)
   assert.equal(cached.props.children[2].props.children[0], false)
   assert.equal(cached.props.children[3].props.children[0], undefined)
-  // Merge remains disabled even though the cached SHA is present.
   const merge = cached.props.children[3].props.children[1].props.anchor.props.children[0]
   assert.equal(merge.props.disabled, true)
   f.unmount()
   const otherSession = await f.render('other')
   assert.ok(!JSON.stringify(otherSession).includes('Fast overview'))
   f.unmount()
-})
-
-await test('PR actions send a multi-forge, self-hosted review request in every supported locale', async () => {
-  for (const language of ['en', 'ko', 'zh']) {
-    const { primary, messages } = await mount('pr', language)
-    assert.equal(primary.disabled, false)
-    primary.onClick()
-    await new Promise((resolve) => setImmediate(resolve))
-    assert.equal(messages.length, 1)
-    const [message] = messages
-    for (const requirement of [
-      'GitHub',
-      'GitLab (including Self-Managed and Dedicated)',
-      'Gitea',
-      'Forgejo',
-      'merge request (MR)',
-      'gh for GitHub',
-      'glab for GitLab',
-      'tea CLI',
-      'actual push remote',
-      'SSH host aliases',
-      'custom ports',
-      'instance URL prefixes',
-      'nested GitLab namespaces',
-      'never fall back to a public host',
-      'credentials already scoped to that instance',
-      'source repository/branch and target repository/branch',
-      'Read the current title and body',
-      'create a new PR/MR only if no matching one exists',
-      'report the resulting PR/MR URL',
-      'report the specific blocker',
-      'Do not force-push',
-    ])
-      assert.ok(message.includes(requirement), `Missing request contract: ${requirement}`)
-  }
-})
-
-await test('push and commit-only actions do not request hosting API access or review creation', async () => {
-  const { primary, messages } = await mount('push')
-  primary.onClick()
-  await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(messages.length, 1)
-  assert.ok(messages[0].startsWith('Commit the work completed in this session if needed, then push'))
-  assert.ok(messages[0].includes('Do not create or update a PR/MR or switch branches.'))
-  assert.ok(!messages[0].includes('tea CLI'))
-  const commit = await mount('pr')
-  commit.menu.onSelect('commit')
-  await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(commit.messages.length, 1)
-  assert.ok(commit.messages[0].startsWith('Commit only the work completed in this session. Do not push'))
-  assert.ok(!commit.messages[0].includes('tea CLI'))
-})
-
-await test('PR creation changes to a sidebar view action after the agent finishes in every locale', async () => {
-  for (const [language, createLabel, viewLabel] of [
-    ['en', 'Create PR', 'View PR'],
-    ['ko', 'PR 생성', 'PR 보기'],
-    ['zh', '创建 PR', '查看 PR'],
-  ]) {
-    const mounted = await mount('pr', language)
-    assert.equal(mounted.primary.children[1], createLabel)
-    assert.ok(mounted.menu)
-    mounted.primary.onClick()
-    await new Promise((resolve) => setImmediate(resolve))
-    mounted.session.running = true
-    assert.equal((await mounted.refresh()).disabled, true)
-    mounted.setRequestResult({ ok: true, value: { request: { number: 42, headSha: 'head' } } })
-    mounted.session.running = false
-    const primary = await mounted.refresh()
-    assert.equal(primary.children[1], viewLabel)
-    assert.equal(primary.disabled, false)
-    assert.equal(mounted.menu, undefined)
-    primary.onClick()
-    assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
-    assert.equal(mounted.messages.length, 1) // Viewing never submits another agent request.
-  }
-})
-
-await test('existing PRs open the sidebar and refresh on focus without disabling creation on lookup errors', async () => {
-  const mounted = await mount('pr', 'ko', { number: 42, headSha: 'head' })
-  assert.equal(mounted.primary.children[1], 'PR 보기')
-  assert.equal(mounted.menu, undefined)
-  mounted.primary.onClick()
-  assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
-  assert.equal(mounted.messages.length, 0)
-  mounted.setRequestResult({ ok: true, value: { request: null } })
-  await mounted.focus()
-  assert.equal((await mounted.refresh()).children[1], 'PR 생성')
-  assert.ok(mounted.menu)
-  mounted.setRequestResult({ ok: false, error: { code: 'cli_missing' } })
-  await mounted.focus()
-  const primary = await mounted.refresh()
-  assert.equal(primary.children[1], 'PR 생성')
-  assert.equal(primary.disabled, false)
 })
 
 await test('existing PRs offer updates for dirty files or unpublished commits and keep viewing in the menu', async () => {
@@ -320,7 +343,11 @@ await test('existing PRs offer updates for dirty files or unpublished commits an
     ['zh', '更新 PR', '查看 PR'],
   ]) {
     for (const context of [{ dirty: true }, { headSha: 'unpublished' }]) {
-      const mounted = await mount('pr', language, { number: 42, headSha: 'head' })
+      const executed = Promise.withResolvers()
+      const mounted = await mount('pr', language, {
+        request: { number: 42, headSha: 'head' },
+        execute: () => executed.promise,
+      })
       mounted.setGitContext(context)
       await mounted.focus()
       const primary = await mounted.refresh()
@@ -329,17 +356,34 @@ await test('existing PRs offer updates for dirty files or unpublished commits an
       assert.equal(mounted.menu.items.find((item) => item.id === 'view').label, viewLabel)
       mounted.menu.onSelect('view')
       assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+      assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
       assert.equal(mounted.messages.length, 0)
       primary.onClick()
-      await new Promise((resolve) => setImmediate(resolve))
-      assert.equal(mounted.messages.length, 1)
-      assert.ok(mounted.messages[0].startsWith('Commit and push'))
-      mounted.session.running = true
+      const commands = mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute')
+      assert.equal(commands.length, 1)
+      assert.equal(commands[0].payload.operation, 'pr')
       assert.equal((await mounted.refresh()).disabled, true)
-      mounted.setGitContext({ dirty: false, headSha: 'head' })
-      mounted.session.running = false
+      executed.resolve({
+        ok: true,
+        value: { operation: 'pr', branch: 'feat/test', url: 'https://github.com/team/project/pull/42', checks: [] },
+      })
+      await new Promise((resolve) => setImmediate(resolve))
       assert.equal((await mounted.refresh()).children[1], viewLabel)
       assert.equal(mounted.menu, undefined)
+      assert.equal(mounted.session.running, undefined)
+      assert.equal(mounted.messages.length, 0)
+      assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
     }
+  }
+})
+
+await test('Git action menus use a compact portaled bubble above the composer', async () => {
+  for (const operation of ['push', 'pr']) {
+    const mounted = await mount(operation)
+    assert.equal(mounted.menu.side, 'top')
+    assert.equal(mounted.menu.portal, true)
+    assert.equal(mounted.menu.compact, true)
+    assert.equal(mounted.messages.length, 0)
+    assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 0)
   }
 })

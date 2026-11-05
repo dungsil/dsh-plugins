@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as PullRequests from './pull-requests.js'
+import * as Commands from './commands.js'
 import type { GitContext } from './pull-requests-protocol.js'
 
 export { Config } from './pull-requests.js'
@@ -14,9 +15,9 @@ export { Config } from './pull-requests.js'
 export const name = 'dungsil-ui-vcs'
 export const inject = ['connection', 'sessionController', 'subprocess', 'sandbox', 'sandboxPolicy', 'workingDirectory']
 
-// These reads never fetch, run hooks, or change Git state. Writes remain owned by the agent.
 export function apply(ctx: Context, config: PullRequests.Config) {
   ctx.plugin(PullRequests, config)
+  ctx.plugin(Commands, config)
   ctx.effect(
     () =>
       ctx.connection.fetch.register({
