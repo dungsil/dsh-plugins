@@ -66,6 +66,7 @@ function Usage({ ctx }: { ctx: Context }) {
   const locale = useLocaleSnapshot(ctx.locale)
   const text = localizedCopy(locale.active)
   const number = new Intl.NumberFormat(locale.active)
+  const tokens = new Intl.NumberFormat(locale.active, { notation: 'compact', maximumFractionDigits: 1 })
   const [period, setPeriod] = useState(7)
   const [periodOpen, setPeriodOpen] = useState(false)
   const [refresh, setRefresh] = useState(0)
@@ -165,12 +166,14 @@ function Usage({ ctx }: { ctx: Context }) {
           <dl className="dsh-usage-summary">
             <div>
               <dt>{text.total}</dt>
-              <dd className="dsh-usage-total">{number.format(view.totals.total)}</dd>
+              <dd className="dsh-usage-total" title={number.format(view.totals.total)}>
+                {tokens.format(view.totals.total)}
+              </dd>
             </div>
             {metrics.map((key) => (
               <div key={key}>
                 <dt>{text[key]}</dt>
-                <dd>{number.format(view.totals[key])}</dd>
+                <dd title={number.format(view.totals[key])}>{tokens.format(view.totals[key])}</dd>
               </div>
             ))}
           </dl>
@@ -215,8 +218,8 @@ function Usage({ ctx }: { ctx: Context }) {
                 <span>{date(view.days[0].day)}</span>
                 <span>{date(view.days.at(-1)!.day)}</span>
               </div>
-              <p className="dsh-usage-detail" aria-live="polite">
-                {selected && `${date(selected.day)} · ${text.total}: ${number.format(selected.total)}`}
+              <p className="dsh-usage-detail" aria-live="polite" title={selected && number.format(selected.total)}>
+                {selected && `${date(selected.day)} · ${text.total}: ${tokens.format(selected.total)}`}
               </p>
               <h3>{text.models}</h3>
               {view.models.map((row) => (
@@ -225,13 +228,15 @@ function Usage({ ctx }: { ctx: Context }) {
                     <span>
                       {row.provider || text.unknown} / {row.model || text.unknown}
                     </span>
-                    <span>{number.format(row.total)}</span>
+                    <span title={number.format(row.total)}>{tokens.format(row.total)}</span>
                   </div>
                   <dl>
                     {(['calls', ...metrics] as const).map((key) => (
                       <div key={key}>
                         <dt>{text[key]}</dt>
-                        <dd>{number.format(row[key])}</dd>
+                        <dd title={number.format(row[key])}>
+                          {key === 'calls' ? number.format(row[key]) : tokens.format(row[key])}
+                        </dd>
                       </div>
                     ))}
                   </dl>

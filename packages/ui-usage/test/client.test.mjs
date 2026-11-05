@@ -154,4 +154,37 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   assert.equal(total(), '0', 'empty usage is also a successful cached result')
   assert.equal(loading(), false)
   await reply(success(0))
+
+  await t.test('토큰은 현재 언어의 단위로 축약하고 정확한 값과 호출 수는 유지한다', async () => {
+    for (const [language, expected] of [
+      ['en-US', ['0', '999', '1K', '10K', '10K', '12.3K', '1.2M', '1.2B']],
+      ['ko-KR', ['0', '999', '1천', '1만', '1만', '1.2만', '123.5만', '12.3억']],
+      ['zh-CN', ['0', '999', '1000', '9999', '1万', '1.2万', '123.5万', '12.3亿']],
+    ]) {
+      for (const [index, value] of [0, 999, 1000, 9999, 10000, 12345, 1234567, 1234567890].entries()) {
+        await leave()
+        Object.assign(snapshot, { active: language })
+        connection = makeConnection()
+        await mount()
+        const result = view(value)
+        Object.assign(result.totals, { calls: 12345, output: 999, cacheRead: 1000, cacheWrite: 0 })
+        result.models = [{ ...result.totals, provider: 'deepseek', model: 'deepseek-chat' }]
+        result.sessions = 12345
+        await reply({ ok: true, value: result })
+
+        assert.equal(total(), expected[index], `${String(language)}: ${value}`)
+        assert.equal(container.querySelector('.dsh-usage-total').title, value.toLocaleString(language))
+        const summary = [...container.querySelectorAll('.dsh-usage-summary dd')].map((dd) => dd.textContent)
+        assert.deepEqual(summary, [expected[index], expected[index], '999', expected[2], '0'])
+        assert.ok(container.querySelector('.dsh-usage-detail').textContent.endsWith(expected[index]))
+        assert.ok(
+          container.querySelector('.dsh-usage-bar').getAttribute('aria-label').includes(value.toLocaleString(language))
+        )
+        assert.equal(container.querySelector('.dsh-usage-model-heading > span:last-child').textContent, expected[index])
+        const model = [...container.querySelectorAll('.dsh-usage-model dd')].map((dd) => dd.textContent)
+        assert.deepEqual(model, ['12,345', expected[index], '999', expected[2], '0'])
+        assert.ok(container.querySelector('.dsh-usage-meta').textContent.includes('12,345'))
+      }
+    }
+  })
 })
