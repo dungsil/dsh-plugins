@@ -12,7 +12,7 @@ export const composerStyles = `
 `
 
 // The caller owns popup state, accessibility relationships and focus restoration.
-export const ComposerTrigger = forwardRef<
+export const ComposerTrigger = /* @__PURE__ */ forwardRef<
   HTMLButtonElement,
   Omit<ComponentPropsWithoutRef<'button'>, 'children'> & { icon: ReactNode; label: ReactNode; detail?: ReactNode }
 >(function ComposerTrigger({ className = '', icon, label, detail, ...props }, ref) {
