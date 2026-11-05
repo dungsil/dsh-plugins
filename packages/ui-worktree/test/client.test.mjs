@@ -274,7 +274,7 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
   return harness
 }
 
-await test('returning to a running session reads its current branch without enabling mutations', async (t) => {
+await test('실행 중인 세션으로 돌아오면 변경을 활성화하지 않고 현재 브랜치를 읽는다', async (t) => {
   const h = await mount(t, {
     rpc: ({ payload }) => success(view(payload.sessionId === 'original' ? 'original-branch' : 'other-branch')),
   })
@@ -294,7 +294,7 @@ await test('returning to a running session reads its current branch without enab
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('idle mount loads once, stable renders do not reload, and idle focus refreshes', async (t) => {
+await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링은 다시 불러오지 않으며, 유휴 포커스는 새로 고친다', async (t) => {
   const h = await mount(t)
   assert.equal(h.calls.length, 1)
   assert.equal(h.calls[0].channel, '/api')
@@ -313,7 +313,7 @@ await test('idle mount loads once, stable renders do not reload, and idle focus 
   assert.equal(h.calls.at(-1).signal.aborted, true)
 })
 
-await test('component menu pins creation and the primary checkout before linked worktrees', async (t) => {
+await test('컴포넌트 메뉴는 생성 항목과 기본 체크아웃을 연결된 워크트리보다 앞에 고정한다', async (t) => {
   const h = await mount(t, { rpc: () => success(linkedView()) })
   assert.deepEqual(
     h.menuItems.map((item) => item.id),
@@ -337,7 +337,7 @@ await test('component menu pins creation and the primary checkout before linked 
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
-  await test(`${name} mount and focus read the branch but keep mutations disabled`, async (t) => {
+  await test(`${name} 마운트와 포커스는 브랜치를 읽지만 변경 동작은 비활성으로 유지한다`, async (t) => {
     const h = await mount(t, { initial: blocked, rpc: () => success(linkedView()) })
     assert.deepEqual(operations(h), ['describe'])
     assert.match(h.text, /feature\/worktree/)
@@ -354,7 +354,7 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.ok(h.calls.every((call) => call.operation === 'describe'))
   })
 
-  await test(`focus after becoming ${name} still reads using current mutation readiness`, async (t) => {
+  await test(`${name} 상태가 된 뒤의 포커스도 현재 변경 준비 상태를 사용해 읽는다`, async (t) => {
     const h = await mount(t)
     await h.update(blocked)
     const beforeFocus = h.calls.length
@@ -369,7 +369,7 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
 }
 
 for (const { name, blocked, ready } of readReadinessCases) {
-  await test(`${name} mount and focus defer lookup until the session is ready`, async (t) => {
+  await test(`${name} 마운트와 포커스는 세션이 준비될 때까지 조회를 미룬다`, async (t) => {
     const h = await mount(t, { initial: blocked })
     assert.equal(h.calls.length, 0, `A ${name} session must not issue its initial describe`)
     assert.equal(h.menu.anchor.props.disabled, true)
@@ -383,7 +383,7 @@ for (const { name, blocked, ready } of readReadinessCases) {
     assert.equal(h.listeners.get('focus').size, 1)
   })
 
-  await test(`focus after becoming ${name} does not use stale mount-time readiness`, async (t) => {
+  await test(`${name} 상태가 된 뒤의 포커스는 마운트 시점의 오래된 준비 상태를 사용하지 않는다`, async (t) => {
     const h = await mount(t)
     assert.equal(h.calls.length, 1)
     await h.update(blocked)
@@ -396,7 +396,7 @@ for (const { name, blocked, ready } of readReadinessCases) {
   })
 }
 
-await test('create worktree, navigate away, and return while running reads the selected branch', async (t) => {
+await test('워크트리를 생성하고 다른 곳으로 이동한 뒤 실행 중에 돌아오면 선택된 브랜치를 읽는다', async (t) => {
   let selected = view()
   const h = await mount(t, {
     rpc: ({ operation }) => {
@@ -425,7 +425,7 @@ await test('create worktree, navigate away, and return while running reads the s
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
-  await test(`an uninitialized ${name} session describes first and initializes only after becoming idle`, async (t) => {
+  await test(`초기화되지 않은 ${name} 세션은 먼저 조회하고 유휴 상태가 된 뒤에만 초기화한다`, async (t) => {
     let initialized = false
     const h = await mount(t, {
       initial: blocked,
@@ -456,7 +456,7 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
   })
 }
 
-await test('successful initialization is not repeated until describe explicitly requests initialization again', async (t) => {
+await test('성공한 초기화는 describe가 다시 명시적으로 초기화를 요청할 때까지 반복하지 않는다', async (t) => {
   let needsInitialization = true
   const h = await mount(t, {
     rpc: ({ operation }) => {
@@ -475,7 +475,7 @@ await test('successful initialization is not repeated until describe explicitly 
   assert.equal(h.calls.filter((call) => call.operation === 'initialize').length, 2)
 })
 
-await test('a busy initialization race preserves the read view and retries on readiness without a loop', async (t) => {
+await test('사용 중인 초기화 경합은 읽기 화면을 보존하고 반복 없이 준비 상태에서 재시도한다', async (t) => {
   const response = deferred()
   let attempts = 0
   let initialized = false
@@ -508,7 +508,7 @@ await test('a busy initialization race preserves the read view and retries on re
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('a busy initialization retries on a later idle focus rather than an unrelated render', async (t) => {
+await test('초기화가 사용 중이면 관련 없는 렌더링이 아니라 나중의 유휴 포커스에서 재시도한다', async (t) => {
   let attempts = 0
   let initialized = false
   const h = await mount(t, {
@@ -530,7 +530,7 @@ await test('a busy initialization retries on a later idle focus rather than an u
   assert.equal(h.selectedId, 'create')
 })
 
-await test('an idle transition during an in-flight initialization queues one serialized refresh', async (t) => {
+await test('진행 중인 초기화 도중 유휴 상태로 전환되면 직렬화된 새로 고침을 하나 대기시킨다', async (t) => {
   const response = deferred()
   let attempts = 0
   let initialized = false
@@ -555,7 +555,7 @@ await test('an idle transition during an in-flight initialization queues one ser
   assert.equal(h.selectedId, 'create')
 })
 
-await test('a describe reply rechecks every mutation condition before initializing', async (t) => {
+await test('describe 응답은 초기화 전에 모든 변경 조건을 다시 확인한다', async (t) => {
   const response = deferred()
   let reads = 0
   let initialized = false
@@ -581,7 +581,7 @@ await test('a describe reply rechecks every mutation condition before initializi
   assert.equal(h.selectedId, 'create')
 })
 
-await test('keyed navigation aborts initialization and ignores its late pendingCreation reply', async (t) => {
+await test('키 기반 이동은 초기화를 중단하고 늦게 도착한 pendingCreation 응답을 무시한다', async (t) => {
   const response = deferred()
   const h = await mount(t, {
     rpc: ({ operation, payload }) => {
@@ -607,7 +607,7 @@ await test('keyed navigation aborts initialization and ignores its late pendingC
   assert.equal(h.menu.anchor.props.disabled, true)
 })
 
-await test('repeated focus during an in-flight describe coalesces into one serialized read', async (t) => {
+await test('진행 중인 describe 도중 반복된 포커스는 하나의 직렬화된 읽기로 합쳐진다', async (t) => {
   const response = deferred()
   let reads = 0
   const h = await mount(t, { rpc: () => (++reads === 1 ? response.promise : success()) })
@@ -621,7 +621,7 @@ await test('repeated focus during an in-flight describe coalesces into one seria
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('a real read failure blocks a queued idle refresh until explicit verification', async (t) => {
+await test('실제 읽기 실패는 명시적 확인 전까지 대기 중인 유휴 새로 고침을 막는다', async (t) => {
   const response = deferred()
   let reads = 0
   const h = await mount(t, { rpc: () => (reads++ === 0 ? response.promise : success()) })
@@ -636,7 +636,7 @@ await test('a real read failure blocks a queued idle refresh until explicit veri
   assert.match(h.text, /main/)
 })
 
-await test('a busy initial describe retries on the next idle focus without an immediate retry loop', async (t) => {
+await test('사용 중인 최초 describe는 즉시 재시도 루프 없이 다음 유휴 포커스에서 재시도한다', async (t) => {
   let reads = 0
   const h = await mount(t, { rpc: () => (reads++ === 0 ? failure('busy') : success()) })
   assert.equal(h.calls.length, 1, 'Busy must not start an unbounded immediate retry loop')
@@ -649,7 +649,7 @@ await test('a busy initial describe retries on the next idle focus without an im
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('a busy focus refresh preserves the known branch and remains automatically retryable', async (t) => {
+await test('사용 중인 포커스 새로 고침은 알려진 브랜치를 보존하고 자동 재시도를 유지한다', async (t) => {
   let reads = 0
   const h = await mount(t, { rpc: () => (++reads === 2 ? failure('busy') : success()) })
   await h.focus()
@@ -662,7 +662,7 @@ await test('a busy focus refresh preserves the known branch and remains automati
 })
 
 for (const code of ['timeout', 'forbidden', 'invalid_response']) {
-  await test(`an initialization ${code} failure stays manual until describe verifies the server state`, async (t) => {
+  await test(`초기화 ${code} 실패는 describe가 서버 상태를 확인할 때까지 수동으로 남는다`, async (t) => {
     let needsInitialization = true
     const h = await mount(t, {
       rpc: ({ operation }) => {
@@ -689,7 +689,7 @@ for (const code of ['timeout', 'forbidden', 'invalid_response']) {
 }
 
 for (const code of ['forbidden', 'connection_error', 'invalid_response']) {
-  await test(`a real ${code} lookup error remains sticky until explicit refresh`, async (t) => {
+  await test(`실제 ${code} 조회 오류는 명시적 새로 고침 전까지 유지된다`, async (t) => {
     let reads = 0
     const h = await mount(t, { rpc: () => (reads++ === 0 ? failure(code) : success()) })
     assert.match(h.text, /Lookup failed/)
@@ -709,7 +709,7 @@ for (const code of ['forbidden', 'connection_error', 'invalid_response']) {
 
 for (const operation of ['create', 'switch']) {
   for (const code of ['timeout', 'busy']) {
-    await test(`an uncertain ${operation} ${code} result never retries on focus or readiness`, async (t) => {
+    await test(`불확실한 ${operation} ${code} 결과는 포커스나 준비 상태에서 절대 재시도하지 않는다`, async (t) => {
       const h = await mount(t, {
         rpc: ({ operation: requested }) =>
           requested === operation ? failure(code) : success({ ...linkedView(), cwd: '/repo' }),
@@ -734,7 +734,7 @@ for (const operation of ['create', 'switch']) {
   }
 }
 
-await test('busy manual verification after an uncertain mutation retains the manual-refresh boundary', async (t) => {
+await test('불확실한 변경 뒤의 수동 확인이 사용 중이면 수동 새로 고침 경계를 유지한다', async (t) => {
   let reads = 0
   const h = await mount(t, {
     rpc: ({ operation }) => {
@@ -759,7 +759,7 @@ await test('busy manual verification after an uncertain mutation retains the man
   assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
 })
 
-await test('successful mutation followed by a busy describe retries only the read', async (t) => {
+await test('변경이 성공한 뒤 describe가 사용 중이면 읽기만 재시도한다', async (t) => {
   let reads = 0
   const h = await mount(t, {
     rpc: ({ operation }) => {
@@ -778,7 +778,7 @@ await test('successful mutation followed by a busy describe retries only the rea
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('keyed navigation aborts an in-flight lookup and ignores its late busy response', async (t) => {
+await test('키 기반 이동은 진행 중인 조회를 중단하고 늦게 도착한 사용 중 응답을 무시한다', async (t) => {
   const response = deferred()
   let originalReads = 0
   const h = await mount(t, {
@@ -801,7 +801,7 @@ await test('keyed navigation aborts an in-flight lookup and ignores its late bus
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('describe needs an open present session, while initialization waits for every mutation condition', async (t) => {
+await test('describe는 열려 있는 현재 세션을 요구하고, 초기화는 모든 변경 조건을 기다린다', async (t) => {
   let initialized = false
   const h = await mount(t, {
     initial: { running: true, removed: true, openState: 'opening', pendingSubmissions: [{}] },
@@ -831,7 +831,7 @@ await test('describe needs an open present session, while initialization waits f
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('manual refresh of a sticky read error is allowed while the session is running', async (t) => {
+await test('고정된 읽기 오류는 세션이 실행 중일 때 수동으로 새로 고칠 수 있다', async (t) => {
   let reads = 0
   const h = await mount(t, { rpc: () => (reads++ === 0 ? failure('forbidden') : success()) })
   assert.match(h.text, /Lookup failed/)
@@ -846,7 +846,7 @@ await test('manual refresh of a sticky read error is allowed while the session i
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('busy verification of a real lookup error does not clear its manual-refresh requirement', async (t) => {
+await test('실제 조회 오류에 대한 확인이 사용 중이면 수동 새로 고침 요구를 해제하지 않는다', async (t) => {
   let reads = 0
   const h = await mount(t, {
     rpc: () => {

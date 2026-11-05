@@ -14,7 +14,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
 import * as plugin from '../dist/index.js'
 
-await test('Git action follows the remote default branch and linked worktree without changing the repository', async (t) => {
+await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜치와 연결된 워크트리를 따른다', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'dsh-git-action-'))
   const ctx = new Context()
   t.after(async () => {

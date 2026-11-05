@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { bindPullRequestLinks, pullRequestUrl } from '../src/pull-request-links.ts'
 
-await test('PR and MR links normalize to the exact request across supported URL shapes', () => {
+await test('PR과 MR 링크는 지원되는 URL 형태 전반에서 정확한 요청으로 정규화된다', () => {
   for (const [input, expected] of [
     ['https://github.com/team/repo/pull/42', 'https://github.com/team/repo/pull/42'],
     ['https://github.com/team/repo/pull/42/files?diff=split#discussion_r1', 'https://github.com/team/repo/pull/42'],
@@ -17,7 +17,7 @@ await test('PR and MR links normalize to the exact request across supported URL 
     assert.equal(pullRequestUrl(input), expected, input)
 })
 
-await test('ordinary pages, local paths, credentials and invalid request numbers are not PR links', () => {
+await test('일반 페이지, 로컬 경로, 자격 증명, 잘못된 요청 번호는 PR 링크가 아니다', () => {
   for (const input of [
     'https://github.com/team/repo/issues/42',
     'https://github.com/team/repo/pulls',
@@ -39,7 +39,7 @@ await test('ordinary pages, local paths, credentials and invalid request numbers
     assert.equal(pullRequestUrl(input), undefined, input)
 })
 
-await test('delegated link activation handles ordinary and keyboard clicks, preserving native alternatives', () => {
+await test('위임된 링크 활성화는 일반 클릭과 키보드 클릭을 처리하고, 네이티브 대안 동작을 보존한다', () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'Element')
   class Element {
     constructor(href) {

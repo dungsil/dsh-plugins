@@ -139,7 +139,7 @@ async function fixture(t, withRegistry = false) {
   }
 }
 
-await test('discovers both user roots without a global skill registry, including duplicates and symlinked skills', async (t) => {
+await test('전역 스킬 레지스트리 없이 중복과 심볼릭 링크된 스킬을 포함해 두 사용자 루트를 모두 찾아낸다', async (t) => {
   const h = await fixture(t)
   const dshPath = await h.skill(h.dsh, 'planning-work', 'DSH entry')
   const sharedPath = await h.skill(
@@ -191,7 +191,7 @@ await test('discovers both user roots without a global skill registry, including
   })
 })
 
-await test('returns empty missing roots and rereads additions and removals on the next request', async (t) => {
+await test('없는 루트는 빈 결과를 반환하고 다음 요청에서 추가와 제거를 다시 읽는다', async (t) => {
   const h = await fixture(t)
   const empty = {
     translationAvailable: false,
@@ -210,7 +210,7 @@ await test('returns empty missing roots and rereads additions and removals on th
 })
 
 await test(
-  'opens only discovered user skill folders for the owner and reports native failures',
+  '소유자에 대해서만 발견된 사용자 스킬 폴더를 열고 네이티브 실패를 보고한다',
   { skip: process.platform !== 'linux' },
   async (t) => {
     const h = await fixture(t)
@@ -263,7 +263,7 @@ await test(
   }
 )
 
-await test('translates only discovered descriptions using accepted preferences without changing skills', async (t) => {
+await test('스킬을 변경하지 않고 승인된 기본 설정을 사용해 발견된 설명만 번역한다', async (t) => {
   const h = await fixture(t)
   const path = await h.skill(h.agents, 'planning-work', 'Plan the next task')
   const before = await readFile(path, 'utf8')
@@ -328,7 +328,7 @@ await test('translates only discovered descriptions using accepted preferences w
   assert.equal(await translate({ path, language: 'ko' }), 404)
 })
 
-await test('persists DSH-only disabling across reloads without changing skill files, and restores lookup on re-enable', async (t) => {
+await test('스킬 파일을 변경하지 않고 재로드 후에도 DSH 전용 비활성화를 유지하며 다시 활성화하면 조회를 복원한다', async (t) => {
   const h = await fixture(t, true)
   const paths = [
     await h.skill(h.agents, 'planning-work', 'Shared entry'),
@@ -382,7 +382,7 @@ await test('persists DSH-only disabling across reloads without changing skill fi
   assert.ok(await isolated.get('skills').get('planning-work'))
 })
 
-await test('rejects non-owner requests and malformed envelopes, and removes the route on unload', async (t) => {
+await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부하고 언로드 시 라우트를 제거한다', async (t) => {
   const h = await fixture(t)
   for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
     assert.equal((await h.fetch(h.request, { principal, interactions: 'deny' })).status, 403)
@@ -410,7 +410,7 @@ await test('rejects non-owner requests and malformed envelopes, and removes the 
   assert.equal((await h.fetch(h.request)).status, 404)
 })
 
-await test('all UI strings have English, Korean and Chinese translations', async () => {
+await test('모든 UI 문자열에 영어, 한국어, 중국어 번역이 있다', async () => {
   const locales = await Promise.all(
     ['en', 'ko', 'zh'].map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))

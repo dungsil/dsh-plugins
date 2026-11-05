@@ -7,7 +7,7 @@ import { Window } from 'happy-dom'
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 
-await test('cached usage survives navigation and refresh without hiding totals or mixing periods and connections', async (t) => {
+await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 섞지 않고 내비게이션과 새로고침 후에도 유지된다', async (t) => {
   const window = new Window()
   const globals = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT']
   const previous = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key))
