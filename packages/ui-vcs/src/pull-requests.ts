@@ -1,11 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type Session } from '@deepseek-ai/dsh-session'
+import { inspectSession } from './inspect-session.js'
+import { readQueue } from './read-queue.js'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import {
@@ -97,43 +98,17 @@ function actionInput(value: unknown): RequestAction {
 export function apply(ctx: Context, config: Config) {
   const lifetime = new AbortController()
   const actionsInFlight = new Set<string>()
+  const read = readQueue(ctx.subprocess)
   ctx.effect(() => () => lifetime.abort())
 
-  // Every sidebar row refreshes independently. Bound the whole lookup, including
-  // executable resolution and sandbox helpers, not just the final CLI command.
-  let activeLookups = 0
-  const waiting = new Set<() => void>()
-  const acquire = (signal: AbortSignal) =>
-    new Promise<() => void>((resolve, reject) => {
-      signal.throwIfAborted()
-      const start = () => {
-        waiting.delete(start)
-        signal.removeEventListener('abort', cancel)
-        activeLookups++
-        resolve(() => {
-          activeLookups--
-          waiting.values().next().value?.()
-        })
-      }
-      const cancel = () => {
-        waiting.delete(start)
-        reject(signal.reason)
-      }
-      if (activeLookups < 4) start()
-      else {
-        waiting.add(start)
-        signal.addEventListener('abort', cancel, { once: true })
-      }
-    })
-
   const list = async (
-    agent: Agent,
+    session: Session,
     signal: AbortSignal,
     action?: RequestAction,
     requested?: URL,
     summary = false
   ): Promise<RequestView | { completed: true }> => {
-    const cwd = ctx.workingDirectory.get(agent.session)
+    const cwd = ctx.workingDirectory.get(session)
     const run = async (executable: string, args: string[], failure = 'command_failed', allowed = [0], trim = true) => {
       let resolved: string
       try {
@@ -142,7 +117,7 @@ export function apply(ctx: Context, config: Config) {
         throw new Error(executable === 'git' ? 'repository' : 'cli_missing')
       }
       const argv = [resolved, ...args]
-      const policy = ctx.sandboxPolicy.resolve({ session: agent.session })
+      const policy = ctx.sandboxPolicy.resolve({ session: session })
       const command =
         policy.mode === 'danger-full-access'
           ? argv
@@ -307,7 +282,7 @@ export function apply(ctx: Context, config: Config) {
         throw new Error('unsupported')
       if (provider === 'github' ? match[1].toLowerCase() !== prefix.toLowerCase() : match[1] !== prefix) {
         if (provider === 'gitlab') throw new Error('unsupported')
-        const associated = await list(agent, signal, undefined, undefined, summary)
+        const associated = await list(session, signal, undefined, undefined, summary)
         const linkedUrl = `${requested.origin}${match[1]}/${provider === 'github' ? 'pull' : forge ? 'pulls' : '-/merge_requests'}/${match[2]}`
         if (
           'request' in associated &&
@@ -1026,7 +1001,6 @@ export function apply(ctx: Context, config: Config) {
           if (!input || typeof input.sessionId !== 'string' || !input.sessionId)
             return reply({ ok: false, error: { code: 'unavailable', message: 'Invalid session', details: {} } })
           let inFlight: string | undefined
-          let release: (() => void) | undefined
           try {
             let action: RequestAction | undefined
             if (route === actionMethod) {
@@ -1041,13 +1015,23 @@ export function apply(ctx: Context, config: Config) {
             }
             const requested =
               route === method && input.requestUrl !== undefined ? lookupUrl(input.requestUrl) : undefined
-            const pending = AbortSignal.any([request.signal, lifetime.signal])
-            release = await acquire(pending)
-            pending.throwIfAborted()
-            const resolved = await ctx.sessionController.resolveAgent(SessionId(input.sessionId))
-            if ('error' in resolved) throw new Error('unavailable')
-            const signal = AbortSignal.any([pending, AbortSignal.timeout(20_000)])
-            const value = await list(resolved.agent, signal, action, requested, input.summary === true)
+            const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(20_000)])
+            const sessionId = SessionId(input.sessionId)
+            const execute = async () => {
+              signal.throwIfAborted()
+              let session: Session
+              if (action) {
+                const resolved = await ctx.sessionController.resolveAgent(sessionId)
+                if ('error' in resolved) throw new Error('unavailable')
+                signal.throwIfAborted()
+                session = resolved.agent.session
+              } else {
+                session = await inspectSession(ctx, sessionId, signal)
+              }
+              return list(session, signal, action, requested, input.summary === true)
+            }
+            // User mutations are not replayed or cached; only automatic reads share a bounded queue.
+            const value = action ? await execute() : await read(signal, execute)
             if (action && !('completed' in value)) throw new Error('stale_request')
             return reply({ ok: true, value })
           } catch (error) {
@@ -1078,7 +1062,6 @@ export function apply(ctx: Context, config: Config) {
               },
             })
           } finally {
-            release?.()
             if (inFlight) actionsInFlight.delete(inFlight)
           }
         },

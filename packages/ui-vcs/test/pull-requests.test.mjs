@@ -9,6 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
@@ -59,7 +60,6 @@ async function fixture(
     missing = false,
     httpStatus = 200
   const calls = []
-  const processes = { active: 0, peak: 0 }
   let dispatch
   const defaultDispatch = (args) => {
     if (args[0] === 'login')
@@ -150,48 +150,47 @@ async function fixture(
     return command === 'git' ? resolve(command, env, signal) : command
   }
   ctx.subprocess.spawn = (spec) => {
-    processes.active++
-    processes.peak = Math.max(processes.peak, processes.active)
-    const track = (child) => {
-      const waitForExit = child.waitForExit.bind(child)
-      let exited = false
-      child.waitForExit = async () => {
-        await waitForExit()
-        if (!exited) {
-          exited = true
-          processes.active--
-        }
-      }
-      return child
-    }
     if (['gh', 'glab', 'tea'].includes(spec.argv[0])) {
       calls.push(spec)
       const args = spec.argv.slice(1)
       const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
       const output = join(dir, `response-${calls.length}.json`)
       writeFileSync(output, value instanceof Error ? '' : typeof value === 'string' ? value : JSON.stringify(value))
-      return track(
-        spawn({
-          ...spec,
-          argv: [
-            process.execPath,
-            cli,
-            output,
-            String(value instanceof Error ? 1 : exitCode),
-            value instanceof Error
-              ? value.message
-              : spec.argv[0] === 'tea' && args[0] === 'api'
-                ? `HTTP/1.1 ${httpStatus} Test\n`
-                : '',
-          ],
-        })
-      )
+      return spawn({
+        ...spec,
+        argv: [
+          process.execPath,
+          cli,
+          output,
+          String(value instanceof Error ? 1 : exitCode),
+          value instanceof Error
+            ? value.message
+            : spec.argv[0] === 'tea' && args[0] === 'api'
+              ? `HTTP/1.1 ${httpStatus} Test\n`
+              : '',
+        ],
+      })
     }
-    return track(spawn(spec))
+    return spawn(spec)
   }
   ctx.provide('workingDirectory', { get: () => dir })
+  const inspections = []
+  const activations = []
   ctx.provide('sessionController', {
-    resolveAgent: async (id) => (id === 'test' ? { agent: { session: {} } } : { error: { code: 'missing' } }),
+    resolveAgent: async (id) => {
+      activations.push(id)
+      return id === 'test' ? { agent: { session: {} } } : { error: { code: 'missing' } }
+    },
+    inspect: async (id, signal) => {
+      signal.throwIfAborted()
+      inspections.push(id)
+      if (id !== 'test') throw new Error('missing')
+      return {
+        events: [],
+        meta: { version: SESSION_FORMAT_VERSION, id, cwd: dir, createdAt: 0, isSeeded: false },
+        inheritedEventCount: 0,
+      }
+    },
   })
   let mode = 'danger-full-access'
   const confined = []
@@ -204,12 +203,11 @@ async function fixture(
   ctx.provide('sandboxPolicy', { resolve: () => ({ mode }) })
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (peer = owner, sessionId = 'test', action, requestUrl, summary = false, signal) => {
+  const rpc = async (peer = owner, sessionId = 'test', action, requestUrl, summary = false) => {
     const method = action === undefined ? 'dungsil-vcs/pull-requests/list' : 'dungsil-vcs/pull-requests/action'
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',
-        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'client-request',
@@ -225,8 +223,9 @@ async function fixture(
   }
   return {
     rpc,
-    processes,
-    summary: (peer = owner, requestUrl, signal) => rpc(peer, 'test', undefined, requestUrl, true, signal),
+    inspections,
+    activations,
+    summary: (peer = owner, requestUrl) => rpc(peer, 'test', undefined, requestUrl, true),
     lookup: (requestUrl, peer = owner) => rpc(peer, 'test', undefined, requestUrl),
     action: (input = {}, peer = owner) =>
       rpc(peer, 'test', { sessionId: 'test', requestUrl: github.url, headSha: sha, action: 'approve', ...input }),
@@ -256,35 +255,12 @@ async function fixture(
 
 // Each test owns its repository, Cordis context and CLI responses.
 await describe('PR RPC', { concurrency: 4 }, async () => {
-  await test('동시 PR 조회는 자식 프로세스를 최대 4개만 실행하고 취소된 대기 요청은 실행하지 않는다', async (t) => {
+  await test('콜드 세션의 PR 조회는 Agent를 활성화하지 않고 저장된 세션만 읽는다', async (t) => {
     const f = await fixture(t)
-    const requests = Array.from({ length: 24 }, () => f.summary())
-    while (f.processes.active === 0) await new Promise((resolve) => setImmediate(resolve))
-    const cancelled = new AbortController()
-    const queued = f.summary(owner, undefined, cancelled.signal)
-    await new Promise((resolve) => setImmediate(resolve))
-    cancelled.abort()
-    const results = await Promise.all(requests)
-    assert.ok(results.every((result) => result.ok && result.value.request.number === 17))
-    assert.equal((await queued).ok, false)
-    assert.ok(f.processes.peak <= 4, `Peak child processes: ${f.processes.peak}`)
-    assert.equal(f.processes.active, 0)
-    assert.equal(f.calls.length, 24)
     assert.equal((await f.summary()).ok, true)
-    assert.equal(f.processes.active, 0)
-    const abortActive = new AbortController()
-    const interrupted = Array.from({ length: 8 }, () => f.summary(owner, undefined, abortActive.signal))
-    while (f.processes.active === 0) await new Promise((resolve) => setImmediate(resolve))
-    abortActive.abort()
-    assert.ok((await Promise.all(interrupted)).every((result) => !result.ok))
-    assert.equal(f.processes.active, 0)
-    assert.equal((await f.summary()).ok, true)
-    f.fail()
-    const failed = await Promise.all(Array.from({ length: 8 }, () => f.summary()))
-    assert.ok(failed.every((result) => !result.ok && result.error.code === 'command_failed'))
-    assert.equal(f.processes.active, 0)
-    assert.ok(f.processes.peak <= 4)
-    t.diagnostic(`Peak child processes: ${f.processes.peak}; remaining: ${f.processes.active}`)
+    assert.equal((await f.rpc()).ok, true)
+    assert.deepEqual(f.inspections, ['test', 'test'])
+    assert.deepEqual(f.activations, [])
   })
 
   await test('현재 브랜치의 PR만 표시하고, 없는 요청·실패한 조회·CLI 없음을 구분한다', async (t) => {

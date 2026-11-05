@@ -13,11 +13,14 @@ function mount(language = 'en') {
     cleanups = []
   const opens = []
   const listeners = new Map()
+  const visibilityListeners = new Map()
   const intervals = new Set()
-  const session = { running: false, cwd: '/repo' }
-  const hosts = []
-  const document = {
+  const page = {
     visibilityState: 'visible',
+    addEventListener: (name, listener) => visibilityListeners.set(name, listener),
+    removeEventListener: (name, listener) => {
+      if (visibilityListeners.get(name) === listener) visibilityListeners.delete(name)
+    },
     createElement: () => ({
       style: {},
       remove() {
@@ -25,6 +28,8 @@ function mount(language = 'en') {
       },
     }),
   }
+  const session = { running: false, cwd: '/repo' }
+  const hosts = []
   let cursor = 0,
     plugin,
     mounted = 'session',
@@ -74,7 +79,7 @@ function mount(language = 'en') {
     AbortSignal,
     URL,
     Element,
-    document,
+    document: page,
     window: {
       addEventListener: (name, listener) => listeners.set(name, listener),
       removeEventListener: (name, listener) => {
@@ -106,8 +111,8 @@ function mount(language = 'en') {
       list: { getSnapshot: () => ({ byId: { session, other: session } }), subscribe: () => () => {} },
       rpc: {
         call: (_channel, method, payload, signal) =>
-          new Promise((resolve) => {
-            calls.push({ method, payload, signal, resolve })
+          new Promise((resolve, reject) => {
+            calls.push({ method, payload, signal, resolve, reject })
           }),
       },
     }),
@@ -207,8 +212,12 @@ function mount(language = 'en') {
     session,
     hosts,
     intervals,
-    document,
+    visibilityListeners,
     focus: () => listeners.get('focus')?.(),
+    setVisibility: (value) => {
+      page.visibilityState = value
+      visibilityListeners.get('visibilitychange')?.()
+    },
     setLanguage: (value) => {
       language = value
     },
@@ -287,35 +296,7 @@ await test('세션 배지는 모든 로케일에서 MR 상태를 구분하고, �
   assert.ok(fixture.hosts.every((host) => host.removed))
 })
 
-await test('세션 배지는 진행 중인 조회를 중복 실행하지 않고 숨겨진 탭에서는 갱신하지 않는다', async () => {
-  const fixture = mount()
-  try {
-    fixture.renderBadge()
-    for (let i = 0; i < 5; i++) {
-      fixture.focus()
-      for (const refresh of fixture.intervals) refresh()
-    }
-    assert.equal(fixture.calls.length, 1)
-    assert.equal(fixture.calls[0].signal.aborted, false)
-    fixture.calls[0].resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    fixture.document.visibilityState = 'hidden'
-    fixture.focus()
-    for (const refresh of fixture.intervals) refresh()
-    assert.equal(fixture.calls.length, 1)
-    fixture.document.visibilityState = 'visible'
-    fixture.focus()
-    assert.equal(fixture.calls.length, 2)
-    fixture.dispose()
-    assert.equal(fixture.calls[1].signal.aborted, true)
-    assert.equal(fixture.intervals.size, 0)
-  } finally {
-    fixture.dispose()
-  }
-})
-
-await test('세션 배지는 에이전트 활동과 디렉터리 변경 후 새로 고치고, 대체된 응답은 버린다', async () => {
+await test('세션 배지는 실행 중 기존 상태를 유지하고 조회를 멈추며 실행 종료와 디렉터리 변경 후 새로 고친다', async () => {
   const fixture = mount()
   try {
     fixture.renderBadge()
@@ -324,11 +305,16 @@ await test('세션 배지는 에이전트 활동과 디렉터리 변경 후 새�
     assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
     fixture.session.running = true
     fixture.renderBadge()
-    fixture.calls.at(-1).resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge()) // MR decoration also exists while the agent runs.
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+    assert.equal(fixture.intervals.size, 0)
+    fixture.focus()
+    fixture.setVisibility('hidden')
+    fixture.setVisibility('visible')
+    assert.equal(fixture.calls.length, 1)
     fixture.session.running = false
     fixture.renderBadge()
+    assert.equal(fixture.calls.length, 2)
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
     const old = fixture.calls.at(-1)
     fixture.session.cwd = '/different-repo'
     fixture.renderBadge()
@@ -346,6 +332,111 @@ await test('세션 배지는 에이전트 활동과 디렉터리 변경 후 새�
     await settle()
     assert.equal(fixture.renderBadge('other'), null)
     assert.ok(fixture.calls.every((call) => call.payload.summary === true && !call.payload.requestUrl))
+  } finally {
+    fixture.dispose()
+  }
+})
+
+await test('세션 배지는 조회 중 focus와 주기 갱신이 몰려도 요청을 중단하거나 중복하지 않는다', async () => {
+  const fixture = mount()
+  try {
+    fixture.renderBadge()
+    const first = fixture.calls[0]
+    for (let index = 0; index < 5; index++) {
+      fixture.focus()
+      for (const refresh of fixture.intervals) refresh()
+    }
+    assert.equal(fixture.calls.length, 1)
+    assert.equal(first.signal.aborted, false)
+    first.resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+    assert.equal(fixture.calls.length, 1)
+    fixture.focus()
+    const second = fixture.calls[1]
+    fixture.focus()
+    for (const refresh of fixture.intervals) refresh()
+    assert.equal(fixture.calls.length, 2)
+    assert.equal(second.signal.aborted, false)
+    second.reject(new Error('unavailable'))
+    await settle()
+    assert.equal(fixture.renderBadge(), null)
+    for (const refresh of fixture.intervals) refresh()
+    assert.equal(fixture.calls.length, 3)
+  } finally {
+    fixture.dispose()
+  }
+  assert.equal(fixture.calls.at(-1).signal.aborted, true)
+  assert.equal(fixture.intervals.size, 0)
+  assert.equal(fixture.visibilityListeners.size, 0)
+})
+
+await test('세션 배지는 숨겨진 탭의 초기 조회와 자동 갱신을 미루고 다시 보일 때만 새로 고친다', async () => {
+  const fixture = mount()
+  try {
+    fixture.setVisibility('hidden')
+    fixture.renderBadge()
+    fixture.focus()
+    for (const refresh of fixture.intervals) refresh()
+    assert.equal(fixture.calls.length, 0)
+    fixture.setVisibility('visible')
+    const first = fixture.calls[0]
+    fixture.focus()
+    for (const refresh of fixture.intervals) refresh()
+    assert.equal(fixture.calls.length, 1)
+    fixture.setVisibility('hidden')
+    assert.equal(first.signal.aborted, false)
+    first.resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+    fixture.focus()
+    for (const refresh of fixture.intervals) refresh()
+    assert.equal(fixture.calls.length, 1)
+    fixture.setVisibility('visible')
+    assert.equal(fixture.calls.length, 2)
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+  } finally {
+    fixture.dispose()
+  }
+  assert.equal(fixture.visibilityListeners.size, 0)
+})
+
+await test('세션 배지는 실행 중 처음 마운트되면 조회하지 않고 실행 시작이나 마운트 해제 뒤 도착한 이전 응답을 버린다', async () => {
+  const fixture = mount()
+  try {
+    fixture.session.running = true
+    fixture.renderBadge()
+    fixture.focus()
+    assert.equal(fixture.calls.length, 0)
+    assert.equal(fixture.intervals.size, 0)
+    fixture.session.running = false
+    fixture.renderBadge()
+    const first = fixture.calls[0]
+    const refresh = [...fixture.intervals][0]
+    fixture.session.running = true
+    fixture.renderBadge()
+    assert.equal(first.signal.aborted, true)
+    first.resolve({ ok: true, value: request(41) })
+    await settle()
+    assert.equal(fixture.renderBadge(), null)
+    refresh()
+    fixture.focus()
+    assert.equal(fixture.calls.length, 1)
+    fixture.session.running = false
+    fixture.renderBadge()
+    fixture.calls[1].resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
+    fixture.focus()
+    const last = fixture.calls.at(-1)
+    const staleRefresh = [...fixture.intervals][0]
+    fixture.dispose()
+    assert.equal(last.signal.aborted, true)
+    last.resolve({ ok: true, value: request(43) })
+    await settle()
+    staleRefresh()
+    assert.equal(fixture.calls.length, 3)
+    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
   } finally {
     fixture.dispose()
   }

@@ -41,7 +41,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'initial')
   git('worktree', 'add', '--detach', other)
   await writeFile(join(repo, 'draft.txt'), 'unsaved source file')
-  const dir = join(home, 'profiles/test')
+  const dir = join(home, 'profiles/web')
   initProfile(dir, ['test-bundle'])
   const bundle = join(dir, 'node_modules/test-bundle')
   await mkdir(bundle, { recursive: true })
@@ -70,7 +70,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   )
   await writeFile(join(dir, 'cordis.yml'), '[]\n')
   const profile = {
-    name: 'test',
+    name: 'web',
     startedBundles: ['test-bundle'],
     dir,
     patchPath: join(dir, 'cordis.patch.yml'),
@@ -136,12 +136,13 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     })
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (endpoint, payload = {}, peer = owner) => {
+  const rpc = async (endpoint, payload = {}, peer = owner, signal) => {
     const method = endpoint.includes('/') ? endpoint : `dungsil-worktree/${endpoint}`
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           type: 'client-request',
           rpcId: 'test',
@@ -172,6 +173,61 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       agent.runMaintenance = maintenance
     }
   }
+  const holdDescribeChildren = () => {
+    const subprocess = ctx.subprocess
+    const spawn = subprocess.spawn.bind(subprocess)
+    const handles = []
+    let changed = Promise.withResolvers()
+    let active = 0
+    let maximum = 0
+    let released = false
+    const releaseAll = () => {
+      released = true
+      for (const handle of handles) handle.exit.resolve()
+    }
+    subprocess.spawn = (spec) => {
+      const child = spawn(spec)
+      if (!spec.argv.includes('worktree') || !spec.argv.includes('--porcelain')) return child
+      active++
+      maximum = Math.max(maximum, active)
+      const handle = { spec, waiting: Promise.withResolvers(), exit: Promise.withResolvers() }
+      handles.push(handle)
+      if (released) handle.exit.resolve()
+      changed.resolve()
+      changed = Promise.withResolvers()
+      return {
+        ...child,
+        done: child.done,
+        collected: child.collected,
+        terminate: () => child.terminate(),
+        async waitForExit() {
+          const exited = await child.waitForExit()
+          handle.waiting.resolve()
+          await handle.exit.promise
+          active--
+          return exited
+        },
+      }
+    }
+    t.after(() => {
+      releaseAll()
+      subprocess.spawn = spawn
+    })
+    return {
+      handles,
+      releaseAll,
+      get active() {
+        return active
+      },
+      get maximum() {
+        return maximum
+      },
+      async waitForCount(count) {
+        while (handles.length < count) await changed.promise
+        await Promise.all(handles.slice(0, count).map((handle) => handle.waiting.promise))
+      },
+    }
+  }
   return {
     ctx,
     agent,
@@ -187,6 +243,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     archive,
     inspections,
     resolutions,
+    holdDescribeChildren,
   }
 }
 
@@ -726,6 +783,124 @@ await test('콜드 조회는 중단된 세션을 활성화하거나 복구하지
   assert.equal(ctx.agents.get(id), undefined, 'Reading a cold session must not publish an Agent')
   assert.deepEqual(resolutions, [], 'Lookup must not call the activating resolver')
   assert.deepEqual(cold.snapshotEvents(), events, 'Lookup must not close interrupted turns or initialize selection')
+})
+
+await test('다수의 동시 조회는 waitForExit가 끝나기 전까지 자식 핸들을 두 개만 유지한다', async (t) => {
+  const { agent, rpc, inspections, resolutions, holdDescribeChildren } = await fixture(t)
+  const id = SessionId('cold-concurrent-read')
+  inspections.set(id, {
+    meta: { ...agent.session.header, id },
+    inheritedEventCount: agent.session.inheritedEventCount,
+    events: agent.session.snapshotEvents(),
+  })
+  const before = agent.session.snapshotEvents()
+  const children = holdDescribeChildren()
+  const requests = Array.from({ length: 16 }, (_, index) => rpc('describe', index % 2 ? { sessionId: id } : {}))
+  let results
+  try {
+    await children.waitForCount(2)
+    assert.equal(children.active, 2)
+    assert.equal(children.maximum, 2)
+    assert.equal(children.handles.length, 2)
+    children.handles[0].exit.resolve()
+    await children.waitForCount(3)
+    assert.equal(children.active, 2, 'The second child still occupies its slot after done resolves')
+    assert.equal(children.maximum, 2)
+  } finally {
+    children.releaseAll()
+    results = await Promise.all(requests)
+  }
+  assert.ok(results.every((result) => result.ok))
+  assert.equal(children.handles.length, 16)
+  assert.equal(children.maximum, 2)
+  assert.equal(children.active, 0)
+  assert.deepEqual(resolutions, [], 'Cold reads must not activate an Agent')
+  assert.deepEqual(agent.session.snapshotEvents(), before)
+})
+
+await test('대기 중 취소된 콜드 조회는 세션을 검사하거나 자식 프로세스를 생성하지 않는다', async (t) => {
+  const { ctx, rpc, holdDescribeChildren } = await fixture(t)
+  const children = holdDescribeChildren()
+  const active = [rpc('describe'), rpc('describe')]
+  const controller = new AbortController()
+  const inspect = ctx.sessionController.inspect
+  let inspections = 0
+  ctx.sessionController.inspect = async (...args) => {
+    inspections++
+    return inspect(...args)
+  }
+  let queued
+  try {
+    await children.waitForCount(2)
+    queued = rpc('describe', { sessionId: 'cancelled-cold-read' }, owner, controller.signal)
+    await rpc('settings')
+    controller.abort()
+    assert.equal((await queued).ok, false)
+    assert.equal(inspections, 0, 'The queue must include cold session inspection, not just Git')
+    assert.equal(children.handles.length, 2)
+    assert.equal(children.active, 2)
+  } finally {
+    controller.abort()
+    children.releaseAll()
+    await Promise.all([...active, ...(queued ? [queued] : [])])
+    ctx.sessionController.inspect = inspect
+  }
+  assert.equal((await rpc('describe')).ok, true)
+  assert.equal(children.handles.length, 3, 'Only the later non-cancelled request may spawn')
+  assert.equal(children.maximum, 2)
+})
+
+await test('조회 대기열이 가득 차면 busy를 반환하고 취소된 대기는 자식 프로세스를 생성하지 않는다', async (t) => {
+  const { rpc, holdDescribeChildren } = await fixture(t)
+  const children = holdDescribeChildren()
+  const active = [rpc('describe'), rpc('describe')]
+  const controller = new AbortController()
+  let queued = []
+  try {
+    await children.waitForCount(2)
+    queued = Array.from({ length: 128 }, () => rpc('describe', {}, owner, controller.signal))
+    const overflow = await rpc('describe')
+    assert.equal(overflow.ok, false)
+    assert.equal(overflow.error.code, 'busy')
+    controller.abort()
+    assert.ok((await Promise.all(queued)).every((result) => !result.ok))
+    assert.equal(children.handles.length, 2)
+  } finally {
+    controller.abort()
+    children.releaseAll()
+    await Promise.all([...active, ...queued])
+  }
+  assert.equal(children.active, 0)
+  assert.equal(children.maximum, 2)
+})
+
+await test('플러그인을 폐기하면 대기 중인 콜드 조회는 검사와 자식 생성을 하지 않는다', async (t) => {
+  const { ctx, rpc, holdDescribeChildren } = await fixture(t)
+  const children = holdDescribeChildren()
+  const active = [rpc('describe'), rpc('describe')]
+  let inspections = 0
+  ctx.sessionController.inspect = async () => {
+    inspections++
+    throw { code: 'session/not-found' }
+  }
+  let queued = []
+  let disposal
+  try {
+    await children.waitForCount(2)
+    queued = Array.from({ length: 8 }, () => rpc('describe', { sessionId: 'disposed-cold-read' }))
+    await rpc('settings')
+    disposal = ctx.fiber.dispose()
+    assert.ok((await Promise.all(queued)).every((result) => !result.ok))
+    assert.equal(inspections, 0)
+    assert.equal(children.handles.length, 2)
+    assert.equal(children.active, 2, 'Disposal must not free a slot before waitForExit settles')
+  } finally {
+    children.releaseAll()
+    await Promise.all([...active, ...queued])
+    await disposal
+  }
+  assert.equal(children.active, 0)
+  assert.equal(children.maximum, 2)
 })
 
 await test('조회는 작업 중에도 세션을 바꾸지 않고 현재 체크아웃을 읽는다', async (t) => {

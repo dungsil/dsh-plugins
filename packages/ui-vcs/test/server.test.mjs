@@ -37,8 +37,19 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
   await ctx.plugin(SandboxPolicy, { mode: 'danger-full-access' })
   const harness = await mountAgentLoopTestHarness(ctx)
   const agent = await harness.create(SessionId('git-action-test'), { provider: 'test', model: 'test' }, { cwd: home })
+  const inspections = []
   ctx.provide('sessionController', {
-    resolveAgent: async (id) => (id === agent.id ? { agent } : { error: { code: 'session/not-found' } }),
+    resolveAgent: () => assert.fail('읽기 조회는 Agent를 활성화하지 않는다'),
+    inspect: async (id, signal) => {
+      signal.throwIfAborted()
+      if (id !== 'cold-session') throw new Error('missing')
+      inspections.push(id)
+      return {
+        events: agent.session.snapshotEvents(),
+        meta: { ...agent.session.header, id },
+        inheritedEventCount: agent.session.inheritedEventCount,
+      }
+    },
   })
   await ctx.plugin(plugin)
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -56,6 +67,14 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
     return (await response.json()).result
   }
   assert.deepEqual(await read(), { ok: true, value: { operation: 'push', headSha: initial, dirty: false } })
+  const before = agent.session.snapshotEvents()
+  assert.deepEqual(await read('cold-session'), {
+    ok: true,
+    value: { operation: 'push', headSha: initial, dirty: false },
+  })
+  assert.deepEqual(inspections, ['cold-session'])
+  assert.deepEqual(agent.session.snapshotEvents(), before)
+  assert.equal(ctx.agents.get('cold-session'), undefined)
   git('switch', '-c', 'main') // A familiar name is not necessarily the default branch.
   assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } })
   await writeFile(join(home, 'change.txt'), 'new file')
