@@ -105,15 +105,14 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   await mount()
   assert.equal(loading(), false)
   assert.equal(total(), '123')
-  assert.equal(container.querySelector('section').getAttribute('aria-busy'), 'true')
-  await reply(success(456))
-  assert.equal(total(), '456')
+  assert.equal(container.querySelector('section').getAttribute('aria-busy'), 'false')
+  assert.equal(pending.length, 0, 'navigation must not request cached usage again')
 
   const refreshButton = container.querySelector('.dsh-usage-refresh')
   assert.equal(refreshButton.textContent, 'Refresh')
   await React.act(async () => refreshButton.click())
   assert.equal(loading(), false)
-  assert.equal(total(), '456')
+  assert.equal(total(), '123')
   assert.equal(refreshButton.textContent, 'Refreshing…')
   assert.equal(refreshButton.getAttribute('aria-busy'), 'true')
   assert.equal(refreshButton.disabled, true)
@@ -137,11 +136,13 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   await changePeriod('7')
   assert.equal(loading(), false)
   assert.equal(total(), '789')
+  assert.equal(pending.length, 0, 'returning to a cached period must not request usage again')
+  await React.act(async () => refreshButton.click())
   await leave()
   await reply(success(999))
   await mount()
   assert.equal(total(), '789', 'an aborted response must not overwrite cached totals')
-  await reply(success(654))
+  assert.equal(pending.length, 0)
 
   await leave()
   connection = makeConnection()
@@ -153,7 +154,7 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   await mount()
   assert.equal(total(), '0', 'empty usage is also a successful cached result')
   assert.equal(loading(), false)
-  await reply(success(0))
+  assert.equal(pending.length, 0)
 
   await t.test('토큰은 현재 언어의 단위로 축약하고 정확한 값과 호출 수는 유지한다', async () => {
     for (const [language, expected] of [

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -70,21 +70,29 @@ function Usage({ ctx }: { ctx: Context }) {
   const [period, setPeriod] = useState(7)
   const [periodOpen, setPeriodOpen] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  const refreshRequested = useRef(false)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const cacheKey = JSON.stringify([period, timeZone])
   let cache = cachedViews.get(connection)
   if (!cache) cachedViews.set(connection, (cache = new Map()))
   const [view, setView] = useState<UsageView | undefined>(() => cache.get(cacheKey))
-  const [busy, setBusy] = useState(true)
+  const [busy, setBusy] = useState(() => !cache.has(cacheKey))
   const [error, setError] = useState(false)
   const [selectedDay, setSelectedDay] = useState(() => view?.days.at(-1)?.day ?? '')
 
   useEffect(() => {
+    const cached = cache.get(cacheKey)
+    setError(false)
+    setView(cached)
+    if (cached && !refreshRequested.current) {
+      setBusy(false)
+      setSelectedDay((day) => (cached.days.some((entry) => entry.day === day) ? day : (cached.days.at(-1)?.day ?? '')))
+      return
+    }
+    refreshRequested.current = false
     const controller = new AbortController()
     setBusy(true)
-    setError(false)
-    setView(cache.get(cacheKey))
     void (async () => {
       try {
         const result = await connection.rpc.call(channel, method, { days: period, timeZone }, controller.signal)
@@ -149,7 +157,10 @@ function Usage({ ctx }: { ctx: Context }) {
           aria-busy={busy}
           icon={<IconRefreshOutlineRegular />}
           disabled={busy}
-          onClick={() => setRefresh((value) => value + 1)}
+          onClick={() => {
+            refreshRequested.current = true
+            setRefresh((value) => value + 1)
+          }}
         >
           {busy ? text.refreshing : text.refresh}
         </Button>
