@@ -14,7 +14,7 @@ export const failureCodes = [
 ] as const
 
 export type FailureCode = (typeof failureCodes)[number]
-export type WorktreeOperation = 'describe' | 'create' | 'switch'
+export type WorktreeOperation = 'describe' | 'initialize' | 'create' | 'switch'
 export interface WorktreeFailure {
   operation: WorktreeOperation
   code: FailureCode

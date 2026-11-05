@@ -77,6 +77,8 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
   }
   let agent, harness
   const requests = []
+  const inspections = new Map()
+  const resolutions = []
   ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
     root.provide('profileContext', profile)
     root.loader.builtins.editor = ConfigEditor
@@ -112,8 +114,15 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       { cwd: repo }
     )
     root.provide('sessionController', {
-      resolveAgent: async (id) =>
-        id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } },
+      resolveAgent: async (id) => {
+        resolutions.push(id)
+        return id === agent.id ? { agent } : { error: { code: 'session/not-found', message: 'Missing' } }
+      },
+      inspect: async (id) => {
+        const inspection = inspections.get(id)
+        if (!inspection) throw { code: 'session/not-found' }
+        return inspection
+      },
     })
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -139,7 +148,7 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
     await agent.whenIdle()
   }
-  return { ctx, agent, repo, other, git, rpc, home, profile, requests, submit, harness }
+  return { ctx, agent, repo, other, git, rpc, home, profile, requests, submit, harness, inspections, resolutions }
 }
 
 await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
@@ -159,6 +168,7 @@ await test('reserves without side effects, creates before prompt work, and keeps
   assert.equal(initial.ok, true)
   assert.deepEqual(initial.value, {
     cwd: repo,
+    needsInitialization: true,
     worktrees: [
       { path: gitPath(repo), branch: 'main' },
       { path: gitPath(other), branch: null },
@@ -168,7 +178,11 @@ await test('reserves without side effects, creates before prompt work, and keeps
   const otherPath = initial.value.worktrees.find((entry) => entry.branch === null).path
   const reserved = await rpc('create', { cwd: repo, name: 'fix/login-ui' })
   assert.equal(reserved.ok, true)
-  assert.deepEqual(reserved.value, { ...initial.value, pendingCreation: { name: 'fix/login-ui', failed: false } })
+  assert.deepEqual(reserved.value, {
+    cwd: repo,
+    worktrees: initial.value.worktrees,
+    pendingCreation: { name: 'fix/login-ui', failed: false },
+  })
   assert.equal(ctx.workingDirectory.get(agent.session), repo)
   assert.equal(requests.length, 0, 'reserving must not call a model')
   assert.equal(progress.length, 0, 'reserving must not display setup as started')
@@ -255,13 +269,23 @@ await test('reserves without side effects, creates before prompt work, and keeps
 
 await test('new-worktree default reserves once without side effects and respects cancellation across profile reloads', async (t) => {
   const { agent, repo, git, rpc, requests, profile, submit } = await fixture(t, {}, { defaultSelection: 'new' })
-  const initial = await rpc('describe')
+  const before = agent.session.snapshotEvents()
+  const lookup = await rpc('describe')
+  assert.equal(lookup.ok, true)
+  assert.equal(lookup.value.needsInitialization, true)
+  assert.equal(lookup.value.pendingCreation, undefined, 'A read must not reserve a default worktree')
+  assert.deepEqual(agent.session.snapshotEvents(), before, 'A read must not persist selection initialization')
+  const initial = await rpc('initialize', { cwd: repo })
   assert.equal(initial.ok, true)
+  assert.equal(initial.value.needsInitialization, undefined)
   assert.deepEqual(initial.value.pendingCreation, { name: '', failed: false })
   assert.equal(initial.value.cwd, repo)
   assert.equal(initial.value.worktrees.length, 2)
   assert.equal(requests.length, 0)
+  const initializedEvents = agent.session.snapshotEvents()
   assert.deepEqual((await rpc('describe')).value, initial.value)
+  assert.deepEqual((await rpc('initialize', { cwd: repo })).value, initial.value)
+  assert.deepEqual(agent.session.snapshotEvents(), initializedEvents, 'Initialization must be idempotent')
   const main = initial.value.worktrees.find((entry) => entry.branch === 'main').path
   assert.equal((await rpc('switch', { cwd: repo, path: main })).value.pendingCreation, undefined)
   const settings = (await rpc('settings')).value
@@ -297,7 +321,7 @@ await test('new-worktree default creates on first prompt only and does not repla
     }
   }
   ctx.llm.registerAdapter(['naming'], new NamingAdapter())
-  assert.equal((await rpc('describe')).value.pendingCreation.failed, false)
+  assert.equal((await rpc('initialize', { cwd: repo })).value.pendingCreation.failed, false)
   await submit('Implement default selection')
   const created = (await rpc('describe')).value
   assert.equal(created.cwd, join(repo, '.agents/worktrees/feat/default-selection'))
@@ -404,8 +428,12 @@ await test('an empty reserved name uses the newly submitted prompt, not earlier 
   const submitted = submit('Fix session isolation when switching worktrees')
   await started
   try {
+    const duringCreation = await rpc('describe')
+    assert.equal(duringCreation.ok, true, 'Naming and creation must not block a read')
+    assert.equal(duringCreation.value.pendingCreation.failed, false, 'Active creation is not a failed reservation')
+    assert.equal((await rpc('initialize', { cwd: repo })).error.code, 'busy')
     const settings = (await rpc('settings')).value
-    assert.equal((await rpc('save-settings', settings)).error.code, 'busy', 'settings cannot interrupt creation')
+    assert.equal((await rpc('save-settings', settings)).error.code, 'busy', 'A read must not release the creation lock')
   } finally {
     release()
   }
@@ -638,9 +666,74 @@ await test('naming preserves explicit efforts, model defaults and non-reasoning 
   }
 })
 
+await test('cold lookup reads an interrupted session without activating or repairing it', async (t) => {
+  const { ctx, agent, repo, other, rpc, inspections, resolutions } = await fixture(t)
+  const id = SessionId('cold-worktree-read')
+  const cold = Session.create(id, agent.session.snapshotEvents(), { ...agent.session.header, id })
+  cold.append('working-directory/change', { cwd: other })
+  setSandboxMode(cold, 'read-only')
+  cold.append('turn/start', { turn: 1 })
+  cold.append('step/start', { turn: 1, step: 0 })
+  const events = cold.snapshotEvents()
+  inspections.set(id, { meta: cold.header, inheritedEventCount: cold.inheritedEventCount, events })
+  assert.equal(ctx.agents.get(id), undefined)
+  const result = await rpc('describe', { sessionId: id })
+  assert.equal(result.ok, true)
+  assert.equal(result.value.cwd, other, 'Use the recorded directory, not the original project')
+  assert.equal(cold.header.cwd, repo)
+  assert.equal(ctx.sandboxPolicy.resolve({ session: cold }).mode, 'read-only')
+  assert.equal(result.value.needsInitialization, true)
+  assert.ok(result.value.worktrees.some((entry) => entry.branch === 'main'))
+  assert.equal(ctx.agents.get(id), undefined, 'Reading a cold session must not publish an Agent')
+  assert.deepEqual(resolutions, [], 'Lookup must not call the activating resolver')
+  assert.deepEqual(cold.snapshotEvents(), events, 'Lookup must not close interrupted turns or initialize selection')
+})
+
+await test('lookup reads the current checkout during work without changing the session', async (t) => {
+  const { ctx, agent, repo, rpc, submit } = await fixture(t, { provider: 'paused', model: 'paused-model' })
+  const started = Promise.withResolvers()
+  const work = Promise.withResolvers()
+  class PausedWorkAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+      return { provider, id: model, name: model }
+    }
+    async *stream() {
+      started.resolve()
+      await work.promise
+      yield { type: 'text-delta', index: 0, text: 'Finished' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+  }
+  ctx.llm.registerAdapter(['paused'], new PausedWorkAdapter())
+  assert.equal((await rpc('create', { cwd: repo, name: 'fix/navigation' })).ok, true)
+  const submitted = submit()
+  await started.promise
+  try {
+    const cwd = join(repo, '.agents/worktrees/fix/navigation')
+    assert.equal(ctx.workingDirectory.get(agent.session), cwd)
+    const before = agent.session.snapshotEvents()
+    const views = await Promise.all([rpc('describe'), rpc('describe')])
+    for (const view of views) {
+      assert.equal(view.ok, true, 'Running work must not block a read-only lookup')
+      assert.equal(view.value.cwd, cwd)
+      assert.ok(view.value.worktrees.some((entry) => entry.branch === 'fix/navigation'))
+    }
+    assert.deepEqual(agent.session.snapshotEvents(), before, 'Lookup must not append session records')
+    assert.equal((await rpc('create', { cwd, name: 'must-not-create' })).error.code, 'busy')
+    assert.equal((await rpc('switch', { cwd, path: gitPath(repo) })).error.code, 'busy')
+  } finally {
+    work.resolve()
+    await submitted
+  }
+  const restored = await rpc('describe')
+  assert.equal(restored.ok, true)
+  assert.equal(restored.value.cwd, join(repo, '.agents/worktrees/fix/navigation'))
+  assert.ok(restored.value.worktrees.some((entry) => entry.branch === 'fix/navigation'))
+})
+
 await test('refuses non-owners, malformed input, concurrent maintenance, and read-only creation', async (t) => {
   const { ctx, agent, repo, rpc, requests, submit } = await fixture(t)
-  for (const endpoint of ['describe', 'create', 'switch', 'settings', 'save-settings']) {
+  for (const endpoint of ['describe', 'initialize', 'create', 'switch', 'settings', 'save-settings']) {
     assert.equal(
       (
         await rpc(
@@ -657,6 +750,10 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
   assert.equal((await rpc('describe', { sessionId: 'missing' })).error.code, 'session/not-found')
   const queued = createUserMessage({ content: [{ type: 'text', text: 'Queued task' }], source: { kind: 'user' } })
   agent.inbox.append('next-turn', queued)
+  const queuedEvents = agent.session.snapshotEvents()
+  assert.equal((await rpc('describe')).ok, true, 'Queued prompts do not block a read')
+  assert.deepEqual(agent.session.snapshotEvents(), queuedEvents)
+  assert.equal((await rpc('initialize', { cwd: repo })).error.code, 'busy')
   assert.equal((await rpc('create', { cwd: repo, name: 'queued-task' })).error.code, 'busy')
   agent.inbox.remove(queued.id)
   let finish
@@ -666,10 +763,17 @@ await test('refuses non-owners, malformed input, concurrent maintenance, and rea
         finish = resolve
       })
   )
-  const refused = await rpc('create', { cwd: repo, name: 'busy' })
-  assert.equal(refused.ok, false)
-  finish()
-  await maintenance
+  try {
+    const beforeMaintenanceRead = agent.session.snapshotEvents()
+    assert.equal((await rpc('describe')).ok, true, 'Maintenance does not block a read')
+    assert.deepEqual(agent.session.snapshotEvents(), beforeMaintenanceRead)
+    const refused = await rpc('create', { cwd: repo, name: 'busy' })
+    assert.equal(refused.ok, false)
+    assert.equal((await rpc('initialize', { cwd: repo })).error.code, 'busy')
+  } finally {
+    finish()
+    await maintenance
+  }
   const results = await Promise.all([
     rpc('create', { cwd: repo, name: 'single-creation' }),
     rpc('create', { cwd: repo, name: 'must-not-create' }),
