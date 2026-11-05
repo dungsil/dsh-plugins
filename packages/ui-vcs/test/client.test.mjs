@@ -46,7 +46,7 @@ async function mount(operation, language = 'en', options = {}) {
     AbortController,
     AbortSignal,
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
-    document: { createElement: () => ({}) },
+    document: { head: { append() {} }, createElement: () => ({ remove() {} }) },
     MutationObserver: class {
       observe() {}
       disconnect() {}

@@ -67,7 +67,7 @@ async function fixture(t, options = {}) {
   ctx.provide('sessionController', {
     resolveAgent: async (id) => (id === agent.id ? { agent } : { error: { code: 'session/not-found' } }),
   })
-  await ctx.plugin(plugin)
+  await ctx.plugin(plugin, options.config)
   const handler = ctx.connection.createSharedFetchHandler('/api')
   const rpc = async (overrides = {}, principal = { kind: 'owner' }) => {
     const method = 'dungsil-vcs/execute'
@@ -178,45 +178,57 @@ await test('동시 명령은 다른 생성을 시작하지 않고 바쁨을 반�
 
 await test('부분 스테이징과 오래된 저장소 상태는 커밋 없이 거부한다', async (t) => {
   for (const kind of ['partial', 'changed', 'branch']) {
-    await t.test(kind, async (t) => {
-      const options =
-        kind === 'changed'
-          ? { onGenerate: async ({ repo }) => writeFile(join(repo, 'task.txt'), 'concurrent change\n') }
-          : kind === 'branch'
-            ? { onGenerate: ({ git }) => git('switch', '-c', 'feat/other') }
-            : {}
-      const { repo, git, rpc } = await fixture(t, options)
-      if (kind === 'partial') {
-        git('add', 'task.txt')
-        await writeFile(join(repo, 'task.txt'), 'unstaged tail\n')
+    await t.test(
+      { partial: '부분 스테이징을 거부한다', changed: '변경된 파일을 거부한다', branch: '변경된 브랜치를 거부한다' }[
+        kind
+      ],
+      async (t) => {
+        const options =
+          kind === 'changed'
+            ? { onGenerate: async ({ repo }) => writeFile(join(repo, 'task.txt'), 'concurrent change\n') }
+            : kind === 'branch'
+              ? { onGenerate: ({ git }) => git('switch', '-c', 'feat/other') }
+              : {}
+        const { repo, git, rpc } = await fixture(t, options)
+        if (kind === 'partial') {
+          git('add', 'task.txt')
+          await writeFile(join(repo, 'task.txt'), 'unstaged tail\n')
+        }
+        const initial = git('rev-parse', 'HEAD')
+        const result = await rpc()
+        assert.equal(result.ok, false)
+        assert.equal(result.error.code, kind === 'partial' ? 'partial_stage' : 'conflict')
+        assert.equal(git('rev-parse', 'HEAD'), initial)
       }
-      const initial = git('rev-parse', 'HEAD')
-      const result = await rpc()
-      assert.equal(result.ok, false)
-      assert.equal(result.error.code, kind === 'partial' ? 'partial_stage' : 'conflict')
-      assert.equal(git('rev-parse', 'HEAD'), initial)
-    })
+    )
   }
 })
 
 await test('잘못된 계획, 잘못된 모델 응답, 비밀은 부작용 전에 거부한다', async (t) => {
   for (const kind of ['outside', 'malformed', 'secret']) {
-    await t.test(kind, async (t) => {
-      const options =
-        kind === 'outside'
-          ? { answer: { commitMessage: 'bad', title: '', body: '', paths: ['absent.txt'] } }
-          : kind === 'malformed'
-            ? { answer: 'not JSON' }
-            : {}
-      const { repo, git, rpc, requests } = await fixture(t, options)
-      if (kind === 'secret') await writeFile(join(repo, '.env'), 'PRIVATE_TEST_PLACEHOLDER=not-a-real-secret\n')
-      const initial = git('rev-parse', 'HEAD')
-      const staged = git('diff', '--cached', '--binary')
-      assert.equal((await rpc()).ok, false)
-      assert.equal(git('rev-parse', 'HEAD'), initial)
-      assert.equal(git('diff', '--cached', '--binary'), staged)
-      if (kind === 'secret') assert.equal(requests.length, 0)
-    })
+    await t.test(
+      {
+        outside: '계획에 없는 파일을 거부한다',
+        malformed: '잘못된 모델 응답을 거부한다',
+        secret: '비밀 파일을 거부한다',
+      }[kind],
+      async (t) => {
+        const options =
+          kind === 'outside'
+            ? { answer: { commitMessage: 'bad', title: '', body: '', paths: ['absent.txt'] } }
+            : kind === 'malformed'
+              ? { answer: 'not JSON' }
+              : {}
+        const { repo, git, rpc, requests } = await fixture(t, options)
+        if (kind === 'secret') await writeFile(join(repo, '.env'), 'PRIVATE_TEST_PLACEHOLDER=not-a-real-secret\n')
+        const initial = git('rev-parse', 'HEAD')
+        const staged = git('diff', '--cached', '--binary')
+        assert.equal((await rpc()).ok, false)
+        assert.equal(git('rev-parse', 'HEAD'), initial)
+        assert.equal(git('diff', '--cached', '--binary'), staged)
+        if (kind === 'secret') assert.equal(requests.length, 0)
+      }
+    )
   }
 })
 
@@ -252,4 +264,51 @@ await test('저장소 커밋 훅은 계속 활성 상태이고 실패한 훅은 
   assert.equal((await rpc()).ok, false)
   assert.equal(git('rev-parse', 'HEAD'), before)
   assert.match(await readFile(join(repo, 'task.txt'), 'utf8'), /current task/)
+})
+
+await test('UI 커밋에만 작성자와 서명 비활성화를 적용하고 Git 설정과 커미터는 바꾸지 않는다', async (t) => {
+  const { repo, git, rpc } = await fixture(t, {
+    config: { authorName: 'UI 작성자', authorEmail: 'ui@example.invalid', noSign: true },
+  })
+  git('config', 'commit.gpgSign', 'true')
+  git('config', 'gpg.program', 'dsh-nonexistent-signing-program')
+  const config = await readFile(join(repo, '.git/config'), 'utf8')
+  assert.equal((await rpc()).ok, true)
+  assert.equal(
+    git('log', '-1', '--format=%an <%ae>|%cn <%ce>|%G?'),
+    'UI 작성자 <ui@example.invalid>|Test <test@example.invalid>|N'
+  )
+  assert.equal(await readFile(join(repo, '.git/config'), 'utf8'), config)
+  assert.throws(() => git('commit', '--allow-empty', '-m', 'outside UI'))
+  git('-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '-m', 'outside UI')
+  assert.equal(git('log', '-1', '--format=%an <%ae>'), 'Test <test@example.invalid>')
+})
+
+await test('작성자를 비워 두면 기존 작성자를 사용하고 서명 비활성화를 끄면 Git 서명 설정을 따른다', async (t) => {
+  const { git, rpc } = await fixture(t)
+  git('config', 'commit.gpgSign', 'true')
+  git('config', 'gpg.program', 'dsh-nonexistent-signing-program')
+  const before = git('rev-parse', 'HEAD')
+  assert.equal((await rpc()).ok, false)
+  assert.equal(git('rev-parse', 'HEAD'), before)
+  git('config', 'commit.gpgSign', 'false')
+  assert.equal((await rpc({ requestId: '22222222-2222-4222-8222-222222222222' })).ok, true)
+  assert.equal(git('log', '-1', '--format=%an <%ae>'), 'Test <test@example.invalid>')
+})
+
+await test('불완전하거나 제어 문자가 있는 작성자는 변경 사항을 스테이징하기 전에 거부한다', async (t) => {
+  for (const config of [
+    { authorName: 'Name', authorEmail: '' },
+    { authorName: '', authorEmail: 'ui@example.invalid' },
+    { authorName: 'Name\nInjected', authorEmail: 'ui@example.invalid' },
+    { authorName: 'Name', authorEmail: 'ui@example.invalid\0' },
+  ]) {
+    const { git, rpc, requests } = await fixture(t, { config })
+    const before = git('rev-parse', 'HEAD')
+    const staged = git('diff', '--cached', '--binary')
+    assert.equal((await rpc()).error.code, 'invalid')
+    assert.equal(git('rev-parse', 'HEAD'), before)
+    assert.equal(git('diff', '--cached', '--binary'), staged)
+    assert.equal(requests.length, 0)
+  }
 })

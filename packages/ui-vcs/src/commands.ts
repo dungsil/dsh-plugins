@@ -5,8 +5,8 @@ import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { discoverPush, inspectForge, pushBranch, updateReview } from './forge-commands.js'
 import { generateTexts } from './requests.js'
-import { channel, executeMethod, type GitActionRequest, type GitActionResult } from './protocol.js'
-import type { Config } from './pull-requests.js'
+import { channel, executeMethod, validCommitSettings, type GitActionRequest, type GitActionResult } from './protocol.js'
+import type { Config } from './settings.js'
 
 export const name = 'dungsil-vcs-commands'
 export const inject = [
@@ -57,6 +57,12 @@ export function apply(ctx: Context, config: Config) {
   type Result = { ok: true; value: GitActionResult } | ReturnType<typeof failure>
 
   const execute = async (agent: Agent, input: GitActionRequest, signal: AbortSignal): Promise<GitActionResult> => {
+    const settings = {
+      authorName: config.authorName ?? '',
+      authorEmail: config.authorEmail ?? '',
+      noSign: config.noSign ?? false,
+    }
+    if (!validCommitSettings(settings)) throw new Error('invalid')
     const policy = ctx.sandboxPolicy.resolve({ session: agent.session })
     if (policy.mode === 'read-only') throw new Error('read_only')
     const cwd = await ctx.workingDirectory.ensure(agent, signal)
@@ -254,7 +260,16 @@ export function apply(ctx: Context, config: Config) {
           before.entries.some((entry) => entry.path === path && entry.status === '??')
         )
         if (additions.length) await git(['add', '--', ...additions])
-        await git(['commit', '--only', '-m', texts.commitMessage, '--', ...paths])
+        await git([
+          'commit',
+          ...(settings.authorName ? [`--author=${settings.authorName} <${settings.authorEmail}>`] : []),
+          ...(settings.noSign ? ['--no-gpg-sign'] : []),
+          '--only',
+          '-m',
+          texts.commitMessage,
+          '--',
+          ...paths,
+        ])
         value.commit = (await readGit(['rev-parse', '--verify', 'HEAD'])).trim()
         value.checks.push('git commit hooks')
       }

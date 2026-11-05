@@ -9,6 +9,7 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill, StateDot } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
+import * as Settings from './settings-client.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
@@ -89,6 +90,7 @@ const copy = {
 
 export function apply(ctx: Context) {
   ctx.plugin(PullRequests)
+  ctx.plugin(Settings)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   function Action({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const language = useSyncExternalStore(
