@@ -14,7 +14,12 @@ import { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SandboxLocal from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { Session, SessionId, pluginRecordOf } from '@deepseek-ai/dsh-session'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
+import Storage from '@deepseek-ai/dsh-storage'
+import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
+import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import * as ModelSettings from '@dungsil/dsh-plugin-model-settings'
 import * as plugin from '../dist/index.js'
 
@@ -91,6 +96,11 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
       },
     }
     await mountAgentLoopTestDependencies(root, { workingDirectory: true })
+    await root.plugin(Storage)
+    await root.plugin(StorageJson, { root: join(home, 'storage') })
+    await root.plugin(StorageDomain, { backend: 'json' })
+    await root.plugin(SessionPersistenceJsonl, { root: join(home, 'sessions') })
+    await root.plugin(WorkspaceRegistry)
     await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
     await root.plugin(Connection)
     await root.plugin(SubprocessLocal)
@@ -148,7 +158,36 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
     await agent.whenIdle()
   }
-  return { ctx, agent, repo, other, git, rpc, home, profile, requests, submit, harness, inspections, resolutions }
+  const archive = async () => {
+    const maintenance = agent.runMaintenance.bind(agent)
+    let cleanup
+    agent.runMaintenance = (...args) => (cleanup = maintenance(...args))
+    try {
+      await ctx.workspaceRegistry.archiveSession(agent.id)
+      await new Promise((resolve) => setImmediate(resolve))
+      // Cleanup failures are intentionally contained by the archive observer.
+      // The assertions below check the resulting Git state, not its promise.
+      await cleanup?.catch(() => {})
+    } finally {
+      agent.runMaintenance = maintenance
+    }
+  }
+  return {
+    ctx,
+    agent,
+    repo,
+    other,
+    git,
+    rpc,
+    home,
+    profile,
+    requests,
+    submit,
+    harness,
+    archive,
+    inspections,
+    resolutions,
+  }
 }
 
 await test('reserves without side effects, creates before prompt work, and keeps existing switches immediate', async (t) => {
@@ -803,6 +842,7 @@ await test('persists settings through Loader reload and uses absolute paths and 
     defaultSelection: 'current',
     directory: '.agents/worktrees',
     remote: false,
+    deleteOnArchive: false,
     naming: 'semantic',
     prefix: '',
   })
@@ -936,6 +976,7 @@ await test('task model and worktree settings coexist across profile reloads, rej
     defaultSelection: 'current',
     directory: '../naming pool',
     remote: true,
+    deleteOnArchive: false,
     naming: 'custom',
     prefix: 'team/',
   }
@@ -1142,15 +1183,18 @@ await test('automatic worktree naming follows live auxiliary settings without ch
   assert.ok(requests.every((request) => request.provider === 'test' && request.model === 'test-model'))
 })
 
-await test('destination-only conditional checkout filters cannot execute', async (t) => {
-  const { repo, home, git, rpc, submit } = await fixture(t)
+await test('destination-only conditional filters cannot execute during checkout or archive cleanup', async (t) => {
+  const { repo, home, git, rpc, submit, archive } = await fixture(t, {}, { deleteOnArchive: true })
   await writeFile(join(repo, '.gitattributes'), '*.txt filter=linked\n')
   await writeFile(join(repo, 'tracked.txt'), 'unchanged\n')
   git('add', '.gitattributes', 'tracked.txt')
   git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'content')
   const marker = join(home, 'filter-executed')
   const included = join(home, 'linked-config')
-  await writeFile(included, `[filter "linked"]\n smudge = "touch '${marker}'; cat"\n required = true\n`)
+  await writeFile(
+    included,
+    `[filter "linked"]\n smudge = "touch '${marker}'; cat"\n clean = "touch '${marker}'; cat"\n required = true\n`
+  )
   git('config', `includeIf.gitdir:${gitPath(repo)}/.git/worktrees/.path`, included)
   assert.equal(git('config', '--get-regexp', '^includeIf\\.').includes('linked-config'), true)
   assert.equal((await rpc('create', { cwd: repo, name: 'linked-safe' })).ok, true)
@@ -1158,6 +1202,10 @@ await test('destination-only conditional checkout filters cannot execute', async
   const result = await rpc('describe')
   assert.notEqual(result.value.cwd, repo)
   assert.equal(await readFile(join(result.value.cwd, 'tracked.txt'), 'utf8'), 'unchanged\n')
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
+  await writeFile(join(result.value.cwd, 'tracked.txt'), 'unchanged\n')
+  await archive()
+  assert.equal(git('worktree', 'list', '--porcelain').includes(gitPath(result.value.cwd)), false)
   await assert.rejects(readFile(marker), { code: 'ENOENT' })
 })
 
@@ -1216,4 +1264,95 @@ await test('explicit external pools retain owner-selected symlink ancestors', as
   await rpc('create', { cwd: repo, name: 'safe' })
   await submit()
   assert.equal((await rpc('describe')).value.cwd, join(external, 'pool/safe'))
+})
+
+await test('archive cleanup is opt-in, persists across reloads, removes only the checkout and restores the source directory', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit, archive, profile } = await fixture(t)
+  assert.equal((await rpc('create', { cwd: repo, name: 'feat/archived' })).ok, true)
+  await submit()
+  const path = ctx.workingDirectory.get(agent.session)
+  const settings = (await rpc('settings')).value
+  assert.equal(
+    (
+      await rpc('save-settings', {
+        ...settings,
+        settings: { ...settings.settings, deleteOnArchive: true },
+      })
+    ).ok,
+    true
+  )
+  assert.match(await readFile(profile.patchPath, 'utf8'), /deleteOnArchive: true/)
+  await archive()
+  assert.equal(git('worktree', 'list', '--porcelain').includes(gitPath(path)), false)
+  assert.equal(git('branch', '--list', 'feat/archived'), 'feat/archived')
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.ok(ctx.workspaceRegistry.archivedSessionIds.includes(agent.id))
+  await ctx.workspaceRegistry.unarchiveSession(agent.id)
+  assert.equal((await rpc('describe')).value.cwd, repo)
+  await submit('Continue from the source checkout')
+})
+
+await test('archive cleanup preserves disabled, dirty, ignored, locked, foreign and shared checkouts', async (t) => {
+  for (const scenario of [
+    'disabled',
+    'tracked',
+    'untracked',
+    'ignored',
+    'locked',
+    'foreign',
+    'shared-live',
+    'shared-stored',
+    'fork',
+  ]) {
+    await t.test(scenario, async (t) => {
+      const { ctx, agent, repo, other, git, rpc, submit, harness, archive } = await fixture(
+        t,
+        {},
+        {
+          deleteOnArchive: scenario !== 'disabled',
+        }
+      )
+      if (scenario === 'foreign') {
+        assert.equal((await rpc('switch', { cwd: repo, path: gitPath(other) })).ok, true)
+      } else {
+        await writeFile(join(repo, 'tracked.txt'), 'committed')
+        await writeFile(join(repo, '.gitignore'), 'ignored.txt\n')
+        git('add', 'tracked.txt', '.gitignore')
+        git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'tracked file')
+        assert.equal((await rpc('create', { cwd: repo, name: 'feat/preserve' })).ok, true)
+        await submit()
+      }
+      const path = ctx.workingDirectory.get(agent.session)
+      if (['tracked', 'untracked', 'ignored'].includes(scenario)) {
+        await writeFile(join(path, `${scenario}.txt`), 'must survive')
+      }
+      if (scenario === 'locked') git('worktree', 'lock', path)
+      if (scenario === 'shared-live') {
+        await harness.create(SessionId('shared-live'), { provider: 'test', model: 'test-model' }, { cwd: path })
+      }
+      if (scenario === 'fork') {
+        const fork = ctx.sessions.create(SessionId('forked'), {
+          seed: agent.session.snapshotEvents(),
+          meta: { cwd: repo },
+        })
+        assert.equal(ctx.workingDirectory.get(fork), path)
+      }
+      if (scenario === 'shared-stored') {
+        const stored = Session.create(SessionId('shared-stored'), [], {
+          ...agent.session.header,
+          id: SessionId('shared-stored'),
+        })
+        stored.append('working-directory/change', { cwd: path })
+        const handle = await ctx.sessionPersistence.create(stored.header)
+        await handle.append(stored.snapshotEvents())
+        await handle.close()
+      }
+      await archive()
+      assert.ok(git('worktree', 'list', '--porcelain').includes(gitPath(path)))
+      assert.equal(ctx.workingDirectory.get(agent.session), path)
+      if (['tracked', 'untracked', 'ignored'].includes(scenario)) {
+        assert.equal(await readFile(join(path, `${scenario}.txt`), 'utf8'), 'must survive')
+      }
+    })
+  }
 })

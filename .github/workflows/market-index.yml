@@ -2,6 +2,7 @@ name: Market Index
 
 on:
   push:
+    branches: ['main']
     paths:
       - '.github/workflows/market-index.yml'
       - 'scripts/market-index.mjs'
