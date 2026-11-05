@@ -10,23 +10,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import {
-  Button,
-  CodeBlock,
-  MarkdownText,
-  Menu,
-  Modal,
-  SegmentedTabs,
-  StateDot,
-  Tag,
-  type StateDotState,
-} from '@dungsil/dsh-ui'
+import { Button, CodeBlock, MarkdownText, Menu, Modal, SegmentedTabs, Tag, type StateDotState } from '@dungsil/dsh-ui'
 import {
   IconBranchOutlineRegular,
+  IconCheckCircleOutlineRegular,
   IconChevronDownOutlineRegular,
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
+  IconQuestionOutlineRegular,
   IconRefreshOutlineRegular,
+  circleMinusIconSvg,
+  circleXIconSvg,
   mergeIconSvg,
   pullRequestClosedIconSvg,
   pullRequestDraftIconSvg,
@@ -87,6 +81,22 @@ export function checksState(item: RequestItem): StateDotState {
   if (item.detailsError || !states.length) return 'warning'
   if (states.some((state) => !['success', 'passed', 'neutral', 'skipped'].includes(state))) return 'ongoing'
   return states.every((state) => ['success', 'passed'].includes(state)) ? 'done' : 'idle'
+}
+
+export function CheckStatusIcon({ state }: { state: StateDotState }) {
+  return (
+    <span className="dsh-vcs-check-status" data-state={state} aria-hidden="true">
+      {state === 'done' ? (
+        <IconCheckCircleOutlineRegular />
+      ) : state === 'ongoing' ? (
+        <IconLoadingOutlineRegular />
+      ) : state === 'warning' ? (
+        <IconQuestionOutlineRegular />
+      ) : (
+        <span dangerouslySetInnerHTML={{ __html: state === 'error' ? circleXIconSvg : circleMinusIconSvg }} />
+      )}
+    </span>
+  )
 }
 
 function Loading({ label }: { label: string }) {
@@ -605,7 +615,7 @@ export function apply(ctx: Context) {
                       onClick={() => setChecksOpen(!checksOpen)}
                       aria-busy={loading}
                     >
-                      {loading ? <Loading label={copy.loading} /> : <StateDot state={state} appearance="step" />}
+                      {loading ? <Loading label={copy.loading} /> : <CheckStatusIcon state={state} />}
                       <span>{item.headSha ? checksSummary : copy.checks}</span>
                       <IconChevronDownOutlineRegular aria-hidden="true" />
                     </Button>
@@ -618,7 +628,7 @@ export function apply(ctx: Context) {
                           const status = checkStatus(check.status)
                           return (
                             <li key={`${check.name}-${index}`}>
-                              <StateDot state={status.state} appearance="step" />
+                              <CheckStatusIcon state={status.state} />
                               <span className="dsh-pr-check-name">
                                 {check.url ? (
                                   <a href={check.url} target="_blank" rel="noopener noreferrer">
