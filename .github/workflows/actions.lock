@@ -6,7 +6,6 @@ workflows:
     '.github/workflows/ci.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-node@v5.0.0'
-        - 'actions/upload-artifact@v6.0.0'
         - 'pnpm/action-setup@v4.4.0'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
@@ -32,11 +31,6 @@ dependencies:
         commit: 'sha1-a0853c24544627f65ddf259abe73b1d18a591444'
         owner_id: 44036562
         repo_id: 189476904
-    'actions/upload-artifact@v6.0.0':
-        ref: 'v6.0.0'
-        commit: 'sha1-b7c566a772e6b6bfb58ed0dc250532a479d7789f'
-        owner_id: 44036562
-        repo_id: 192625955
     'github/codeql-action@v4.39.2':
         ref: 'v4.39.2'
         commit: 'sha1-1fc58d04a4d4374f921bdac573c3811c240f9c26'
