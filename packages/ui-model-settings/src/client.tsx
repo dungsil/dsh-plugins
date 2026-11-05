@@ -49,9 +49,7 @@ const copy = {
       'No default prompt: these extra instructions are shared with tasks set to use the auxiliary model. Clear and save to remove them.',
     yoonmoonInstructionsHint:
       '{{skill}} and {{resources}} are replaced with the selected skill and its bundled references.',
-    resetInstructions: 'Restore default',
     save: 'Save',
-    discard: 'Discard changes',
     effort: 'Reasoning effort',
     automatic: 'Automatic',
     automaticHint: 'Automatic (lowest supported effort)',
@@ -95,9 +93,7 @@ const copy = {
     auxiliaryInstructionsHint:
       '고유한 기본 프롬프트는 없습니다. 보조 모델 따르기를 선택한 작업에 공통으로 추가할 지침을 입력합니다. 내용을 비우고 저장하면 해제합니다.',
     yoonmoonInstructionsHint: '{{skill}}과 {{resources}}는 실행할 스킬과 해당 스킬의 내장 자료로 바뀝니다.',
-    resetInstructions: '기본값 복원',
     save: '저장',
-    discard: '변경 취소',
     effort: '추론 수준',
     automatic: '자동',
     automaticHint: '자동 (지원하는 최저 수준)',
@@ -139,9 +135,7 @@ const copy = {
     auxiliaryInstructionsHint:
       '没有独立的默认提示词。在此输入选择使用辅助模型的任务共用的附加指令。清空并保存即可移除。',
     yoonmoonInstructionsHint: '{{skill}} 和 {{resources}} 会替换为所选技能及其内置参考资料。',
-    resetInstructions: '恢复默认值',
     save: '保存',
-    discard: '放弃更改',
     effort: '推理级别',
     automatic: '自动',
     automaticHint: '自动（支持的最低级别）',
@@ -527,24 +521,6 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   onChange={(event) => setInstructionDrafts((current) => ({ ...current, [task]: event.target.value }))}
                 />
                 <div className="dsh-model-settings-instruction-actions">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!!busy || !synchronized || instructionDrafts[task] === target.defaultInstructions}
-                    onClick={() =>
-                      setInstructionDrafts((current) => ({ ...current, [task]: target.defaultInstructions }))
-                    }
-                  >
-                    {text.resetInstructions}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!!busy || !synchronized || instructionDrafts[task] === target.instructions}
-                    onClick={() => setInstructionDrafts((current) => ({ ...current, [task]: target.instructions }))}
-                  >
-                    {text.discard}
-                  </Button>
                   <Button
                     type="submit"
                     variant="primary"
