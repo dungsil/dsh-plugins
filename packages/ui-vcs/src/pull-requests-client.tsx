@@ -22,6 +22,7 @@ import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
   IconLinkOutlineRegular,
+  IconLoadingOutlineRegular,
   IconRefreshOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
 import en from '../locale/en.json' with { type: 'json' }
@@ -49,6 +50,14 @@ const providerNames: Record<RequestView['provider'], string> = {
   gitlab: 'GitLab',
   gitea: 'Gitea',
   forgejo: 'Forgejo',
+}
+
+function Loading({ label }: { label: string }) {
+  return (
+    <span className="dsh-pr-loading" role="status" aria-label={label}>
+      <IconLoadingOutlineRegular aria-hidden="true" />
+    </span>
+  )
 }
 
 function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>, 'text' | 'labels'>) {
@@ -130,6 +139,8 @@ function Choice<Value extends string>({
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const views = new Map<string, RequestView>()
+  ctx.effect(() => () => views.clear())
   const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
   const text = () => {
     const language = ctx.locale.getSnapshot().active
@@ -156,8 +167,9 @@ export function apply(ctx: Context) {
     const { tab } = useTabInfo()
     const params = tab.navigation.params as { requestUrl?: unknown } | undefined
     const requestUrl = typeof params?.requestUrl === 'string' ? pullRequestUrl(params.requestUrl) : undefined
+    const cacheKey = JSON.stringify([sessionId, requestUrl])
     const running = useSession((session) => session.running)
-    const [view, setView] = useState<RequestView>()
+    const [view, setView] = useState<RequestView | undefined>(() => views.get(cacheKey))
     const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState<'overview' | 'changes' | 'conversation'>('overview')
@@ -192,7 +204,7 @@ export function apply(ctx: Context) {
       !error &&
       !notice
     const mergeBlockedReason = (() => {
-      if (loading) return copy.loading
+      if (loading) return
       if (pending) return copy.pending
       if (error) return copy[error]
       if (notice) return copy[notice]
@@ -223,15 +235,24 @@ export function apply(ctx: Context) {
       setConfirmation(undefined)
       setNotice(undefined)
       try {
-        const result = await connection.rpc.call(
-          channel,
-          method,
-          { sessionId, ...(requestUrl ? { requestUrl } : {}) },
-          signal
-        )
-        signal.throwIfAborted()
-        if (!result.ok) throw result.error
-        setView(result.value as RequestView)
+        // A cached snapshot is display-only while the fresh, full read is in flight.
+        // On first open, show the cheap overview without waiting for CI or a large diff.
+        for (const summary of views.has(cacheKey) ? [false] : [true, false]) {
+          const result = await connection.rpc.call(
+            channel,
+            method,
+            { sessionId, summary, ...(requestUrl ? { requestUrl } : {}) },
+            signal
+          )
+          signal.throwIfAborted()
+          if (!result.ok) throw result.error
+          const next = result.value as RequestView
+          setView(next)
+          views.delete(cacheKey)
+          views.set(cacheKey, next)
+          if (views.size > 20) views.delete(views.keys().next().value!)
+          if (!next.request) break
+        }
       } catch (cause) {
         if (signal.aborted) return
         const code = (cause as { code?: string } | null)?.code
@@ -248,7 +269,7 @@ export function apply(ctx: Context) {
     }
 
     useEffect(() => {
-      setView(undefined)
+      setView(views.get(cacheKey))
       setBody('')
       setConfirmation(undefined)
       setNotice(undefined)
@@ -375,14 +396,19 @@ export function apply(ctx: Context) {
               void load()
             }}
             disabled={loading || pending}
+            aria-busy={loading}
             aria-label={copy.refresh}
             title={copy.refresh}
           >
-            <IconRefreshOutlineRegular aria-hidden="true" />
+            {loading && view ? <Loading label={copy.loading} /> : <IconRefreshOutlineRegular aria-hidden="true" />}
           </Button>
         </header>
         <div ref={content} className="dsh-pr-content" aria-busy={loading}>
-          {loading && <p role="status">{copy.loading}</p>}
+          {loading && !view && (
+            <div className="dsh-pr-initial-loading">
+              <Loading label={copy.loading} />
+            </div>
+          )}
           {error && (
             <p role="alert" className="dsh-pr-section">
               {copy[error] as string}
@@ -425,20 +451,21 @@ export function apply(ctx: Context) {
                       type="button"
                       size="sm"
                       className="dsh-pr-ci-trigger"
-                      aria-label={`${copy.checks}: ${checksSummary} · ${checksLabel}`}
+                      aria-label={`${copy.checks}: ${loading ? copy.loading : `${checksSummary} · ${checksLabel}`}`}
                       aria-expanded={checksOpen}
                       aria-controls={`${tabsId}-checks`}
-                      title={`${copy.checks}: ${checksLabel}`}
+                      title={`${copy.checks}: ${loading ? copy.loading : checksLabel}`}
                       onClick={() => setChecksOpen(!checksOpen)}
+                      aria-busy={loading}
                     >
-                      <StateDot state={checksState} appearance="step" />
-                      <span>{checksSummary}</span>
+                      {loading ? <Loading label={copy.loading} /> : <StateDot state={checksState} appearance="step" />}
+                      <span>{item.headSha ? checksSummary : copy.checks}</span>
                       <IconChevronDownOutlineRegular aria-hidden="true" />
                     </Button>
                   </div>
                   {checksOpen && (
                     <div id={`${tabsId}-checks`} className="dsh-pr-ci-results" role="region" aria-label={copy.checks}>
-                      {!item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
+                      {!loading && !item.checks.length && !item.detailsError && <p>{copy.no_checks}</p>}
                       <ul className="dsh-pr-checks">
                         {item.checks.map((check, index) => {
                           const status = checkStatus(check.status)
@@ -479,7 +506,7 @@ export function apply(ctx: Context) {
                       },
                       {
                         value: 'changes',
-                        label: `${copy.changes} (${item.files.length})`,
+                        label: item.headSha ? `${copy.changes} (${item.files.length})` : copy.changes,
                         id: `${tabsId}-changes`,
                         panelId: `${tabsId}-changes-panel`,
                       },
@@ -497,7 +524,13 @@ export function apply(ctx: Context) {
                     {copy.details_error}
                   </p>
                 )}
-                <div role="tabpanel" id={`${tabsId}-${page}-panel`} aria-labelledby={`${tabsId}-${page}`} tabIndex={0}>
+                <div
+                  role="tabpanel"
+                  id={`${tabsId}-${page}-panel`}
+                  aria-labelledby={`${tabsId}-${page}`}
+                  aria-busy={loading && page !== 'overview'}
+                  tabIndex={0}
+                >
                   {page === 'overview' && (
                     <>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
@@ -510,7 +543,9 @@ export function apply(ctx: Context) {
                   {page === 'changes' && (
                     <section className="dsh-pr-section" aria-label={copy.changes}>
                       <h3>
-                        {copy.files} <Tag tone="neutral">{item.files.length}</Tag>
+                        {copy.files}
+                        {item.headSha && <Tag tone="neutral">{item.files.length}</Tag>}
+                        {loading && <Loading label={copy.loading} />}
                       </h3>
                       <ul className="dsh-pr-files">
                         {item.files.map((file, index) => {
@@ -533,16 +568,20 @@ export function apply(ctx: Context) {
                         <summary>{copy.diff}</summary>
                         {item.diff ? (
                           <CodeBlock code={item.diff} lang="diff" copyLabel={copy.copy} copiedLabel={copy.copied} />
-                        ) : (
+                        ) : !loading ? (
                           <p>{copy.no_diff}</p>
-                        )}
+                        ) : null}
                       </details>
                       {item.diffTruncated && <p className="dsh-pr-warning">{copy.diff_truncated}</p>}
                     </section>
                   )}
                   {page === 'conversation' && (
                     <section className="dsh-pr-section" aria-label={copy.conversation}>
-                      {!item.detailsError && !item.comments.length && !item.reviews.length && (
+                      <h3>
+                        {copy.conversation}
+                        {loading && <Loading label={copy.loading} />}
+                      </h3>
+                      {!loading && !item.detailsError && !item.comments.length && !item.reviews.length && (
                         <p>{copy.no_conversation}</p>
                       )}
                       {item.comments.map((comment, index) => (

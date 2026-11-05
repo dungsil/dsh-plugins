@@ -102,7 +102,7 @@ async function fixture(
       if (endpoint.includes('/files?')) return [{ filename: 'src/main.ts', additions: 2, deletions: 1 }]
       return { full_name: 'team/project', allow_merge_commits: true, allow_squash_merge: true, allow_rebase: true }
     }
-    if (args[1] === 'status' || args[1] === 'list') return rows
+    if ((args[1] === 'view' && !args.includes('--repo')) || args[1] === 'list') return rows
     if (args[1] === 'view' && args[0] === 'pr')
       return rows === null
         ? null
@@ -154,7 +154,7 @@ async function fixture(
       const args = spec.argv.slice(1)
       const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
       const output = join(dir, `response-${calls.length}.json`)
-      writeFileSync(output, typeof value === 'string' ? value : JSON.stringify(value))
+      writeFileSync(output, value instanceof Error ? '' : typeof value === 'string' ? value : JSON.stringify(value))
       return spawn({
         ...spec,
         argv: [
@@ -162,7 +162,11 @@ async function fixture(
           cli,
           output,
           String(value instanceof Error ? 1 : exitCode),
-          spec.argv[0] === 'tea' && args[0] === 'api' ? `HTTP/1.1 ${httpStatus} Test\n` : '',
+          value instanceof Error
+            ? value.message
+            : spec.argv[0] === 'tea' && args[0] === 'api'
+              ? `HTTP/1.1 ${httpStatus} Test\n`
+              : '',
         ],
       })
     }
@@ -183,7 +187,7 @@ async function fixture(
   ctx.provide('sandboxPolicy', { resolve: () => ({ mode }) })
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
-  const rpc = async (peer = owner, sessionId = 'test', action, requestUrl) => {
+  const rpc = async (peer = owner, sessionId = 'test', action, requestUrl, summary = false) => {
     const method = action === undefined ? 'dungsil-vcs/pull-requests/list' : 'dungsil-vcs/pull-requests/action'
     const response = await handler.fetch(
       new Request(`http://localhost/api/${method}`, {
@@ -193,7 +197,8 @@ async function fixture(
           type: 'client-request',
           rpcId: 'test',
           method,
-          payload: action === undefined ? { sessionId, ...(requestUrl === undefined ? {} : { requestUrl }) } : action,
+          payload:
+            action === undefined ? { sessionId, summary, ...(requestUrl === undefined ? {} : { requestUrl }) } : action,
         }),
       }),
       peer
@@ -202,6 +207,7 @@ async function fixture(
   }
   return {
     rpc,
+    summary: (peer = owner, requestUrl) => rpc(peer, 'test', undefined, requestUrl, true),
     lookup: (requestUrl, peer = owner) => rpc(peer, 'test', undefined, requestUrl),
     action: (input = {}, peer = owner) =>
       rpc(peer, 'test', { sessionId: 'test', requestUrl: github.url, headSha: sha, action: 'approve', ...input }),
@@ -264,6 +270,33 @@ await test('shows only the current branch PR and distinguishes absent requests, 
   assert.equal((await f.rpc()).error.code, 'cli_missing')
 })
 
+await test('GitHub distinguishes a branch without a PR from authentication or transport errors', async (t) => {
+  const f = await fixture(t)
+  f.dispatch(() => new Error('no pull requests found for branch "feat/sidebar"\n'))
+  assert.equal((await f.summary()).value.request, null)
+  for (const message of ['HTTP 401: Bad credentials', 'error connecting to api.github.com']) {
+    f.dispatch(() => new Error(message))
+    assert.equal((await f.summary()).error.code, 'command_failed')
+  }
+})
+
+await test('overview is available when slow detail endpoints fail, without enabling review or bypassing identity checks', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, body: 'Overview without waiting for CI or diff' })
+  f.dispatch((args, next) => (!args.includes('--repo') ? next(args) : new Error('detail unavailable')))
+  const result = await f.summary()
+  assert.equal(result.ok, true)
+  assert.equal(result.value.request.title, github.title)
+  assert.equal(result.value.request.body, 'Overview without waiting for CI or diff')
+  assert.equal(result.value.request.headSha, '')
+  assert.equal(result.value.request.diff, '')
+  assert.equal((await f.rpc()).value.request.detailsError, true)
+  assert.equal((await f.action({ action: 'comment', body: 'Do not send' })).error.code, 'stale_request')
+  f.setRows({ ...github, headRepository: { nameWithOwner: 'other/project' } })
+  assert.equal((await f.summary()).value.request, null)
+  assert.equal((await f.summary({ principal: { kind: 'viewer', sessionId: 'test' } })).status, 403)
+})
+
 await test('explicit GitHub URLs load the exact non-current PR while mutations still resolve the current branch', async (t) => {
   const f = await fixture(t)
   const clicked = {
@@ -273,7 +306,14 @@ await test('explicit GitHub URLs load the exact non-current PR while mutations s
     headRefName: 'different-branch',
     headRepository: { nameWithOwner: 'contributor/fork' },
   }
-  f.dispatch((args, next) => (args[1] === 'view' ? { ...next(args), ...clicked } : next(args)))
+  f.dispatch((args, next) =>
+    args[1] === 'view' && args.includes('--repo') ? { ...next(args), ...clicked } : next(args)
+  )
+  const overview = await f.summary(owner, clicked.url)
+  assert.equal(overview.value.request.number, 29)
+  assert.equal(overview.value.request.body, details.body)
+  assert.equal(overview.value.request.headSha, '')
+  assert.equal(f.calls.length, 1)
   for (const suffix of ['', '/files', '/commits', '/checks']) {
     const before = f.calls.length
     const result = await f.lookup(`${clicked.url}${suffix}?diff=split#discussion_r1`)
@@ -293,7 +333,7 @@ await test('explicit GitHub URLs load the exact non-current PR while mutations s
     (await f.action({ requestUrl: clicked.url, action: 'comment', body: 'Do not mutate another PR' })).error.code,
     'stale_request'
   )
-  assert.equal(f.calls[before].argv[2], 'status')
+  assert.equal(f.calls[before].argv[2], 'view')
   assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
 })
 
@@ -330,8 +370,8 @@ await test('explicit URLs reject unrelated repositories, hosts and malformed IDs
     assert.equal(result.error.code, 'unsupported', JSON.stringify(requestUrl))
   }
   assert.ok(f.calls.every((call) => call.argv[0] === 'gh'))
-  assert.ok(f.calls.every((call) => ['status', 'view', 'diff'].includes(call.argv[2])))
-  assert.ok(f.calls.every((call) => call.argv[2] === 'status' || call.argv[3] === github.url))
+  assert.ok(f.calls.every((call) => ['view', 'diff'].includes(call.argv[2])))
+  assert.ok(f.calls.every((call) => !call.argv.includes('--repo') || call.argv[3] === github.url))
   const before = f.calls.length
   const viewer = { principal: { kind: 'session', sessionId: 'test' }, interactions: 'answer' }
   assert.equal((await f.lookup(github.url, viewer)).status, 403)
@@ -345,10 +385,14 @@ await test('explicit GitHub links preserve repository casing and current upstrea
   const fork = await fixture(t)
   const upstream = 'https://github.com/upstream/project/pull/17'
   fork.setRows({ ...github, url: upstream })
+  const overview = await fork.summary(owner, upstream)
+  assert.equal(overview.value.request.url, upstream)
+  assert.equal(overview.value.request.headSha, '')
+  assert.equal(fork.calls.length, 1)
   const result = await fork.lookup(`${upstream}/files#discussion`)
   assert.equal(result.ok, true)
   assert.equal(result.value.request.url, upstream)
-  assert.equal(fork.calls[0].argv[2], 'status')
+  assert.equal(fork.calls[0].argv[2], 'view')
   const mismatch = await fork.lookup('https://github.com/upstream/project/pull/18')
   assert.equal(mismatch.error.code, 'unsupported')
   assert.ok(!fork.calls.some((call) => call.argv.includes('18')))
@@ -509,7 +553,7 @@ await test('GitHub actions return completion only, pin reviews and merge to the 
     const before = f.calls.length
     assert.deepEqual(await f.action(action), { ok: true, value: { completed: true } })
     const calls = f.calls.slice(before).map((call) => call.argv)
-    assert.equal(calls[0][2], 'status')
+    assert.equal(calls[0][2], 'view')
     assert.equal(calls[1][2], 'view')
     const mutation = calls.at(-1)
     if (action.action !== 'merge') {
