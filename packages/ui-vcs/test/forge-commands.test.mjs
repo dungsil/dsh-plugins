@@ -91,11 +91,13 @@ test('GitHub discovery pins explicit host/repository and reads existing title/bo
   assert.equal(context.repository, 'owner/project')
   assert.equal(context.existingReview.body, 'previous')
   assert.equal(context.existingReview.title, 'old')
-  assert.ok(
-    f.calls
-      .filter((call) => call.executable === 'gh')
-      .every((call) => call.args.includes('--hostname') && call.args.includes('github.com'))
-  )
+  const commands = f.calls.filter((call) => call.executable === 'gh')
+  assert.ok(commands.length > 0)
+  for (const { args } of commands) {
+    const hostname = args.indexOf('--hostname')
+    assert.notEqual(hostname, -1)
+    assert.equal(args[hostname + 1], 'github.com')
+  }
 })
 
 test('self-managed GitLab keeps port and nested namespace, creates and updates MR', async () => {

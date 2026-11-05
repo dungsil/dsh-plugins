@@ -170,6 +170,9 @@ await test('rejects absent, abnormal, duplicate or nonterminal finish and non-te
 })
 
 await test('rejects invalid JSON, duplicate or extra fields, invalid values and inconsistent plans', async () => {
+  const fields = JSON.stringify(valid).slice(1)
+  const duplicateKeys = ['{"title":"duplicate",' + fields, '{"ti\\u0074le":"duplicate",' + fields]
+  for (const answer of duplicateKeys) assert.deepEqual(JSON.parse(answer), valid)
   for (const answer of [
     '',
     '```json\n' + JSON.stringify(valid) + '\n```',
@@ -192,8 +195,7 @@ await test('rejects invalid JSON, duplicate or extra fields, invalid values and 
     JSON.stringify({ ...valid, body: 'a'.repeat(65_537) }),
     JSON.stringify({ ...valid, commitMessage: 'a'.repeat(16_385) }),
     JSON.stringify({ ...valid, paths: ['duplicate', 'duplicate'] }),
-    JSON.stringify(valid).replace('{', '{"title":"duplicate",'),
-    JSON.stringify(valid).replace('{', '{"ti\\u0074le":"duplicate",'),
+    ...duplicateKeys,
   ]) {
     await assert.rejects(fixture({ answer }).run(), /Invalid generated VCS texts/)
   }
