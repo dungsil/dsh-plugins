@@ -4,26 +4,44 @@ import { IconChevronDownOutlineRegular } from './icons.js'
 import { installStyles } from './client.js'
 
 /** The rc.5 settings shell has no icon slot, so decorate only the matching navigation rows. */
-export function installSettingsIcon(id: string, labels: readonly string[], svg: string) {
+export function installSettingsIcon(
+  id: string,
+  labels: readonly string[],
+  icon: string | ((container: HTMLElement) => () => void)
+) {
   const attribute = 'data-dsh-settings-icon'
   const selector = `[${attribute}="${id}"]`
   const removeStyles = installStyles(`
 ${selector} > svg { display: none; }
-${selector}::before { content: ''; display: block; flex: none; width: 16px; height: 16px; background: currentColor; mask: url("data:image/svg+xml,${encodeURIComponent(svg)}") center / contain no-repeat; }
+${typeof icon === 'string' ? `${selector}::before { content: ''; display: block; flex: none; width: 16px; height: 16px; background: currentColor; mask: url("data:image/svg+xml,${encodeURIComponent(icon)}") center / contain no-repeat; }` : ''}
+${selector} > [data-dsh-settings-icon-glyph] { display: inline-flex; flex: none; }
 `)
-  const marked = new Set<HTMLElement>()
+  const marked = new Map<HTMLElement, () => void>()
   const refresh = () => {
     const rows = new Set(document.querySelectorAll<HTMLElement>('[data-shortcut-modal="settings"] nav button'))
-    for (const row of marked) {
+    for (const [row, dispose] of marked) {
       if (!rows.has(row) || !labels.includes(row.textContent?.trim() ?? '')) {
         row.removeAttribute(attribute)
+        dispose()
         marked.delete(row)
       }
     }
     for (const row of rows) {
-      if (labels.includes(row.textContent?.trim() ?? '')) {
+      if (!marked.has(row) && labels.includes(row.textContent?.trim() ?? '')) {
         row.setAttribute(attribute, id)
-        marked.add(row)
+        let dispose = () => {}
+        if (typeof icon !== 'string') {
+          const glyph = document.createElement('span')
+          glyph.setAttribute('data-dsh-settings-icon-glyph', '')
+          glyph.setAttribute('aria-hidden', 'true')
+          row.prepend(glyph)
+          const unmount = icon(glyph)
+          dispose = () => {
+            unmount()
+            glyph.remove()
+          }
+        }
+        marked.set(row, dispose)
       }
     }
   }
@@ -32,7 +50,10 @@ ${selector}::before { content: ''; display: block; flex: none; width: 16px; heig
   refresh()
   return () => {
     observer.disconnect()
-    for (const row of marked) row.removeAttribute(attribute)
+    for (const [row, dispose] of marked) {
+      row.removeAttribute(attribute)
+      dispose()
+    }
     removeStyles()
   }
 }

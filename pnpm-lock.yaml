@@ -689,9 +689,18 @@ importers:
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.31)
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
       react:
         specifier: 18.3.1
         version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
@@ -1096,12 +1105,18 @@ importers:
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../tsdown
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
       react:
         specifier: 18.3.1
         version: 18.3.1
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
 
 packages:
 
