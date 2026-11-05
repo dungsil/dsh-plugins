@@ -272,3 +272,47 @@ await test('worktree routes persist independently of titles, preserve other sett
   await worktreeEntry.fiber.dispose()
   assert.equal((await h.rpc('describe')).value.worktree, null)
 })
+
+await test('Yoonmoon model and effort persist independently, inherit auxiliary settings and leave the conversation unchanged', async (t) => {
+  const h = await profileFixture('first-prompt', {}, undefined, {})
+  t.after(h.close)
+  const initial = (await h.rpc('describe')).value
+  assert.equal(initial.yoonmoon.id, 'custom-yoonmoon-entry')
+  const route = { provider: 'auxiliary', model: 'title-small' }
+  const check = async (id, expectedRoute, effort) => {
+    const { result, config } = await h.write(id)
+    assert.equal(result.isError, false)
+    assert.equal(result.value, '모델 설정 구현')
+    const request = h.adapter.requests.at(-1)
+    assert.equal(request.provider, expectedRoute.provider)
+    assert.equal(request.model, expectedRoute.model)
+    assert.equal(request.reasoningEffort, effort)
+    assert.deepEqual(config, { provider: 'conversation', model: 'chat-large', reasoningEffort: 'quick' })
+  }
+  assert.equal((await h.rpc('save', { ...initial.auxiliary, route, reasoningEffort: 'thorough' })).ok, true)
+  await check('writing-auxiliary', route, 'thorough')
+  const target = (await h.rpc('describe')).value.yoonmoon
+  const saved = await h.rpc('save', { ...target, route, reasoningEffort: 'quick' })
+  assert.equal(saved.ok, true)
+  assert.equal((await h.rpc('save', { ...target, route: null })).error.code, 'conflict')
+  await check('writing-own', route, 'quick')
+  assert.deepEqual((await h.rpc('describe')).value.target, initial.target)
+  await h.restart()
+  const restored = (await h.rpc('describe')).value.yoonmoon
+  assert.deepEqual(restored.route, route)
+  assert.equal(restored.reasoningEffort, 'quick')
+  await check('writing-restored', route, 'quick')
+  const automatic = await h.rpc('save', { ...restored, reasoningEffort: null })
+  assert.equal(automatic.ok, true)
+  await check('writing-automatic', route, 'thorough')
+  const reset = await h.rpc('save', { ...automatic.value, route: null, reasoningEffort: null, useAuxiliary: false })
+  assert.equal(reset.ok, true)
+  await h.restart()
+  await check('writing-conversation', { provider: 'conversation', model: 'chat-large' }, undefined)
+  const current = (await h.rpc('describe')).value
+  assert.equal((await h.rpc('save', { ...current.yoonmoon, useAuxiliary: true })).ok, true)
+  await check('writing-inherit-again', route, 'thorough')
+  const entry = h.ctx.configEditor.entries().find((entry) => entry.options.id === current.yoonmoon.id)
+  await entry.fiber.dispose()
+  assert.equal((await h.rpc('describe')).value.yoonmoon, null)
+})
