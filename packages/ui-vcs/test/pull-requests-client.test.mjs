@@ -241,7 +241,7 @@ const request = (number) => ({
   },
 })
 
-await test('session badges distinguish MR states in every locale and hide missing or failed associations', async () => {
+await test('세션 배지는 모든 로케일에서 MR 상태를 구분하고, 없거나 실패한 연결은 숨긴다', async () => {
   const fixture = mount()
   const icons = new Set()
   try {
@@ -284,7 +284,7 @@ await test('session badges distinguish MR states in every locale and hide missin
   assert.ok(fixture.hosts.every((host) => host.removed))
 })
 
-await test('session badges refresh after agent activity and directory changes, discarding superseded replies', async () => {
+await test('세션 배지는 에이전트 활동과 디렉터리 변경 후 새로 고치고, 대체된 응답은 버린다', async () => {
   const fixture = mount()
   try {
     fixture.renderBadge()
@@ -331,7 +331,7 @@ function links(node) {
   return [...(node.type === 'a' ? [node.props] : []), ...links(node.props.children)]
 }
 
-await test('the shipped client routes conversation PR links into its sidebar only for the mounted session', () => {
+await test('배포된 클라이언트는 마운트된 세션에 대해서만 대화의 PR 링크를 사이드바로 라우팅한다', () => {
   const fixture = mount()
   try {
     fixture.renderLinks()
@@ -349,7 +349,7 @@ await test('the shipped client routes conversation PR links into its sidebar onl
   }
 })
 
-await test('sidebar navigations fetch the clicked PR and discard an older response after another link opens', async () => {
+await test('사이드바 탐색은 클릭한 PR을 가져오고, 다른 링크가 열린 뒤 도착한 이전 응답은 버린다', async () => {
   const fixture = mount()
   try {
     fixture.render()
@@ -393,7 +393,7 @@ await test('sidebar navigations fetch the clicked PR and discard an older respon
   }
 })
 
-await test('CI navigation opens checks on first load and reopens them in an already mounted PR pane', async () => {
+await test('CI 탐색은 첫 로드에서 검사를 열고, 이미 마운트된 PR 패널에서 다시 연다', async () => {
   const fixture = mount()
   const find = (node, predicate) => {
     if (Array.isArray(node)) return node.flatMap((child) => find(child, predicate))
@@ -422,7 +422,7 @@ await test('CI navigation opens checks on first load and reopens them in an alre
   }
 })
 
-await test('unsupported linked requests show localized feedback and retain the original external link', async () => {
+await test('지원하지 않는 링크 요청은 로케일에 맞는 피드백을 보여 주고 원래 외부 링크를 유지한다', async () => {
   for (const [language, expected] of [
     ['en', 'outside'],
     ['ko', '원격 저장소'],

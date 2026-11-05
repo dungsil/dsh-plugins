@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
 import * as React from 'react'
 
-await test('settings uses the native skill icon across locales, navigation remounts and plugin unload', async (t) => {
+await test('설정은 로케일, 내비게이션 재마운트, 플러그인 언로드 전반에서 네이티브 스킬 아이콘을 사용한다', async (t) => {
   const window = new Window()
   const previous = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map((key) => [
     key,

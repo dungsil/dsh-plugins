@@ -279,7 +279,7 @@ async function fixture(t) {
   }
 }
 
-await test('persists connection and discovered routes, streams text and fragmented tool calls through the official adapter', async (t) => {
+await test('연결과 탐색된 라우트를 유지하고 공식 어댑터를 통해 텍스트와 분할된 도구 호출을 스트리밍한다', async (t) => {
   const h = await fixture(t)
   const initial = (await h.rpc('describe')).value
   assert.equal((await h.save()).ok, true)
@@ -356,7 +356,7 @@ await test('persists connection and discovered routes, streams text and fragment
   )
 })
 
-await test('management stays owner-only, separates keys, filters credentials and validates OAuth state', async (t) => {
+await test('관리 기능은 소유자 전용으로 유지되고 키를 분리하며 자격 증명을 필터링하고 OAuth 상태를 검증한다', async (t) => {
   const h = await fixture(t)
   assert.equal((await h.save()).ok, true)
   const denied = await h.rpc('management', {}, { principal: { kind: 'anonymous' }, interactions: 'none' })
@@ -393,7 +393,7 @@ await test('management stays owner-only, separates keys, filters credentials and
   assert.equal((await h.rpc('oauth-status', { state: second.state })).error.code, 'oauth_expired')
 })
 
-await test('changing endpoints never forwards old credentials and rejects unsafe URLs before making requests', async (t) => {
+await test('엔드포인트를 변경하면 이전 자격 증명을 절대 전달하지 않고 요청하기 전에 안전하지 않은 URL을 거부한다', async (t) => {
   const h = await fixture(t)
   assert.equal((await h.save()).ok, true)
   assert.equal((await h.rpc('models')).ok, true)
@@ -418,7 +418,7 @@ await test('changing endpoints never forwards old credentials and rejects unsafe
   )
 })
 
-await test('registers provider API keys without exposing secrets or overwriting existing groups and concurrent edits', async (t) => {
+await test('비밀값을 노출하거나 기존 그룹과 동시 편집을 덮어쓰지 않고 공급자 API 키를 등록한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   let view = (await h.rpc('providers')).value
@@ -470,7 +470,7 @@ await test('registers provider API keys without exposing secrets or overwriting 
   assert.ok(denied.status === 401 || denied.status === 403)
 })
 
-await test('quota lookup normalizes observations, distinguishes exhausted from unknown and rejects stale or unauthorized accounts', async (t) => {
+await test('쿼터 조회는 관측값을 정규화하고 소진됨과 알 수 없음을 구분하며 오래되었거나 권한이 없는 계정을 거부한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   const codex = {
@@ -557,7 +557,7 @@ await test('quota lookup normalizes observations, distinguishes exhausted from u
   )
 })
 
-await test('native quota providers keep credential downloads server-side and use only their fixed read-only endpoints', async (t) => {
+await test('네이티브 쿼터 공급자는 자격 증명 다운로드를 서버 측에 유지하고 고정된 읽기 전용 엔드포인트만 사용한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   const cases = [
@@ -663,7 +663,7 @@ await test('native quota providers keep credential downloads server-side and use
   )
 })
 
-await test('API-key quota accounts merge config with credentials and project only display fields', async (t) => {
+await test('API 키 쿼터 계정은 설정과 자격 증명을 병합하고 표시용 필드만 노출한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   h.setQuotaAccounts([
@@ -746,7 +746,7 @@ await test('API-key quota accounts merge config with credentials and project onl
   )
 })
 
-await test('API-key quota endpoint allowlist accepts official bases without name-based credential forwarding', async (t) => {
+await test('API 키 쿼터 엔드포인트 허용 목록은 이름 기반 자격 증명 전달 없이 공식 기본 URL을 허용한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   h.setQuotaAccounts([])
@@ -798,7 +798,7 @@ await test('API-key quota endpoint allowlist accepts official bases without name
   }
 })
 
-await test('API-key quota handles Ollama legacy limits, unknown values and upstream errors', async (t) => {
+await test('API 키 쿼터는 Ollama 레거시 한도, 알 수 없는 값, 업스트림 오류를 처리한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   h.setQuotaAccounts([])
@@ -853,7 +853,7 @@ await test('API-key quota handles Ollama legacy limits, unknown values and upstr
   }
 })
 
-await test('API-key quota rejects disabled, removed and rotated configuration snapshots', async (t) => {
+await test('API 키 쿼터는 비활성화되었거나 제거되었거나 교체된 설정 스냅샷을 거부한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   h.setQuotaAccounts([])
@@ -889,7 +889,7 @@ await test('API-key quota rejects disabled, removed and rotated configuration sn
   assert.equal(h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length, 2)
 })
 
-await test('API-key quota uses management ETag changes and rejects missing version metadata', async (t) => {
+await test('API 키 쿼터는 관리 ETag 변경을 사용하고 버전 메타데이터 누락을 거부한다', async (t) => {
   const h = await fixture(t)
   await h.save()
   h.setQuotaAccounts([])
@@ -919,7 +919,7 @@ await test('API-key quota uses management ETag changes and rejects missing versi
   assert.equal(h.requests.filter((row) => row.url.endsWith('/requests/api-call')).length, calls)
 })
 
-await test('API-key quota requires a server auth index and never invents missing OpenCode usage', async (t) => {
+await test('API 키 쿼터는 서버 인증 인덱스를 요구하고 누락된 OpenCode 사용량을 절대 만들어내지 않는다', async (t) => {
   const h = await fixture(t)
   await h.save()
   h.setQuotaAccounts([])

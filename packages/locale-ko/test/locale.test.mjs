@@ -44,7 +44,7 @@ const source = await readFile(new URL('../dist/client.js', import.meta.url), 'ut
 const upstreamSource = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-client-locale/client')), 'utf8')
 const plugin = loadClient(source)
 
-await test('bundle exposes three enabled, independently loadable and localized components', async () => {
+await test('번들은 활성화되었고 독립적으로 로드할 수 있으며 로케일이 적용된 컴포넌트 세 개를 노출한다', async () => {
   const patch = parse(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8'))
   assert.deepEqual(patch, [
     {
@@ -77,7 +77,7 @@ await test('bundle exposes three enabled, independently loadable and localized c
   }
 })
 
-await test('installation allows DSH 0.2 updates from rc.5 without opting into the next minor', () => {
+await test('설치는 rc.5부터 DSH 0.2 업데이트를 허용하며 다음 마이너 버전은 선택하지 않는다', () => {
   for (const version of ['0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), true, version)
   }
@@ -95,7 +95,7 @@ await test('installation allows DSH 0.2 updates from rc.5 without opting into th
   }
 })
 
-await test('Korean dictionaries stay complete and well-formed', () => {
+await test('한국어 사전은 완전하고 형식이 올바르게 유지된다', () => {
   // These entries translate an English blank prefix, so they stay blank.
   const intentionallyBlank = new Set([
     'chat.message.stepProcess.sharedPrefix',
@@ -117,7 +117,7 @@ await test('Korean dictionaries stay complete and well-formed', () => {
   }
 })
 
-await test('built plugin translates, falls back, unloads and reloads through real Cordis and LocaleRuntime', async () => {
+await test('빌드된 플러그인은 실제 Cordis와 LocaleRuntime을 통해 번역하고, 대체값으로 넘어가며, 언로드하고 다시 로드한다', async () => {
   assert.equal(plugin.id, manifest.name)
   const { LocaleRuntime } = loadClient(upstreamSource).exports
   const ctx = new Context()
@@ -198,7 +198,7 @@ await test('built plugin translates, falls back, unloads and reloads through rea
   }
 })
 
-await test('official plugin metadata translates, keeps explicit text and unloads with the plugin', async () => {
+await test('공식 플러그인 메타데이터는 번역되고 명시적 텍스트를 유지하며 플러그인과 함께 언로드된다', async () => {
   const { LocaleRuntime } = loadClient(upstreamSource).exports
   const ctx = new Context()
   const locale = new LocaleRuntime(ctx)

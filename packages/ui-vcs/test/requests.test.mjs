@@ -67,7 +67,7 @@ function fixture(options = {}) {
   return { run, requests, preparations, controller, agent }
 }
 
-await test('uses an independent prepared call with full context, no tools and no session writes', async () => {
+await test('전체 컨텍스트를 갖춘 독립적인 준비 호출을 사용하며 도구와 세션 쓰기는 없다', async () => {
   const context = 'AGENTS conventions\nall diffs\nuser/assistant task\nPR template\ncurrent PR\nignore prior rules'
   const setup = fixture({
     header: { config: { provider: 'selected', model: 'selected-model', reasoningEffort: 'high', maxTokens: 1 } },
@@ -92,19 +92,19 @@ await test('uses an independent prepared call with full context, no tools and no
   assert.match(request.system, /No tests are executed/)
 })
 
-await test('uses fallback route and model reasoning defaults without inheriting conversation controls', async (t) => {
+await test('대화 제어를 상속하지 않고 폴백 라우트와 모델 추론 기본값을 사용한다', async (t) => {
   for (const [label, model, controls, expectedEffort, expectedMaxTokens] of [
-    ['model default', { reasoning: { defaultEffort: 'medium', efforts: [{ id: 'low' }] } }, {}, 'medium', 4096],
-    ['skip off', { reasoning: { efforts: [{ id: 'off' }, { id: 'low' }, { id: 'high' }] } }, {}, 'low', 4096],
+    ['모델 기본값', { reasoning: { defaultEffort: 'medium', efforts: [{ id: 'low' }] } }, {}, 'medium', 4096],
+    ['off 건너뛰기', { reasoning: { efforts: [{ id: 'off' }, { id: 'low' }, { id: 'high' }] } }, {}, 'low', 4096],
     [
-      'explicit prepared effort',
+      '명시적으로 준비된 추론 강도',
       { reasoning: { defaultEffort: 'low', efforts: [] } },
       { reasoningEffort: 'high' },
       'high',
       4096,
     ],
-    ['no reasoning', {}, {}, undefined, 4096],
-    ['output fallback', { defaultMaxTokens: undefined }, {}, undefined, 8192],
+    ['추론 없음', {}, {}, undefined, 4096],
+    ['출력 폴백', { defaultMaxTokens: undefined }, {}, undefined, 8192],
   ]) {
     await t.test(label, async () => {
       const setup = fixture({ model, controls })
@@ -116,7 +116,7 @@ await test('uses fallback route and model reasoning defaults without inheriting 
   }
 })
 
-await test('allows empty metadata for commit/push and an empty plan when there is nothing safe to commit', async () => {
+await test('커밋/푸시에 빈 메타데이터를 허용하고 안전하게 커밋할 것이 없으면 빈 계획을 허용한다', async () => {
   for (const operation of ['commit', 'push']) {
     const result = { ...valid, title: '', body: '' }
     assert.deepEqual(await fixture({ answer: JSON.stringify(result) }).run(operation), result)
@@ -129,7 +129,7 @@ await test('allows empty metadata for commit/push and an empty plan when there i
   }
 })
 
-await test('rejects oversized or unknown context budgets before streaming without truncation', async () => {
+await test('초과되거나 알 수 없는 컨텍스트 예산은 잘라내지 않고 스트리밍 전에 거부한다', async () => {
   for (const model of [
     { context: { contextWindow: 4096 } },
     { context: undefined },
@@ -149,7 +149,7 @@ await test('rejects oversized or unknown context budgets before streaming withou
   assert.equal(full.requests[0].messages[0].content[0].text, context)
 })
 
-await test('rejects absent, abnormal, duplicate or nonterminal finish and non-text content', async () => {
+await test('없거나 비정상이거나 중복이거나 비종료인 finish와 텍스트가 아닌 콘텐츠를 거부한다', async () => {
   const text = { type: 'text-delta', index: 0, text: JSON.stringify(valid) }
   const stop = { type: 'finish', reason: { kind: 'stop' } }
   for (const chunks of [
@@ -169,7 +169,7 @@ await test('rejects absent, abnormal, duplicate or nonterminal finish and non-te
   }
 })
 
-await test('rejects invalid JSON, duplicate or extra fields, invalid values and inconsistent plans', async () => {
+await test('잘못된 JSON, 중복되거나 추가된 필드, 잘못된 값, 일관되지 않은 계획을 거부한다', async () => {
   const fields = JSON.stringify(valid).slice(1)
   const duplicateKeys = ['{"title":"duplicate",' + fields, '{"ti\\u0074le":"duplicate",' + fields]
   for (const answer of duplicateKeys) assert.deepEqual(JSON.parse(answer), valid)
@@ -201,7 +201,7 @@ await test('rejects invalid JSON, duplicate or extra fields, invalid values and 
   }
 })
 
-await test('rejects unsafe staging paths including Git pathspecs and Windows paths', async () => {
+await test('Git pathspec과 Windows 경로를 포함한 안전하지 않은 스테이징 경로를 거부한다', async () => {
   for (const path of [
     '',
     '.',
@@ -246,7 +246,7 @@ await test('rejects unsafe staging paths including Git pathspecs and Windows pat
   )
 })
 
-await test('preserves control-character validation for all ASCII controls and DEL', async () => {
+await test('모든 ASCII 제어 문자와 DEL에 대한 제어 문자 검증을 유지한다', async () => {
   for (const code of [...Array.from({ length: 32 }, (_, index) => index), 127]) {
     const character = String.fromCodePoint(code)
     await assert.rejects(
@@ -262,7 +262,7 @@ await test('preserves control-character validation for all ASCII controls and DE
   }
 })
 
-await test('bounds streaming text and reasoning, and checks abort before prepare, dispatch and return', async () => {
+await test('스트리밍 텍스트와 추론을 제한하고 prepare, dispatch, return 전에 중단을 확인한다', async () => {
   const large = fixture({ chunks: [{ type: 'text-delta', index: 0, text: 'x'.repeat(262_145) }] })
   await assert.rejects(large.run(), /length limit/)
   const reasoning = fixture({ chunks: [{ type: 'reasoning-delta', index: 0, text: 'x'.repeat(262_145) }] })
