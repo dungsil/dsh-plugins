@@ -5,6 +5,13 @@ import { runInNewContext } from 'node:vm'
 
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
+function assertButtonsOnly(node) {
+  if (Array.isArray(node)) return node.forEach(assertButtonsOnly)
+  assert.notEqual(typeof node, 'string', 'Text must remain inside a button or its action menu')
+  if (!node || node.type === 'Pill' || node.type === 'Menu') return
+  if (node.props) assertButtonsOnly(node.props.children)
+}
+
 async function mount(operation, language = 'en', options = {}) {
   const hooks = []
   const effects = []
@@ -79,7 +86,8 @@ async function mount(operation, language = 'en', options = {}) {
           call: async (channel, method, payload) => {
             calls.push({ channel, method, payload })
             if (sidebar) return operation(channel, method, payload)
-            if (method === 'dungsil-vcs/describe') return { ok: true, value: gitContext }
+            if (method === 'dungsil-vcs/describe')
+              return options.describe ? options.describe(gitContext) : { ok: true, value: gitContext }
             if (method === 'dungsil-vcs/pull-requests/list') return requestResult
             assert.equal(method, 'dungsil-vcs/execute')
             if (options.execute) return options.execute(payload)
@@ -155,14 +163,14 @@ async function mount(operation, language = 'en', options = {}) {
   await render()
   await render()
   let tree = await render()
-  let actions = tree.props.children[0].props.children
+  let actions = tree.props.children?.[0]?.props.children ?? []
   return {
     ...common,
     get ci() {
-      return tree.props.children[1]?.props
+      return tree.props.children?.[1]?.props
     },
     get primary() {
-      return actions[0].props
+      return actions[0]?.props
     },
     get menu() {
       return actions[1]?.props
@@ -170,11 +178,42 @@ async function mount(operation, language = 'en', options = {}) {
     async refresh() {
       await render()
       tree = await render()
-      actions = tree.props.children[0].props.children
-      return actions[0].props
+      actions = tree.props.children?.[0]?.props.children ?? []
+      return actions[0]?.props
     },
   }
 }
+
+await test('모든 로케일에서 브랜치 조회 중이거나 실패하면 버튼과 외부 안내를 숨기고 재조회 성공 후 표시한다', async () => {
+  for (const language of ['en', 'ko', 'zh']) {
+    const waiting = Promise.withResolvers()
+    let describe = () => waiting.promise
+    const view = await mount('pr', language, { describe: (context) => describe(context) })
+    const assertHidden = async () => {
+      await view.refresh()
+      const tree = await view.render()
+      assert.equal(tree.type, 'span')
+      assert.equal(tree.props.hidden, true)
+      assert.equal(tree.props.children, undefined)
+      assert.equal(view.primary, undefined)
+      assert.equal(view.menu, undefined)
+    }
+    await assertHidden()
+    waiting.resolve({ ok: false, error: { code: 'default_branch_unknown' } })
+    await assertHidden()
+    describe = (context) => ({ ok: true, value: context })
+    await view.focus()
+    await view.refresh()
+    assert.equal(view.primary.disabled, false)
+    assert.ok(view.menu)
+    describe = () => {
+      throw new Error('Connection unavailable')
+    }
+    await view.focus()
+    await assertHidden()
+    assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
+  }
+})
 
 await test('모든 로케일에서 Git 작업은 대화 프롬프트를 보내지 않고 타입이 지정된 서버 RPC를 사용한다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
@@ -191,7 +230,7 @@ await test('모든 로케일에서 Git 작업은 대화 프롬프트를 보내�
         method: 'dungsil-vcs/execute',
         payload: { sessionId: 'session', cwd: '/repo', operation, requestId: '11111111-1111-4111-8111-111111111111' },
       })
-      assert.ok(JSON.stringify((await view.render()).props.children).includes('aaaaaaaaaaaa'))
+      assertButtonsOnly(await view.render())
       assert.equal(view.messages.length, 0)
     }
   }
@@ -208,25 +247,36 @@ await test('빠르게 반복 클릭해도 중복 명령을 제출할 수 없다'
   assert.equal(view.messages.length, 0)
 })
 
-await test('서버 오류는 로케일에 맞게 번역되고 절대 자동으로 재시도하지 않는다', async () => {
+await test('모든 로케일에서 서버 오류와 연결 실패는 버튼 밖에 텍스트를 출력하지 않고 자동으로 재시도하지 않는다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
-    const view = await mount('pr', language, { execute: () => ({ ok: false, error: { code: 'partial_stage' } }) })
-    view.menu.onSelect('commit')
-    await new Promise((resolve) => setImmediate(resolve))
-    const status = (await view.render()).props.children.find((child) => child?.props?.role === 'alert')
-    assert.equal(status.props.role, 'alert')
-    assert.match(
-      JSON.stringify(status.props.children),
-      language === 'ko' ? /스테이징/ : language === 'zh' ? /暂存/ : /staged/
-    )
-    assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
-    assert.equal(view.messages.length, 0)
+    for (const code of ['partial_stage', 'read_only', 'conflict', 'busy', 'unknown', 'connection']) {
+      const view = await mount('pr', language, {
+        execute: () => {
+          if (code === 'connection') throw new Error('Connection unavailable')
+          return { ok: false, error: { code } }
+        },
+      })
+      view.menu.onSelect('commit')
+      await new Promise((resolve) => setImmediate(resolve))
+      assertButtonsOnly(await view.render())
+      await view.refresh()
+      assert.equal(view.primary.disabled, false)
+      assert.equal(view.primary['aria-busy'], false)
+      assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+      assert.equal(view.messages.length, 0)
+    }
   }
 })
 
 await test('사용 중인 상태, 읽기 전용 뷰어, 없는 디렉터리는 Git 작업을 비활성화한다', async () => {
   for (const options of [{ session: { running: true } }, { canPrompt: false }, { cwd: null }]) {
     const view = await mount('pr', 'en', options)
+    if (options.session?.running) {
+      assert.equal(view.primary, undefined)
+      assert.equal(view.menu, undefined)
+      assert.equal(view.calls.length, 0)
+      continue
+    }
     assert.equal(view.menu.anchor.props.disabled, true)
     view.menu.onSelect('commit')
     assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
@@ -248,10 +298,17 @@ await test('모든 로케일에서 execute RPC가 성공하면 PR 생성이 곧�
     assert.equal(mounted.calls.filter((call) => call.method === 'dungsil-vcs/execute').length, 1)
     executed.resolve({
       ok: true,
-      value: { operation: 'pr', branch: 'feat/test', url: 'https://github.com/team/project/pull/42', checks: [] },
+      value: {
+        operation: 'pr',
+        branch: 'feat/test',
+        commit: 'a'.repeat(40),
+        url: 'https://github.com/team/project/pull/42',
+        checks: [],
+      },
     })
     await new Promise((resolve) => setImmediate(resolve))
     const primary = await mounted.refresh()
+    assertButtonsOnly(await mounted.render())
     assert.equal(mounted.session.running, undefined)
     assert.equal(primary.children[1], viewLabel)
     assert.equal(primary.disabled, false)
