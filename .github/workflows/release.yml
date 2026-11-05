@@ -26,8 +26,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    outputs:
-      packages: ${{ steps.release.outputs.packages }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -63,47 +61,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
       # release-it attaches tarballs to drafts before publishing immutable releases.
       - run: pnpm release --package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION"
-        id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_PACKAGE: ${{ inputs.package }}
           RELEASE_VERSION: ${{ inputs.version }}
-
-  market-index:
-    needs: release
-    if: needs.release.outputs.packages != '' && needs.release.outputs.packages != '[]'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    # Index errors and timeouts must not turn a successful release into a failure.
-    continue-on-error: true
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: main
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4.4.0
-      - uses: actions/setup-node@v5.0.0
-        with:
-          node-version: 26.13.0
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Update market index once for all published packages
-        env:
-          RELEASE_PACKAGES: ${{ needs.release.outputs.packages }}
-        run: |
-          node --input-type=module <<'JS'
-          import { execFileSync } from 'node:child_process'
-          const packages = JSON.parse(process.env.RELEASE_PACKAGES)
-          execFileSync('pnpm', ['market:index', ...packages.flatMap(name => ['--release', name])], { stdio: 'inherit' })
-          JS
-      - name: Commit market index
-        run: |
-          if git diff --quiet -- market/index.json; then exit 0; fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add market/index.json
-          git commit -m 'chore(market): 릴리스한 패키지의 인덱스를 갱신한다 [skip ci]'
-          git pull --no-rebase --no-edit origin main
-          git push origin HEAD:main

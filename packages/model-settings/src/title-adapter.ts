@@ -92,9 +92,10 @@ export function createTitleAdapter(
     if (service === 'sessionTitle') {
       const titles = next() as Context['sessionTitle']
       const register: Context['sessionTitle']['register'] = (provider) => {
-        wrapped.add(consumer.fiber.uid)
+        const uid = consumer.fiber.uid
+        wrapped.add(uid)
         consumer.effect(() => () => {
-          wrapped.delete(consumer.fiber.uid)
+          wrapped.delete(uid)
         })
         return titles.register({
           ...provider,

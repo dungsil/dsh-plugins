@@ -12,8 +12,15 @@ export const styles = `
 .dsh-pr-loading{display:inline-flex;flex-shrink:0;width:16px;height:16px;vertical-align:middle;color:var(--dsw-alias-label-secondary)}
 .dsh-pr-loading svg{width:100%;height:100%;animation:dsh-pr-spin .8s linear infinite}
 .dsh-pr-initial-loading{display:flex;justify-content:center;padding:24px 16px}
+.dsh-vcs-check-status{display:inline-flex;flex:none;width:14px;height:14px;align-items:center;justify-content:center;vertical-align:middle;color:var(--dsw-alias-label-tertiary)}
+.dsh-vcs-check-status>span{display:contents}
+.dsh-vcs-check-status svg{width:100%;height:100%}
+.dsh-vcs-check-status[data-state=done]{color:var(--dsw-alias-state-success-primary)}
+.dsh-vcs-check-status[data-state=error]{color:var(--dsw-alias-state-error-primary)}
+.dsh-vcs-check-status:is([data-state=ongoing],[data-state=warning]){color:var(--dsw-alias-state-warn-primary)}
+.dsh-vcs-check-status[data-state=ongoing] svg{animation:dsh-pr-spin 1.5s linear infinite}
 @keyframes dsh-pr-spin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.dsh-pr-loading svg{animation:none}}
+@media(prefers-reduced-motion:reduce){.dsh-pr-loading svg,.dsh-vcs-check-status[data-state=ongoing] svg{animation:none}}
 .dsh-pr-panel :is(a,textarea,summary,[role=tabpanel]):focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:-2px}
 .dsh-pr-content{overflow:auto;flex:1;min-height:0}
 .dsh-pr-content>p{padding:20px 16px;color:var(--dsw-alias-label-secondary);line-height:1.6}

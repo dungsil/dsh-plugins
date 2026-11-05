@@ -12,21 +12,25 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button,
+  ButtonPicker,
   CodeBlock,
   MarkdownText,
   Menu,
   Modal,
   SegmentedTabs,
-  StateDot,
   Tag,
   type StateDotState,
 } from '@dungsil/dsh-ui'
 import {
   IconBranchOutlineRegular,
+  IconCheckCircleOutlineRegular,
   IconChevronDownOutlineRegular,
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
+  IconQuestionOutlineRegular,
   IconRefreshOutlineRegular,
+  circleMinusIconSvg,
+  circleXIconSvg,
   mergeIconSvg,
   pullRequestClosedIconSvg,
   pullRequestDraftIconSvg,
@@ -89,6 +93,22 @@ export function checksState(item: RequestItem): StateDotState {
   return states.every((state) => ['success', 'passed'].includes(state)) ? 'done' : 'idle'
 }
 
+export function CheckStatusIcon({ state }: { state: StateDotState }) {
+  return (
+    <span className="dsh-vcs-check-status" data-state={state} aria-hidden="true">
+      {state === 'done' ? (
+        <IconCheckCircleOutlineRegular />
+      ) : state === 'ongoing' ? (
+        <IconLoadingOutlineRegular />
+      ) : state === 'warning' ? (
+        <IconQuestionOutlineRegular />
+      ) : (
+        <span dangerouslySetInnerHTML={{ __html: state === 'error' ? circleXIconSvg : circleMinusIconSvg }} />
+      )}
+    </span>
+  )
+}
+
 function Loading({ label }: { label: string }) {
   return (
     <span className="dsh-pr-loading" role="status" aria-label={label}>
@@ -121,56 +141,6 @@ function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>,
       )}
       {render(sections)}
     </>
-  )
-}
-
-function Choice<Value extends string>({
-  label,
-  value,
-  items,
-  onChange,
-  disabled,
-}: {
-  label: string
-  value: Value
-  items: readonly { id: Value; label: string; disabled?: boolean }[]
-  onChange: (value: Value) => void
-  disabled: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  useEffect(() => {
-    if (disabled) setOpen(false)
-  }, [disabled])
-  return (
-    <Menu
-      open={open}
-      portal
-      compact
-      className="dsh-pr-choice"
-      selectedId={value}
-      items={items}
-      onClose={() => setOpen(false)}
-      onSelect={(id) => {
-        const item = items.find((item) => item.id === id && !item.disabled)
-        if (item) onChange(item.id)
-        setOpen(false)
-      }}
-      anchor={
-        <Button
-          type="button"
-          size="sm"
-          className="dsh-pr-picker"
-          aria-label={label}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          disabled={disabled}
-          onClick={() => setOpen(!open)}
-        >
-          <span>{items.find((item) => item.id === value)?.label}</span>
-          <IconChevronDownOutlineRegular aria-hidden="true" />
-        </Button>
-      }
-    />
   )
 }
 
@@ -605,7 +575,7 @@ export function apply(ctx: Context) {
                       onClick={() => setChecksOpen(!checksOpen)}
                       aria-busy={loading}
                     >
-                      {loading ? <Loading label={copy.loading} /> : <StateDot state={state} appearance="step" />}
+                      {loading ? <Loading label={copy.loading} /> : <CheckStatusIcon state={state} />}
                       <span>{item.headSha ? checksSummary : copy.checks}</span>
                       <IconChevronDownOutlineRegular aria-hidden="true" />
                     </Button>
@@ -618,7 +588,7 @@ export function apply(ctx: Context) {
                           const status = checkStatus(check.status)
                           return (
                             <li key={`${check.name}-${index}`}>
-                              <StateDot state={status.state} appearance="step" />
+                              <CheckStatusIcon state={status.state} />
                               <span className="dsh-pr-check-name">
                                 {check.url ? (
                                   <a href={check.url} target="_blank" rel="noopener noreferrer">
@@ -764,7 +734,11 @@ export function apply(ctx: Context) {
                           />
                         </label>
                         <div className="dsh-pr-actions">
-                          <Choice
+                          <ButtonPicker
+                            size="sm"
+                            className="dsh-pr-picker"
+                            menuClassName="dsh-pr-choice"
+                            compact
                             label={copy.review}
                             value={reviewAction}
                             disabled={pending}

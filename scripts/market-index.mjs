@@ -344,7 +344,7 @@ export async function generateRegistryDocuments({
   return documents
 }
 
-async function generateIndex(releasePackages = []) {
+export async function generateIndex(releasePackages = []) {
   const packages = readLocalPackages()
   const warnings = []
   const previousIndex = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : undefined

@@ -8,6 +8,8 @@ export { default as pullRequestIconSvg } from './icons/git-pull-request.svg'
 export { default as pullRequestDraftIconSvg } from './icons/git-pull-request-draft.svg'
 export { default as pullRequestClosedIconSvg } from './icons/git-pull-request-closed.svg'
 export { default as mergeIconSvg } from './icons/git-merge.svg'
+export { default as circleXIconSvg } from './icons/circle-x.svg'
+export { default as circleMinusIconSvg } from './icons/circle-minus.svg'
 
 export {
   IconBranchOutlineRegular,
@@ -25,6 +27,7 @@ export {
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
   IconPlusOutlineRegular,
+  IconQuestionOutlineRegular,
   IconRefreshOutlineRegular,
   IconRightUpOutlineRegular,
   IconSearchOutlineRegular,

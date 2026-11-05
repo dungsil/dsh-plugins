@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-vcs
 
+## [0.4.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.4.0...%40dungsil%2Fdsh-plugin-ui-vcs%400.4.1) (2026-11-05)
+
+### Bug Fixes
+
+- **vcs:** CI 상태를 선형 원형 아이콘으로 표시한다 ([#166](https://github.com/dungsil/dsh-plugins/issues/166)) ([80c0169](https://github.com/dungsil/dsh-plugins/commit/80c0169c7880e22445bae90ed0d3a13db00861d1))
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.3.0...%40dungsil%2Fdsh-plugin-ui-vcs%400.4.0) (2026-11-05)
 
 ### ⚠ BREAKING CHANGES

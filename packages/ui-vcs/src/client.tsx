@@ -6,7 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { Menu, Pill, StateDot } from '@dungsil/dsh-ui'
+import { Menu, Pill } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import * as PullRequests from './pull-requests-client.js'
 import * as Settings from './settings-client.js'
@@ -270,7 +270,7 @@ export function apply(ctx: Context) {
             title={`${labels.checks}: ${ciLabel}`}
             onClick={() => ctx.sidebarRight.openTab(PullRequests.name, { params: { section: 'checks' } })}
           >
-            <StateDot state={ciState} appearance="step" />
+            <PullRequests.CheckStatusIcon state={ciState} />
             {`${labels.checks}: ${ciLabel}`}
           </Pill>
         )}
