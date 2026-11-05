@@ -423,6 +423,15 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
+  packages/preset-tools:
+    dependencies:
+      '@dungsil/dsh-plugin-tool-diff-note':
+        specifier: workspace:*
+        version: link:../tool-diff-note
+      '@dungsil/dsh-plugin-tool-secret-request':
+        specifier: workspace:*
+        version: link:../tool-secret-request
+
   packages/preset-ui:
     dependencies:
       '@dungsil/dsh-plugin-locale-ko':

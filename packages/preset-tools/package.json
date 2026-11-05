@@ -1,0 +1,59 @@
+{
+  "name": "@dungsil/dsh-preset-tools",
+  "version": "0.0.0",
+  "description": "A tools preset bundling existing DeepSeek Harness tool plugins without its own runtime implementation.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/preset-tools"
+  },
+  "files": [
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@dungsil/dsh-plugin-tool-diff-note": "workspace:*",
+    "@dungsil/dsh-plugin-tool-secret-request": "workspace:*"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 0,
+    "title": {
+      "en": "Tools Preset",
+      "ko": "도구 프리셋",
+      "zh": "工具预设"
+    },
+    "description": {
+      "en": "Install Diff Notes and Secret input together.",
+      "ko": "변경 설명과 비밀값 입력 도구를 함께 설치합니다.",
+      "zh": "一起安装变更说明和私密凭据输入工具。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "preset",
+      "bundle",
+      "tools"
+    ]
+  }
+}
