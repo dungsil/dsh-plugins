@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import type {} from '@deepseek-ai/dsh-experimental-client-ui-cot-translation'
 import { dshCachePath } from '@deepseek-ai/dsh-home-paths'
+import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-command'
 import { SkillRegistry } from '@deepseek-ai/dsh-skill'
 import { FileSystemSkillProvider } from '@deepseek-ai/dsh-skill-filesystem'
 import z from '@deepseek-ai/schemastery'
-import { channel, method, saveMethod, translateMethod, type SkillsView } from './protocol.js'
+import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'configEditor']
@@ -59,7 +60,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
     'ui-setting-skills: dispose discovery'
   )
   // Exact Connection routes are owner-only, unlike shared session RPC handlers.
-  for (const endpoint of [method, saveMethod, translateMethod])
+  for (const endpoint of [method, saveMethod, translateMethod, openFolderMethod])
     ctx.effect(
       () =>
         ctx.connection.fetch.register({
@@ -74,6 +75,32 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
               return new Response('Invalid request', { status: 400 })
             }
             if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
+            if (endpoint === openFolderMethod) {
+              const payload = body.data.payload as { path?: unknown }
+              if (!payload || typeof payload.path !== 'string') return new Response('Invalid request', { status: 400 })
+              let result
+              try {
+                const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(15_000)])
+                if (!canOpenNativePath()) throw new Error('Native folder opening unavailable')
+                const observation = await provider.list({ signal })
+                const candidates = 'candidates' in observation ? observation.candidates : observation
+                const skill = candidates.find(
+                  (skill) => skill.path === payload.path && ['user-agents', 'user-dsh'].includes(skill.source)
+                )
+                if (!skill?.path) throw new Error('Unknown user skill')
+                await openNativePath(dirname(skill.path), signal)
+                result = { ok: true as const, value: {} }
+              } catch {
+                result = {
+                  ok: false as const,
+                  error: { code: 'open_folder_failed', message: 'Could not open skill folder.', details: {} },
+                }
+              }
+              return Response.json(
+                { type: 'server-response', rpcId: body.data.rpcId, result },
+                { headers: { 'Cache-Control': 'no-store' } }
+              )
+            }
             if (endpoint === translateMethod) {
               const payload = body.data.payload as { path?: unknown; language?: unknown }
               if (!payload || typeof payload.path !== 'string' || typeof payload.language !== 'string') {
@@ -179,6 +206,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
               const skills = 'candidates' in observation ? observation.candidates : observation
               const value: SkillsView = {
                 translationAvailable: !!ctx.get('cotTranslation'),
+                folderOpenAvailable: canOpenNativePath(),
                 disabled: disabled(),
                 complete: 'candidates' in observation ? observation.complete : true,
                 skills: skills.flatMap((skill) =>

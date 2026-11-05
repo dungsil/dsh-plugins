@@ -32,7 +32,8 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-atomic-write": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5"
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-native-command": "0.2.1-rc.5"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",

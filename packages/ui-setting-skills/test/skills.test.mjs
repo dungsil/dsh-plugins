@@ -8,6 +8,7 @@ import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
+import { canOpenNativePath } from '@deepseek-ai/dsh-native-command'
 import Skills from '@deepseek-ai/dsh-skill'
 import * as Filesystem from '@deepseek-ai/dsh-skill-filesystem'
 import * as plugin from '../dist/index.js'
@@ -21,7 +22,10 @@ async function fixture(t, withRegistry = false) {
   const dsh = join(home, 'dsh')
   const agents = join(home, 'agents')
   const previousEnv = Object.fromEntries(
-    ['DSH_HOME', 'DSH_AGENTS_HOME', 'DSH_BUNDLED_SKILL_DIR'].map((key) => [key, process.env[key]])
+    ['DSH_HOME', 'DSH_AGENTS_HOME', 'DSH_BUNDLED_SKILL_DIR', 'DISPLAY', 'WAYLAND_DISPLAY', 'PATH'].map((key) => [
+      key,
+      process.env[key],
+    ])
   )
   process.env.DSH_HOME = dsh
   process.env.DSH_AGENTS_HOME = agents
@@ -159,6 +163,7 @@ await test('discovers both user roots without a global skill registry, including
       ok: true,
       value: {
         translationAvailable: false,
+        folderOpenAvailable: canOpenNativePath(),
         disabled: ['not-installed'],
         complete: true,
         skills: [
@@ -188,7 +193,13 @@ await test('discovers both user roots without a global skill registry, including
 
 await test('returns empty missing roots and rereads additions and removals on the next request', async (t) => {
   const h = await fixture(t)
-  const empty = { translationAvailable: false, disabled: ['not-installed'], complete: true, skills: [] }
+  const empty = {
+    translationAvailable: false,
+    folderOpenAvailable: canOpenNativePath(),
+    disabled: ['not-installed'],
+    complete: true,
+    skills: [],
+  }
   assert.deepEqual(await h.rpc(), { ok: true, value: empty })
   const path = await h.skill(h.dsh, 'planning-work', 'New entry')
   assert.deepEqual((await h.rpc()).value.skills, [
@@ -197,6 +208,60 @@ await test('returns empty missing roots and rereads additions and removals on th
   await rm(path)
   assert.deepEqual(await h.rpc(), { ok: true, value: empty })
 })
+
+await test(
+  'opens only discovered user skill folders for the owner and reports native failures',
+  { skip: process.platform !== 'linux' },
+  async (t) => {
+    const h = await fixture(t)
+    const paths = [
+      await h.skill(h.agents, 'shared-skill', 'Shared entry'),
+      await h.skill(h.dsh, 'dsh-skill', 'DSH entry'),
+    ]
+    const projectPath = await h.skill(join(h.home, '.agents'), 'project-only', 'Not a user skill')
+    const bin = join(h.home, 'bin')
+    const capture = join(bin, 'opened')
+    await mkdir(bin)
+    await writeFile(join(bin, 'xdg-open'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$(dirname "$0")/opened"\n', {
+      mode: 0o755,
+    })
+    process.env.PATH = `${bin}:${process.env.PATH}`
+    process.env.DISPLAY = ':test'
+    const request = (payload) => ({ ...h.request, method: 'dungsil-ui-setting-skills/open-folder', payload })
+    const open = async (payload) => (await (await h.fetch(request(payload))).json()).result
+    assert.equal((await h.rpc()).value.folderOpenAvailable, true)
+    for (const path of paths) {
+      assert.equal((await open({ path })).ok, true)
+      assert.equal(await readFile(capture, 'utf8'), `${path.slice(0, -'/SKILL.md'.length)}\n`)
+      await rm(capture)
+    }
+    for (const path of ['/unknown/SKILL.md', projectPath, join(h.agents, 'skills')]) {
+      assert.equal((await open({ path })).ok, false)
+    }
+    for (const payload of [null, {}, { path: 42 }]) {
+      assert.equal((await h.fetch(request(payload))).status, 400)
+    }
+    for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
+      assert.equal((await h.fetch(request({ path: paths[0] }), { principal, interactions: 'deny' })).status, 403)
+    }
+    await assert.rejects(readFile(capture), { code: 'ENOENT' })
+    await writeFile(join(bin, 'xdg-open'), '#!/bin/sh\nexit 1\n')
+    assert.deepEqual(await open({ path: paths[0] }), {
+      ok: false,
+      error: { code: 'open_folder_failed', message: 'Could not open skill folder.', details: {} },
+    })
+    await writeFile(join(bin, 'xdg-open'), '#!/bin/sh\ntouch "$(dirname "$0")/opened"\n')
+    await rm(paths[1])
+    assert.equal((await open({ path: paths[1] })).ok, false)
+    delete process.env.DISPLAY
+    delete process.env.WAYLAND_DISPLAY
+    assert.equal((await h.rpc()).value.folderOpenAvailable, false)
+    assert.equal((await open({ path: paths[0] })).ok, false)
+    await assert.rejects(readFile(capture), { code: 'ENOENT' })
+    await h.fiber.dispose()
+    assert.equal((await h.fetch(request({ path: paths[0] }))).status, 404)
+  }
+)
 
 await test('translates only discovered descriptions using accepted preferences without changing skills', async (t) => {
   const h = await fixture(t)
