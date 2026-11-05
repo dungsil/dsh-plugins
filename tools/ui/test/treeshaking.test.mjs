@@ -20,6 +20,39 @@ await test('클라이언트 번들은 사용하는 UI 내보내기만 유지한�
       check: (exports) => assert.equal(exports.Button, Button),
     },
     {
+      name: '페이지 스타일은 React나 프리미티브를 끌어오지 않는다',
+      source: "export { pageStyles } from '@dungsil/dsh-ui'",
+      modules: {},
+      check: (exports, code) => {
+        assert.match(exports.pageStyles, /\.dsh-plugin-page/)
+        assert.doesNotMatch(code, /dsh-plugin-settings|dsh-plugin-composer/)
+      },
+    },
+    {
+      name: '페이지 컴포넌트는 미사용 스타일과 선택기를 끌어오지 않는다',
+      source: "export { PluginPage } from '@dungsil/dsh-ui'",
+      modules: { 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) } },
+      check: (exports, code) => {
+        const element = exports.PluginPage({ children: 'content', contentClassName: 'plugin' })
+        assert.equal(element.props.children.props.children, 'content')
+        assert.match(element.props.children.props.className, /plugin$/)
+        assert.doesNotMatch(code, /max-width: 960px|dsh-plugin-settings|aria-haspopup/)
+      },
+    },
+    {
+      name: '버튼 선택기는 미사용 페이지와 설정 스타일을 끌어오지 않는다',
+      source: "export { ButtonPicker } from '@dungsil/dsh-ui'",
+      modules: {
+        react: {},
+        'react/jsx-runtime': {},
+        '@deepseek-ai/dsh-client-ui-primitives': {},
+      },
+      check: (exports, code) => {
+        assert.equal(typeof exports.ButtonPicker, 'function')
+        assert.doesNotMatch(code, /dsh-plugin-page|dsh-plugin-settings|dsh-plugin-composer|<svg /)
+      },
+    },
+    {
       name: '작성기 스타일은 사용하지 않는 트리거를 초기화하지 않는다',
       source: "export { composerStyles } from '@dungsil/dsh-ui/composer'",
       modules: { react: {}, 'react/jsx-runtime': {} },

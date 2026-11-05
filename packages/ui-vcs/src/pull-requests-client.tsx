@@ -10,7 +10,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button, CodeBlock, MarkdownText, Menu, Modal, SegmentedTabs, Tag, type StateDotState } from '@dungsil/dsh-ui'
+import {
+  Button,
+  ButtonPicker,
+  CodeBlock,
+  MarkdownText,
+  Menu,
+  Modal,
+  SegmentedTabs,
+  Tag,
+  type StateDotState,
+} from '@dungsil/dsh-ui'
 import {
   IconBranchOutlineRegular,
   IconCheckCircleOutlineRegular,
@@ -131,56 +141,6 @@ function Description({ text, labels }: Pick<ComponentProps<typeof MarkdownText>,
       )}
       {render(sections)}
     </>
-  )
-}
-
-function Choice<Value extends string>({
-  label,
-  value,
-  items,
-  onChange,
-  disabled,
-}: {
-  label: string
-  value: Value
-  items: readonly { id: Value; label: string; disabled?: boolean }[]
-  onChange: (value: Value) => void
-  disabled: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  useEffect(() => {
-    if (disabled) setOpen(false)
-  }, [disabled])
-  return (
-    <Menu
-      open={open}
-      portal
-      compact
-      className="dsh-pr-choice"
-      selectedId={value}
-      items={items}
-      onClose={() => setOpen(false)}
-      onSelect={(id) => {
-        const item = items.find((item) => item.id === id && !item.disabled)
-        if (item) onChange(item.id)
-        setOpen(false)
-      }}
-      anchor={
-        <Button
-          type="button"
-          size="sm"
-          className="dsh-pr-picker"
-          aria-label={label}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          disabled={disabled}
-          onClick={() => setOpen(!open)}
-        >
-          <span>{items.find((item) => item.id === value)?.label}</span>
-          <IconChevronDownOutlineRegular aria-hidden="true" />
-        </Button>
-      }
-    />
   )
 }
 
@@ -774,7 +734,11 @@ export function apply(ctx: Context) {
                           />
                         </label>
                         <div className="dsh-pr-actions">
-                          <Choice
+                          <ButtonPicker
+                            size="sm"
+                            className="dsh-pr-picker"
+                            menuClassName="dsh-pr-choice"
+                            compact
                             label={copy.review}
                             value={reviewAction}
                             disabled={pending}
