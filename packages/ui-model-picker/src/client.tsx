@@ -37,6 +37,7 @@ const copy = {
     error: '변경하지 못했습니다. 현재 선택을 확인한 뒤 다시 시도하세요.',
     retry: '모델 목록 새로고침',
     busy: '변경 중…',
+    apply: '적용',
   },
   en: {
     model: 'Select model',
@@ -50,6 +51,7 @@ const copy = {
     error: 'Could not change the selection. Check the current selection before retrying.',
     retry: 'Reload models',
     busy: 'Changing…',
+    apply: 'Apply',
   },
   zh: {
     model: '选择模型',
@@ -63,6 +65,7 @@ const copy = {
     error: '更改失败。请确认当前选择后重试。',
     retry: '刷新模型列表',
     busy: '正在更改…',
+    apply: '应用',
   },
 }
 
@@ -124,6 +127,16 @@ export function apply(ctx: Context) {
       if (trigger.current) focusWithoutRing(trigger.current)
     }
 
+    const restorePopupFocus = () => {
+      if (!popup.current?.contains(document.activeElement)) return
+      const target = trigger.current?.disabled
+        ? anchor.current?.parentElement?.querySelector<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]'
+          )
+        : trigger.current
+      if (target) focusWithoutRing(target)
+    }
+
     useDismissOnOutsidePointer(
       anchor,
       panel !== null,
@@ -174,7 +187,7 @@ export function apply(ctx: Context) {
       }
       element.addEventListener('keydown', keydown)
       const focusable =
-        element.querySelector<HTMLElement>('[aria-checked=true]') ??
+        element.querySelector<HTMLElement>('[aria-current=true]') ??
         element.querySelector<HTMLElement>('input:not(:disabled)') ??
         element.querySelector<HTMLElement>('button:not(:disabled)')
       focusable?.focus()
@@ -188,6 +201,7 @@ export function apply(ctx: Context) {
 
     useEffect(() => {
       if (locked) {
+        restorePopupFocus()
         sliderSelection.current = null
         setPanel(null)
         setStaged(null)
@@ -208,6 +222,7 @@ export function apply(ctx: Context) {
         setStaged(null)
         return
       }
+      restorePopupFocus()
       setPanel(null)
       setStaged(null)
     }, [current?.provider, current?.model, current?.reasoningEffort])
@@ -336,7 +351,6 @@ export function apply(ctx: Context) {
                     className="dsh-codex-model"
                     disabled={locked}
                     aria-disabled={disabled}
-                    aria-label={`${text.model}: ${stagedName}`}
                     onClick={() => {
                       if (!disabled) setPanel('model')
                     }}
@@ -389,15 +403,16 @@ export function apply(ctx: Context) {
               )}
               {panel === 'model' ? (
                 <>
-                  <div role="radiogroup" aria-label={text.model}>
+                  <div className="dsh-codex-models" role="group" aria-label={text.model}>
                     {state.groups.map((provider) => (
                       <section key={provider.id} aria-label={provider.name}>
                         <div className="dsh-codex-provider">{provider.name}</div>
                         {provider.models.map((option) => (
                           <button
                             type="button"
-                            role="radio"
-                            aria-checked={provider.id === current?.provider && option.id === current?.model}
+                            aria-current={
+                              provider.id === current?.provider && option.id === current?.model ? 'true' : undefined
+                            }
                             className="dsh-codex-option"
                             key={option.id}
                             disabled={disabled}
@@ -464,13 +479,17 @@ export function apply(ctx: Context) {
                         onChange={(event) => {
                           if (!disabled) setDraft(Number(event.target.value))
                         }}
-                        onPointerUp={(event) => selectEffort(Number(event.currentTarget.value))}
-                        onKeyUp={(event) => {
-                          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))
-                            selectEffort(Number(event.currentTarget.value))
-                        }}
                       />
                     </div>
+                    <button
+                      type="button"
+                      className="dsh-codex-apply dsh-codex-option"
+                      disabled={locked}
+                      aria-disabled={disabled}
+                      onClick={() => selectEffort(draft)}
+                    >
+                      {text.apply}
+                    </button>
                   </div>
                 )
               )}
