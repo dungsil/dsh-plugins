@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-turn-rail-left
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.2.0...%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.2.1) (2026-11-05)
+
+### Bug Fixes
+
+- **ui:** 턴 레일 호환성과 플러그인 미리보기를 보완한다 ([#109](https://github.com/dungsil/dsh-plugins/issues/109)) ([17e7094](https://github.com/dungsil/dsh-plugins/commit/17e7094351abd206fadceb9fcadde086351525e5))
+
 ## 0.2.0 (2026-11-04)
 
 ### Features

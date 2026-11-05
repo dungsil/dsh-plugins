@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-vcs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Git actions and PR/MR review for GitHub, GitLab, Gitea and Forgejo.",
   "license": "MIT",
   "repository": {

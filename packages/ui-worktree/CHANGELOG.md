@@ -1,5 +1,21 @@
 # @dungsil/dsh-plugin-ui-worktree
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.4.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.5.0) (2026-11-05)
+
+### Features
+
+- **model-settings:** 상황별 모델에 개별 지침 편집을 추가한다 ([#129](https://github.com/dungsil/dsh-plugins/issues/129)) ([1dcf04d](https://github.com/dungsil/dsh-plugins/commit/1dcf04d066b623aa2df5bc13f6731d90f7c5e3a2))
+- **ui-vcs:** 사이드바 세션에 연결된 MR 상태 아이콘을 표시한다 ([#126](https://github.com/dungsil/dsh-plugins/issues/126)) ([ffed205](https://github.com/dungsil/dsh-plugins/commit/ffed205565043f84b524ca67ce96789eb2141f4c))
+- **worktree:** 세션 보관 시 워크트리 삭제 옵션을 추가한다 ([#119](https://github.com/dungsil/dsh-plugins/issues/119)) ([ff61c63](https://github.com/dungsil/dsh-plugins/commit/ff61c631582fd24f3865e14fc2c6f469b3babb72))
+- **worktree:** 현재 브랜치를 새 워크트리 아래에 고정한다 ([#106](https://github.com/dungsil/dsh-plugins/issues/106)) ([699d95f](https://github.com/dungsil/dsh-plugins/commit/699d95f1a89aa5f59864abd0c68268b677235f52))
+
+### Bug Fixes
+
+- **model-settings:** 기본 프롬프트를 표시하고 직접 수정하도록 한다 ([#130](https://github.com/dungsil/dsh-plugins/issues/130)) ([8831095](https://github.com/dungsil/dsh-plugins/commit/8831095538ca0fec6136481ab64500f6be10a3a6))
+- **ui-worktree:** 조회와 초기화를 분리해 실행 중에도 목록을 읽는다 ([#103](https://github.com/dungsil/dsh-plugins/issues/103)) ([61e5f74](https://github.com/dungsil/dsh-plugins/commit/61e5f74ea49d555fa78bebec74261e2654f74c5e))
+- **ui:** 턴 레일 호환성과 플러그인 미리보기를 보완한다 ([#109](https://github.com/dungsil/dsh-plugins/issues/109)) ([17e7094](https://github.com/dungsil/dsh-plugins/commit/17e7094351abd206fadceb9fcadde086351525e5))
+- **worktree:** 경로 비교 정규식의 과도한 탐색을 제거한다 ([#127](https://github.com/dungsil/dsh-plugins/issues/127)) ([f9da722](https://github.com/dungsil/dsh-plugins/commit/f9da722e7496c8b1d2c42b71d003a012062d006e))
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.3.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.4.0) (2026-11-04)
 
 ### Features

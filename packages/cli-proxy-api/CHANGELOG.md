@@ -1,5 +1,17 @@
 # @dungsil/dsh-plugin-cli-proxy-api
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.1.0...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.0) (2026-11-05)
+
+### Features
+
+- **cli-proxy-api:** API 키 계정의 OpenCode Go와 Ollama 할당량을 표시한다 ([#107](https://github.com/dungsil/dsh-plugins/issues/107)) ([f22d24d](https://github.com/dungsil/dsh-plugins/commit/f22d24d69236b32cebc90c2e8eab146f28d5a63a))
+- **cli-proxy-api:** 계정과 할당량을 자동 조회하고 캐시한다 ([#104](https://github.com/dungsil/dsh-plugins/issues/104)) ([e7788ab](https://github.com/dungsil/dsh-plugins/commit/e7788abc1905d7a76846fa332feb850ece5cdad7))
+
+### Bug Fixes
+
+- **cli-proxy-api:** 사이드바와 설정에 브랜드 아이콘을 적용한다 ([#111](https://github.com/dungsil/dsh-plugins/issues/111)) ([aec5f28](https://github.com/dungsil/dsh-plugins/commit/aec5f28d2c436e68b95e9b80c6323adc3554f10d))
+- **lint:** oxlint 경고가 있으면 커밋을 차단한다 ([#131](https://github.com/dungsil/dsh-plugins/issues/131)) ([08e0766](https://github.com/dungsil/dsh-plugins/commit/08e0766cf3c16457973a9ff34d3a289dbc557125))
+
 ## 0.1.0 (2026-11-05)
 
 ### Features
