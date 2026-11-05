@@ -122,7 +122,7 @@ function mount(language = 'en') {
       register: (options, body) => registrations.set(`${options.name}:${options.id ?? options.key}`, body),
     },
     sidebarRight: {
-      mounted: { getSnapshot: () => mounted },
+      mounted: { getSnapshot: () => mounted, subscribe: () => () => {} },
       openTab: (kind, options) => opens.push({ kind, options }),
     },
     sidebarRightTabs: { register: () => () => {} },
@@ -296,6 +296,37 @@ await test('세션 배지는 모든 로케일에서 MR 상태를 구분하고, �
   assert.ok(fixture.hosts.every((host) => host.removed))
 })
 
+await test('현재 화면의 세션만 조회하고 다른 세션이나 전역 화면으로 이동하면 이전 조회를 취소한다', async () => {
+  const fixture = mount()
+  try {
+    fixture.renderBadge('other')
+    fixture.focus()
+    assert.equal(fixture.calls.length, 0)
+    assert.equal(fixture.intervals.size, 0)
+    fixture.renderBadge()
+    assert.equal(fixture.calls.length, 1)
+    const previous = fixture.calls[0]
+    fixture.setMounted('other')
+    assert.equal(fixture.renderBadge(), null)
+    assert.equal(previous.signal.aborted, true)
+    assert.equal(fixture.intervals.size, 0)
+    fixture.focus()
+    assert.equal(fixture.calls.length, 1)
+    previous.resolve({ ok: true, value: request(42) })
+    await settle()
+    assert.equal(fixture.renderBadge(), null)
+    fixture.renderBadge('other')
+    assert.equal(fixture.calls.length, 2)
+    assert.equal(fixture.calls[1].payload.sessionId, 'other')
+    fixture.setMounted(undefined)
+    fixture.renderBadge('other')
+    assert.equal(fixture.calls[1].signal.aborted, true)
+    assert.equal(fixture.intervals.size, 0)
+  } finally {
+    fixture.dispose()
+  }
+})
+
 await test('세션 배지는 실행 중 기존 상태를 유지하고 조회를 멈추며 실행 종료와 디렉터리 변경 후 새로 고친다', async () => {
   const fixture = mount()
   try {
@@ -325,6 +356,7 @@ await test('세션 배지는 실행 중 기존 상태를 유지하고 조회를 
     assert.ok(fixture.renderBadge().props['aria-label'].includes('#43'))
     for (const refresh of fixture.intervals) refresh()
     const periodic = fixture.calls.at(-1)
+    fixture.setMounted('other')
     fixture.renderBadge('other')
     assert.equal(periodic.signal.aborted, true)
     periodic.resolve({ ok: true, value: request(44) })

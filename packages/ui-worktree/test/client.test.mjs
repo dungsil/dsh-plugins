@@ -30,10 +30,9 @@ const readReadinessCases = [
 ]
 const uninitializedView = () => ({ ...view(), needsInitialization: true })
 const pendingCreationView = () => ({ ...view(), pendingCreation: { name: 'New worktree', failed: false } })
-const selection = ({ cwd = '/repo', choice, path }) => ({
+const selection = ({ cwd = '/repo', choice }) => ({
   cwd,
   ...(choice === 'new' ? { pendingCreation: { name: 'New worktree', failed: false } } : {}),
-  ...(choice === 'existing' ? { pendingSwitch: { path, failed: false } } : {}),
 })
 const operations = (h) => h.calls.map((call) => call.operation)
 
@@ -233,6 +232,7 @@ async function mount(
       useSession: (select) => select(session(sessionId)),
       useInput: (select) => select({ phase: session(sessionId).inputPhase ?? 'plain' }),
       useProjection: (key) => {
+        if (key === 'sessionListMetadata') return { blank: !session(sessionId).started }
         assert.equal(key, 'workingDirectory')
         return directories.get(sessionId) ?? '/repo'
       },
@@ -372,7 +372,7 @@ await test('실행 중인 세션으로 돌아오면 변경을 활성화하지 �
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링은 다시 불러오지 않으며, 유휴 포커스는 새로 고친다', async (t) => {
+await test('동기화된 워크트리는 렌더링과 포커스 복귀 시 다시 조회하지 않는다', async (t) => {
   const h = await mount(t)
   assert.equal(h.calls.length, 1)
   assert.equal(h.calls[0].channel, '/api')
@@ -383,7 +383,7 @@ await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링�
   await h.update({})
   assert.equal(h.calls.length, 1)
   await h.focus()
-  assert.equal(h.calls.length, 2)
+  assert.equal(h.calls.length, 1)
   assert.equal(h.listeners.get('focus').size, 1)
   h.unmount()
   assert.equal(h.listeners.get('focus').size, 0)
@@ -391,13 +391,44 @@ await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링�
   assert.equal(h.calls.at(-1).signal.aborted, true)
 })
 
-await test('컴포넌트 메뉴는 생성 항목과 기본 체크아웃을 연결된 워크트리보다 앞에 고정한다', async (t) => {
+await test('작업을 시작한 세션은 선택을 고정하고 재진입과 유휴 포커스에서 조회를 재사용한다', async (t) => {
+  const h = await mount(t)
+  await h.update({ running: true, started: true })
+  assert.equal(h.menu.anchor.props.disabled, true)
+  assert.equal(h.menu.anchor.props['aria-haspopup'], undefined)
+  assert.match(h.menu.anchor.props.title, /cannot change after work starts/)
+  await h.select('create')
+  await h.update({ running: false })
+  await h.focus()
+  assert.equal(h.calls.length, 1)
+  await h.navigate('other')
+  await h.navigate('original')
+  assert.equal(h.calls.length, 2, 'Returning to the locked session must reuse its synchronized checkout')
+  assert.equal(h.menu.anchor.props.disabled, true)
+  await h.changeDirectory('/other-worktree')
+  assert.equal(h.calls.length, 3, 'A changed working directory must invalidate the cached checkout')
+})
+
+await test('서버 잠금은 빈 세션 메타데이터와 관계없이 새 생성 예약을 차단한다', async (t) => {
+  const h = await mount(t, { rpc: () => success({ ...view(), locked: true, needsInitialization: true }) })
+  assert.deepEqual(operations(h), ['describe'])
+  assert.equal(h.menu.anchor.props.disabled, true)
+  assert.equal(h.menu.anchor.props['aria-haspopup'], undefined)
+  await h.select('create')
+  await h.focus()
+  assert.deepEqual(operations(h), ['describe'])
+  await h.navigate('other')
+  await h.navigate('original')
+  assert.equal(h.calls.filter((call) => call.payload.sessionId === 'original').length, 1)
+})
+
+await test('메뉴는 새 워크트리와 현재 체크아웃만 표시하고 다른 경로로 전환하지 않는다', async (t) => {
   const h = await mount(t, {
     rpc: ({ operation, payload }) => success(operation === 'select' ? selection(payload) : linkedView()),
   })
   assert.deepEqual(
     h.menuItems.map((item) => item.id),
-    ['create', 'path:/repo', 'path:/other-worktree']
+    ['create', 'path:/other-worktree']
   )
   assert.equal(h.selectedId, 'path:/other-worktree')
   assert.equal(h.menuItems.filter((item) => item.current).length, 1)
@@ -407,16 +438,16 @@ await test('컴포넌트 메뉴는 생성 항목과 기본 체크아웃을 연�
     elements(pinned)
       .filter((element) => element.type === 'MenuItemButton')
       .map((item) => item.key),
-    [undefined, '/repo']
+    [undefined, '/other-worktree']
   )
-  assert.equal(h.menuItems[2].separatorBefore, true)
-  await h.select('path:/repo')
+  await h.select('path:/other-worktree')
   const selections = h.calls.filter((call) => call.operation === 'select')
-  assert.equal(selections.length, 1)
-  assert.equal(selections[0].payload.choice, 'existing')
-  assert.equal(selections[0].payload.path, '/repo')
-  assert.equal(h.selectedId, 'path:/repo')
-  assert.deepEqual(operations(h), ['describe', 'select'])
+  assert.equal(selections.length, 0)
+  assert.equal(h.selectedId, 'path:/other-worktree')
+  await h.select('create')
+  await h.select('path:/other-worktree')
+  assert.equal(h.calls.at(-1).payload.choice, 'current')
+  assert.equal(h.calls.at(-1).payload.path, undefined)
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
@@ -426,10 +457,10 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.match(h.text, /feature\/worktree/)
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.select('create')
-    await h.select('path:/repo')
+    await h.select('path:/other-worktree')
     assert.deepEqual(operations(h), ['describe'], 'Disabled menu handlers must not perform writes')
     await h.focus()
-    assert.deepEqual(operations(h), ['describe', 'describe'])
+    assert.deepEqual(operations(h), ['describe'])
     assert.match(h.text, /feature\/worktree/)
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.update(ready)
@@ -437,12 +468,12 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.ok(h.calls.every((call) => call.operation === 'describe'))
   })
 
-  await test(`${name} 상태가 된 뒤의 포커스도 현재 변경 준비 상태를 사용해 읽는다`, async (t) => {
+  await test(`${name} 상태가 된 뒤의 포커스도 동기화된 워크트리를 다시 조회하지 않는다`, async (t) => {
     const h = await mount(t)
     await h.update(blocked)
     const beforeFocus = h.calls.length
     await h.focus()
-    assert.equal(h.calls.length, beforeFocus + 1)
+    assert.equal(h.calls.length, beforeFocus)
     assert.equal(h.calls.at(-1).operation, 'describe')
     assert.match(h.text, /main/)
     assert.equal(h.menu.anchor.props.disabled, true)
@@ -476,7 +507,7 @@ for (const { name, blocked, ready } of readReadinessCases) {
     assert.equal(h.calls.length, 1, `Focus must not describe after the session becomes ${name}`)
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.update(ready)
-    assert.equal(h.calls.length, 2, 'Becoming ready must refresh an already-loaded list')
+    assert.equal(h.calls.length, 1, 'Becoming ready must reuse an already-synchronized list')
     assert.equal(h.menu.anchor.props.disabled, false)
   })
 }
@@ -577,7 +608,7 @@ await test('조회 중 작업 경로가 바뀌면 요청을 중복 실행하지 
   assert.equal(h.menu.anchor.props.disabled, true)
 })
 
-await test('성공한 초기화는 describe가 다시 명시적으로 초기화를 요청할 때까지 반복하지 않는다', async (t) => {
+await test('생성 예약 상태는 초기화가 다시 필요해질 때만 초기화를 반복한다', async (t) => {
   let needsInitialization = true
   const h = await mount(t, {
     rpc: ({ operation }) => {
@@ -728,7 +759,7 @@ await test('키 기반 이동은 초기화를 중단하고 늦게 도착한 pend
   assert.equal(h.menu.anchor.props.disabled, true)
 })
 
-await test('진행 중인 describe 도중 반복된 포커스는 하나의 직렬화된 읽기로 합쳐진다', async (t) => {
+await test('진행 중인 describe 도중 반복된 포커스는 중복 조회를 예약하지 않는다', async (t) => {
   const response = deferred()
   let reads = 0
   const h = await mount(t, { rpc: () => (++reads === 1 ? response.promise : success()) })
@@ -737,7 +768,7 @@ await test('진행 중인 describe 도중 반복된 포커스는 하나의 직�
   assert.equal(h.calls.length, 1)
   response.resolve(success())
   await h.flush()
-  assert.deepEqual(operations(h), ['describe', 'describe'])
+  assert.deepEqual(operations(h), ['describe'])
   assert.match(h.text, /main/)
   assert.equal(h.menu.anchor.props.disabled, false)
 })
@@ -770,15 +801,15 @@ await test('사용 중인 최초 describe는 즉시 재시도 루프 없이 다�
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('사용 중인 포커스 새로 고침은 알려진 브랜치를 보존하고 자동 재시도를 유지한다', async (t) => {
+await test('알려진 브랜치는 반복 포커스에서도 추가 조회 없이 보존한다', async (t) => {
   let reads = 0
   const h = await mount(t, { rpc: () => (++reads === 2 ? failure('busy') : success()) })
   await h.focus()
-  assert.equal(h.calls.length, 2)
+  assert.equal(h.calls.length, 1)
   assert.match(h.text, /main/)
   assert.doesNotMatch(h.text, /Lookup failed/)
   await h.focus()
-  assert.equal(h.calls.length, 3)
+  assert.equal(h.calls.length, 1)
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
@@ -828,14 +859,16 @@ for (const code of ['forbidden', 'connection_error', 'invalid_response']) {
   })
 }
 
-for (const choice of ['new', 'existing']) {
+for (const choice of ['new', 'current']) {
   for (const code of ['timeout', 'busy', 'invalid_response']) {
     await test(`불확실한 ${choice} 선택 ${code} 결과는 포커스나 준비 상태에서 절대 재시도하지 않는다`, async (t) => {
       const h = await mount(t, {
-        rpc: ({ operation }) => (operation === 'select' ? failure(code) : success({ ...linkedView(), cwd: '/repo' })),
+        rpc: ({ operation }) =>
+          operation === 'select' ? failure(code) : success(choice === 'current' ? pendingCreationView() : view()),
       })
-      await h.select(choice === 'new' ? 'create' : 'path:/other-worktree')
-      assert.equal(h.calls.length, 2)
+      const beforeSelection = h.calls.length
+      await h.select(choice === 'new' ? 'create' : 'path:/repo')
+      assert.equal(h.calls.length, beforeSelection + 1)
       assert.equal(h.calls.at(-1).operation, 'select')
       assert.equal(h.calls.at(-1).payload.choice, choice)
       assert.equal(h.send(), false)
@@ -845,9 +878,13 @@ for (const choice of ['new', 'existing']) {
       await h.update({ running: true })
       await h.update({ running: false })
       await h.focus()
-      assert.equal(h.calls.length, 2, 'An uncertain selection requires explicit reconciliation, not automatic replay')
+      assert.equal(
+        h.calls.length,
+        beforeSelection + 1,
+        'An uncertain selection requires explicit reconciliation, not automatic replay'
+      )
       await h.retry()
-      assert.equal(h.calls.length, 3)
+      assert.equal(h.calls.length, beforeSelection + 2)
       assert.equal(h.calls.at(-1).operation, 'describe')
       assert.equal(h.calls.filter((call) => call.operation === 'select').length, 1)
       assert.equal(h.send(), true)
@@ -883,17 +920,17 @@ await test('불확실한 변경 뒤의 수동 확인이 사용 중이면 수동 
   assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
 })
 
-await test('선택 성공은 목록을 보존하고 describe나 변경 중 표시 없이 다음 작업 위치만 갱신한다', async (t) => {
+await test('생성 예약 성공은 describe나 변경 중 표시 없이 선택만 갱신한다', async (t) => {
   const h = await mount(t, {
     rpc: ({ operation, payload }) =>
       success(operation === 'select' ? selection(payload) : { ...linkedView(), cwd: '/repo' }),
   })
-  await h.select('path:/other-worktree')
+  await h.select('create')
   assert.deepEqual(operations(h), ['describe', 'select'])
-  assert.equal(h.menu.anchor.props.label, 'feature/worktree')
+  assert.equal(h.menu.anchor.props.label, 'New worktree')
   assert.match(h.menu.anchor.props.title, /Next task location.*next prompt/)
-  assert.equal(h.selectedId, 'path:/other-worktree')
-  assert.equal(h.menuItems.length, 3, 'Selection-only responses must retain the last described worktree list')
+  assert.equal(h.selectedId, 'create')
+  assert.equal(h.menuItems.length, 2, 'Selection-only responses retain the current checkout without other worktrees')
   assert.equal(h.menu.anchor.props['aria-busy'], false)
   assert.equal(h.menu.anchor.props.disabled, false)
   assert.equal(h.send(), true)
@@ -918,7 +955,7 @@ await test('키 기반 이동은 진행 중인 조회를 중단하고 늦게 도
   assert.doesNotMatch(h.text, /Lookup failed/)
   assert.equal(h.warnings.length, 0, 'Aborted replies must not be recorded as failures')
   await h.focus()
-  assert.equal(h.calls.length, 3)
+  assert.equal(h.calls.length, 2)
   assert.equal(h.calls.at(-1).payload.sessionId, 'other')
   assert.equal(h.menu.anchor.props.disabled, false)
 })
@@ -1070,22 +1107,20 @@ await test('선택 실패 뒤 현재 위치를 직접 선택하면 예약과 전
   assert.doesNotMatch(h.text, /Check worktree state/)
 })
 
-await test('실패한 생성이나 기존 워크트리 예약도 현재 위치 선택으로 취소한다', async (t) => {
-  for (const pending of [
-    { pendingCreation: { name: 'New worktree', failed: true } },
-    { pendingSwitch: { path: '/other-worktree', failed: true } },
-  ]) {
-    const h = await mount(t, {
-      rpc: ({ operation, payload }) =>
-        success(operation === 'select' ? selection(payload) : { ...linkedView(), cwd: '/repo', ...pending }),
-    })
-    assert.match(h.text, /Check worktree state/)
-    await h.select('path:/repo')
-    assert.equal(h.calls.at(-1).payload.choice, 'current')
-    assert.equal(h.selectedId, 'path:/repo')
-    assert.doesNotMatch(h.text, /Check worktree state/)
-    h.unmount()
-  }
+await test('실패한 생성 예약은 현재 위치 선택으로 취소한다', async (t) => {
+  const h = await mount(t, {
+    rpc: ({ operation, payload }) =>
+      success(
+        operation === 'select'
+          ? selection(payload)
+          : { ...view(), pendingCreation: { name: 'New worktree', failed: true } }
+      ),
+  })
+  assert.match(h.text, /Check worktree state/)
+  await h.select('path:/repo')
+  assert.equal(h.calls.at(-1).payload.choice, 'current')
+  assert.equal(h.selectedId, 'path:/repo')
+  assert.doesNotMatch(h.text, /Check worktree state/)
 })
 
 await test('플러그인 해제는 마운트된 구독이 있어도 자기 차단을 복원하거나 다른 차단을 지우지 않는다', async (t) => {
@@ -1186,13 +1221,13 @@ for (const [language, title, hint] of [
   ['ko', '다음 작업 위치', /다음 프롬프트/],
   ['zh', '下一任务的位置', /下一条提示/],
 ]) {
-  await test(`${language} 로케일은 선택된 기존 워크트리를 다음 작업 위치로 안내한다`, async (t) => {
+  await test(`${language} 로케일은 생성 예약을 다음 작업 위치로 안내한다`, async (t) => {
     const h = await mount(t, {
       language,
       rpc: ({ operation, payload }) =>
         success(operation === 'select' ? selection(payload) : { ...linkedView(), cwd: '/repo' }),
     })
-    await h.select('path:/other-worktree')
+    await h.select('create')
     assert.match(h.menu.anchor.props['aria-label'], new RegExp(title))
     assert.match(h.menu.anchor.props.title, hint)
     assert.match(h.text, hint)

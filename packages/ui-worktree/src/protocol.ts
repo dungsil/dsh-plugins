@@ -55,7 +55,7 @@ export interface WorktreeSettingsView {
 export interface WorktreeSelectionView {
   cwd: string
   pendingCreation?: { name: string; failed: boolean }
-  pendingSwitch?: { path: string; failed: boolean }
+  locked?: boolean
 }
 
 export interface WorktreeView extends WorktreeSelectionView {
@@ -87,16 +87,11 @@ export function isWorktreeSelectionView(value: unknown): value is WorktreeSelect
   const view = value as Partial<WorktreeSelectionView>
   return (
     typeof view.cwd === 'string' &&
-    !(view.pendingCreation !== undefined && view.pendingSwitch !== undefined) &&
+    (view.locked === undefined || typeof view.locked === 'boolean') &&
     (view.pendingCreation === undefined ||
       (view.pendingCreation !== null &&
         typeof view.pendingCreation.name === 'string' &&
-        typeof view.pendingCreation.failed === 'boolean')) &&
-    (view.pendingSwitch === undefined ||
-      (view.pendingSwitch !== null &&
-        typeof view.pendingSwitch.path === 'string' &&
-        view.pendingSwitch.path.length > 0 &&
-        typeof view.pendingSwitch.failed === 'boolean'))
+        typeof view.pendingCreation.failed === 'boolean'))
   )
 }
 
