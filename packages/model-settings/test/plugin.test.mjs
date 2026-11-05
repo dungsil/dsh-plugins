@@ -4,6 +4,30 @@ import test from 'node:test'
 import { profileFixture, titleConfig } from './profile.mjs'
 
 for (const strategy of ['first-prompt', 'all-prompts']) {
+  await test(`${strategy}: 제목 생성기가 활성화에 실패해도 나머지 모델 설정을 조회하고 저장하고 복원한다`, async (t) => {
+    const h = await profileFixture(strategy, { targetWords: 0 }, { naming: 'semantic' }, {})
+    t.after(h.close)
+    const initial = await h.rpc('describe')
+    assert.equal(initial.ok, true)
+    assert.equal(initial.value.target, null)
+    const route = { provider: 'auxiliary', model: 'title-small' }
+    for (const task of ['auxiliary', 'worktree', 'yoonmoon']) {
+      assert.ok(initial.value[task])
+      const saved = await h.rpc('save', { ...initial.value[task], route, reasoningEffort: 'quick' })
+      assert.equal(saved.ok, true)
+      assert.deepEqual(saved.value.route, route)
+      assert.equal(saved.value.reasoningEffort, 'quick')
+    }
+    await h.restart()
+    const restored = await h.rpc('describe')
+    assert.equal(restored.ok, true)
+    assert.equal(restored.value.target, null)
+    for (const task of ['auxiliary', 'worktree', 'yoonmoon']) {
+      assert.deepEqual(restored.value[task].route, route)
+      assert.equal(restored.value[task].reasoningEffort, 'quick')
+    }
+  })
+
   await test(`${strategy}: 편집 가능한 기본 프롬프트는 작업 지침을 대체하고 유지되며 대화 호출에는 포함되지 않는다`, async (t) => {
     const h = await profileFixture(strategy, {}, { naming: 'semantic' }, {})
     t.after(h.close)
