@@ -47,3 +47,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_PACKAGE: ${{ inputs.package }}
           RELEASE_VERSION: ${{ inputs.version }}
+      - name: Check market index is current
+        run: pnpm market:index --check
