@@ -18,15 +18,12 @@ const copy = {
     noSign: '항상 커밋 서명 비활성화',
     noSignHint:
       '활성화하면 이 UI에서 생성하는 커밋에 --no-gpg-sign을 적용합니다. 비활성화하면 기존 Git 서명 설정을 따릅니다.',
-    save: '저장',
     saved: '저장했습니다.',
     loading: '불러오는 중…',
     error: '결과를 확인하지 못했습니다. 새로고침한 뒤 다시 시도하세요.',
     conflict: '다른 곳에서 설정을 변경했습니다. 새로고침한 뒤 다시 입력하세요.',
     invalid: '이름과 올바른 이메일을 함께 입력하거나 두 항목을 모두 비우세요.',
     cli: 'CLI 인증 상태',
-    cliHint:
-      'DSH 호스트의 계정과 호스트만 표시하며 토큰·비밀번호는 표시하지 않습니다. 현재 세션의 샌드박스 정책으로 확인합니다.',
     refresh: '새로고침',
     selectSession: 'CLI 상태를 확인하려면 세션을 먼저 여세요.',
     authenticated: '인증됨',
@@ -48,15 +45,12 @@ const copy = {
     noSign: 'Always disable commit signing',
     noSignHint:
       'When enabled, commits created by this UI use --no-gpg-sign. Otherwise, existing Git signing settings apply.',
-    save: 'Save',
     saved: 'Saved.',
     loading: 'Loading…',
     error: 'Could not confirm the result. Refresh before retrying.',
     conflict: 'Settings changed elsewhere. Refresh and enter your changes again.',
     invalid: 'Enter both a name and a valid email, or leave both fields empty.',
     cli: 'CLI authentication',
-    cliHint:
-      'Shows accounts and hosts on the DSH host, never tokens or passwords. Checked under the current session’s sandbox policy.',
     refresh: 'Refresh',
     selectSession: 'Open a session to check CLI status.',
     authenticated: 'Authenticated',
@@ -76,14 +70,12 @@ const copy = {
     authorHint: '将两个字段都留空以使用现有 Git 作者，不更改提交者。',
     noSign: '始终禁用提交签名',
     noSignHint: '启用时，此 UI 创建的提交使用 --no-gpg-sign；否则遵循现有 Git 签名设置。',
-    save: '保存',
     saved: '已保存。',
     loading: '正在加载…',
     error: '无法确认结果，请刷新后重试。',
     conflict: '设置已在其他位置更改，请刷新后重新输入。',
     invalid: '请输入姓名和有效邮箱，或将两个字段都留空。',
     cli: 'CLI 认证状态',
-    cliHint: '仅显示 DSH 主机上的账号和主机，不显示令牌或密码。使用当前会话的沙箱策略检查。',
     refresh: '刷新',
     selectSession: '请先打开会话以检查 CLI 状态。',
     authenticated: '已认证',
@@ -114,7 +106,6 @@ function VcsSettings({ ctx }: { ctx: Context }) {
   const [cli, setCli] = useState<CliStatus[]>()
   const [checking, setChecking] = useState(false)
   const [cliError, setCliError] = useState(false)
-  const [cliRevision, setCliRevision] = useState(0)
   const pending = useRef(false)
   const lifetime = useRef<AbortController | null>(null)
 
@@ -152,7 +143,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
     setChecking(false)
     if (sessionId) void check(controller.signal)
     return () => controller.abort()
-  }, [sessionId, cliRevision])
+  }, [sessionId])
 
   const check = async (signal: AbortSignal) => {
     setChecking(true)
@@ -174,6 +165,8 @@ function VcsSettings({ ctx }: { ctx: Context }) {
   const save = async () => {
     const signal = lifetime.current?.signal
     if (!signal || signal.aborted || pending.current || !view || !validCommitSettings(draft) || blocked) return
+    if (JSON.stringify(view.settings) === JSON.stringify(draft)) return
+    const settings = draft
     pending.current = true
     setBusy(true)
     setNotice(undefined)
@@ -181,7 +174,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
       const result = await connection.rpc.call(
         channel,
         'dungsil-vcs/save-settings',
-        { revision: view.revision, settings: draft },
+        { revision: view.revision, settings },
         signal
       )
       if (signal.aborted) return
@@ -192,7 +185,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
       }
       const next = result.value as CommitSettingsView
       setView(next)
-      setDraft(next.settings)
+      setDraft((current) => (JSON.stringify(current) === JSON.stringify(settings) ? next.settings : current))
       setNotice('saved')
     } catch {
       if (!signal.aborted) {
@@ -204,6 +197,13 @@ function VcsSettings({ ctx }: { ctx: Context }) {
       if (!signal.aborted) setBusy(false)
     }
   }
+  useEffect(() => {
+    if (busy || blocked || !view || !validCommitSettings(draft)) return
+    if (JSON.stringify(view.settings) === JSON.stringify(draft)) return
+    const timer = setTimeout(() => void save(), 600)
+    return () => clearTimeout(timer)
+  }, [draft, view, busy, blocked])
+
   return (
     <section className="dsh-vcs-settings" aria-label={text.nav}>
       <p>{text.scope}</p>
@@ -214,7 +214,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
         }}
       >
         {draft && (
-          <fieldset disabled={busy || blocked}>
+          <fieldset disabled={blocked}>
             <h3>{text.author}</h3>
             <p>{text.authorHint}</p>
             <SettingsRow label={<label htmlFor={`${id}-name`}>{text.name}</label>}>
@@ -255,7 +255,7 @@ function VcsSettings({ ctx }: { ctx: Context }) {
               <Switch
                 label={text.noSign}
                 checked={draft.noSign}
-                disabled={busy || blocked}
+                disabled={blocked}
                 onChange={(noSign) => {
                   setDraft({ ...draft, noSign })
                   setNotice(undefined)
@@ -263,19 +263,6 @@ function VcsSettings({ ctx }: { ctx: Context }) {
               />
             </SettingsRow>
             {!validCommitSettings(draft) && <p role="alert">{text.invalid}</p>}
-            <div className="dsh-vcs-settings-actions">
-              <Button
-                type="submit"
-                disabled={
-                  busy ||
-                  blocked ||
-                  !validCommitSettings(draft) ||
-                  JSON.stringify(view?.settings) === JSON.stringify(draft)
-                }
-              >
-                {text.save}
-              </Button>
-            </div>
           </fieldset>
         )}
         {busy && <p role="status">{text.loading}</p>}
@@ -293,14 +280,10 @@ function VcsSettings({ ctx }: { ctx: Context }) {
         )}
       </form>
       <h3>{text.cli}</h3>
-      <p>{text.cliHint}</p>
       {!sessionId ? (
         <p role="status">{text.selectSession}</p>
       ) : (
         <>
-          <Button type="button" disabled={checking} onClick={() => setCliRevision((value) => value + 1)}>
-            {text.refresh}
-          </Button>
           {checking && <p role="status">{text.loading}</p>}
           {cliError && <p role="alert">{text.error}</p>}
           {cli?.map((item) => (
@@ -344,7 +327,6 @@ export function apply(ctx: Context) {
 .dsh-vcs-settings p { color: var(--dsw-alias-label-secondary); margin: 8px 0; overflow-wrap: anywhere; }
 .dsh-vcs-settings .dsh-plugin-settings-text p { font-size: 12px; line-height: 20px; margin: 4px 0 0; }
 .dsh-vcs-settings-input { box-sizing: border-box; width: 240px; max-width: 65%; flex: 0 1 240px; min-width: 0; }
-.dsh-vcs-settings-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .dsh-vcs-settings [role=alert] { color: var(--dsw-alias-state-error-primary); }
 .dsh-vcs-settings-cli .dsh-plugin-settings-row { padding: 8px 0; }
 `),
