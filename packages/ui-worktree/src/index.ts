@@ -9,12 +9,17 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { Session, SessionId, appendPluginRecord, pluginRecordOf } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, appendPluginRecord, pluginRecordOf, type PluginRecordMap } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
+import type {} from '@deepseek-ai/dsh-session-persistence'
+import type {} from '@deepseek-ai/dsh-storage-domain'
+import { workspaceDomainState } from '@deepseek-ai/dsh-workspace'
 import {
   channel,
   endpointPrefix,
+  currentWorktree,
+  ownershipRecord,
   progressRecord,
   selectionRecord,
   type WorktreeProgress,
@@ -35,12 +40,15 @@ export const inject = [
   'subprocess',
   'sandbox',
   'sandboxPolicy',
+  'workspaceRegistry',
+  'sessionPersistence',
 ]
 
 export const Config = z.object({
   defaultSelection: z.union(['current', 'new']).default('current'),
   directory: z.string().default('.agents/worktrees'),
   remote: z.boolean().default(false),
+  deleteOnArchive: z.boolean().default(false),
   naming: z.union(['semantic', 'dsh', 'custom']).default('semantic'),
   prefix: z.string().default(''),
   provider: z.string(),
@@ -58,6 +66,7 @@ function validSettings(value: unknown): value is WorktreeSettings {
     input.directory.length <= 4096 &&
     !/[\0\r\n]/.test(input.directory) &&
     typeof input.remote === 'boolean' &&
+    typeof input.deleteOnArchive === 'boolean' &&
     ['semantic', 'dsh', 'custom'].includes(input.naming) &&
     typeof input.prefix === 'string' &&
     input.prefix.length <= 100 &&
@@ -322,6 +331,7 @@ export function apply(ctx: Context, config: Config) {
         defaultSelection: current?.defaultSelection ?? 'current',
         directory: current?.directory ?? '.agents/worktrees',
         remote: current?.remote ?? false,
+        deleteOnArchive: current?.deleteOnArchive ?? false,
         naming: current?.naming ?? 'semantic',
         prefix: current?.prefix ?? '',
       },
@@ -424,9 +434,26 @@ export function apply(ctx: Context, config: Config) {
     report(2)
     await allocate(true)
     await git(['worktree', 'add', '--no-checkout', '-b', branch, '--', path, commit])
-    // Disable checkout filters just as the host runtime does; never execute repository programs.
-    const filters = await run(
+    const env = await withoutFilters(agent.session, path, signal)
+    await allocate(true)
+    await run(
       agent.session,
+      path,
+      ['--work-tree', path, 'reset', '--hard', '--no-recurse-submodules', commit],
+      signal,
+      'git',
+      env
+    )
+    report(3)
+    appendPluginRecord(agent.session, ownershipRecord, { path, source: root, branch, sessionId: agent.id })
+    await ctx.sessions.flush(agent.session)
+    await ctx.workingDirectory.set(agent, path, signal)
+  }
+
+  // Both checkout and status/removal can run repository-defined filter programs.
+  const withoutFilters = async (session: Session, path: string, signal: AbortSignal) => {
+    const filters = await run(
+      session,
       path,
       ['--work-tree', path, 'config', '--null', '--name-only', '--get-regexp', '^filter\\.'],
       signal,
@@ -449,18 +476,94 @@ export function apply(ctx: Context, config: Config) {
         env[`GIT_CONFIG_KEY_${index}`] = `filter.${driver}.${attribute}`
         env[`GIT_CONFIG_VALUE_${index++}`] = attribute === 'required' ? 'false' : ''
       }
-    await allocate(true)
-    await run(
-      agent.session,
-      path,
-      ['--work-tree', path, 'reset', '--hard', '--no-recurse-submodules', commit],
-      signal,
-      'git',
-      env
-    )
-    report(3)
-    await ctx.workingDirectory.set(agent, path, signal)
+    return env
   }
+
+  // Observe committed archive transitions, not the optional stop-activity request.
+  // Never sweep old archives when this option is enabled or the plugin reloads.
+  let archived = new Set(ctx.workspaceRegistry.archivedSessionIds)
+  const cleanup = async (sessionId: SessionId) => {
+    const resolved = await ctx.sessionController.resolveAgent(sessionId)
+    if ('error' in resolved) return
+    const { agent } = resolved
+    await agent.whenIdle()
+    if (pending.has(sessionId) || saving || lifetime.signal.aborted) return
+    pending.add(sessionId)
+    try {
+      await agent.runMaintenance(async (maintenanceSignal) => {
+        const signal = AbortSignal.any([maintenanceSignal, lifetime.signal, AbortSignal.timeout(60_000)])
+        if (!ctx.workspaceRegistry.archivedSessionIds.includes(sessionId)) return
+        if ((await ctx.waterfall('workspace/session-activity', { sessionId }, () => Promise.resolve([]))).length) return
+        const record = agent.session
+          .snapshotEvents()
+          .map(pluginRecordOf)
+          .findLast((record) => record?.type === ownershipRecord)
+        const owned = record?.data as Partial<PluginRecordMap[typeof ownershipRecord]> | undefined
+        if (!owned || owned.sessionId !== sessionId) return
+        const { path, source, branch } = owned
+        if (typeof path !== 'string' || typeof source !== 'string' || typeof branch !== 'string') return
+        const contains = (cwd: string) => !!currentWorktree({ cwd, worktrees: [{ path, branch }] })
+        if (!contains(ctx.workingDirectory.get(agent.session))) return
+        const view = await describe(agent.session, signal, agent)
+        const selected = currentWorktree({ cwd: path, worktrees: view.worktrees })
+        if (!selected || selected.branch !== branch || !contains(selected.path)) return
+        const env = await withoutFilters(agent.session, path, signal)
+        if (
+          await run(
+            agent.session,
+            path,
+            ['status', '--porcelain', '--untracked-files=all', '--ignored'],
+            signal,
+            'git',
+            env
+          )
+        )
+          return
+        // Include closed conversations, not just currently loaded Agents. A fork
+        // inherits the ownership record but is never its owner.
+        for (const session of ctx.sessions.list()) {
+          if (session.id !== sessionId && contains(ctx.workingDirectory.get(session))) return
+        }
+        for (const { header } of await ctx.sessionPersistence.list({ signal })) {
+          if (header.id === sessionId || ctx.sessions.get(header.id)) continue
+          const handle = await ctx.sessionPersistence.open(header.id, 'read', { signal })
+          try {
+            const { events } = await handle.read(undefined, undefined, { signal })
+            const cwd = events.findLast((event) => event.type === 'working-directory/change')
+            if (
+              contains(
+                cwd?.type === 'working-directory/change'
+                  ? cwd.data.cwd
+                  : (header.cwd ?? ctx.workingDirectory.defaultDirectory)
+              )
+            )
+              return
+          } finally {
+            await handle.close()
+          }
+        }
+        if (!ctx.workspaceRegistry.archivedSessionIds.includes(sessionId)) return
+        // Git refuses dirty, locked and primary checkouts. Never force removal
+        // or delete the branch; restoring the conversation keeps its commits.
+        await run(agent.session, source, ['worktree', 'remove', '--', path], signal, 'git', env)
+        await ctx.workingDirectory.ensure(agent, signal)
+        await ctx.sessions.flush(agent.session)
+      })
+    } finally {
+      pending.delete(sessionId)
+    }
+  }
+  ctx.on('domain/changed', (change) => {
+    if (change.domain !== 'workspace' || change.table !== '' || change.operation !== 'put') return
+    const next = new Set(workspaceDomainState.parse(change.value).archivedSessionIds)
+    const added = [...next].filter((id) => !archived.has(id))
+    archived = next
+    if (!config.deleteOnArchive) return
+    for (const id of added)
+      void cleanup(id).catch(() => {
+        ctx.logger.warn('ui-worktree: archive cleanup skipped or failed; worktree was not force-removed')
+      })
+  })
 
   const failure = (code: string) => ({
     ok: false as const,
@@ -488,8 +591,9 @@ export function apply(ctx: Context, config: Config) {
         signal.throwIfAborted()
         await ctx.configEditor.edit(entry(), (current) => {
           if (snapshot().revision !== input.revision) throw new Error('conflict')
-          const { defaultSelection, directory, remote, naming, prefix } = input.settings as WorktreeSettings
-          return { ...current, defaultSelection, directory, remote, naming, prefix }
+          const { defaultSelection, directory, remote, deleteOnArchive, naming, prefix } =
+            input.settings as WorktreeSettings
+          return { ...current, defaultSelection, directory, remote, deleteOnArchive, naming, prefix }
         })
         return { ok: true as const, value: snapshot() }
       } catch (error) {

@@ -20,8 +20,60 @@ on:
     - cron: '16 10 * * 6'
 
 jobs:
+  changes:
+    name: Detect changed languages
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      languages: ${{ steps.detect.outputs.languages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect changed languages
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          actions=false
+          javascript=false
+          if [[ "$EVENT_NAME" == schedule ]]; then
+            actions=true
+            javascript=true
+          else
+            if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+              git ls-tree -r --name-only -z "$HEAD_SHA" > "$RUNNER_TEMP/codeql-changed-files"
+            else
+              comparison="$BASE_SHA..$HEAD_SHA"
+              if [[ "$EVENT_NAME" == pull_request ]]; then
+                comparison="$BASE_SHA...$HEAD_SHA"
+              fi
+              git diff --name-only --no-renames -z "$comparison" > "$RUNNER_TEMP/codeql-changed-files"
+            fi
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                .github/workflows/*.yml|.github/workflows/*.yaml|action.yml|action.yaml|*/action.yml|*/action.yaml)
+                  actions=true ;;
+                *.js|*.jsx|*.mjs|*.cjs|*.es|*.es6|*.ts|*.tsx|*.mts|*.cts|*.htm|*.html|*.xhtm|*.xhtml|*.vue|*.hbs|*.ejs|*.njk)
+                  javascript=true ;;
+              esac
+            done < "$RUNNER_TEMP/codeql-changed-files"
+          fi
+          languages=()
+          if [[ "$actions" == true ]]; then languages+=(actions); fi
+          if [[ "$javascript" == true ]]; then languages+=(javascript-typescript); fi
+          echo "languages=$(jq -cn --args '$ARGS.positional' "${languages[@]}")" >> "$GITHUB_OUTPUT"
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: changes
+    if: needs.changes.outputs.languages != '[]'
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
@@ -42,11 +94,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: actions
-            build-mode: none
-          - language: javascript-typescript
-            build-mode: none
+        language: ${{ fromJSON(needs.changes.outputs.languages) }}
+        build-mode: [none]
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both

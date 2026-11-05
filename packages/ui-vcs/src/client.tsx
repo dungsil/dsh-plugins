@@ -283,14 +283,14 @@ export function apply(ctx: Context) {
   }
 
   ctx.slots.inject('conversation.input.dock', () =>
-    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: 100 }, (props) => (
+    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: -100 }, (props) => (
       <Action key={props.sessionId} {...props} />
     ))
   )
   ctx.effect(() => {
     const style = document.createElement('style')
     style.textContent = `
-.dsh-vcs { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance)); max-width: var(--dsh-composer-card-max-width); margin: 0 auto; padding-bottom: 8px; }
+.dsh-vcs { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance) - 4 * var(--dsh-composer-dock-inset)); max-width: calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset)); margin: 0 auto; padding-bottom: 8px; }
 .dsh-vcs-actions { display: inline-flex; align-items: center; }
 .dsh-vcs-actions > .dsh-vcs-trigger { border-radius: 14px 0 0 14px; }
 .dsh-vcs-actions > .dsh-vcs-trigger:only-child { border-radius: 14px; }

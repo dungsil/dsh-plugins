@@ -30,7 +30,7 @@ function mount(language = 'en') {
   const react = {
     useState(initial) {
       const index = cursor++
-      if (!(index in hooks)) hooks[index] = initial
+      if (!(index in hooks)) hooks[index] = typeof initial === 'function' ? initial() : initial
       return [
         hooks[index],
         (value) => {
@@ -229,12 +229,15 @@ await test('sidebar navigations fetch the clicked PR and discard an older respon
     fixture.render()
     assert.equal(fixture.calls.length, 1)
     assert.equal(fixture.calls[0].payload.requestUrl, 'https://github.com/team/repo/pull/42')
+    assert.equal(fixture.calls[0].payload.summary, true)
     fixture.tab.navigation = { revision: 2, params: { requestUrl: 'https://github.com/team/repo/pull/43/files' } }
     fixture.render()
     assert.equal(fixture.calls[0].signal.aborted, true)
     assert.equal(fixture.calls[1].payload.requestUrl, 'https://github.com/team/repo/pull/43')
     fixture.calls[1].resolve({ ok: true, value: request(43) })
     await settle()
+    assert.equal(fixture.calls[2].payload.requestUrl, 'https://github.com/team/repo/pull/43')
+    assert.equal(fixture.calls[2].payload.summary, false)
     fixture.calls[0].resolve({ ok: true, value: request(42) })
     await settle()
     const tree = fixture.render()
@@ -242,10 +245,23 @@ await test('sidebar navigations fetch the clicked PR and discard an older respon
     assert.ok(!texts(tree).includes('Request 42'))
     fixture.tab.navigation = { revision: 3, params: undefined }
     fixture.render()
-    assert.equal(fixture.calls[2].payload.requestUrl, undefined)
+    assert.equal(fixture.calls[2].signal.aborted, true)
+    assert.equal(fixture.calls[3].payload.requestUrl, undefined)
+    assert.equal(fixture.calls[3].payload.summary, true)
+    assert.ok(!texts(fixture.render()).includes('Request 43'))
     fixture.calls[2].resolve({ ok: true, value: request(44) })
     await settle()
+    assert.ok(!texts(fixture.render()).includes('Request 44'))
+    fixture.calls[3].resolve({ ok: true, value: request(44) })
+    await settle()
     assert.ok(texts(fixture.render()).includes('Request 44'))
+    fixture.tab.navigation = { revision: 4, params: { requestUrl: 'https://github.com/team/repo/pull/43' } }
+    fixture.render()
+    const cached = texts(fixture.render())
+    assert.ok(cached.includes('Request 43'))
+    assert.ok(!cached.includes('Request 44'))
+    assert.equal(fixture.calls.at(-1).payload.requestUrl, 'https://github.com/team/repo/pull/43')
+    assert.equal(fixture.calls.at(-1).payload.summary, false)
   } finally {
     fixture.dispose()
   }
