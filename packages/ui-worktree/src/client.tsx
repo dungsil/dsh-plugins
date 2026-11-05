@@ -17,7 +17,15 @@ import {
   worktreeSettingsIconSvg,
 } from '@dungsil/dsh-ui/icons'
 import { installSettingsIcon, Menu, MenuItemButton } from '@dungsil/dsh-ui'
-import { channel, currentWorktree, endpointPrefix, isWorktreeView, type WorktreeView } from './protocol.js'
+import {
+  channel,
+  currentWorktree,
+  endpointPrefix,
+  isWorktreeSelectionView,
+  isWorktreeView,
+  type WorktreeSelectionView,
+  type WorktreeView,
+} from './protocol.js'
 import { failureCode, type WorktreeFailure, type WorktreeOperation } from './errors.js'
 import { copy } from './requests.js'
 import { settingsLabel, WorktreeSettingsSection } from './settings.js'
@@ -26,7 +34,7 @@ import { installSidebarLabel } from './sidebar.js'
 import { installProgress } from './progress.js'
 
 export const name = 'dungsil-ui-worktree'
-export const inject = ['slots', 'locale', 'connection', 'uiConversation']
+export const inject = ['slots', 'locale', 'connection', 'uiConversation', 'conversation']
 
 type Props = PropsRuntime<'conversation.input.left'>
 
@@ -34,12 +42,25 @@ export function apply(ctx: Context) {
   ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconSvg))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   installProgress(ctx)
-  function Picker({ sessionId, useSession, useProjection }: Props) {
+  // Keep unresolved gates across keyed navigation until that session is reconciled.
+  // ComposerBlocks is a shared single-value registry, not an owner-keyed stack.
+  const ownedBlocks = new Map<Props['sessionId'], { reason: string }>()
+  const blocks = ctx.conversation.blocks
+  ctx.effect(() => () => {
+    const owned = [...ownedBlocks]
+    ownedBlocks.clear()
+    for (const [id, block] of owned) {
+      if (blocks.storeFor(id).getSnapshot() === block) blocks.set(id, undefined)
+    }
+  })
+  function Picker({ sessionId, useSession, useProjection, useInput }: Props) {
     const { active: language } = useLocaleSnapshot(ctx.locale)
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
-    const unavailable = useSession(
+    const inputBusy = useInput((input) => input.phase !== 'plain')
+    const sessionBusy = useSession(
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
+    const unavailable = sessionBusy || inputBusy
     const unavailableRef = useRef(unavailable)
     unavailableRef.current = unavailable
     const unreadable = useSession((s) => s.removed || s.openState !== 'open')
@@ -49,7 +70,12 @@ export function apply(ctx: Context) {
     const previousReadiness = useRef({ unreadable: true, unavailable, cwd })
     const [view, setView] = useState<WorktreeView>()
     const [loading, setLoading] = useState(true)
-    const [busy, setBusy] = useState(false)
+    const viewRef = useRef(view)
+    viewRef.current = view
+    type Selection = { version: number; cwd: string; choice: 'current' | 'new' | 'existing'; path?: string }
+    const selected = useRef<Selection>()
+    const saving = useRef(false)
+    const version = useRef(0)
     const [error, setError] = useState<WorktreeFailure>()
     const [changed, setChanged] = useState(false)
     const [open, setOpen] = useState(false)
@@ -62,33 +88,78 @@ export function apply(ctx: Context) {
     const errorTitle = useId()
     const errorDescription = useId()
     const status = useId()
-    const disabled = unavailable || loading || busy || !!error || !view
+    const disabled = unavailable || loading || !view
     const creation = view?.pendingCreation
+    const switching = view?.pendingSwitch
     const detailError: WorktreeFailure | undefined =
-      error ?? (creation?.failed ? { operation: 'create', code: 'operation_failed', uncertain: true } : undefined)
+      error ??
+      (creation?.failed || switching?.failed
+        ? { operation: creation ? 'create' : 'switch', code: 'operation_failed', uncertain: true }
+        : undefined)
     const errorLabel = detailError?.uncertain ? text.mutationError : text.lookupError
+
+    const gate = (reason?: string) => {
+      const store = blocks.storeFor(sessionId)
+      const owned = ownedBlocks.get(sessionId)
+      const current = store.getSnapshot()
+      if (!reason) {
+        ownedBlocks.delete(sessionId)
+        if (owned && current === owned) blocks.set(sessionId, undefined)
+      } else {
+        const block = owned?.reason === reason ? owned : { reason }
+        ownedBlocks.set(sessionId, block)
+        if (!current || current === owned) blocks.set(sessionId, block)
+      }
+    }
 
     const recordFailure = (operation: WorktreeOperation, cause: unknown) => {
       const code = failureCode(cause)
       needsRefresh.current = true
-      setError((previous) => ({ operation, code, uncertain: operation !== 'describe' || !!previous?.uncertain }))
+      const uncertain = operation !== 'describe' || ownedBlocks.has(sessionId)
+      if (uncertain) gate(text.selectionError)
+      setError((previous) => ({ operation, code, uncertain: uncertain || !!previous?.uncertain }))
       console.warn('[dungsil-ui-worktree]', { operation, code })
     }
 
-    const request = async (operation: WorktreeOperation, payload: object, signal: AbortSignal) => {
+    const call = async (operation: WorktreeOperation, payload: object, signal: AbortSignal) => {
       if (typeof connection?.rpc?.call !== 'function') throw { code: 'client_unavailable' }
       const result = await connection.rpc.call(channel, endpointPrefix + operation, payload, signal)
       signal.throwIfAborted()
       if (!result.ok) throw result.error
-      if (!isWorktreeView(result.value)) throw { code: 'invalid_response' }
       return result.value
+    }
+    const request = async (operation: 'describe' | 'initialize', payload: object, signal: AbortSignal) => {
+      const value = await call(operation, payload, signal)
+      if (!isWorktreeView(value)) throw { code: 'invalid_response' }
+      return value
+    }
+    const updateView = (next: WorktreeView) => {
+      viewRef.current = next
+      setView(next)
+    }
+    const mergeSelection = (next: WorktreeSelectionView) => {
+      const previous = viewRef.current
+      if (!previous) return
+      updateView({
+        ...previous,
+        cwd: next.cwd,
+        pendingCreation: next.pendingCreation,
+        pendingSwitch: next.pendingSwitch,
+        needsInitialization: false,
+      })
     }
 
     // Serialize reads and writes. Never automatically retry an uncertain mutation,
     // and ignore replies after unmount (including navigation to another Session).
     const load = async (explicit = false) => {
       const controller = lifetime.current
-      if (!controller || controller.signal.aborted || unreadableRef.current || (needsRefresh.current && !explicit))
+      if (
+        !controller ||
+        controller.signal.aborted ||
+        unreadableRef.current ||
+        saving.current ||
+        (needsRefresh.current && !explicit)
+      )
         return
       if (pending.current) {
         reloadRequested.current = true
@@ -101,18 +172,23 @@ export function apply(ctx: Context) {
       try {
         const view = await request('describe', { sessionId }, controller.signal)
         if (controller.signal.aborted) return
-        setView(view)
+        updateView(view)
         if (view.needsInitialization && !unavailableRef.current) {
           operation = 'initialize'
+          gate(text.savingSelection)
           const initialized = await request('initialize', { sessionId, cwd: view.cwd }, controller.signal)
           if (controller.signal.aborted) return
-          setView(initialized)
+          updateView(initialized)
         }
         needsRefresh.current = false
         setError(undefined)
+        gate()
       } catch (cause) {
         // A busy response changes nothing. Keep prior errors until verification succeeds.
-        if (!controller.signal.aborted && failureCode(cause) !== 'busy') recordFailure(operation, cause)
+        if (!controller.signal.aborted) {
+          if (failureCode(cause) !== 'busy') recordFailure(operation, cause)
+          else if (!needsRefresh.current && operation === 'initialize') gate()
+        }
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
@@ -129,6 +205,13 @@ export function apply(ctx: Context) {
       const controller = new AbortController()
       lifetime.current = controller
       pending.current = false
+      const store = blocks.storeFor(sessionId)
+      const restoreGate = () => {
+        const block = ownedBlocks.get(sessionId)
+        if (block && !store.getSnapshot()) blocks.set(sessionId, block)
+      }
+      restoreGate()
+      const unsubscribe = store.subscribe(restoreGate)
       const focus = () => {
         void load()
       }
@@ -139,6 +222,7 @@ export function apply(ctx: Context) {
       window.addEventListener('resize', resize)
       return () => {
         controller.abort()
+        unsubscribe()
         window.removeEventListener('focus', focus)
         window.removeEventListener('resize', resize)
       }
@@ -155,40 +239,72 @@ export function apply(ctx: Context) {
       if (disabled) setOpen(false)
     }, [disabled])
 
-    const change = async (endpoint: 'create' | 'switch', path?: string) => {
+    const change = async (choice: Selection['choice'], path?: string) => {
       const controller = lifetime.current
-      if (disabled || pending.current || needsRefresh.current || !view || !controller || controller.signal.aborted)
+      const currentView = viewRef.current
+      if (
+        unavailableRef.current ||
+        loading ||
+        pending.current ||
+        !currentView ||
+        !controller ||
+        controller.signal.aborted
+      )
         return
-      pending.current = true
-      setBusy(true)
-      setChanged(false)
+      const intent = { version: ++version.current, cwd: currentView.cwd, choice, path }
+      selected.current = intent
+      mergeSelection({
+        cwd: currentView.cwd,
+        pendingCreation: choice === 'new' ? { name: text.create, failed: false } : undefined,
+        pendingSwitch: choice === 'existing' && path ? { path, failed: false } : undefined,
+      })
+      setError(undefined)
+      setChanged(true)
+      needsRefresh.current = false
+      gate(text.savingSelection)
+      if (saving.current) return
+      saving.current = true
+      // Only the latest intent may update the UI or release send admission. An
+      // older response (including failure) cannot overtake a more recent click.
       try {
-        const payload = endpoint === 'create' ? { sessionId, cwd: view.cwd } : { sessionId, cwd: view.cwd, path }
-        // ConnectionHandle exposes no authenticated principal. Owner-only access
-        // is enforced by the server, not by unrelated session/prompt permission.
-        const nextView = await request(endpoint, payload, controller.signal)
-        if (controller.signal.aborted) return
-        setView(nextView)
-        setChanged(true)
-        pending.current = false
-        await load()
-      } catch (cause) {
-        if (!controller.signal.aborted) recordFailure(endpoint, cause)
-      } finally {
-        if (!controller.signal.aborted) {
-          pending.current = false
-          setBusy(false)
+        while (selected.current && !controller.signal.aborted) {
+          const next: Selection = selected.current
+          try {
+            const value = await call(
+              'select',
+              {
+                sessionId,
+                cwd: next.cwd,
+                choice: next.choice,
+                ...(next.path ? { path: next.path } : {}),
+              },
+              controller.signal
+            )
+            if (!isWorktreeSelectionView(value)) throw { code: 'invalid_response' }
+            if (selected.current?.version !== next.version) continue
+            mergeSelection(value)
+            selected.current = undefined
+            gate()
+          } catch (cause) {
+            if (controller.signal.aborted) return
+            if (selected.current?.version !== next.version) continue
+            selected.current = undefined
+            recordFailure('select', cause)
+            return
+          }
         }
+      } finally {
+        saving.current = false
       }
     }
 
     useEffect(() => {
-      if (!busy && changed) trigger.current?.focus()
-    }, [busy, changed])
+      if (changed) trigger.current?.focus()
+    }, [changed])
 
     useEffect(() => {
       if (!detailError && errorDialog.current?.open) errorDialog.current.close()
-    }, [error, creation?.failed])
+    }, [error, creation?.failed, switching?.failed])
 
     const restoreErrorFocus = () => {
       trigger.current?.focus()
@@ -202,26 +318,33 @@ export function apply(ctx: Context) {
       return installSidebarLabel(sessionId, name, current.path)
     }, [sessionId, current, view])
 
-    const branch = creation
-      ? creation.failed
-        ? text.mutationError
-        : text.create
-      : current
-        ? (current.branch ?? text.detached)
-        : text.unknown
+    const selectedWorktree = switching ? view?.worktrees.find((item) => item.path === switching.path) : current
+    const isSelected = (item: WorktreeView['worktrees'][number]) =>
+      !creation && (switching ? switching.path === item.path : current === item)
+    const selectWorktree = (item: WorktreeView['worktrees'][number]) => {
+      setOpen(false)
+      if (disabled) return
+      const latest = viewRef.current
+      const actual = currentWorktree(latest)
+      if (latest?.pendingCreation || latest?.pendingSwitch || needsRefresh.current || actual !== item)
+        void change(actual === item ? 'current' : 'existing', actual === item ? undefined : item.path)
+    }
+    const branch = creation ? text.create : selectedWorktree ? (selectedWorktree.branch ?? text.detached) : text.unknown
     const label = detailError ? errorLabel : view ? branch : loading ? text.loading : text.title
     const notice = loading
       ? text.loading
-      : busy
-        ? text.busy
-        : error
-          ? errorLabel
-          : unavailable
-            ? text.wait
-            : creation
-              ? creation.failed
-                ? text.creationError
-                : text.reservationHint
+      : error
+        ? errorLabel
+        : unavailable
+          ? text.wait
+          : creation
+            ? creation.failed
+              ? text.creationError
+              : text.reservationHint
+            : switching
+              ? switching.failed
+                ? text.switchError
+                : text.switchHint
               : changed
                 ? text.changed
                 : view?.worktrees.length === 0
@@ -243,13 +366,13 @@ export function apply(ctx: Context) {
               className="dsh-worktree-trigger"
               icon={<IconBranchOutlineRegular />}
               label={label}
-              disabled={detailError ? loading || busy : disabled}
+              disabled={detailError ? loading : disabled}
               aria-label={`${text.title}: ${label}`}
               aria-haspopup={detailError ? 'dialog' : 'menu'}
               aria-expanded={detailError ? undefined : open}
               aria-describedby={status}
-              aria-busy={loading || busy}
-              title={label}
+              aria-busy={loading}
+              title={`${text.title}: ${branch}${switching ? ` — ${text.switchHint}` : creation ? ` — ${text.reservationHint}` : ''}`}
               onClick={() => {
                 if (detailError) errorDialog.current?.showModal()
                 else setOpen((value) => !value)
@@ -269,7 +392,8 @@ export function apply(ctx: Context) {
               current={!!creation}
               onSelect={() => {
                 setOpen(false)
-                if (!creation || creation.failed) void change('create')
+                const latest = viewRef.current?.pendingCreation
+                if (!disabled && (!latest || latest.failed || needsRefresh.current)) void change('new')
               }}
             >
               <span className="dsh-worktree-option">
@@ -281,16 +405,13 @@ export function apply(ctx: Context) {
               <MenuItemButton
                 key={item.path}
                 icon={<IconBranchOutlineRegular />}
-                current={!creation && current === item}
-                onSelect={() => {
-                  setOpen(false)
-                  if (creation || current !== item) void change('switch', item.path)
-                }}
+                current={isSelected(item)}
+                onSelect={() => selectWorktree(item)}
               >
                 <span className="dsh-worktree-option">
                   <span>{item.branch ?? text.detached}</span>
                   <span className="dsh-worktree-badge">{text.primaryBranch}</span>
-                  {!creation && current === item && <IconCheckOutlineRegular />}
+                  {isSelected(item) && <IconCheckOutlineRegular />}
                 </span>
               </MenuItemButton>
             ))}
@@ -299,16 +420,13 @@ export function apply(ctx: Context) {
             <MenuItemButton
               key={item.path}
               icon={<IconBranchOutlineRegular />}
-              current={!creation && current === item}
+              current={isSelected(item)}
               separatorBefore={index === 0}
-              onSelect={() => {
-                setOpen(false)
-                if (creation || current !== item) void change('switch', item.path)
-              }}
+              onSelect={() => selectWorktree(item)}
             >
               <span className="dsh-worktree-option">
                 <span>{item.branch ?? text.detached}</span>
-                {!creation && current === item && <IconCheckOutlineRegular />}
+                {isSelected(item) && <IconCheckOutlineRegular />}
               </span>
             </MenuItemButton>
           ))}
@@ -330,7 +448,13 @@ export function apply(ctx: Context) {
             </button>
           </header>
           <p id={errorDescription}>
-            {creation?.failed ? text.creationError : error?.uncertain ? text.error : text.readError}
+            {creation?.failed
+              ? text.creationError
+              : switching?.failed
+                ? text.switchError
+                : error?.uncertain
+                  ? text.error
+                  : text.readError}
           </p>
           {detailError && (
             <>
@@ -346,7 +470,20 @@ export function apply(ctx: Context) {
             </>
           )}
           <footer>
-            <button type="button" data-worktree-retry disabled={loading || busy} onClick={() => void load(true)}>
+            {view && (
+              <button
+                type="button"
+                data-worktree-choose
+                disabled={disabled}
+                onClick={() => {
+                  errorDialog.current?.close()
+                  setOpen(true)
+                }}
+              >
+                {text.choose}
+              </button>
+            )}
+            <button type="button" data-worktree-retry disabled={loading} onClick={() => void load(true)}>
               {loading ? text.loading : text.refresh}
             </button>
           </footer>
