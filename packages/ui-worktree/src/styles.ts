@@ -6,13 +6,13 @@ export const styles = `${settingsStyles}${composerStyles}
 [data-row-key]:has(.dsh-vcs-session-request) > .dsh-worktree-sidebar-name { display: none; }
 .dsh-worktree { display: inline-flex; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); font: inherit; }
 .dsh-worktree-picker { display: inline-flex; min-width: 0; max-width: 100%; }
-.dsh-worktree-pinned { position: sticky; top: 0; z-index: 1; background: var(--dsw-alias-bg-layer-1); }
 .dsh-worktree-option { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .dsh-worktree-option > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-worktree-option > svg { flex: none; width: 14px; height: 14px; margin-inline-start: auto; color: var(--dsw-alias-label-primary); }
 .dsh-worktree-badge { flex: none; padding: 1px 5px; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; font-weight: 400; }
 .dsh-worktree-trigger { display: inline-flex; max-width: 220px; font-weight: 500; }
 .dsh-worktree-trigger .dsh-plugin-composer-icon svg { width: 14px; height: 14px; }
+.dsh-worktree-trigger:not([aria-haspopup]) .dsh-plugin-composer-chevron { display: none; }
 .dsh-worktree-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
 @container (width <= 460px) {
   .dsh-worktree-trigger .dsh-plugin-composer-label { display: none; }

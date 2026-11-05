@@ -33,6 +33,7 @@ type Props = PropsRuntime<'conversation.input.left'>
 export function apply(ctx: Context) {
   ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconSvg))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const synced = new Map<string, WorktreeView>()
   installProgress(ctx)
   function Picker({ sessionId, useSession, useProjection }: Props) {
     const { active: language } = useLocaleSnapshot(ctx.locale)
@@ -46,13 +47,18 @@ export function apply(ctx: Context) {
     const unreadableRef = useRef(unreadable)
     unreadableRef.current = unreadable
     const cwd = useProjection('workingDirectory')
+    const started = useProjection('sessionListMetadata')?.blank === false
+    const cached = synced.get(sessionId)
+    const initialView = cached?.cwd === cwd ? cached : undefined
     const previousReadiness = useRef({ unreadable: true, unavailable, cwd })
-    const [view, setView] = useState<WorktreeView>()
-    const [loading, setLoading] = useState(true)
+    const [view, setView] = useState<WorktreeView | undefined>(initialView)
+    const [loading, setLoading] = useState(!initialView)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<WorktreeFailure>()
     const [changed, setChanged] = useState(false)
     const [open, setOpen] = useState(false)
+    const needsSync = useRef(true)
+    needsSync.current = !view || !!view.needsInitialization || !!view.pendingCreation
     const pending = useRef(false)
     const reloadRequested = useRef(false)
     const needsRefresh = useRef(false)
@@ -62,8 +68,9 @@ export function apply(ctx: Context) {
     const errorTitle = useId()
     const errorDescription = useId()
     const status = useId()
-    const disabled = unavailable || loading || busy || !!error || !view
     const creation = view?.pendingCreation
+    const locked = !!view?.locked || (started && !creation)
+    const disabled = locked || unavailable || loading || busy || !!error || !view
     const detailError: WorktreeFailure | undefined =
       error ?? (creation?.failed ? { operation: 'create', code: 'operation_failed', uncertain: true } : undefined)
     const errorLabel = detailError?.uncertain ? text.mutationError : text.lookupError
@@ -130,7 +137,7 @@ export function apply(ctx: Context) {
       lifetime.current = controller
       pending.current = false
       const focus = () => {
-        void load()
+        if (needsSync.current) void load()
       }
       const resize = () => {
         setOpen(false)
@@ -147,15 +154,24 @@ export function apply(ctx: Context) {
     useEffect(() => {
       const previous = previousReadiness.current
       previousReadiness.current = { unreadable, unavailable, cwd }
-      if (!unreadable && (previous.unreadable || (previous.unavailable && !unavailable) || previous.cwd !== cwd))
+      if (
+        !unreadable &&
+        (((previous.unreadable || (previous.unavailable && !unavailable)) && needsSync.current) || previous.cwd !== cwd)
+      )
         void load()
     }, [unreadable, unavailable, cwd])
+
+    useEffect(() => {
+      if (locked && view && !view.needsInitialization && !creation && view.cwd === cwd)
+        synced.set(sessionId, { ...view, locked: true })
+      else synced.delete(sessionId)
+    }, [sessionId, view, locked, creation, cwd])
 
     useEffect(() => {
       if (disabled) setOpen(false)
     }, [disabled])
 
-    const change = async (endpoint: 'create' | 'switch', path?: string) => {
+    const change = async (endpoint: 'create' | 'cancel') => {
       const controller = lifetime.current
       if (disabled || pending.current || needsRefresh.current || !view || !controller || controller.signal.aborted)
         return
@@ -163,21 +179,22 @@ export function apply(ctx: Context) {
       setBusy(true)
       setChanged(false)
       try {
-        const payload = endpoint === 'create' ? { sessionId, cwd: view.cwd } : { sessionId, cwd: view.cwd, path }
         // ConnectionHandle exposes no authenticated principal. Owner-only access
         // is enforced by the server, not by unrelated session/prompt permission.
-        const nextView = await request(endpoint, payload, controller.signal)
+        const nextView = await request(endpoint, { sessionId, cwd: view.cwd }, controller.signal)
         if (controller.signal.aborted) return
         setView(nextView)
         setChanged(true)
-        pending.current = false
-        await load()
       } catch (cause) {
         if (!controller.signal.aborted) recordFailure(endpoint, cause)
       } finally {
         if (!controller.signal.aborted) {
           pending.current = false
           setBusy(false)
+          if (reloadRequested.current) {
+            reloadRequested.current = false
+            void load()
+          }
         }
       }
     }
@@ -245,14 +262,14 @@ export function apply(ctx: Context) {
               label={label}
               disabled={detailError ? loading || busy : disabled}
               aria-label={`${text.title}: ${label}`}
-              aria-haspopup={detailError ? 'dialog' : 'menu'}
-              aria-expanded={detailError ? undefined : open}
+              aria-haspopup={detailError ? 'dialog' : locked ? undefined : 'menu'}
+              aria-expanded={detailError || locked ? undefined : open}
               aria-describedby={status}
               aria-busy={loading || busy}
-              title={label}
+              title={locked ? text.locked : label}
               onClick={() => {
                 if (detailError) errorDialog.current?.showModal()
-                else setOpen((value) => !value)
+                else if (!disabled) setOpen(!open)
               }}
               onKeyDown={(event) => {
                 if (!detailError && !disabled && !open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
@@ -263,55 +280,36 @@ export function apply(ctx: Context) {
             />
           }
         >
-          <div className="dsh-worktree-pinned">
+          <MenuItemButton
+            icon={<IconPlusOutlineRegular />}
+            current={!!creation}
+            onSelect={() => {
+              setOpen(false)
+              if (!creation || creation.failed) void change('create')
+            }}
+          >
+            <span className="dsh-worktree-option">
+              <span>{text.create}</span>
+              {creation && <IconCheckOutlineRegular />}
+            </span>
+          </MenuItemButton>
+          {current && (
             <MenuItemButton
-              icon={<IconPlusOutlineRegular />}
-              current={!!creation}
-              onSelect={() => {
-                setOpen(false)
-                if (!creation || creation.failed) void change('create')
-              }}
-            >
-              <span className="dsh-worktree-option">
-                <span>{text.create}</span>
-                {creation && <IconCheckOutlineRegular />}
-              </span>
-            </MenuItemButton>
-            {view?.worktrees.slice(0, 1).map((item) => (
-              <MenuItemButton
-                key={item.path}
-                icon={<IconBranchOutlineRegular />}
-                current={!creation && current === item}
-                onSelect={() => {
-                  setOpen(false)
-                  if (creation || current !== item) void change('switch', item.path)
-                }}
-              >
-                <span className="dsh-worktree-option">
-                  <span>{item.branch ?? text.detached}</span>
-                  <span className="dsh-worktree-badge">{text.primaryBranch}</span>
-                  {!creation && current === item && <IconCheckOutlineRegular />}
-                </span>
-              </MenuItemButton>
-            ))}
-          </div>
-          {view?.worktrees.slice(1).map((item, index) => (
-            <MenuItemButton
-              key={item.path}
+              key={current.path}
               icon={<IconBranchOutlineRegular />}
-              current={!creation && current === item}
-              separatorBefore={index === 0}
+              current={!creation}
               onSelect={() => {
                 setOpen(false)
-                if (creation || current !== item) void change('switch', item.path)
+                if (creation) void change('cancel')
               }}
             >
               <span className="dsh-worktree-option">
-                <span>{item.branch ?? text.detached}</span>
-                {!creation && current === item && <IconCheckOutlineRegular />}
+                <span>{current.branch ?? text.detached}</span>
+                <span className="dsh-worktree-badge">{text.primaryBranch}</span>
+                {!creation && <IconCheckOutlineRegular />}
               </span>
             </MenuItemButton>
-          ))}
+          )}
         </Menu>
         <span id={status} className="dsh-worktree-sr" role="status">
           {notice}
@@ -346,6 +344,16 @@ export function apply(ctx: Context) {
             </>
           )}
           <footer>
+            {creation?.failed && !error && (
+              <>
+                <button type="button" disabled={disabled} onClick={() => void change('cancel')}>
+                  {text.primaryBranch}
+                </button>
+                <button type="button" disabled={disabled} onClick={() => void change('create')}>
+                  {text.create}
+                </button>
+              </>
+            )}
             <button type="button" data-worktree-retry disabled={loading || busy} onClick={() => void load(true)}>
               {loading ? text.loading : text.refresh}
             </button>

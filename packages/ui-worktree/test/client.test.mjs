@@ -189,6 +189,7 @@ async function mount(t, { initial = {}, rpc = () => success() } = {}) {
       sessionId,
       useSession: (select) => select(session(sessionId)),
       useProjection: (key) => {
+        if (key === 'sessionListMetadata') return { blank: session(sessionId).blank ?? true }
         assert.equal(key, 'workingDirectory')
         return directories.get(sessionId) ?? '/repo'
       },
@@ -307,7 +308,7 @@ await test('실행 중인 세션으로 돌아오면 변경을 활성화하지 �
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링은 다시 불러오지 않으며, 유휴 포커스는 새로 고친다', async (t) => {
+await test('동기화된 워크트리는 포커스와 작업 종료 및 메뉴 열기 때 재조회하지 않는다', async (t) => {
   const h = await mount(t)
   assert.equal(h.calls.length, 1)
   assert.equal(h.calls[0].channel, '/api')
@@ -318,7 +319,22 @@ await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링�
   await h.update({})
   assert.equal(h.calls.length, 1)
   await h.focus()
-  assert.equal(h.calls.length, 2)
+  assert.equal(h.calls.length, 1)
+  await h.update({ running: true })
+  await h.update({ running: false })
+  assert.equal(h.calls.length, 1)
+  await h.menu.anchor.props.onClick()
+  await h.flush()
+  assert.equal(h.calls.length, 1)
+  assert.equal(h.menu.open, true)
+  h.menu.onClose()
+  await h.flush()
+  let prevented = false
+  await h.menu.anchor.props.onKeyDown({ key: 'ArrowDown', preventDefault: () => (prevented = true) })
+  await h.flush()
+  assert.equal(prevented, true)
+  assert.equal(h.calls.length, 1)
+  assert.equal(h.menu.open, true)
   assert.equal(h.listeners.get('focus').size, 1)
   h.unmount()
   assert.equal(h.listeners.get('focus').size, 0)
@@ -326,40 +342,62 @@ await test('유휴 마운트는 한 번만 불러오고, 안정적인 렌더링�
   assert.equal(h.calls.at(-1).signal.aborted, true)
 })
 
-await test('컴포넌트 메뉴는 생성 항목과 기본 체크아웃을 연결된 워크트리보다 앞에 고정한다', async (t) => {
+await test('컴포넌트 메뉴는 새 워크트리와 현재 체크아웃만 표시하고 다른 워크트리로 전환하지 않는다', async (t) => {
   const h = await mount(t, { rpc: () => success(linkedView()) })
   assert.deepEqual(
     h.menuItems.map((item) => item.id),
-    ['create', 'path:/repo', 'path:/other-worktree']
+    ['create', 'path:/other-worktree']
   )
   assert.equal(h.selectedId, 'path:/other-worktree')
   assert.equal(h.menuItems.filter((item) => item.current).length, 1)
-  const pinned = elements(h.menu.children).find((element) => element.props.className === 'dsh-worktree-pinned')
-  assert.ok(pinned)
-  assert.deepEqual(
-    elements(pinned)
-      .filter((element) => element.type === 'MenuItemButton')
-      .map((item) => item.key),
-    [undefined, '/repo']
-  )
-  assert.equal(h.menuItems[2].separatorBefore, true)
-  await h.select('path:/repo')
-  const switches = h.calls.filter((call) => call.operation === 'switch')
-  assert.equal(switches.length, 1)
-  assert.equal(switches[0].payload.path, '/repo')
+  await h.select('path:/other-worktree')
+  assert.deepEqual(operations(h), ['describe'])
+})
+
+await test('작업을 시작한 세션은 메뉴와 변경 요청을 차단하고 화면에 다시 진입해도 재조회하지 않는다', async (t) => {
+  const h = await mount(t)
+  await h.menu.anchor.props.onClick()
+  await h.flush()
+  assert.equal(h.menu.open, true)
+  await h.update({ blank: false })
+  assert.equal(h.menu.open, false)
+  assert.equal(h.menu.anchor.props.disabled, true)
+  assert.equal(h.menu.anchor.props['aria-haspopup'], undefined)
+  await h.select('create')
+  await h.menu.anchor.props.onClick()
+  await h.menu.anchor.props.onKeyDown({ key: 'ArrowDown', preventDefault: () => assert.fail('Locked menu opened') })
+  await h.focus()
+  await h.update({ running: true })
+  await h.update({ running: false })
+  assert.deepEqual(operations(h), ['describe'])
+  await h.navigate('other')
+  const reads = h.calls.length
+  await h.navigate('original')
+  assert.equal(h.calls.length, reads)
+  assert.match(h.text, /main/)
+  assert.equal(h.menu.anchor.props.disabled, true)
+  await h.changeDirectory('/changed')
+  assert.equal(h.calls.length, reads + 1, 'An external directory change must invalidate the cached view')
+})
+
+await test('서버에서 고정한 워크트리는 클라이언트의 대화 상태가 늦게 도착해도 변경하지 않는다', async (t) => {
+  const h = await mount(t, { rpc: () => success({ ...view(), locked: true }) })
+  assert.equal(h.menu.anchor.props.disabled, true)
+  await h.select('create')
+  assert.deepEqual(operations(h), ['describe'])
 })
 
 for (const { name, blocked, ready } of mutationReadinessCases) {
-  await test(`${name} 마운트와 포커스는 브랜치를 읽지만 변경 동작은 비활성으로 유지한다`, async (t) => {
+  await test(`${name} 마운트는 브랜치를 읽고 이후 포커스에서는 재조회하지 않으며 변경 동작은 비활성으로 유지한다`, async (t) => {
     const h = await mount(t, { initial: blocked, rpc: () => success(linkedView()) })
     assert.deepEqual(operations(h), ['describe'])
     assert.match(h.text, /feature\/worktree/)
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.select('create')
-    await h.select('path:/repo')
+    await h.select('path:/other-worktree')
     assert.deepEqual(operations(h), ['describe'], 'Disabled menu handlers must not perform writes')
     await h.focus()
-    assert.deepEqual(operations(h), ['describe', 'describe'])
+    assert.deepEqual(operations(h), ['describe'])
     assert.match(h.text, /feature\/worktree/)
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.update(ready)
@@ -367,12 +405,12 @@ for (const { name, blocked, ready } of mutationReadinessCases) {
     assert.ok(h.calls.every((call) => call.operation === 'describe'))
   })
 
-  await test(`${name} 상태가 된 뒤의 포커스도 현재 변경 준비 상태를 사용해 읽는다`, async (t) => {
+  await test(`${name} 상태가 된 뒤의 포커스와 유휴 전환은 동기화된 워크트리를 재조회하지 않는다`, async (t) => {
     const h = await mount(t)
     await h.update(blocked)
     const beforeFocus = h.calls.length
     await h.focus()
-    assert.equal(h.calls.length, beforeFocus + 1)
+    assert.equal(h.calls.length, beforeFocus)
     assert.equal(h.calls.at(-1).operation, 'describe')
     assert.match(h.text, /main/)
     assert.equal(h.menu.anchor.props.disabled, true)
@@ -406,7 +444,7 @@ for (const { name, blocked, ready } of readReadinessCases) {
     assert.equal(h.calls.length, 1, `Focus must not describe after the session becomes ${name}`)
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.update(ready)
-    assert.equal(h.calls.length, 2, 'Becoming ready must refresh an already-loaded list')
+    assert.equal(h.calls.length, 1, 'Becoming ready must not refresh an already-synced view')
     assert.equal(h.menu.anchor.props.disabled, false)
   })
 }
@@ -430,7 +468,7 @@ await test('워크트리를 생성하고 다른 곳으로 이동한 뒤 실행 �
   assert.equal(h.calls.length, beforeReturn + 1)
   assert.match(h.text, /feature\/worktree/)
   await h.focus()
-  assert.equal(h.calls.length, beforeReturn + 2, 'Return and focus must each read during the original task')
+  assert.equal(h.calls.length, beforeReturn + 1, 'Focus must not repeat the lookup after returning to the session')
   assert.equal(h.menu.anchor.props.disabled, true)
   assert.doesNotMatch(h.text, /Lookup failed/)
   await h.update({ running: false })
@@ -697,17 +735,46 @@ await test('사용 중인 최초 describe는 즉시 재시도 루프 없이 다�
   assert.equal(h.menu.anchor.props.disabled, false)
 })
 
-await test('사용 중인 포커스 새로 고침은 알려진 브랜치를 보존하고 자동 재시도를 유지한다', async (t) => {
-  let reads = 0
-  const h = await mount(t, { rpc: () => (++reads === 2 ? failure('busy') : success()) })
-  await h.focus()
-  assert.equal(h.calls.length, 2)
-  assert.match(h.text, /main/)
-  assert.doesNotMatch(h.text, /Lookup failed/)
-  await h.focus()
-  assert.equal(h.calls.length, 3)
-  assert.equal(h.menu.anchor.props.disabled, false)
+await test('생성 예약 취소는 현재 경로를 보내며 다른 워크트리로 전환하지 않는다', async (t) => {
+  const h = await mount(t, {
+    rpc: ({ operation }) => success(operation === 'cancel' ? view() : pendingCreationView()),
+  })
+  await h.select('path:/repo')
+  assert.deepEqual(operations(h), ['describe', 'cancel'])
+  assert.deepEqual({ ...h.calls.at(-1).payload }, { sessionId: 'original', cwd: '/repo' })
+  assert.equal(h.selectedId, 'path:/repo')
 })
+
+for (const operation of ['create', 'cancel']) {
+  await test(`생성에 실패한 세션은 오류 창에서 ${operation} 요청으로 복구한다`, async (t) => {
+    const h = await mount(t, {
+      initial: { blank: false },
+      rpc: ({ operation: requested }) =>
+        success(
+          requested === 'describe'
+            ? { ...view(), pendingCreation: { name: 'failed', failed: true } }
+            : requested === 'create'
+              ? pendingCreationView()
+              : { ...view(), locked: true }
+        ),
+    })
+    await h.menu.anchor.props.onClick()
+    const dialog = elements(h.tree).find((element) => element.type === 'dialog')
+    assert.equal(dialog.props.ref.current.open, true)
+    const button = elements(dialog).find(
+      (element) =>
+        element.type === 'button' &&
+        visibleText(element) === (operation === 'create' ? 'New worktree' : 'Current branch')
+    )
+    assert.ok(button)
+    assert.equal(button.props.disabled, false)
+    button.props.onClick()
+    await h.flush()
+    assert.deepEqual(operations(h), ['describe', operation])
+    assert.doesNotMatch(h.text, /Check worktree state/)
+    assert.equal(dialog.props.ref.current.open, false)
+  })
+}
 
 for (const code of ['timeout', 'forbidden', 'invalid_response']) {
   await test(`초기화 ${code} 실패는 describe가 서버 상태를 확인할 때까지 수동으로 남는다`, async (t) => {
@@ -755,14 +822,14 @@ for (const code of ['forbidden', 'connection_error', 'invalid_response']) {
   })
 }
 
-for (const operation of ['create', 'switch']) {
+for (const operation of ['create', 'cancel']) {
   for (const code of ['timeout', 'busy']) {
     await test(`불확실한 ${operation} ${code} 결과는 포커스나 준비 상태에서 절대 재시도하지 않는다`, async (t) => {
       const h = await mount(t, {
         rpc: ({ operation: requested }) =>
-          requested === operation ? failure(code) : success({ ...linkedView(), cwd: '/repo' }),
+          requested === operation ? failure(code) : success(operation === 'cancel' ? pendingCreationView() : view()),
       })
-      await h.select(operation === 'create' ? 'create' : 'path:/other-worktree')
+      await h.select(operation === 'create' ? 'create' : 'path:/repo')
       assert.equal(h.calls.length, 2)
       assert.equal(h.calls.at(-1).operation, operation)
       assert.match(h.text, /Check worktree state/)
@@ -808,21 +875,23 @@ await test('불확실한 변경 뒤의 수동 확인이 사용 중이면 수동 
   assert.doesNotMatch(h.text, /Check worktree state|Lookup failed/)
 })
 
-await test('변경이 성공한 뒤 describe가 사용 중이면 읽기만 재시도한다', async (t) => {
-  let reads = 0
+await test('변경이 성공하면 반환한 상태를 사용하며 즉시 describe를 중복 실행하지 않는다', async (t) => {
   const h = await mount(t, {
     rpc: ({ operation }) => {
       if (operation === 'create') return success(linkedView())
-      return ++reads === 2 ? failure('busy') : success(reads > 1 ? linkedView() : view())
+      return success(view())
     },
   })
   await h.select('create')
-  assert.equal(h.calls.length, 3)
+  assert.equal(h.calls.length, 2)
   assert.match(h.text, /feature\/worktree/)
   assert.doesNotMatch(h.text, /Lookup failed|Check worktree state/)
   await h.focus()
-  assert.equal(h.calls.length, 4)
-  assert.equal(h.calls.at(-1).operation, 'describe')
+  assert.equal(h.calls.length, 2)
+  await h.menu.anchor.props.onClick()
+  await h.flush()
+  assert.equal(h.calls.length, 2)
+  assert.equal(h.calls.at(-1).operation, 'create')
   assert.equal(h.calls.filter((call) => call.operation === 'create').length, 1)
   assert.equal(h.menu.anchor.props.disabled, false)
 })
@@ -845,7 +914,7 @@ await test('키 기반 이동은 진행 중인 조회를 중단하고 늦게 도
   assert.doesNotMatch(h.text, /Lookup failed/)
   assert.equal(h.warnings.length, 0, 'Aborted replies must not be recorded as failures')
   await h.focus()
-  assert.equal(h.calls.length, 3)
+  assert.equal(h.calls.length, 2)
   assert.equal(h.calls.at(-1).payload.sessionId, 'other')
   assert.equal(h.menu.anchor.props.disabled, false)
 })

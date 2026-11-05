@@ -5,7 +5,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
-import type {} from '@deepseek-ai/dsh-fs'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
@@ -36,7 +35,6 @@ export const inject = [
   'agents',
   'sessions',
   'configEditor',
-  'fs',
   'llm',
   'workingDirectory',
   'subprocess',
@@ -280,6 +278,25 @@ export function apply(ctx: Context, config: Config) {
   const selectionInitialized = (session: Session) =>
     session.snapshotEvents().some((event) => pluginRecordOf(event)?.type === selectionRecord)
 
+  const taskStarted = (session: Session) => {
+    const user = (kind: string) => ['user', 'user-rpc'].includes(kind)
+    if (session.deriveMessages().some((message) => user(message.source.kind))) return true
+    // A rejected pre-step consumes its prompt without committing user/message.
+    // Count claimed user work, but not queued or explicitly cancelled prompts.
+    const inboxes = new Map<string, string[]>()
+    for (const event of session.snapshotEvents()) {
+      if (event.type !== 'agent/inbox/spliced') continue
+      const { target, start, removedCount, inserted, outcome } = event.data
+      const inbox = inboxes.get(target) ?? []
+      const removed = inbox.splice(start, removedCount ?? 0, ...inserted.map((message) => message.source.kind))
+      inboxes.set(target, inbox)
+      if (outcome !== 'canceled' && removed.some(user)) return true
+    }
+    return false
+  }
+
+  const locked = (session: Session, agent?: Agent) => !(agent && creations.has(agent)) && taskStarted(session)
+
   const describe = async (session: Session, signal: AbortSignal, agent?: Agent): Promise<WorktreeView> => {
     const cwd = ctx.workingDirectory.get(session)
     const output = await run(session, cwd, ['worktree', 'list', '--porcelain', '-z'], signal)
@@ -296,6 +313,7 @@ export function apply(ctx: Context, config: Config) {
     return {
       cwd,
       worktrees,
+      ...(locked(session, agent) ? { locked: true } : {}),
       ...(!selectionInitialized(session) ? { needsInitialization: true } : {}),
       ...(creation
         ? { pendingCreation: { name: creation.name, failed: creation.failed && !(agent && creating.has(agent)) } }
@@ -305,12 +323,7 @@ export function apply(ctx: Context, config: Config) {
 
   const initializeSelection = (agent: Agent, cwd: string, applyDefault: boolean) => {
     if (selectionInitialized(agent.session)) return
-    if (
-      applyDefault &&
-      config.defaultSelection === 'new' &&
-      !creations.has(agent) &&
-      !agent.session.deriveMessages().some((message) => ['user', 'user-rpc'].includes(message.source.kind))
-    ) {
+    if (applyDefault && config.defaultSelection === 'new' && !creations.has(agent) && !taskStarted(agent.session)) {
       creations.set(agent, { cwd, name: '', failed: false })
     }
     appendPluginRecord(agent.session, selectionRecord, { initialized: true })
@@ -603,7 +616,7 @@ export function apply(ctx: Context, config: Config) {
       }
     }
     if (!payload || typeof payload !== 'object') return failure('invalid')
-    const input = payload as { sessionId?: unknown; cwd?: unknown; name?: unknown; path?: unknown }
+    const input = payload as { sessionId?: unknown; cwd?: unknown; name?: unknown }
     if (typeof input.sessionId !== 'string' || !input.sessionId) return failure('invalid')
     if (endpoint !== 'describe' && typeof input.cwd !== 'string') return failure('invalid')
     if (
@@ -612,7 +625,6 @@ export function apply(ctx: Context, config: Config) {
       (typeof input.name !== 'string' || input.name.length > 200)
     )
       return failure('invalid')
-    if (endpoint === 'switch' && (typeof input.path !== 'string' || !input.path)) return failure('invalid')
     const mutation = endpoint !== 'describe'
     if (mutation && (saving || pending.has(input.sessionId))) return failure('busy')
     if (mutation) pending.add(input.sessionId)
@@ -650,45 +662,17 @@ export function apply(ctx: Context, config: Config) {
         ])
         operationSignal.throwIfAborted()
         if (ctx.workingDirectory.get(agent.session) !== input.cwd) return failure('conflict')
+        if ((endpoint === 'create' || endpoint === 'cancel') && locked(agent.session, agent)) return failure('conflict')
         if (endpoint === 'initialize') {
           const cwd = await ctx.workingDirectory.ensure(agent, operationSignal)
           if (cwd !== input.cwd) return failure('conflict')
-          await describe(agent.session, operationSignal, agent)
         } else if (endpoint === 'create') {
           creations.set(agent, {
             cwd: input.cwd as string,
             name: typeof input.name === 'string' ? input.name.trim() : '',
             failed: false,
           })
-        } else {
-          const view = await describe(agent.session, operationSignal, agent)
-          if (!view.worktrees.some((entry) => entry.path === input.path)) return failure('invalid')
-          const targetPath = input.path as string
-          const resolve = (path: string, cwd: string) => ctx.fs.resolve(path, { cwd, signal: operationSignal })
-          const sourceCwd = await ctx.workingDirectory.ensure(agent, operationSignal)
-          const rev = async (cwd: string, option: string) =>
-            (await run(agent.session, cwd, ['rev-parse', '--path-format=absolute', option], operationSignal)).replace(
-              /\r?\n$/,
-              ''
-            )
-          const target = await resolve(targetPath, sourceCwd)
-          const top = await resolve(await rev(targetPath, '--show-toplevel'), targetPath)
-          const common = await resolve(await rev(sourceCwd, '--git-common-dir'), sourceCwd)
-          const targetCommon = await resolve(await rev(targetPath, '--git-common-dir'), targetPath)
-          if (target.targetKey !== top.targetKey || common.targetKey !== targetCommon.targetKey)
-            return failure('invalid')
-          const admin = await resolve(await rev(targetPath, '--absolute-git-dir'), targetPath)
-          const dotGitInfo = await ctx.fs.lstat('.git', { cwd: targetPath }, operationSignal)
-          if (!dotGitInfo || !['file', 'directory'].includes(dotGitInfo.type)) return failure('invalid')
-          const dotGit = await resolve('.git', targetPath)
-          if (admin.targetKey !== common.targetKey) {
-            const backlink = await resolve('gitdir', ctx.fs.processPath(admin))
-            const bytes = await ctx.fs.readBytes(backlink, operationSignal, 8192)
-            const linkedPath = new TextDecoder().decode(bytes).replace(/\r?\n$/, '')
-            const linked = await resolve(linkedPath, ctx.fs.processPath(admin))
-            if (linked.targetKey !== dotGit.targetKey) return failure('invalid')
-          }
-          await ctx.workingDirectory.set(agent, ctx.fs.processPath(target), operationSignal)
+        } else if (endpoint === 'cancel') {
           creations.delete(agent)
         }
         initializeSelection(agent, ctx.workingDirectory.get(agent.session), endpoint === 'initialize')
@@ -705,7 +689,7 @@ export function apply(ctx: Context, config: Config) {
   }
 
   // Exact Connection routes admit only authenticated owner Peers, not shared Session viewers.
-  for (const endpoint of ['describe', 'initialize', 'create', 'switch', 'settings', 'save-settings']) {
+  for (const endpoint of ['describe', 'initialize', 'create', 'cancel', 'settings', 'save-settings']) {
     ctx.effect(
       () =>
         ctx.connection.fetch.register({

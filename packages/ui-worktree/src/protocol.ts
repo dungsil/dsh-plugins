@@ -55,6 +55,7 @@ export interface WorktreeSettingsView {
 export interface WorktreeView {
   cwd: string
   worktrees: { path: string; branch: string | null }[]
+  locked?: boolean
   needsInitialization?: boolean
   pendingCreation?: { name: string; failed: boolean }
 }
@@ -83,6 +84,7 @@ export function isWorktreeView(value: unknown): value is WorktreeView {
   const view = value as Partial<WorktreeView>
   return (
     typeof view.cwd === 'string' &&
+    (view.locked === undefined || typeof view.locked === 'boolean') &&
     (view.needsInitialization === undefined || typeof view.needsInitialization === 'boolean') &&
     (view.pendingCreation === undefined ||
       (view.pendingCreation !== null &&

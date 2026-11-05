@@ -188,6 +188,10 @@ export function apply(ctx: Context) {
   function SessionRequest({ sessionId }: PropsRuntime<'sidebar.workspaces.session.row.action'>) {
     useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
     const copy = text()
+    const current = useSyncExternalStore(
+      (listener) => ctx.sidebarRight.mounted.subscribe(listener),
+      () => ctx.sidebarRight.mounted.getSnapshot() === sessionId
+    )
     const running = useSyncExternalStore(
       (listener) => sessions.list.subscribe(listener),
       () => sessions.list.getSnapshot().byId[sessionId]?.running ?? false
@@ -214,9 +218,9 @@ export function apply(ctx: Context) {
     }, [sessionId])
     useEffect(() => {
       setView(undefined)
-    }, [sessionId, cwd])
+    }, [sessionId, current, cwd])
     useEffect(() => {
-      if (running) return
+      if (!current || running) return
       let disposed = false
       let active: AbortController | undefined
       const refresh = async () => {
@@ -245,8 +249,8 @@ export function apply(ctx: Context) {
         document.removeEventListener('visibilitychange', refresh)
         window.clearInterval(interval)
       }
-    }, [sessionId, running, cwd])
-    const item = view?.request
+    }, [sessionId, current, running, cwd])
+    const item = current ? view?.request : undefined
     const state = item?.state === 'open' && item.draft ? 'draft' : item?.state
     const icon =
       state === 'merged'

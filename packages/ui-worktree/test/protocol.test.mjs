@@ -75,6 +75,7 @@ await test('워크트리 응답 검증은 렌더링 전에 잘못된 값을 거�
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [] }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], needsInitialization: true }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], needsInitialization: false }), true)
+  assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], locked: true }), true)
   assert.equal(isWorktreeView({ cwd: '/repo', worktrees: [], pendingCreation: { name: '', failed: false } }), true)
   for (const value of [
     null,
@@ -82,6 +83,7 @@ await test('워크트리 응답 검증은 렌더링 전에 잘못된 값을 거�
     { cwd: 3, worktrees: [] },
     { cwd: '/repo', worktrees: [null] },
     { cwd: '/repo', worktrees: [{ path: '/repo', branch: 3 }] },
+    ...[null, 'true', 1, {}].map((locked) => ({ cwd: '/repo', worktrees: [], locked })),
     ...[null, 'true', 1, {}].map((needsInitialization) => ({ cwd: '/repo', worktrees: [], needsInitialization })),
     ...[null, {}, { name: 42, failed: false }, { name: '', failed: 'no' }].map((pendingCreation) => ({
       cwd: '/repo',
