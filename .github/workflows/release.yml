@@ -13,6 +13,7 @@ on:
         required: false
 
 permissions:
+  actions: read
   contents: write
   id-token: write
 
@@ -32,13 +33,30 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - name: Require successful main CI check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Check the source actually checked out, not the dispatch event's SHA.
+          sha=$(git rev-parse HEAD)
+          run_id=$(gh run list --workflow ci.yml --branch main --event push \
+            --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run_id" ]; then
+            echo "::error::No main CI run found for $sha"
+            exit 1
+          fi
+          if ! gh run view "$run_id" --json jobs | jq -e \
+            'any(.jobs[]; .name == "check" and .status == "completed" and .conclusion == "success")' > /dev/null; then
+            echo "::error::main CI check must succeed before releasing $sha (run $run_id)"
+            exit 1
+          fi
       - uses: pnpm/action-setup@v4.4.0
       - uses: actions/setup-node@v5.0.0
         with:
           node-version: 26.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check:all
       - name: Configure release author
         run: |
           git config user.name 'github-actions[bot]'
