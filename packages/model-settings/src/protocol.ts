@@ -12,6 +12,7 @@ export interface TitleTarget {
   route: Route | null
   reasoningEffort: string | null
   useAuxiliary?: boolean
+  instructions: string
 }
 
 export interface ModelSettingsView {

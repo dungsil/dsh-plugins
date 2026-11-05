@@ -50,6 +50,8 @@ export async function apply(ctx: Context) {
     const settings = (task === 'title' ? owner?.options.config?.titleReasoning : undefined) as
       | (Route & { target: string; reasoningEffort: string })
       | undefined
+    const instructions =
+      (owner?.options.config?.instructions as Record<string, string> | undefined)?.[entry.options.id] ?? ''
     return {
       id: entry.options.id,
       revision: createHash('sha256')
@@ -59,11 +61,13 @@ export async function apply(ctx: Context) {
             task === 'auxiliary' ? config : entry.options.config,
             settings,
             useAuxiliary,
+            instructions,
           ])
         )
         .digest('hex'),
       route: config.provider && config.model ? { provider: config.provider, model: config.model } : null,
       useAuxiliary,
+      instructions,
       reasoningEffort:
         task !== 'title'
           ? config.provider && config.model
@@ -112,14 +116,21 @@ export async function apply(ctx: Context) {
       })
     }
     const llm = next() as Context['llm']
-    const prepareCall: Context['llm']['prepareCall'] = (config, signal, configure) => {
+    const prepareCall: Context['llm']['prepareCall'] = async (config, signal, configure) => {
       const target = snapshot(task)
       const auxiliary = target?.useAuxiliary ? snapshot('auxiliary') : null
       const effort = auxiliary?.route ? auxiliary.reasoningEffort : target?.reasoningEffort
-      return llm.prepareCall({ ...config, ...auxiliary?.route }, signal, (controls, model) => ({
+      const call = await llm.prepareCall({ ...config, ...auxiliary?.route }, signal, (controls, model) => ({
         ...(configure ? configure(controls, model) : controls),
         ...(typeof effort === 'string' ? { reasoningEffort: ReasoningEffortId(effort) } : {}),
       }))
+      const instructions = [auxiliary?.instructions, target?.instructions].filter(Boolean).join('\n\n')
+      if (!instructions) return call
+      return {
+        ...call,
+        stream: (options) =>
+          call.stream({ ...options, system: [options.system, instructions].filter(Boolean).join('\n\n') }),
+      }
     }
     return new Proxy(llm, {
       get: (target, key, receiver) => (key === 'prepareCall' ? prepareCall : Reflect.get(target, key, receiver)),
@@ -177,8 +188,34 @@ export async function apply(ctx: Context) {
       route?: unknown
       reasoningEffort?: unknown
       useAuxiliary?: unknown
+      instructions?: unknown
     }
     if (typeof input.id !== 'string' || typeof input.revision !== 'string') return failure('invalid')
+    if (endpoint === 'instructions') {
+      if (typeof input.instructions !== 'string') return failure('invalid')
+      const owner = settingsEntry()
+      const task = (['auxiliary', 'title', 'worktree', 'yoonmoon'] as const).find(
+        (task) => snapshot(task)?.id === input.id
+      )
+      if (!owner || !task) return failure('unavailable')
+      const instructions = input.instructions.trim()
+      try {
+        signal.throwIfAborted()
+        await ctx.configEditor.edit(owner, (current) => {
+          if (snapshot(task)?.revision !== input.revision) throw new Error('conflict')
+          const next = { ...current }
+          const saved = { ...(current.instructions as Record<string, string> | undefined) }
+          if (instructions) saved[input.id as string] = instructions
+          else delete saved[input.id as string]
+          if (Object.keys(saved).length) next.instructions = saved
+          else delete next.instructions
+          return next
+        })
+        return { ok: true, value: snapshot(task) }
+      } catch (error) {
+        return failure(error instanceof Error && error.message === 'conflict' ? 'conflict' : 'save_failed')
+      }
+    }
     if (input.useAuxiliary !== undefined && typeof input.useAuxiliary !== 'boolean') return failure('invalid')
     const useAuxiliary = input.route === null && input.useAuxiliary === true
     const reasoningEffort = input.reasoningEffort ?? null
@@ -273,7 +310,7 @@ export async function apply(ctx: Context) {
     }
   }
 
-  for (const endpoint of ['describe', 'save']) {
+  for (const endpoint of ['describe', 'save', 'instructions']) {
     ctx.effect(
       () =>
         ctx.connection.fetch.register({
