@@ -236,7 +236,7 @@ async function fixture(
 }
 
 // Each test owns its repository, Cordis context and CLI responses.
-await describe('pull request RPC', { concurrency: 4 }, async () => {
+await describe('pull request RPC', { concurrency: 8 }, async () => {
   await test('shows only the current branch PR and distinguishes absent requests, failed lookup and missing CLI', async (t) => {
     const f = await fixture(t)
     assert.deepEqual(await f.rpc(), {
