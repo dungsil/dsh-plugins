@@ -17,7 +17,8 @@ export function apply(ctx: Context) {
       'or edge cases. Do not annotate every edit or merely paraphrase the diff; skip the tool when no such decision needs explanation. ' +
       'For questions about unchanged code, use file-and-line links and code quotations instead of inventing a change. ' +
       'Supply exact before/after fragments with enough shared context, focused on one decision per card; ' +
-      'the note appears after the first contiguous changed block. These are historical snapshots, not verification of the current file. ' +
+      'the note appears after the last changed line in its first diff hunk. ' +
+      'These are historical snapshots, not verification of the current file. ' +
       'Report validation limits in the final response; diff_note does not replace testing or that response.',
     interpolate: false,
   })
