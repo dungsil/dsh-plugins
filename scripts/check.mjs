@@ -101,7 +101,7 @@ function check() {
   console.log(`Checking ${selected.length} affected packages and ${files.length} other files.`)
   run(['exec', 'oxfmt', '--check', '--no-error-on-unmatched-pattern', '--', ...paths])
   if (filters.length) run(['exec', 'turbo', 'run', 'typecheck', 'test', ...filters])
-  run(['exec', 'oxlint', '--deny-warnings', '--no-error-on-unmatched-pattern', '--', ...paths])
+  run(['lint'])
 }
 
 check()

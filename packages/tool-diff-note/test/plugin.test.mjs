@@ -87,6 +87,7 @@ await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 
   assert.match(text, /skip the tool when no such decision needs explanation/u)
   assert.match(text, /unchanged code, use file-and-line links and code quotations instead of inventing a change/u)
   assert.match(text, /exact before\/after fragments/u)
+  assert.match(text, /immediately below the shared DSH diff block/u)
   assert.match(text, /Report validation limits in the final response/u)
   assert.match(text, /does not replace testing or that response/u)
   const schema = ctx.tools.schemas().find((tool) => tool.name === 'diff_note')
@@ -121,10 +122,14 @@ await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 �
   }
 })
 
-await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지막 변경 줄 뒤에 설명을 유지한다', async () => {
+await test('도구 뷰는 원본 스냅샷과 번역을 DSH DiffBlock에 전달하고 설명과 파일 열기를 유지한다', async () => {
   const require = createRequire(import.meta.url)
   let client
   let View
+  let receivedDiff
+  const opened = []
+  let openFile
+  let active = 'ko'
   runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
     window: {
       __ModuleLoader__: {
@@ -137,11 +142,19 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지�
               return new Proxy(
                 {},
                 {
-                  get: (_target, key) =>
-                    key === 'Button'
-                      ? ({ children, size: _size, variant: _variant, ...props }) =>
-                          React.createElement('button', props, children)
-                      : () => null,
+                  get: (_target, key) => {
+                    if (key === 'DiffBlock')
+                      return (props) => {
+                        receivedDiff = props
+                        return React.createElement('div', { 'data-native-diff': '' })
+                      }
+                    if (key === 'Button')
+                      return ({ children, size: _size, variant: _variant, ...props }) => {
+                        openFile = props.onClick
+                        return React.createElement('button', props, children)
+                      }
+                    return () => null
+                  },
                 }
               )
             return require(name)
@@ -151,7 +164,7 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지�
     },
   })
   client.apply({
-    locale: { getSnapshot: () => ({ active: 'ko' }) },
+    locale: { getSnapshot: () => ({ active }) },
     slots: {
       inject: (_name, register) => register(),
       register: (_selector, component) => {
@@ -164,42 +177,50 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지�
     renderToStaticMarkup(
       React.createElement(View, {
         phase: 'result',
+        openFile: (path) => opened.push(path),
         block: { meta: { path: 'src/example.tsx', old_text, new_text, note: '이유를 설명합니다.' }, isError: false },
       })
     )
-  const html = render('<section>\n  {children}\n</section>', '<Modal open>\n  {children}\n</Modal>')
-  assert.ok(html.includes('&lt;Modal open&gt;') && html.includes('{children}'))
-  assert.ok(html.indexOf('&lt;Modal open&gt;') < html.indexOf('이유를 설명합니다.'))
-  assert.ok(html.indexOf('&lt;/Modal&gt;') < html.indexOf('이유를 설명합니다.'))
-  assert.doesNotMatch(html, /작성 시점 스냅샷|<h3/u)
-  // The screenshot's deletion and replacement belong to one hunk even though
-  // the unchanged original state separates their contiguous change runs.
-  const separated = render(
-    'const translated = useState()\nconst original = useState(false)\nconst pending = useState(false)\nconst failed = useState(false)\nconst retry = useState(0)\nreturn translated',
-    'const original = useState(false)\nconst { value: translated, pending, failed } = translation ?? {}\nreturn translated'
-  )
-  assert.ok(separated.indexOf('translation ?? {}') < separated.indexOf('이유를 설명합니다.'))
-  assert.ok(separated.indexOf('이유를 설명합니다.') < separated.indexOf('return translated'))
-  assert.equal((separated.match(/dsh-diff-note-bubble/gu) ?? []).length, 1)
-  // A second, distant hunk must not pull the annotation away from the first.
-  const context = Array.from({ length: 12 }, (_, i) => `context${i}`).join('\n')
-  const multiple = render(`oldFirst\n${context}\noldLast`, `newFirst\n${context}\nnewLast`)
-  assert.ok(multiple.indexOf('newFirst') < multiple.indexOf('이유를 설명합니다.'))
-  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('context0'))
-  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('newLast'))
-  const folded = render(
-    Array.from({ length: 30 }, (_, i) => `old${i}`).join('\n') + '\nunchangedTail',
-    Array.from({ length: 30 }, (_, i) => `new${i}`).join('\n') + '\nunchangedTail'
-  )
-  assert.ok(folded.includes('더 보기'))
-  assert.ok(!folded.includes('old15'))
-  assert.ok(folded.includes('new29') && folded.includes('unchangedTail'))
-  assert.ok(folded.indexOf('new29') < folded.indexOf('이유를 설명합니다.'))
-  assert.ok(folded.indexOf('이유를 설명합니다.') < folded.indexOf('unchangedTail'))
+  const context = Array.from({ length: 30 }, (_, i) => `context${i}`).join('\n')
   for (const [before, after] of [
+    ['<section>\r\n  {children}\r\n</section>', '<Modal open>\r\n  {children}\r\n</Modal>'],
+    [`oldFirst\n${context}\noldLast`, `newFirst\n${context}\nnewLast`],
     ['', 'created\n'],
     ['deleted\n', ''],
     ['same', 'same\n'],
-  ])
-    assert.match(render(before, after), /이유를 설명합니다./u)
+  ]) {
+    const html = render(before, after)
+    assert.equal(receivedDiff.diffs.length, 1)
+    assert.equal(receivedDiff.diffs[0].path, 'src/example.tsx')
+    assert.equal(receivedDiff.diffs[0].oldText, before)
+    assert.equal(receivedDiff.diffs[0].newText, after)
+    assert.equal(receivedDiff.maxLines, undefined, 'native folding defaults must not be overridden')
+    assert.ok(html.indexOf('data-native-diff') < html.indexOf('이유를 설명합니다.'))
+    assert.equal((html.match(/dsh-diff-note-bubble/gu) ?? []).length, 1)
+    assert.doesNotMatch(html, /dsh-diff-note-line|dsh-diff-note-fold/u)
+  }
+  assert.equal(receivedDiff.labels.codeLabel, '코드')
+  assert.equal(receivedDiff.labels.expand(12), '12줄 더 보기')
+  assert.equal(receivedDiff.labels.expandAria(12), '숨겨진 12줄 표시')
+  openFile()
+  assert.deepEqual(opened, ['src/example.tsx'])
+  for (const language of ['en', 'ko', 'zh']) {
+    active = language
+    render('before', 'after')
+    const { ui } = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
+    for (const key of ['codeLabel', 'wrapLabel', 'unwrapLabel', 'copy', 'copied', 'collapse', 'collapseAria'])
+      assert.equal(receivedDiff.labels[key], ui[key])
+    assert.equal(receivedDiff.labels.expand(12), ui.expand.replace('{count}', '12'))
+    assert.equal(receivedDiff.labels.expandAria(12), ui.expandAria.replace('{count}', '12'))
+  }
+  active = 'ko'
+  for (const [phase, isError, expected] of [
+    ['call', false, '변경 설명을 기록하고 있습니다…'],
+    ['result', true, '변경 설명을 기록하지 못했습니다.'],
+  ]) {
+    const html = renderToStaticMarkup(React.createElement(View, { phase, block: { isError } }))
+    assert.match(html, /role="status"/u)
+    assert.ok(html.includes(expected))
+    assert.ok(!html.includes('data-native-diff'))
+  }
 })
