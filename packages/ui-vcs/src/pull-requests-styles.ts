@@ -13,8 +13,8 @@ export const styles = `
 .dsh-pr-loading svg{width:100%;height:100%;animation:dsh-pr-spin .8s linear infinite}
 .dsh-pr-initial-loading{display:flex;justify-content:center;padding:24px 16px}
 .dsh-vcs-check-status{display:inline-flex;flex:none;width:14px;height:14px;align-items:center;justify-content:center;vertical-align:middle;color:var(--dsw-alias-label-tertiary)}
-.dsh-vcs-check-status>span{display:contents}
-.dsh-vcs-check-status svg{width:100%;height:100%}
+.dsh-vcs-check-status>span{display:inline-flex;width:100%;height:100%;align-items:center;justify-content:center}
+.dsh-vcs-check-status svg{display:block;flex:none;width:100%;height:100%;transform-origin:center}
 .dsh-vcs-check-status[data-state=done]{color:var(--dsw-alias-state-success-primary)}
 .dsh-vcs-check-status[data-state=error]{color:var(--dsw-alias-state-error-primary)}
 .dsh-vcs-check-status:is([data-state=ongoing],[data-state=warning]){color:var(--dsw-alias-state-warn-primary)}

@@ -92,7 +92,8 @@ async function mount(operation, language = 'en', options = {}) {
             if (sidebar || settings) return operation(channel, method, payload)
             if (method === 'dungsil-vcs/describe')
               return options.describe ? options.describe(gitContext) : { ok: true, value: gitContext }
-            if (method === 'dungsil-vcs/pull-requests/list') return requestResult
+            if (method === 'dungsil-vcs/pull-requests/list')
+              return typeof requestResult === 'function' ? requestResult() : requestResult
             assert.equal(method, 'dungsil-vcs/execute')
             if (options.execute) return options.execute(payload)
             return {
@@ -556,6 +557,71 @@ await test('변경된 파일이나 게시되지 않은 커밋이 있으면 업�
   }
 })
 
+await test('PR과 CI는 재조회 중과 일시적인 조회 실패에도 사라지지 않는다', async () => {
+  const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head', checks: [] } })
+  const waiting = Promise.withResolvers()
+  mounted.setRequestResult(() => waiting.promise)
+  const refresh = mounted.focus()
+  await mounted.refresh()
+  assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.equal(mounted.ci.children[1], 'CI 검사: 확인 불가')
+  mounted.primary.onClick()
+  assert.deepEqual(mounted.openedTabs, ['dungsil-vcs-pull-requests'])
+  waiting.resolve({ ok: false, error: { code: 'cli_missing' } })
+  await refresh
+  await mounted.refresh()
+  assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.ok(mounted.ci)
+  mounted.session.running = true
+  await mounted.refresh()
+  mounted.session.running = false
+  const next = Promise.withResolvers()
+  mounted.setRequestResult(() => next.promise)
+  await mounted.refresh()
+  assert.equal(mounted.primary.children[1], 'PR 보기')
+  assert.ok(mounted.ci)
+  next.resolve({ ok: true, value: { request: null } })
+  await mounted.refresh()
+  assert.equal(mounted.primary.children[1], 'PR 생성')
+  assert.equal(mounted.ci, undefined)
+  mounted.unmount()
+})
+
+await test('PR 업데이트는 재조회 동안 표시를 유지하지만 Git 쓰기는 실행하지 않는다', async () => {
+  const mounted = await mount('pr', 'ko', { request: { number: 42, headSha: 'head', checks: [] } })
+  mounted.setGitContext({ dirty: true })
+  await mounted.focus()
+  await mounted.refresh()
+  assert.equal(mounted.primary.children[1], 'PR 업데이트')
+  const waiting = Promise.withResolvers()
+  mounted.setRequestResult(() => waiting.promise)
+  const refresh = mounted.focus()
+  await mounted.refresh()
+  assert.equal(mounted.primary.children[1], 'PR 업데이트')
+  assert.equal(mounted.primary.disabled, true)
+  mounted.primary.onClick()
+  mounted.menu.onSelect('commit')
+  assert.equal(mounted.calls.filter((call) => call.method.endsWith('/execute')).length, 0)
+  waiting.resolve({ ok: true, value: { request: { number: 42, headSha: 'head', checks: [] } } })
+  await refresh
+  await mounted.refresh()
+  assert.equal(mounted.primary.disabled, false)
+  mounted.unmount()
+})
+
+await test('CI 아이콘은 고정 크기 래퍼 안에서 SVG 기준선의 영향 없이 중앙 정렬한다', async () => {
+  const source = await readFile(new URL('../src/pull-requests-styles.ts', import.meta.url), 'utf8')
+  assert.match(source, /\.dsh-vcs-check-status\{[^}]*width:14px;height:14px;align-items:center;justify-content:center/)
+  assert.match(
+    source,
+    /\.dsh-vcs-check-status>span\{display:inline-flex;width:100%;height:100%;align-items:center;justify-content:center\}/
+  )
+  assert.match(
+    source,
+    /\.dsh-vcs-check-status svg\{display:block;flex:none;width:100%;height:100%;transform-origin:center\}/
+  )
+})
+
 await test('Git 작업 메뉴는 컴포저 위에 포털로 렌더링된 간결한 말풍선을 사용한다', async () => {
   for (const operation of ['push', 'pr']) {
     const mounted = await mount(operation)
@@ -598,6 +664,10 @@ await test('CI 배지는 모든 로케일에서 집계 상태를 표시하고 Gi
       await mounted.focus()
       await mounted.refresh()
       assert.equal(mounted.ci.children[1], `${String(prefix)}: ${labels[index]}`)
+      if ([0, 2, 3].includes(index)) {
+        const icon = mounted.ci.children[0]
+        assert.equal(icon.type(icon.props).props.children.props.size, 14)
+      }
     }
     mounted.ci.onClick()
     assert.equal(mounted.openedTabs[0].kind, 'dungsil-vcs-pull-requests')

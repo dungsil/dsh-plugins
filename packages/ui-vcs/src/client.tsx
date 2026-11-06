@@ -86,7 +86,7 @@ export function apply(ctx: Context) {
         mounted.current = false
       }
     }, [])
-    const disabled = !canPrompt || unavailable || sending || typeof cwd !== 'string'
+    const disabled = !canPrompt || unavailable || sending || typeof cwd !== 'string' || lookup !== 'ready'
     const viewOnly = hasRequest && !needsUpdate
     const ciState = ciRequest ? PullRequests.checksState(ciRequest) : 'warning'
     const ciLabel = {
@@ -98,24 +98,28 @@ export function apply(ctx: Context) {
     }[ciState]
 
     useEffect(() => {
+      setLookup('loading')
+      setOperation(undefined)
+      setHasRequest(false)
+      setCiRequest(null)
+      setNeedsUpdate(false)
+    }, [sessionId, cwd])
+
+    useEffect(() => {
       if (!hasChanges || hidden || unavailable) return
       let controller: AbortController | undefined
       const refresh = async () => {
         controller?.abort()
         controller = new AbortController()
         const signal = controller.signal
+        // Keep the last result visible during background reads; only writes wait for fresh context.
         setLookup('loading')
-        setOperation(undefined)
-        setHasRequest(false)
-        setCiRequest(null)
-        setNeedsUpdate(false)
         try {
           const result = await connection.rpc.call(channel, describeMethod, { sessionId }, signal)
           if (signal.aborted) return
           if (!result.ok) throw new Error('Git context unavailable')
           const context = result.value as GitContext
           if (context.operation !== 'push' && context.operation !== 'pr') throw new Error('Git context unavailable')
-          setOperation(context.operation)
           if (context.operation === 'pr') {
             // Review lookup may be unavailable before the first push or without a hosting CLI.
             // Keep creation available. The server checks for an existing PR before each write.
@@ -131,7 +135,12 @@ export function apply(ctx: Context) {
             } catch {
               if (signal.aborted) return
             }
+          } else {
+            setHasRequest(false)
+            setCiRequest(null)
+            setNeedsUpdate(false)
           }
+          setOperation(context.operation)
           setLookup('ready')
         } catch {
           if (!signal.aborted) setLookup('error')
@@ -200,7 +209,7 @@ export function apply(ctx: Context) {
       }
     }
 
-    if (hidden || !hasChanges || lookup !== 'ready' || !operation) return <span ref={anchor} hidden />
+    if (hidden || !hasChanges || !operation || (lookup === 'error' && !hasRequest)) return <span ref={anchor} hidden />
 
     return (
       <div className="dsh-vcs">

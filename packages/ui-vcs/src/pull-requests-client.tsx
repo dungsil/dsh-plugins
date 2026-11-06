@@ -97,11 +97,11 @@ export function CheckStatusIcon({ state }: { state: StateDotState }) {
   return (
     <span className="dsh-vcs-check-status" data-state={state} aria-hidden="true">
       {state === 'done' ? (
-        <IconCheckCircleOutlineRegular />
+        <IconCheckCircleOutlineRegular size={14} />
       ) : state === 'ongoing' ? (
-        <IconLoadingOutlineRegular />
+        <IconLoadingOutlineRegular size={14} />
       ) : state === 'warning' ? (
-        <IconQuestionOutlineRegular />
+        <IconQuestionOutlineRegular size={14} />
       ) : (
         <span dangerouslySetInnerHTML={{ __html: state === 'error' ? circleXIconSvg : circleMinusIconSvg }} />
       )}
