@@ -65,6 +65,8 @@ void test('영어와 한국어와 중국어 로케일은 같은 키와 비어 �
   const keys = Object.keys(locales[0]).sort()
   for (const locale of locales) {
     assert.deepEqual(Object.keys(locale).sort(), keys)
+    assert.equal(locale.panel, locale.viewPr)
+    assert.ok(Object.values(locale).every((value) => !/forge|포지/iu.test(value)))
     for (const [key, value] of Object.entries(locale)) {
       assert.equal(typeof value, 'string', key)
       assert.ok(value.trim().length > 0, key)
