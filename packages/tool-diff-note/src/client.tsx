@@ -73,8 +73,13 @@ export function apply(ctx: Context) {
         ? patch.hunks.flatMap((hunk, index) => (index ? ['⋯', ...hunk.lines] : hunk.lines))
         : [...before.map((line) => `-${line}`), ...after.map((line) => `+${line}`)]
     }, [note])
-    let annotationIndex = rows.findIndex((line) => line.startsWith('+') || line.startsWith('-'))
-    if (annotationIndex !== -1) while (rows[annotationIndex + 1]?.match(/^[+-]/u)) annotationIndex++
+    // Unchanged context can separate related edits inside one hunk. Keep the
+    // explanation after all of that hunk's changes, not just its first run.
+    let annotationIndex = -1
+    for (const [index, line] of rows.entries()) {
+      if (line === '⋯') break
+      if (/^[+-]/u.test(line)) annotationIndex = index
+    }
     const visible = rows
       .map((_, index) => index)
       .filter(

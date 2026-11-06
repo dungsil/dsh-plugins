@@ -8,6 +8,7 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import * as plugin from '../dist/index.js'
 import { copy } from '../src/copy.ts'
+import { isValidDateRange, maxRangeDays } from '../src/protocol.ts'
 
 await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로컬 달력 날짜를 반영한다', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-04T13:00:00Z') })
@@ -142,6 +143,78 @@ await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로�
       252
     )
   })
+  await t.test('사용자 지정 기간은 시작일과 종료일을 포함하고 해당 기간 전체를 그래프로 반환한다', async () => {
+    const result = await read({ startDate: '2026-10-28', endDate: '2026-10-29', timeZone: 'Asia/Seoul' })
+    assert.equal(result.ok, true)
+    assert.equal(result.value.totals.calls, 2)
+    assert.equal(result.value.totals.total, 48)
+    assert.equal(result.value.sessions, 1)
+    assert.deepEqual(result.value.days, [
+      { day: '2026-10-28', total: 36 },
+      { day: '2026-10-29', total: 12 },
+    ])
+    assert.equal(result.value.calls[0].time, Date.parse('2026-10-28T15:00:00Z'))
+    assert.equal(result.value.calls[1].time, Date.parse('2026-10-28T14:59:59.999Z'))
+  })
+  await t.test('동일한 날짜 범위도 요청한 시간대의 달력 날짜로 호출을 포함한다', async () => {
+    const payload = { startDate: '2026-10-28', endDate: '2026-10-28' }
+    const seoul = await read({ ...payload, timeZone: 'Asia/Seoul' })
+    const utc = await read({ ...payload, timeZone: 'UTC' })
+    assert.equal(seoul.value.totals.total, 36)
+    assert.equal(utc.value.totals.total, 48)
+    assert.deepEqual(seoul.value.days, [{ day: '2026-10-28', total: 36 }])
+    assert.deepEqual(utc.value.days, [{ day: '2026-10-28', total: 48 }])
+  })
+  await t.test('미래 날짜도 그래프에 포함하지만 오늘 이후와 오늘의 미래 호출은 집계하지 않는다', async () => {
+    const result = await read({ startDate: '2026-11-04', endDate: '2026-11-06', timeZone: 'Asia/Seoul' })
+    assert.equal(result.value.totals.total, 204)
+    assert.deepEqual(result.value.days, [
+      { day: '2026-11-04', total: 204 },
+      { day: '2026-11-05', total: 0 },
+      { day: '2026-11-06', total: 0 },
+    ])
+    assert.ok(result.value.calls.every(({ time }) => time <= result.value.updatedAt))
+    const future = await read({ startDate: '2026-11-05', endDate: '2026-11-06', timeZone: 'Asia/Seoul' })
+    assert.equal(future.value.totals.calls, 0)
+    assert.deepEqual(future.value.days, [
+      { day: '2026-11-05', total: 0 },
+      { day: '2026-11-06', total: 0 },
+    ])
+  })
+  await t.test('시작일과 종료일을 포함하여 최대 366일의 윤년 범위를 허용한다', async () => {
+    const result = await read({ startDate: '2024-01-01', endDate: '2024-12-31', timeZone: 'UTC' })
+    assert.equal(result.ok, true)
+    assert.equal(result.value.days.length, 366)
+    assert.deepEqual(result.value.days[0], { day: '2024-01-01', total: 0 })
+    assert.deepEqual(result.value.days.at(-1), { day: '2024-12-31', total: 0 })
+  })
+  await t.test('존재하지 않는 날짜와 역순 및 366일 초과 범위와 혼합된 기간 쿼리는 거부된다', async () => {
+    const valid = { startDate: '2026-10-28', endDate: '2026-10-29', timeZone: 'UTC' }
+    for (const payload of [
+      { ...valid, startDate: '2026-02-29' },
+      { ...valid, startDate: '2026-02-30' },
+      { ...valid, startDate: '2026-13-01' },
+      { ...valid, startDate: '2026-00-01' },
+      { ...valid, startDate: '2026-10-00' },
+      { ...valid, endDate: '2026-10-32' },
+      { ...valid, startDate: '2026-1-01' },
+      { ...valid, endDate: '2026-10-29T00:00:00Z' },
+      { ...valid, startDate: '2026-10-30' },
+      { ...valid, startDate: '2024-01-01', endDate: '2025-01-01' },
+      { ...valid, days: 7 },
+      { ...valid, days: 30 },
+      { ...valid, days: 0 },
+      { ...valid, startDate: null },
+      { ...valid, endDate: 20261029 },
+      { startDate: valid.startDate, timeZone: 'UTC' },
+      { endDate: valid.endDate, timeZone: 'UTC' },
+      { ...valid, timeZone: 'invalid' },
+    ]) {
+      const result = await read(payload)
+      assert.equal(result.ok, false)
+      assert.equal(result.error.code, 'invalid')
+    }
+  })
   await t.test('익명 읽기와 잘못된 쿼리는 거부된다', async () => {
     assert.deepEqual(await read(undefined, { kind: 'anonymous' }), { status: 403 })
     for (const payload of [
@@ -221,6 +294,28 @@ await test('사용량 HTTP API는 원본 호출, 라우트, 캐시, 시도, 로�
     assert.deepEqual(result.value.calls, [])
     assert.equal(result.value.days.length, 7)
   })
+})
+
+await test('공유 날짜 검증은 실제 날짜와 순서 및 양 끝을 포함한 최대 366일을 검증한다', () => {
+  assert.equal(maxRangeDays, 366)
+  for (const [start, end] of [
+    ['2024-02-29', '2024-02-29'],
+    ['2024-01-01', '2024-12-31'],
+    ['2026-01-01', '2027-01-01'],
+  ]) {
+    assert.equal(isValidDateRange(start, end), true)
+  }
+  for (const [start, end] of [
+    ['2026-02-29', '2026-03-01'],
+    ['2026-01-01', '2026-02-30'],
+    ['2026-1-01', '2026-01-02'],
+    ['2026-01-01', '2026-00-01'],
+    ['2026-01-02', '2026-01-01'],
+    ['2024-01-01', '2025-01-01'],
+    ['', '2026-01-01'],
+  ]) {
+    assert.equal(isValidDateRange(start, end), false)
+  }
 })
 
 await test('모든 대시보드 문자열을 영어, 한국어, 중국어로 사용할 수 있다', () => {

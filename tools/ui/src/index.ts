@@ -7,6 +7,7 @@ export { pageStyles } from './page-styles.js'
 export {
   Button,
   CodeBlock,
+  DisclosureRow,
   FileTypeIcon,
   IconPluginPinwheelOutlineRegular,
   Input,

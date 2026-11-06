@@ -34,7 +34,8 @@ declare module '@deepseek-ai/cordis' {
 const styles = `${settingsStyles}${quotaStyles}${pageStyles}
 .dsh-cli-proxy-icon { display: inline-flex; }
 .dsh-cli-proxy-icon > svg { width: 100%; height: 100%; }
-.dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/1.5714 var(--dsw-font-family, system-ui); }
+.dsh-plugin-page-content.dsh-cli-proxy { max-width: none; }
 .dsh-cli-proxy h3 { margin: 24px 0 0; font: inherit; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-proxy .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-cli-proxy .controls > span:has(> input) { box-sizing: border-box; width: 280px; min-width: 0; max-width: 100%; }
@@ -42,8 +43,6 @@ const styles = `${settingsStyles}${quotaStyles}${pageStyles}
 .dsh-cli-proxy .hint { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; margin: 8px 0; }
 .dsh-cli-proxy [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-cli-proxy p, .dsh-cli-proxy .dsh-plugin-settings-text { overflow-wrap: anywhere; }
-.dsh-cli-proxy .quota-window { padding: 8px 0; }
-.dsh-cli-proxy .quota-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .dsh-cli-proxy progress { display: block; width: 100%; height: 6px; margin: 8px 0; border: 0; border-radius: 3px; overflow: hidden; appearance: none; background: var(--dsw-alias-bg-module-platform); }
 .dsh-cli-proxy progress::-webkit-progress-bar { background: var(--dsw-alias-bg-module-platform); }
 .dsh-cli-proxy progress::-webkit-progress-value { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
@@ -55,7 +54,7 @@ const styles = `${settingsStyles}${quotaStyles}${pageStyles}
 }
 `
 
-type Notice = 'error' | 'success' | 'savedConnection'
+type Notice = 'error' | 'success'
 
 function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: QuotaCache; settings?: boolean }) {
   const locale = useLocaleSnapshot(ctx.locale)
@@ -70,8 +69,6 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
   // Secrets live only in the input draft and the in-flight RPC payload, never in persisted state.
   const [apiKey, setAPIKey] = useState('')
   const [managementKey, setManagementKey] = useState('')
-  const [removeAPIKey, setRemoveAPIKey] = useState(false)
-  const [removeManagementKey, setRemoveManagementKey] = useState(false)
   const [synchronized, setSynchronized] = useState(!!cached)
   const [busy, setBusy] = useState(!cached)
   const [notice, setNotice] = useState<Notice>()
@@ -103,8 +100,6 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
       setSynchronized(true)
       setAPIKey('')
       setManagementKey('')
-      setRemoveAPIKey(false)
-      setRemoveManagementKey(false)
       setQuotaAccounts(undefined)
       setQuotas({})
       setFetchedAt(undefined)
@@ -244,14 +239,15 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
     }
   }
 
-  const save = () => {
-    if (!view || !synchronized || lock.current) return
+  const save = (remove: { removeAPIKey?: boolean; removeManagementKey?: boolean } = {}) => {
+    if (!view || !synchronized || lock.current || !baseURL.trim()) return
+    if (!draftChanged && !remove.removeAPIKey && !remove.removeManagementKey) return
     const changedURL = baseURL.trim() !== view.baseURL
     const payload = {
       revision: view.revision,
       baseURL: baseURL.trim(),
-      apiKey: apiKey || (removeAPIKey || changedURL ? '' : undefined),
-      managementKey: managementKey || (removeManagementKey || changedURL ? '' : undefined),
+      apiKey: remove.removeAPIKey ? '' : apiKey || (changedURL ? '' : undefined),
+      managementKey: remove.removeManagementKey ? '' : managementKey || (changedURL ? '' : undefined),
     }
     // Clear immediately, including when the response is lost or the save fails.
     setAPIKey('')
@@ -269,12 +265,11 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
       // Both success and failure require a fresh revision before any further save.
       await describe(controller)
       ctx.emit('cli-proxy-api/connection-changed')
-      setNotice(saved ? 'savedConnection' : 'error')
+      if (!saved) setNotice('error')
     })
   }
 
-  const draftChanged =
-    !!view && (baseURL.trim() !== view.baseURL || !!apiKey || !!managementKey || removeAPIKey || removeManagementKey)
+  const draftChanged = !!view && (baseURL.trim() !== view.baseURL || !!apiKey || !!managementKey)
   const connected = !!view && synchronized && !draftChanged
   const canManage = connected && !!view?.managementKeySaved
   const managementDisabled = busy || !canManage || uncertain
@@ -291,7 +286,7 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
 
   return (
     <section className="dsh-cli-proxy" aria-label="CLIProxyAPI" aria-busy={busy}>
-      {busy && <p role="status">{text.busy}</p>}
+      {busy && !settings && <p role="status">{text.busy}</p>}
       {notice && <p role={notice === 'error' ? 'alert' : 'status'}>{text[notice]}</p>}
       {!synchronized && !busy && button(text.refresh, () => setConnectionVersion((version) => version + 1))}
       {settings ? (
@@ -308,6 +303,10 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
               value={baseURL}
               disabled={busy || !synchronized}
               onChange={(event) => setBaseURL(event.target.value)}
+              onBlur={() => save()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
+              }}
             />
           )}
           {row(
@@ -319,20 +318,14 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
                 autoComplete="off"
                 value={apiKey}
                 disabled={busy || !synchronized}
-                placeholder={removeAPIKey ? text.removed : view?.apiKeySaved ? text.saved : text.notSaved}
-                onChange={(event) => {
-                  setAPIKey(event.target.value)
-                  setRemoveAPIKey(false)
+                placeholder={view?.apiKeySaved ? text.saved : text.notSaved}
+                onChange={(event) => setAPIKey(event.target.value)}
+                onBlur={() => save()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
                 }}
               />
-              {button(
-                text.remove,
-                () => {
-                  setAPIKey('')
-                  setRemoveAPIKey(true)
-                },
-                busy || !synchronized || !view?.apiKeySaved || removeAPIKey
-              )}
+              {button(text.remove, () => save({ removeAPIKey: true }), busy || !synchronized || !view?.apiKeySaved)}
             </>
           )}
           {row(
@@ -344,26 +337,22 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
                 autoComplete="off"
                 value={managementKey}
                 disabled={busy || !synchronized}
-                placeholder={removeManagementKey ? text.removed : view?.managementKeySaved ? text.saved : text.notSaved}
-                onChange={(event) => {
-                  setManagementKey(event.target.value)
-                  setRemoveManagementKey(false)
+                placeholder={view?.managementKeySaved ? text.saved : text.notSaved}
+                onChange={(event) => setManagementKey(event.target.value)}
+                onBlur={() => save()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
                 }}
               />
               {button(
                 text.remove,
-                () => {
-                  setManagementKey('')
-                  setRemoveManagementKey(true)
-                },
-                busy || !synchronized || !view?.managementKeySaved || removeManagementKey
+                () => save({ removeManagementKey: true }),
+                busy || !synchronized || !view?.managementKeySaved
               )}
             </>
           )}
           <p className="hint">{text.keyHint}</p>
           {!synchronized && !busy && <p role="alert">{text.connectionLocked}</p>}
-          {row(text.connection, button(text.save, save, busy || !synchronized || !baseURL.trim()))}
-          {draftChanged && <p className="hint">{text.draftHint}</p>}
         </>
       ) : (
         <>
@@ -445,18 +434,19 @@ export function apply(ctx: Context) {
         label: () => 'CLIProxyAPI',
         inject: () => ({ ctx, cache }),
       },
-      (props) => <ProxyPage {...props} settings />
+      (props: { ctx: Context; cache: QuotaCache }) => <ProxyPage {...props} settings />
     )
   )
   ctx.slots.inject('main', () =>
-    ctx.slots.register({ name: 'main', key: name as MainPanelId, inject: () => ({ ctx, cache }) }, (props) => (
-      <ProxyPanel {...props} />
-    ))
+    ctx.slots.register(
+      { name: 'main', key: name as MainPanelId, inject: () => ({ ctx, cache }) },
+      (props: { ctx: Context; cache: QuotaCache }) => <ProxyPanel {...props} />
+    )
   )
   ctx.slots.inject('sidebar.panellist', () =>
     ctx.slots.register(
       { name: 'sidebar.panellist', id: name as MainPanelId, order: 20, label: () => 'CLIProxyAPI' },
-      ({ size }) => (
+      ({ size }: { size: number }) => (
         <span
           className="dsh-cli-proxy-icon"
           style={{ width: size, height: size }}

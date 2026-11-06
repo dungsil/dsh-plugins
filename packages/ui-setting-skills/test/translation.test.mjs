@@ -1,0 +1,270 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import test from 'node:test'
+import { runInNewContext } from 'node:vm'
+import { Window } from 'happy-dom'
+import * as React from 'react'
+
+async function mount(t, available = true) {
+  const window = new Window()
+  const previous = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map((key) => [
+    key,
+    Object.getOwnPropertyDescriptor(globalThis, key),
+  ])
+  Object.assign(globalThis, { window, document: window.document, IS_REACT_ACT_ENVIRONMENT: true })
+  const { createRoot } = await import('react-dom/client')
+  const root = createRoot(window.document.body.appendChild(window.document.createElement('div')))
+  const disposers = []
+  t.after(async () => {
+    await React.act(async () => root.unmount())
+    disposers.reverse().forEach((dispose) => dispose?.())
+    await window.happyDOM.close()
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor)
+      else delete globalThis[key]
+    }
+  })
+  const require = createRequire(import.meta.url)
+  let plugin
+  runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
+    AbortController,
+    document: window.document,
+    MutationObserver: window.MutationObserver,
+    window: {
+      __ModuleLoader__: {
+        load({ factory }) {
+          plugin = factory((id) => {
+            if (id !== '@deepseek-ai/dsh-client-ui-primitives') return require(id)
+            return {
+              Button: ({ icon, children, variant: _variant, size: _size, ...props }) =>
+                React.createElement('button', props, icon, children),
+              Tooltip: ({ children }) => children,
+              Input: React.forwardRef(({ onChange, ...props }, ref) =>
+                React.createElement('input', { ...props, ref, onInput: onChange })
+              ),
+              SegmentedControl: ({ options, value, onChange }) =>
+                React.createElement(
+                  'div',
+                  { role: 'tablist' },
+                  options.map((option) =>
+                    React.createElement(
+                      'button',
+                      {
+                        key: option.value,
+                        role: 'tab',
+                        'aria-selected': value === option.value,
+                        onClick: () => onChange(option.value),
+                      },
+                      option.label
+                    )
+                  )
+                ),
+              Switch: () => null,
+              ...Object.fromEntries(
+                ['ChevronRight', 'FolderOpen', 'Loading', 'Skill'].map((name) => [
+                  `Icon${name}OutlineRegular`,
+                  () => React.createElement('svg'),
+                ])
+              ),
+            }
+          })
+        },
+      },
+    },
+  })
+  const requests = []
+  let snapshot = { active: 'ko' }
+  const listeners = new Set()
+  const skills = ['alpha', 'beta', 'empty'].map((name, index) => ({
+    name,
+    path: `/${name}/SKILL.md`,
+    description: index === 2 ? '' : `Original ${name}`,
+    source: index === 1 ? 'user-dsh' : 'user-agents',
+  }))
+  const connection = {
+    rpc: {
+      call: async (_channel, method, payload, signal) => {
+        if (method.endsWith('/list'))
+          return {
+            ok: true,
+            value: {
+              complete: true,
+              disabled: [],
+              folderOpenAvailable: false,
+              translationAvailable: available,
+              skills,
+            },
+          }
+        assert.equal(method, 'dungsil-ui-setting-skills/translate')
+        return new Promise((resolve) => requests.push({ ...payload, signal, resolve }))
+      },
+    },
+  }
+  const ctx = {
+    effect: (setup) => disposers.push(setup()),
+    locale: {
+      subscribe: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+      getSnapshot: () => snapshot,
+    },
+    get: () => connection,
+    slots: {
+      inject: (_name, setup) => setup(),
+      register: (_options, Component) => root.render(React.createElement(Component, { ctx })),
+    },
+  }
+  await React.act(async () => plugin.apply(ctx))
+  const doc = window.document
+  return {
+    doc,
+    requests,
+    async search(value) {
+      await React.act(async () => {
+        const input = doc.querySelector('input[type="search"]')
+        input.value = value
+        input.dispatchEvent(new window.Event('input', { bubbles: true }))
+      })
+    },
+    button: (text) => [...doc.querySelectorAll('button')].find((button) => button.textContent === text),
+    async toggle(index, open) {
+      await React.act(async () => {
+        const details = doc.querySelectorAll('details')[index]
+        details.open = open
+        details.dispatchEvent(new window.Event('toggle'))
+        await window.happyDOM.whenAsyncComplete()
+      })
+    },
+    async language(active) {
+      await React.act(async () => {
+        snapshot = { active }
+        listeners.forEach((listener) => listener())
+      })
+    },
+  }
+}
+
+await test('개별 번역은 접힌 미리보기에 유지되고 원문 보기는 상세 설명만 변경한다', async (t) => {
+  const ui = await mount(t)
+  await ui.toggle(0, true)
+  assert.equal(ui.requests.length, 1)
+  await React.act(async () => ui.requests[0].resolve({ ok: true, value: '알파 번역' }))
+  const row = ui.doc.querySelector('li')
+  assert.equal(row.querySelector('.dsh-skills-preview').textContent, '알파 번역')
+  await React.act(async () => ui.button('원문 보기').click())
+  assert.equal(row.querySelector('.dsh-skills-detail p').textContent, 'Original alpha')
+  assert.equal(row.querySelector('.dsh-skills-preview').textContent, '알파 번역')
+  await ui.toggle(0, false)
+  await ui.toggle(0, true)
+  assert.equal(ui.requests.length, 1)
+  assert.equal(row.querySelector('.dsh-skills-preview').textContent, '알파 번역')
+})
+
+await test('전체 번역은 숨겨진 탭도 순차 처리하고 실패 후 재시도는 성공한 항목을 제외한다', async (t) => {
+  const ui = await mount(t)
+  await React.act(async () => {
+    ui.button('전체 스킬 번역').click()
+    ui.button('전체 스킬 번역').click()
+  })
+  assert.equal(ui.requests.length, 1)
+  assert.equal(ui.button('전체 스킬 번역 중…').disabled, true)
+  await React.act(async () => ui.requests[0].resolve({ ok: true, value: '알파 번역' }))
+  assert.equal(ui.requests.length, 2)
+  assert.equal(ui.requests[1].path, '/beta/SKILL.md')
+  await React.act(async () => ui.requests[1].resolve({ ok: false }))
+  assert.equal(ui.doc.querySelectorAll('details[open]').length, 0)
+  assert.deepEqual(
+    [...ui.doc.querySelectorAll('.dsh-skills-preview')].map((node) => node.textContent),
+    ['알파 번역', '', 'Original beta']
+  )
+  assert.ok(ui.doc.querySelector('.dsh-skills-translation-toolbar [role="alert"]'))
+  await React.act(async () => ui.button('전체 스킬 번역').click())
+  assert.equal(ui.requests.length, 3)
+  assert.equal(ui.requests[2].path, '/beta/SKILL.md')
+  await React.act(async () => ui.requests[2].resolve({ ok: true, value: '베타 번역' }))
+  assert.equal(ui.doc.querySelector('.dsh-skills-translation-toolbar [role="alert"]'), null)
+  assert.equal(ui.button('전체 스킬 번역').disabled, false)
+})
+
+await test('전체 번역은 펼치기로 진행 중인 요청을 재사용하고 언어 변경 시 이전 결과를 표시하지 않는다', async (t) => {
+  const ui = await mount(t)
+  await ui.toggle(0, true)
+  await React.act(async () => ui.button('전체 스킬 번역').click())
+  assert.equal(ui.requests.length, 1)
+  await ui.language('en')
+  assert.equal(ui.requests[0].signal.aborted, true)
+  assert.equal(ui.requests.length, 2)
+  assert.equal(ui.requests[1].language, 'en')
+  assert.ok(ui.button('Translate all skills'))
+  await React.act(async () => ui.requests[0].resolve({ ok: true, value: '오래된 번역' }))
+  assert.equal(ui.doc.querySelector('.dsh-skills-preview').textContent, 'Original alpha')
+  await React.act(async () => ui.requests[1].resolve({ ok: true, value: 'English alpha' }))
+  assert.equal(ui.doc.querySelector('.dsh-skills-preview').textContent, 'English alpha')
+  await ui.language('zh')
+  assert.ok(ui.button('翻译全部技能'))
+  await React.act(async () => ui.requests[2].resolve({ ok: true, value: '中文描述' }))
+  assert.equal(ui.doc.querySelector('.dsh-skills-preview').textContent, '中文描述')
+})
+
+await test('검색은 이름과 설명과 경로를 정규화해 모든 검색어로 필터링하고 탭 전환과 입력값 삭제를 지원한다', async (t) => {
+  const ui = await mount(t, false)
+  const names = () =>
+    [...ui.doc.querySelectorAll('[role="tabpanel"]:not([hidden]) strong')].map((node) => node.textContent)
+  const input = ui.doc.querySelector('input[type="search"]')
+  assert.ok(ui.doc.querySelector('[role="tablist"]').compareDocumentPosition(input) & 4)
+  assert.ok(input.compareDocumentPosition(ui.doc.querySelector('.dsh-skills-list-header')) & 4)
+  assert.equal(ui.doc.querySelector('label'), null)
+  assert.equal(ui.doc.querySelector('[role="status"]'), null)
+  assert.equal(ui.button('검색 지우기'), undefined)
+  assert.deepEqual(names(), ['alpha', 'empty'])
+  for (const query of ['  ＡＬＰＨＡ  ', 'Original alpha', '/alpha/SKILL.md', 'alpha\tOriginal']) {
+    await ui.search(query)
+    assert.deepEqual(names(), ['alpha'])
+    assert.ok(ui.button('공용 스킬 1/2'))
+  }
+  await ui.search('alpha missing')
+  assert.deepEqual(names(), [])
+  assert.match(ui.doc.querySelector('[role="tabpanel"]:not([hidden])').textContent, /검색 조건에 맞는 스킬이 없습니다/)
+  await ui.search('beta')
+  await React.act(async () => ui.button('DSH 스킬 1/1').click())
+  assert.deepEqual(names(), ['beta'])
+  assert.equal(ui.doc.querySelector('input[type="search"]').value, 'beta')
+  await ui.search('')
+  assert.equal(ui.doc.querySelector('input[type="search"]').value, '')
+  await React.act(async () => ui.button('공용 스킬 2').click())
+  await ui.search('   ')
+  assert.deepEqual(names(), ['alpha', 'empty'])
+  assert.equal(ui.requests.length, 0)
+  for (const [language, label, placeholder] of [
+    ['en', 'Search skills', 'Search by name, description, or path'],
+    ['zh', '搜索技能', '按名称、描述或路径搜索'],
+    ['ko', '스킬 검색', '이름, 설명 또는 경로로 검색'],
+  ]) {
+    await ui.language(language)
+    assert.equal(input.getAttribute('aria-label'), label)
+    assert.equal(input.placeholder, placeholder)
+  }
+})
+
+await test('검색은 불러온 번역문도 찾되 추가 번역 요청을 보내지 않는다', async (t) => {
+  const ui = await mount(t)
+  await ui.toggle(0, true)
+  await React.act(async () => ui.requests[0].resolve({ ok: true, value: '알파 번역' }))
+  await ui.toggle(0, false)
+  await ui.search('알파')
+  assert.equal(ui.doc.querySelectorAll('li').length, 1)
+  assert.equal(ui.doc.querySelector('strong').textContent, 'alpha')
+  assert.equal(ui.requests.length, 1)
+  await ui.language('en')
+  assert.equal(ui.doc.querySelectorAll('li').length, 0)
+  assert.equal(ui.requests.length, 1)
+})
+
+await test('번역 서비스가 없으면 전체 번역 버튼과 자동 번역 요청을 제공하지 않는다', async (t) => {
+  const ui = await mount(t, false)
+  assert.equal(ui.button('전체 스킬 번역'), undefined)
+  await ui.toggle(0, true)
+  assert.equal(ui.requests.length, 0)
+})

@@ -77,6 +77,16 @@
       },
       "versions": [
         {
+          "version": "0.1.2",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.1",
           "publishTimestamp": 1793903271,
           "source": {
@@ -132,6 +142,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.1.2",
           "publishTimestamp": 1793903271,
@@ -198,6 +218,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.8.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.7.3",
           "publishTimestamp": 1793903271,
@@ -735,6 +765,16 @@
       },
       "versions": [
         {
+          "version": "0.8.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.7.1",
           "publishTimestamp": 1793903271,
           "source": {
@@ -841,6 +881,16 @@
       },
       "versions": [
         {
+          "version": "0.4.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.3.2",
           "publishTimestamp": 1793903271,
           "source": {
@@ -917,6 +967,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.3",
           "publishTimestamp": 1793903271,
           "source": {
@@ -979,102 +1039,6 @@
       ]
     },
     {
-      "name": "@dungsil/dsh-plugin-ui-worktree",
-      "title": {
-        "en": "Git Worktree UI",
-        "ko": "Git Worktree UI",
-        "zh": "Git 工作树界面"
-      },
-      "description": {
-        "en": "Select New worktree, then send a task to automatically name, create, and enter it. Follow setup progress in the conversation.",
-        "ko": "새 워크트리를 선택하고 작업을 전송하면 자동으로 이름을 정하고 생성·전환합니다. 대화에서 준비 상태를 확인합니다.",
-        "zh": "选择新工作树并发送任务，自动命名、创建并切换工作树，在对话中查看准备进度。"
-      },
-      "repository": {
-        "url": "https://github.com/dungsil/dsh-plugins",
-        "directory": "packages/ui-worktree"
-      },
-      "author": "dungsil",
-      "metadata": {
-        "category": "ui",
-        "keywords": ["git", "worktree", "composer"],
-        "labels": [],
-        "sortKeys": {}
-      },
-      "versions": [
-        {
-          "version": "0.6.1",
-          "publishTimestamp": 1793903271,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
-          }
-        },
-        {
-          "version": "0.6.0",
-          "publishTimestamp": 1793868675,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.5.0",
-          "publishTimestamp": 1793854384,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.4.0",
-          "publishTimestamp": 1793804377,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.3.0",
-          "publishTimestamp": 1793784446,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.2.0",
-          "publishTimestamp": 1793781219,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.1.0",
-          "publishTimestamp": 1793693372,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        }
-      ]
-    },
-    {
       "name": "@dungsil/dsh-plugin-ui-model-picker",
       "title": {
         "en": "Model Picker",
@@ -1098,6 +1062,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.2.6",
           "publishTimestamp": 1793903271,
@@ -1247,115 +1221,6 @@
       ]
     },
     {
-      "name": "@dungsil/dsh-plugin-ui-vcs",
-      "title": {
-        "en": "Version Control",
-        "ko": "버전 관리",
-        "zh": "版本控制"
-      },
-      "description": {
-        "en": "Request Git commits, pushes and PR/MR updates, then review CI, diffs and discussions and merge GitHub, GitLab, Gitea or Forgejo requests with gh / glab / tea. Self-hosted instances use an explicit provider.",
-        "ko": "Git 커밋·푸시·PR/MR 업데이트를 요청하고 GitHub·GitLab·Gitea·Forgejo의 CI·차이·토론을 검토한 뒤 gh / glab / tea로 병합합니다. 자체 호스팅은 provider 설정으로 지원합니다.",
-        "zh": "请求 Git 提交、推送和 PR/MR 更新，审查 GitHub、GitLab、Gitea 或 Forgejo 的 CI、差异与讨论，并通过 gh / glab / tea 合并。自托管实例需显式设置 provider。"
-      },
-      "repository": {
-        "url": "https://github.com/dungsil/dsh-plugins",
-        "directory": "packages/ui-vcs"
-      },
-      "author": "dungsil",
-      "metadata": {
-        "category": "ui",
-        "keywords": [
-          "git",
-          "commit",
-          "push",
-          "pull-request",
-          "composer",
-          "github",
-          "gitlab",
-          "gitea",
-          "forgejo",
-          "self-hosted",
-          "mr",
-          "sidebar"
-        ],
-        "labels": [],
-        "sortKeys": {}
-      },
-      "versions": [
-        {
-          "version": "0.4.2",
-          "publishTimestamp": 1793903271,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
-          }
-        },
-        {
-          "version": "0.4.1",
-          "publishTimestamp": 1793888412,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.4.0",
-          "publishTimestamp": 1793868675,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.3.0",
-          "publishTimestamp": 1793860697,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.2.0",
-          "publishTimestamp": 1793854230,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.1.0",
-          "publishTimestamp": 1793804365,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        },
-        {
-          "version": "0.0.0",
-          "publishTimestamp": 1793804437,
-          "source": {
-            "type": "npm"
-          },
-          "engines": {
-            "dsh": "^0.2.1-rc.5"
-          }
-        }
-      ]
-    },
-    {
       "name": "@dungsil/dsh-plugin-ui-usage",
       "title": {
         "en": "Usage Dashboard",
@@ -1379,6 +1244,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.3.1",
           "publishTimestamp": 1793903271,
@@ -1465,6 +1340,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.1.2",
+          "publishTimestamp": 1793949232,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.1.1",
           "publishTimestamp": 1793903271,

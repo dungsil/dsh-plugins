@@ -12,6 +12,7 @@ import { SkillRegistry } from '@deepseek-ai/dsh-skill'
 import { FileSystemSkillProvider } from '@deepseek-ai/dsh-skill-filesystem'
 import z from '@deepseek-ai/schemastery'
 import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
+import { matchesTargetLanguage } from './language.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'configEditor']
@@ -124,12 +125,17 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                   .update(JSON.stringify([preferences.provider, targetLanguage, skill.description]))
                   .digest('hex')
                 const cachePath = join(cacheDir, `${key}.json`)
-                let value: string | undefined
-                try {
-                  const cached: unknown = JSON.parse(await readFile(cachePath, 'utf8'))
-                  if (typeof cached === 'string') value = cached
-                } catch {
-                  // Missing or damaged cache entries are retried through the selected provider.
+                // Resolve this before the cache so older same-language translations cannot replace the original.
+                let value: string | undefined = matchesTargetLanguage(skill.description, targetLanguage)
+                  ? skill.description
+                  : undefined
+                if (value === undefined) {
+                  try {
+                    const cached: unknown = JSON.parse(await readFile(cachePath, 'utf8'))
+                    if (typeof cached === 'string') value = cached
+                  } catch {
+                    // Missing or damaged cache entries are retried through the selected provider.
+                  }
                 }
                 signal.throwIfAborted()
                 if (value === undefined) {

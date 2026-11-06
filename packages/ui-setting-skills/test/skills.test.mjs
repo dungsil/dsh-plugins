@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +10,7 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import { canOpenNativePath } from '@deepseek-ai/dsh-native-command'
+import { dshCachePath } from '@deepseek-ai/dsh-home-paths'
 import Skills from '@deepseek-ai/dsh-skill'
 import * as Filesystem from '@deepseek-ai/dsh-skill-filesystem'
 import * as plugin from '../dist/index.js'
@@ -309,7 +311,7 @@ await test('스킬을 변경하지 않고 승인된 기본 설정을 사용해 �
     assert.equal(await translate({ path, language: 'ko' }, { principal, interactions: 'deny' }), 403)
   }
   fail = true
-  targetLanguage = 'en'
+  targetLanguage = 'ja'
   assert.deepEqual(await translate({ path, language: 'ko' }), {
     ok: false,
     error: { code: 'translation_failed', message: 'Could not translate skill description.', details: {} },
@@ -326,6 +328,87 @@ await test('스킬을 변경하지 않고 승인된 기본 설정을 사용해 �
   assert.equal((await translate({ path, language: 'ko' })).ok, true)
   await h.fiber.dispose()
   assert.equal(await translate({ path, language: 'ko' }), 404)
+})
+
+await test('원문과 실제 대상 언어가 같으면 공급자 요청 없이 원문을 반환한다', async (t) => {
+  const h = await fixture(t)
+  let targetLanguage = 'auto'
+  const calls = []
+  h.ctx.provide('cotTranslation', {
+    limits: async () => ({ preferences: { provider: 'google', targetLanguage } }),
+    translate: async (request) => {
+      calls.push(request)
+      return 'Translated description'
+    },
+  })
+  const samples = [
+    ['en-US', 'Plan the next task'],
+    ['ko-KR', '스킬의 내용을 확인하고 필요한 작업을 수행합니다'],
+    ['zh', '使用此技能来检查用户请求并完成任务'],
+    ['fr-FR', 'Ce guide explique comment utiliser les outils pour travailler avec les fichiers et les projets.'],
+  ]
+  for (const [language, description] of samples) {
+    const path = await h.skill(h.agents, `skill-${language.toLowerCase()}`, description)
+    const cacheDir = dshCachePath('dungsil-ui-setting-skills', 'translations-v1')
+    const key = createHash('sha256')
+      .update(JSON.stringify(['google', language, description]))
+      .digest('hex')
+    await mkdir(cacheDir, { recursive: true })
+    await writeFile(join(cacheDir, `${key}.json`), JSON.stringify('Outdated same-language translation'))
+    const request = async () =>
+      (
+        await (
+          await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/translate', payload: { path, language } })
+        ).json()
+      ).result
+    assert.deepEqual(await request(), { ok: true, value: description })
+    targetLanguage = language
+    assert.deepEqual(await request(), { ok: true, value: description })
+    targetLanguage = 'auto'
+  }
+  assert.equal(calls.length, 0)
+  const path = await h.skill(h.agents, 'explicit-target', 'Plan the next task')
+  const request = async (language) =>
+    (
+      await (
+        await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/translate', payload: { path, language } })
+      ).json()
+    ).result
+  targetLanguage = 'ko'
+  assert.deepEqual(await request('en'), { ok: true, value: 'Translated description' })
+  assert.equal(calls.length, 1)
+  targetLanguage = 'en'
+  assert.deepEqual(await request('ko'), { ok: true, value: 'Plan the next task' })
+  assert.equal(calls.length, 1)
+})
+
+await test('짧거나 불확실한 원문과 문자 체계가 지정된 대상은 번역을 생략하지 않는다', async (t) => {
+  const h = await fixture(t)
+  let calls = 0
+  h.ctx.provide('cotTranslation', {
+    limits: async () => ({ preferences: { provider: 'google', targetLanguage: 'auto' } }),
+    translate: async () => {
+      calls++
+      return 'Translated description'
+    },
+  })
+  for (const [language, description] of [
+    ['en', 'API'],
+    ['en', '1234567890'],
+    ['fr', 'Cette compétence permet de vérifier les demandes et de réaliser les tâches nécessaires.'],
+    ['zh-Hant', '使用此技能来检查用户请求并完成任务'],
+    ['zh-TW', '使用此技能来检查用户请求并完成任务'],
+    ['invalid locale!', 'Plan the next task'],
+  ]) {
+    const path = await h.skill(h.agents, `uncertain-${calls}`, JSON.stringify(description))
+    const response = await h.fetch({
+      ...h.request,
+      method: 'dungsil-ui-setting-skills/translate',
+      payload: { path, language },
+    })
+    assert.deepEqual((await response.json()).result, { ok: true, value: 'Translated description' })
+  }
+  assert.equal(calls, 6)
 })
 
 await test('스킬 파일을 변경하지 않고 재로드 후에도 DSH 전용 비활성화를 유지하며 다시 활성화하면 조회를 복원한다', async (t) => {

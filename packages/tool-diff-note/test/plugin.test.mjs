@@ -66,6 +66,47 @@ await test('도구 런타임을 통해 추가와 삭제를 포함한 정확한 �
   assert.equal((await run(args)).isError, false)
 })
 
+await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 해제와 재로드 후에도 중복하지 않는다', async (t) => {
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
+  const baseline = await ctx.systemPrompt.assemble()
+  const fork = ctx.plugin(plugin)
+  await fork
+
+  const assembled = await ctx.systemPrompt.assemble()
+  const sections = assembled.sections.filter((section) => section.name === 'dungsil:diff-note')
+  assert.equal(sections.length, 1)
+  const text = sections[0].text
+  assert.match(text, /only after completing the requested implementation or fixes and all feasible validation/u)
+  assert.match(text, /immediately before the final response/u)
+  assert.match(text, /Never call it while work is in progress/u)
+  assert.match(text, /code you actually changed during this task/u)
+  assert.match(text, /skip the tool when no such decision needs explanation/u)
+  assert.match(text, /unchanged code, use file-and-line links and code quotations instead of inventing a change/u)
+  assert.match(text, /exact before\/after fragments/u)
+  assert.match(text, /Report validation limits in the final response/u)
+  assert.match(text, /does not replace testing or that response/u)
+  const schema = ctx.tools.schemas().find((tool) => tool.name === 'diff_note')
+  assert.ok(schema)
+  assert.match(schema.description, /only immediately before the final response/u)
+  assert.match(schema.description, /after requested changes and feasible validation are complete; never during work/u)
+  assert.match(schema.description, /Never include secrets/u)
+  assert.match(schema.parameters.properties.note.description, /conversation language/u)
+
+  await fork.dispose()
+  assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
+  assert.equal(ctx.tools.get('diff_note'), undefined)
+  const reloaded = ctx.plugin(plugin)
+  await reloaded
+  assert.deepEqual(await ctx.systemPrompt.assemble(), assembled)
+  assert.equal(ctx.tools.schemas().filter((tool) => tool.name === 'diff_note').length, 1)
+  await reloaded.dispose()
+  assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
+})
+
 await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 있다', async () => {
   const locales = await Promise.all(
     ['en', 'ko', 'zh'].map(async (language) =>
@@ -80,7 +121,7 @@ await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 �
   }
 })
 
-await test('도구 뷰는 접힌 차이를 포함해 첫 번째 변경 블록 뒤에 설명을 유지한다', async () => {
+await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지막 변경 줄 뒤에 설명을 유지한다', async () => {
   const require = createRequire(import.meta.url)
   let client
   let View
@@ -129,8 +170,23 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 변경 블록 �
   const html = render('<section>\n  {children}\n</section>', '<Modal open>\n  {children}\n</Modal>')
   assert.ok(html.includes('&lt;Modal open&gt;') && html.includes('{children}'))
   assert.ok(html.indexOf('&lt;Modal open&gt;') < html.indexOf('이유를 설명합니다.'))
-  assert.ok(html.indexOf('이유를 설명합니다.') < html.indexOf('{children}'))
+  assert.ok(html.indexOf('&lt;/Modal&gt;') < html.indexOf('이유를 설명합니다.'))
   assert.doesNotMatch(html, /작성 시점 스냅샷|<h3/u)
+  // The screenshot's deletion and replacement belong to one hunk even though
+  // the unchanged original state separates their contiguous change runs.
+  const separated = render(
+    'const translated = useState()\nconst original = useState(false)\nconst pending = useState(false)\nconst failed = useState(false)\nconst retry = useState(0)\nreturn translated',
+    'const original = useState(false)\nconst { value: translated, pending, failed } = translation ?? {}\nreturn translated'
+  )
+  assert.ok(separated.indexOf('translation ?? {}') < separated.indexOf('이유를 설명합니다.'))
+  assert.ok(separated.indexOf('이유를 설명합니다.') < separated.indexOf('return translated'))
+  assert.equal((separated.match(/dsh-diff-note-bubble/gu) ?? []).length, 1)
+  // A second, distant hunk must not pull the annotation away from the first.
+  const context = Array.from({ length: 12 }, (_, i) => `context${i}`).join('\n')
+  const multiple = render(`oldFirst\n${context}\noldLast`, `newFirst\n${context}\nnewLast`)
+  assert.ok(multiple.indexOf('newFirst') < multiple.indexOf('이유를 설명합니다.'))
+  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('context0'))
+  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('newLast'))
   const folded = render(
     Array.from({ length: 30 }, (_, i) => `old${i}`).join('\n') + '\nunchangedTail',
     Array.from({ length: 30 }, (_, i) => `new${i}`).join('\n') + '\nunchangedTail'

@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
+import { Button, Input, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
 import {
   IconChevronRightOutlineRegular,
   IconFolderOpenOutlineRegular,
@@ -26,6 +26,7 @@ const styles = `
 .dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-skills-settings p { margin: 4px 0; }
 .dsh-skills-settings-tabs { margin: 20px 0 12px; }
+.dsh-skills-search { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
 .dsh-skills-settings .dsh-skills-muted { color: var(--dsw-alias-label-secondary); }
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
@@ -50,52 +51,31 @@ const styles = `
 .dsh-skills-list-header { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 `
 
+type Skill = SkillsView['skills'][number]
+type Translation = { value?: string; pending?: boolean; failed?: boolean }
+const translationKey = (skill: Skill, language: string) => JSON.stringify([language, skill.path, skill.description])
+
 function SkillDescription({
   skill,
-  connection,
   language,
   available,
   expanded,
+  translation,
+  translate,
 }: {
-  skill: SkillsView['skills'][number]
-  connection: ConnectionHandle
+  skill: Skill
   language: string
   available: boolean
   expanded: boolean
+  translation?: Translation
+  translate: (skill: Skill) => Promise<void>
 }) {
   const text = localizedCopy(language)
-  const [translated, setTranslated] = useState<string>()
   const [original, setOriginal] = useState(false)
-  const [pending, setPending] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const [retry, setRetry] = useState(0)
+  const { value: translated, pending, failed } = translation ?? {}
   useEffect(() => {
-    setTranslated(undefined)
-    setOriginal(false)
-    setPending(false)
-    setFailed(false)
-    if (!expanded || !available || !skill.path || !skill.description) return
-    const request = new AbortController()
-    setPending(true)
-    void (async () => {
-      try {
-        const result = await connection.rpc.call(
-          channel,
-          translateMethod,
-          { path: skill.path, language },
-          request.signal
-        )
-        if (request.signal.aborted) return
-        if (!result.ok || typeof result.value !== 'string') throw new Error('Could not translate description')
-        setTranslated(result.value)
-      } catch {
-        if (!request.signal.aborted) setFailed(true)
-      } finally {
-        if (!request.signal.aborted) setPending(false)
-      }
-    })()
-    return () => request.abort()
-  }, [expanded, skill.description, skill.path, language, available, connection, retry])
+    if (expanded && available) void translate(skill)
+  }, [expanded, available, skill, translate])
 
   return (
     <>
@@ -103,7 +83,7 @@ function SkillDescription({
       {available && skill.path && skill.description && (
         <>
           {pending && <p role="status">{text.translating}</p>}
-          {translated !== undefined && (
+          {translated !== undefined && translated !== skill.description && (
             <Button variant="ghost" size="sm" onClick={() => setOriginal((value) => !value)}>
               {original ? text.translate : text.original}
             </Button>
@@ -111,7 +91,7 @@ function SkillDescription({
           {failed && (
             <>
               <p role="alert">{text.translationError}</p>
-              <Button variant="ghost" size="sm" onClick={() => setRetry((value) => value + 1)}>
+              <Button variant="ghost" size="sm" onClick={() => void translate(skill)}>
                 {text.retry}
               </Button>
             </>
@@ -140,11 +120,95 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const mounted = useRef(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [source, setSource] = useState<'user-agents' | 'user-dsh'>('user-agents')
-  const groups = (['user-agents', 'user-dsh'] as const).map((value) => ({
-    value,
-    label: value === 'user-agents' ? text.agents : text.dsh,
-    skills: view?.skills.filter((skill) => skill.source === value) ?? [],
-  }))
+  const [query, setQuery] = useState('')
+  const [, refreshTranslations] = useState(0)
+  const translations = useMemo(
+    () => ({
+      entries: new Map<string, Translation>(),
+      requests: new Map<string, Promise<void>>(),
+      controllers: new Set<AbortController>(),
+      bulk: false,
+      active: true,
+    }),
+    [connection, locale.active]
+  )
+  useEffect(() => {
+    translations.active = true
+    return () => {
+      translations.active = false
+      for (const controller of translations.controllers) controller.abort()
+    }
+  }, [translations])
+  const translate = useCallback(
+    (skill: Skill): Promise<void> => {
+      if (!skill.path || !skill.description) return Promise.resolve()
+      const key = translationKey(skill, locale.active)
+      const existing = translations.requests.get(key)
+      if (existing) return existing
+      if (translations.entries.get(key)?.value !== undefined) return Promise.resolve()
+      const controller = new AbortController()
+      translations.controllers.add(controller)
+      translations.entries.set(key, { pending: true })
+      refreshTranslations((value) => value + 1)
+      const request = (async () => {
+        try {
+          const result = await connection.rpc.call(
+            channel,
+            translateMethod,
+            { path: skill.path, language: locale.active },
+            controller.signal
+          )
+          if (!result.ok || typeof result.value !== 'string') throw new Error('Could not translate description')
+          if (!controller.signal.aborted) translations.entries.set(key, { value: result.value })
+        } catch {
+          if (!controller.signal.aborted) translations.entries.set(key, { failed: true })
+        } finally {
+          translations.requests.delete(key)
+          translations.controllers.delete(controller)
+          if (translations.active && !controller.signal.aborted) refreshTranslations((value) => value + 1)
+        }
+      })()
+      translations.requests.set(key, request)
+      return request
+    },
+    [connection, locale.active, translations]
+  )
+  async function translateAll() {
+    if (translations.bulk || !view?.translationAvailable) return
+    translations.bulk = true
+    refreshTranslations((value) => value + 1)
+    try {
+      // Bound bulk requests to one at a time, sharing any in-flight expansion request.
+      for (const skill of view.skills) {
+        if (!translations.active) break
+        await translate(skill)
+      }
+    } finally {
+      translations.bulk = false
+      if (translations.active) refreshTranslations((value) => value + 1)
+    }
+  }
+  const normalizeSearch = (value: string) => value.normalize('NFKC').toLowerCase()
+  const searchTerms = normalizeSearch(query).trim().split(/\s+/u).filter(Boolean)
+  const groups = (['user-agents', 'user-dsh'] as const).map((value) => {
+    const skills = view?.skills.filter((skill) => skill.source === value) ?? []
+    return {
+      value,
+      label: value === 'user-agents' ? text.agents : text.dsh,
+      total: skills.length,
+      skills: skills.filter((skill) => {
+        const fields = [
+          skill.name,
+          skill.description,
+          skill.path ?? '',
+          translations.entries.get(translationKey(skill, locale.active))?.value ?? '',
+        ].map(normalizeSearch)
+        return searchTerms.every((term) => fields.some((field) => field.includes(term)))
+      }),
+    }
+  })
+  const groupCount = (group: (typeof groups)[number]) =>
+    searchTerms.length ? `${group.skills.length}/${group.total}` : `${group.total}`
 
   useEffect(() => {
     const controller = new AbortController()
@@ -204,7 +268,24 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     <section className="dsh-skills-settings" aria-label={text.nav} aria-busy={!view && !error}>
       <p className="dsh-skills-muted">{text.description}</p>
       {view && !view.folderOpenAvailable && <p className="dsh-skills-muted">{text.openFolderUnavailable}</p>}
-      {view?.translationAvailable && <p className="dsh-skills-muted">{text.translationNotice}</p>}
+      {view?.translationAvailable && (
+        <div className="dsh-skills-translation-toolbar">
+          <p className="dsh-skills-muted">{text.translationNotice}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={translations.bulk || !view.skills.some((skill) => skill.path && skill.description)}
+            aria-busy={translations.bulk}
+            onClick={() => void translateAll()}
+          >
+            {translations.bulk ? text.translatingAll : text.translateAll}
+          </Button>
+          {translations.bulk && <p role="status">{text.translatingAll}</p>}
+          {!translations.bulk && [...translations.entries.values()].some((entry) => entry.failed) && (
+            <p role="alert">{text.translationAllError}</p>
+          )}
+        </div>
+      )}
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
       {saveError && <p role="alert">{text.saveError}</p>}
@@ -215,9 +296,18 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
             id={id}
             className="dsh-skills-settings-tabs"
             value={source}
-            options={groups.map((group) => ({ value: group.value, label: `${group.label} ${group.skills.length}` }))}
+            options={groups.map((group) => ({ value: group.value, label: `${group.label} ${groupCount(group)}` }))}
             onChange={setSource}
             label={text.nav}
+          />
+          <Input
+            className="dsh-skills-search"
+            type="search"
+            value={query}
+            aria-label={text.search}
+            placeholder={text.searchPlaceholder}
+            autoComplete="off"
+            onChange={(event) => setQuery(event.target.value)}
           />
           {groups.map((group) => (
             <div
@@ -229,12 +319,14 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
               tabIndex={0}
             >
               {group.skills.length === 0 ? (
-                <p className="dsh-skills-muted">{text.empty}</p>
+                <p className="dsh-skills-muted">
+                  {group.total > 0 && searchTerms.length ? text.noResults : text.empty}
+                </p>
               ) : (
                 <>
                   <div className="dsh-skills-list-header dsh-skills-muted" aria-hidden="true">
                     <span>
-                      {text.nav} {group.skills.length}
+                      {text.nav} {groupCount(group)}
                     </span>
                     <span>{text.use}</span>
                   </div>
@@ -242,6 +334,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                     {group.skills.map((skill) => (
                       <li key={skill.path ?? skill.name}>
                         <details
+                          open={expanded[skill.path ?? skill.name] ?? false}
                           onToggle={(event) => {
                             const open = event.currentTarget.open
                             setExpanded((current) => ({ ...current, [skill.path ?? skill.name]: open }))
@@ -257,14 +350,17 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                                 )}
                               </span>
                               <span className="dsh-skills-preview dsh-skills-muted" aria-hidden="true">
-                                {skill.description}
+                                {translations.entries.get(translationKey(skill, locale.active))?.value ??
+                                  skill.description}
                               </span>
                             </span>
                           </summary>
                           <div className="dsh-skills-detail">
                             <SkillDescription
+                              key={translationKey(skill, locale.active)}
                               skill={skill}
-                              connection={connection}
+                              translation={translations.entries.get(translationKey(skill, locale.active))}
+                              translate={translate}
                               language={locale.active}
                               available={view.translationAvailable && source === group.value}
                               expanded={expanded[skill.path ?? skill.name] ?? false}
