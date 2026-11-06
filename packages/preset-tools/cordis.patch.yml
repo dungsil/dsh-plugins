@@ -1,4 +1,8 @@
+- id: ui-sidebar-browser
+  disabled: false
 - insert:
+    - id: dungsil-agent-browser
+      name: '@dungsil/dsh-plugin-agent-browser'
     - id: dungsil-tool-diff-note
       name: '@dungsil/dsh-plugin-tool-diff-note'
     - id: dungsil-request-secret

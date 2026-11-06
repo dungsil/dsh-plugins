@@ -496,6 +496,9 @@ importers:
 
   packages/preset-tools:
     dependencies:
+      '@dungsil/dsh-plugin-agent-browser':
+        specifier: workspace:*
+        version: link:../agent-browser
       '@dungsil/dsh-plugin-tool-diff-note':
         specifier: workspace:*
         version: link:../tool-diff-note
