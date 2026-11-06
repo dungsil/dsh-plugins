@@ -55,7 +55,7 @@ const styles = `${settingsStyles}${quotaStyles}${pageStyles}
 }
 `
 
-type Notice = 'error' | 'success' | 'savedConnection'
+type Notice = 'error' | 'success'
 
 function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: QuotaCache; settings?: boolean }) {
   const locale = useLocaleSnapshot(ctx.locale)
@@ -70,8 +70,6 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
   // Secrets live only in the input draft and the in-flight RPC payload, never in persisted state.
   const [apiKey, setAPIKey] = useState('')
   const [managementKey, setManagementKey] = useState('')
-  const [removeAPIKey, setRemoveAPIKey] = useState(false)
-  const [removeManagementKey, setRemoveManagementKey] = useState(false)
   const [synchronized, setSynchronized] = useState(!!cached)
   const [busy, setBusy] = useState(!cached)
   const [notice, setNotice] = useState<Notice>()
@@ -103,8 +101,6 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
       setSynchronized(true)
       setAPIKey('')
       setManagementKey('')
-      setRemoveAPIKey(false)
-      setRemoveManagementKey(false)
       setQuotaAccounts(undefined)
       setQuotas({})
       setFetchedAt(undefined)
@@ -244,14 +240,15 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
     }
   }
 
-  const save = () => {
-    if (!view || !synchronized || lock.current) return
+  const save = (remove: { removeAPIKey?: boolean; removeManagementKey?: boolean } = {}) => {
+    if (!view || !synchronized || lock.current || !baseURL.trim()) return
+    if (!draftChanged && !remove.removeAPIKey && !remove.removeManagementKey) return
     const changedURL = baseURL.trim() !== view.baseURL
     const payload = {
       revision: view.revision,
       baseURL: baseURL.trim(),
-      apiKey: apiKey || (removeAPIKey || changedURL ? '' : undefined),
-      managementKey: managementKey || (removeManagementKey || changedURL ? '' : undefined),
+      apiKey: remove.removeAPIKey ? '' : apiKey || (changedURL ? '' : undefined),
+      managementKey: remove.removeManagementKey ? '' : managementKey || (changedURL ? '' : undefined),
     }
     // Clear immediately, including when the response is lost or the save fails.
     setAPIKey('')
@@ -269,12 +266,11 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
       // Both success and failure require a fresh revision before any further save.
       await describe(controller)
       ctx.emit('cli-proxy-api/connection-changed')
-      setNotice(saved ? 'savedConnection' : 'error')
+      if (!saved) setNotice('error')
     })
   }
 
-  const draftChanged =
-    !!view && (baseURL.trim() !== view.baseURL || !!apiKey || !!managementKey || removeAPIKey || removeManagementKey)
+  const draftChanged = !!view && (baseURL.trim() !== view.baseURL || !!apiKey || !!managementKey)
   const connected = !!view && synchronized && !draftChanged
   const canManage = connected && !!view?.managementKeySaved
   const managementDisabled = busy || !canManage || uncertain
@@ -291,7 +287,7 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
 
   return (
     <section className="dsh-cli-proxy" aria-label="CLIProxyAPI" aria-busy={busy}>
-      {busy && <p role="status">{text.busy}</p>}
+      {busy && !settings && <p role="status">{text.busy}</p>}
       {notice && <p role={notice === 'error' ? 'alert' : 'status'}>{text[notice]}</p>}
       {!synchronized && !busy && button(text.refresh, () => setConnectionVersion((version) => version + 1))}
       {settings ? (
@@ -308,6 +304,10 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
               value={baseURL}
               disabled={busy || !synchronized}
               onChange={(event) => setBaseURL(event.target.value)}
+              onBlur={() => save()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
+              }}
             />
           )}
           {row(
@@ -319,20 +319,14 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
                 autoComplete="off"
                 value={apiKey}
                 disabled={busy || !synchronized}
-                placeholder={removeAPIKey ? text.removed : view?.apiKeySaved ? text.saved : text.notSaved}
-                onChange={(event) => {
-                  setAPIKey(event.target.value)
-                  setRemoveAPIKey(false)
+                placeholder={view?.apiKeySaved ? text.saved : text.notSaved}
+                onChange={(event) => setAPIKey(event.target.value)}
+                onBlur={() => save()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
                 }}
               />
-              {button(
-                text.remove,
-                () => {
-                  setAPIKey('')
-                  setRemoveAPIKey(true)
-                },
-                busy || !synchronized || !view?.apiKeySaved || removeAPIKey
-              )}
+              {button(text.remove, () => save({ removeAPIKey: true }), busy || !synchronized || !view?.apiKeySaved)}
             </>
           )}
           {row(
@@ -344,26 +338,22 @@ function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: Quot
                 autoComplete="off"
                 value={managementKey}
                 disabled={busy || !synchronized}
-                placeholder={removeManagementKey ? text.removed : view?.managementKeySaved ? text.saved : text.notSaved}
-                onChange={(event) => {
-                  setManagementKey(event.target.value)
-                  setRemoveManagementKey(false)
+                placeholder={view?.managementKeySaved ? text.saved : text.notSaved}
+                onChange={(event) => setManagementKey(event.target.value)}
+                onBlur={() => save()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
                 }}
               />
               {button(
                 text.remove,
-                () => {
-                  setManagementKey('')
-                  setRemoveManagementKey(true)
-                },
-                busy || !synchronized || !view?.managementKeySaved || removeManagementKey
+                () => save({ removeManagementKey: true }),
+                busy || !synchronized || !view?.managementKeySaved
               )}
             </>
           )}
           <p className="hint">{text.keyHint}</p>
           {!synchronized && !busy && <p role="alert">{text.connectionLocked}</p>}
-          {row(text.connection, button(text.save, save, busy || !synchronized || !baseURL.trim()))}
-          {draftChanged && <p className="hint">{text.draftHint}</p>}
         </>
       ) : (
         <>
