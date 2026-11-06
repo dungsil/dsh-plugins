@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Forgejo",
+    "description": "Provides Forgejo pull requests to the official DSH forge registry through tea."
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "name": "@dungsil/dsh-plugin-forge-forgejo",
+  "version": "0.0.0",
+  "description": "Forgejo provider for the official DSH forge registry through tea",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/forge-forgejo"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.19.0",
+    "execa": "^10.0.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
+    "@dungsil/dsh-plugin-forge-gitea": "workspace:*",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 11.3,
+    "title": {
+      "en": "Forgejo",
+      "ko": "Forgejo",
+      "zh": "Forgejo"
+    },
+    "description": {
+      "en": "Provides Forgejo pull requests to the official DSH forge registry through tea.",
+      "ko": "tea로 공식 DSH forge 레지스트리에 Forgejo PR provider를 등록합니다.",
+      "zh": "通过 tea 为官方 DSH forge 注册表提供 Forgejo PR。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "forge",
+      "forgejo",
+      "pull-request",
+      "tea"
+    ]
+  }
+}

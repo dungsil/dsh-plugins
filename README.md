@@ -26,6 +26,9 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-forge-worktree](./packages/ui-forge-worktree)     | 입력창에서 현재 브랜치나 새 Git 워크트리를 선택하는 UI              |   MIT    |
 | [@dungsil/dsh-plugin-ui-model-picker](./packages/ui-model-picker)         | 입력창 모델 메뉴와 추론 강도 슬라이더                               |   MIT    |
 | [@dungsil/dsh-plugin-ui-turn-rail-left](./packages/ui-turn-rail-left)     | 공식 턴 레일을 대화 화면 왼쪽으로 옮기는 플러그인                   |   MIT    |
+| [@dungsil/dsh-plugin-forge-gitlab](./packages/forge-gitlab)               | 공식 forge registry에 GitLab provider를 등록하는 플러그인 (`glab`)  |   MIT    |
+| [@dungsil/dsh-plugin-forge-gitea](./packages/forge-gitea)                 | 공식 forge registry에 Gitea provider를 등록하는 플러그인 (`tea`)    |   MIT    |
+| [@dungsil/dsh-plugin-forge-forgejo](./packages/forge-forgejo)             | 공식 forge registry에 Forgejo provider를 등록하는 플러그인 (`tea`)  |   MIT    |
 | [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드    |   MIT    |
 | [@dungsil/dsh-plugin-cli-proxy-api](./packages/cli-proxy-api)             | CLIProxyAPI 모델 연결과 계정별 할당량 조회 UI                       |   MIT    |
 

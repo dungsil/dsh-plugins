@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gitea",
+    "description": "tea로 공식 DSH forge 레지스트리에 Gitea PR provider를 등록합니다."
+  }
+}
