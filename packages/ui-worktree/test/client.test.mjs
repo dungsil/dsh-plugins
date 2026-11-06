@@ -88,6 +88,7 @@ async function mount(
   const listeners = new Map()
   let plugin,
     registered,
+    progressDefinition,
     progressRenderer,
     instance,
     active,
@@ -216,7 +217,7 @@ async function mount(
       }),
     },
     conversation: { blocks },
-    uiConversation: { events: { register() {} } },
+    uiConversation: { events: { register: (definition) => (progressDefinition = definition) } },
     slots: {
       inject: (_slot, setup) => setup(),
       register: (options, render) => {
@@ -283,6 +284,7 @@ async function mount(
   }
   const progressInstance = { hooks: [], mounted: true }
   const harness = {
+    progressDefinition,
     progress({ status = 'completed', collapseTiming = 'completion', latestTurn = 1, closed = false } = {}) {
       progressCollapseTiming = collapseTiming
       active = progressInstance
@@ -1246,6 +1248,20 @@ for (const phase of ['adjudicating', 'claimed', 'submitting']) {
     assert.deepEqual(operations(h), ['describe'])
   })
 }
+
+await test('준비 내역은 완료 후에도 턴의 작업 상세 그룹 바깥에 표시한다', async (t) => {
+  const h = await mount(t)
+  const location = { kind: 'turn', turn: { turn: 1, status: 'closed' } }
+  for (const status of ['running', 'completed', 'failed', 'cancelled']) {
+    const node = h.progressDefinition.buildViewNode({
+      key: 'worktree-progress',
+      id: 'worktree-progress',
+      start: { location },
+      state: { progress: { status }, anchorSeq: 12.1 },
+    })
+    assert.equal(node.groupTree, 'turn', status)
+  }
+})
 
 await test('준비 중에는 펼치고 완료 시점 설정이면 완료 직후 접으며 수동으로 다시 펼친다', async (t) => {
   const h = await mount(t)

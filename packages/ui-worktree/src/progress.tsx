@@ -78,7 +78,7 @@ export const progressDefinition: ConversationNodeDefinitionInput<{
       anchorSeq: context.state.anchorSeq,
       location: context.start.location,
       visibility: 'visible',
-      groupTree: context.state.progress.status === 'completed' ? undefined : 'turn',
+      groupTree: 'turn',
       data: context.state.progress,
     }
   },
