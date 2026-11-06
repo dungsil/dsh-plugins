@@ -1,5 +1,7 @@
 {
   "title": "Browser",
+  "manual": "Web page",
+  "agent": "Agent view",
   "description": "Watch the browser controlled by agent-browser in this conversation.",
   "idle": "No browser is open in this conversation.",
   "hint": "Ask the agent to browse with the agent_browser tool. agent-browser is included with the plugin and uses Chrome or Chromium on the dsh host. Full access mode is required.",

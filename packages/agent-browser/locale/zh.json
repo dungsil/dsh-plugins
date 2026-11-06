@@ -1,5 +1,7 @@
 {
   "title": "浏览器",
+  "manual": "网页",
+  "agent": "智能体画面",
   "description": "查看 agent-browser 在此对话中控制的浏览器。",
   "idle": "此对话尚未打开浏览器。",
   "hint": "请让智能体使用 agent_browser 工具浏览。agent-browser 随插件一同安装，并使用 dsh 主机上的 Chrome 或 Chromium。需要完全访问模式。",

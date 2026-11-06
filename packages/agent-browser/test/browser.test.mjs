@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import test from 'node:test'
+import { runInNewContext } from 'node:vm'
+import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
 import { apply } from '../dist/index.js'
 
 async function fixture(t) {
@@ -225,4 +229,57 @@ await test('화면 연결 실패를 이미 성공한 브라우저 명령의 실�
   assert.deepEqual(JSON.parse((await f.execute('a', 'get', ['url'])).output), { url: 'https://one.example/' })
   f.sockets.at(-1).frame('YWJj')
   assert.equal((await f.view('a')).status, 'live')
+})
+
+await test('별도 탭 없이 기존 브라우저 본문을 확장하고 해제하면 원래 본문을 복원한다', async (t) => {
+  const core = new SlotCore()
+  const slot = 'sidebar.right.pane.tab'
+  const browser = '@deepseek-ai/dsh-client-ui-sidebar-browser'
+  core.register({ name: 'root', children: { [slot]: { kind: 'keyed', scope: 'session' } } }, () => null)
+  const effects = []
+  t.after(() => effects.reverse().forEach((dispose) => dispose?.()))
+  let client
+  const require = createRequire(import.meta.url)
+  runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
+    window: {
+      __ModuleLoader__: {
+        load: ({ factory }) => {
+          client = factory((id) => (id === '@deepseek-ai/dsh-client-ui-primitives' ? {} : require(id)))
+        },
+      },
+    },
+    document: { createElement: () => ({ remove() {} }), head: { append() {} } },
+  })
+  client.apply({
+    get: () => ({}),
+    effect: (effect) => effects.push(effect()),
+    slots: {
+      inject: (_, setup) => effects.push(setup()),
+      entries: (key) => core.entries(key),
+      subscribe: (key, listener) => core.subscribe(key, listener),
+      register: (options, component) => core.register(options, component),
+    },
+  })
+  assert.deepEqual(core.entriesOfSlot(slot), [])
+  const Native = () => null
+  const mountNative = () => core.register({ name: slot, key: browser }, Native)
+  let removeNative = mountNative()
+  await new Promise(setImmediate)
+  assert.deepEqual(
+    core.entriesOfSlot(slot).map((entry) => entry.options.key),
+    [browser]
+  )
+  assert.notEqual(core.entriesOfSlot(slot)[0].component, Native)
+  removeNative()
+  await new Promise(setImmediate)
+  assert.deepEqual(core.entriesOfSlot(slot), [])
+  removeNative = mountNative()
+  await new Promise(setImmediate)
+  for (const dispose of effects.splice(0).reverse()) dispose?.()
+  assert.deepEqual(
+    core.entriesOfSlot(slot).map((entry) => entry.options.key),
+    [browser]
+  )
+  assert.equal(core.entriesOfSlot(slot)[0].component, Native)
+  removeNative()
 })

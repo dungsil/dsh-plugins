@@ -1,5 +1,7 @@
 {
   "title": "브라우저",
+  "manual": "웹 페이지",
+  "agent": "에이전트 화면",
   "description": "이 대화에서 agent-browser가 제어하는 브라우저를 확인합니다.",
   "idle": "이 대화에서 열린 브라우저가 없습니다.",
   "hint": "에이전트에게 agent_browser 도구로 탐색하도록 요청하세요. agent-browser는 플러그인과 함께 설치되며 dsh 호스트의 Chrome 또는 Chromium을 사용합니다. 전체 접근 모드가 필요합니다.",
