@@ -2,7 +2,7 @@ import { settingsStyles } from '@dungsil/dsh-ui'
 import { composerStyles } from '@dungsil/dsh-ui/composer'
 
 export const styles = `${settingsStyles}${composerStyles}
-.dsh-worktree-hover { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+.dsh-worktree-hover { min-width: 0; color: #cfd3d6; font-size: 12px; line-height: 16px; overflow-wrap: anywhere; white-space: normal; }
 .dsh-worktree-sidebar-name { flex: 0 1 auto; min-width: 0; max-width: 88px; margin-inline: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-caption); font-size: 10px; line-height: 16px; }
 [data-row-key]:has(.dsh-vcs-session-request) > .dsh-worktree-sidebar-name { display: none; }
 .dsh-worktree { display: inline-flex; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); font: inherit; }
