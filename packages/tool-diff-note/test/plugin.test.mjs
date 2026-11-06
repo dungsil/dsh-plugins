@@ -122,40 +122,27 @@ await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 �
   }
 })
 
-await test('도구 뷰는 원본 스냅샷과 번역을 DSH DiffBlock에 전달하고 설명과 파일 열기를 유지한다', async () => {
+await test('도구 뷰는 공통 DiffBlock에 스냅샷과 로케일을 전달하고 설명을 접기 영역 밖에 유지한다', async () => {
   const require = createRequire(import.meta.url)
   let client
   let View
-  let receivedDiff
-  const opened = []
-  let openFile
+  let received
   let active = 'ko'
   runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
     window: {
       __ModuleLoader__: {
         load({ factory }) {
           client = factory((name) => {
-            // Render the public tool view with real React; only native chrome and
-            // the live locale subscription are replaced for this static render.
             if (name === 'react') return { ...React, useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot() }
             if (name === '@deepseek-ai/dsh-client-ui-primitives')
               return new Proxy(
-                {},
                 {
-                  get: (_target, key) => {
-                    if (key === 'DiffBlock')
-                      return (props) => {
-                        receivedDiff = props
-                        return React.createElement('div', { 'data-native-diff': '' })
-                      }
-                    if (key === 'Button')
-                      return ({ children, size: _size, variant: _variant, ...props }) => {
-                        openFile = props.onClick
-                        return React.createElement('button', props, children)
-                      }
-                    return () => null
+                  DiffBlock: (props) => {
+                    received = props
+                    return React.createElement('div', { 'data-shared-diff': true }, '공통 diff')
                   },
-                }
+                },
+                { get: (target, key) => target[key] ?? (() => null) }
               )
             return require(name)
           })
@@ -173,54 +160,42 @@ await test('도구 뷰는 원본 스냅샷과 번역을 DSH DiffBlock에 전달�
     },
     effect() {},
   })
-  const render = (old_text, new_text) =>
-    renderToStaticMarkup(
-      React.createElement(View, {
-        phase: 'result',
-        openFile: (path) => opened.push(path),
-        block: { meta: { path: 'src/example.tsx', old_text, new_text, note: '이유를 설명합니다.' }, isError: false },
-      })
-    )
-  const context = Array.from({ length: 30 }, (_, i) => `context${i}`).join('\n')
-  for (const [before, after] of [
-    ['<section>\r\n  {children}\r\n</section>', '<Modal open>\r\n  {children}\r\n</Modal>'],
-    [`oldFirst\n${context}\noldLast`, `newFirst\n${context}\nnewLast`],
-    ['', 'created\n'],
-    ['deleted\n', ''],
-    ['same', 'same\n'],
-  ]) {
-    const html = render(before, after)
-    assert.equal(receivedDiff.diffs.length, 1)
-    assert.equal(receivedDiff.diffs[0].path, 'src/example.tsx')
-    assert.equal(receivedDiff.diffs[0].oldText, before)
-    assert.equal(receivedDiff.diffs[0].newText, after)
-    assert.equal(receivedDiff.maxLines, undefined, 'native folding defaults must not be overridden')
-    assert.ok(html.indexOf('data-native-diff') < html.indexOf('이유를 설명합니다.'))
-    assert.equal((html.match(/dsh-diff-note-bubble/gu) ?? []).length, 1)
-    assert.doesNotMatch(html, /dsh-diff-note-line|dsh-diff-note-fold/u)
-  }
-  assert.equal(receivedDiff.labels.codeLabel, '코드')
-  assert.equal(receivedDiff.labels.expand(12), '12줄 더 보기')
-  assert.equal(receivedDiff.labels.expandAria(12), '숨겨진 12줄 표시')
-  openFile()
-  assert.deepEqual(opened, ['src/example.tsx'])
+  const render = (phase, meta, isError = false) =>
+    renderToStaticMarkup(React.createElement(View, { phase, block: { meta, isError } }))
   for (const language of ['en', 'ko', 'zh']) {
     active = language
-    render('before', 'after')
     const { ui } = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
-    for (const key of ['codeLabel', 'wrapLabel', 'unwrapLabel', 'copy', 'copied', 'collapse', 'collapseAria'])
-      assert.equal(receivedDiff.labels[key], ui[key])
-    assert.equal(receivedDiff.labels.expand(12), ui.expand.replace('{count}', '12'))
-    assert.equal(receivedDiff.labels.expandAria(12), ui.expandAria.replace('{count}', '12'))
-  }
-  active = 'ko'
-  for (const [phase, isError, expected] of [
-    ['call', false, '변경 설명을 기록하고 있습니다…'],
-    ['result', true, '변경 설명을 기록하지 못했습니다.'],
-  ]) {
-    const html = renderToStaticMarkup(React.createElement(View, { phase, block: { isError } }))
-    assert.match(html, /role="status"/u)
-    assert.ok(html.includes(expected))
-    assert.ok(!html.includes('data-native-diff'))
+    for (const [old_text, new_text] of [
+      ['old\r\ncontext\r\n', 'new\r\ncontext\r\n'],
+      ['', 'created\n'],
+      ['deleted\n', ''],
+      ['same', 'same\n'],
+      ['old\n'.repeat(30), 'new\n'.repeat(30)],
+    ]) {
+      received = undefined
+      const note = { path: 'src/example.tsx', old_text, new_text, note: '이유를 설명합니다.' }
+      const html = render('result', note)
+      assert.ok(received, '공통 DiffBlock을 직접 렌더링한다')
+      assert.equal(received.diffs.length, 1)
+      assert.equal(received.diffs[0].path, note.path)
+      assert.equal(received.diffs[0].oldText, old_text)
+      assert.equal(received.diffs[0].newText, new_text)
+      for (const key of ['copy', 'copied', 'wrapLabel', 'unwrapLabel', 'collapse', 'collapseAria', 'codeLabel'])
+        assert.equal(received.labels[key], ui[key])
+      assert.equal(received.labels.expand(12), ui.expand.replace('{count}', '12'))
+      assert.equal(received.labels.expandAria(12), ui.expandAria.replace('{count}', '12'))
+      assert.match(html, /data-shared-diff="true"/u)
+      assert.ok(html.indexOf('공통 diff</div>') < html.indexOf('이유를 설명합니다.'))
+      assert.equal(received.maxLines, 6)
+      assert.match(html, /<figure[^>]*dsh-annotated-diff/u)
+      assert.match(html, /<figcaption[^>]*dsh-annotated-diff-note/u)
+      assert.ok(html.includes(ui.annotationLabel))
+      assert.doesNotMatch(html, /dsh-diff-note-line|dsh-diff-note-rows|dsh-diff-note-explanation|<button/u)
+    }
+    received = undefined
+    assert.ok(render('call').includes(ui.waiting))
+    assert.ok(render('result', undefined, true).includes(ui.failed))
+    assert.ok(render('result', { path: 'invalid' }).includes(ui.failed))
+    assert.equal(received, undefined)
   }
 })
