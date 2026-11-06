@@ -145,6 +145,9 @@ await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요�
             return {
               Button: ({ icon, variant: _variant, size: _size, ...props }) =>
                 React.createElement('button', props, icon),
+              Input: React.forwardRef(({ onChange, ...props }, ref) =>
+                React.createElement('input', { ...props, ref, onInput: onChange })
+              ),
               Tooltip: ({ children }) => children,
               SegmentedControl: () => null,
               Switch: ({ label, checked, disabled }) =>
