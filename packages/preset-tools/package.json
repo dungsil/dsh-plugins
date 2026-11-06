@@ -24,11 +24,12 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
+    "@dungsil/dsh-plugin-agent-browser": "workspace:*",
     "@dungsil/dsh-plugin-tool-diff-note": "workspace:*",
     "@dungsil/dsh-plugin-tool-secret-request": "workspace:*"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "dsh": "^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {
@@ -44,9 +45,9 @@
       "zh": "工具预设"
     },
     "description": {
-      "en": "Install Diff Notes and Secret input together.",
-      "ko": "변경 설명과 비밀값 입력 도구를 함께 설치합니다.",
-      "zh": "一起安装变更说明和私密凭据输入工具。"
+      "en": "Install Agent Browser, Diff Notes, and Secret input together.",
+      "ko": "에이전트 브라우저, 변경 설명, 비밀값 입력 도구를 함께 설치합니다.",
+      "zh": "一起安装智能体浏览器、变更说明和私密凭据输入工具。"
     },
     "category": "tools",
     "labels": [],
