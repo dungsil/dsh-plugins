@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
+import { Button, Input, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
 import {
   IconChevronRightOutlineRegular,
   IconFolderOpenOutlineRegular,
@@ -26,6 +26,7 @@ const styles = `
 .dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-skills-settings p { margin: 4px 0; }
 .dsh-skills-settings-tabs { margin: 20px 0 12px; }
+.dsh-skills-search { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
 .dsh-skills-settings .dsh-skills-muted { color: var(--dsw-alias-label-secondary); }
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
@@ -119,6 +120,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const mounted = useRef(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [source, setSource] = useState<'user-agents' | 'user-dsh'>('user-agents')
+  const [query, setQuery] = useState('')
   const [, refreshTranslations] = useState(0)
   const translations = useMemo(
     () => ({
@@ -186,11 +188,27 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
       if (translations.active) refreshTranslations((value) => value + 1)
     }
   }
-  const groups = (['user-agents', 'user-dsh'] as const).map((value) => ({
-    value,
-    label: value === 'user-agents' ? text.agents : text.dsh,
-    skills: view?.skills.filter((skill) => skill.source === value) ?? [],
-  }))
+  const normalizeSearch = (value: string) => value.normalize('NFKC').toLowerCase()
+  const searchTerms = normalizeSearch(query).trim().split(/\s+/u).filter(Boolean)
+  const groups = (['user-agents', 'user-dsh'] as const).map((value) => {
+    const skills = view?.skills.filter((skill) => skill.source === value) ?? []
+    return {
+      value,
+      label: value === 'user-agents' ? text.agents : text.dsh,
+      total: skills.length,
+      skills: skills.filter((skill) => {
+        const fields = [
+          skill.name,
+          skill.description,
+          skill.path ?? '',
+          translations.entries.get(translationKey(skill, locale.active))?.value ?? '',
+        ].map(normalizeSearch)
+        return searchTerms.every((term) => fields.some((field) => field.includes(term)))
+      }),
+    }
+  })
+  const groupCount = (group: (typeof groups)[number]) =>
+    searchTerms.length ? `${group.skills.length}/${group.total}` : `${group.total}`
 
   useEffect(() => {
     const controller = new AbortController()
@@ -278,9 +296,18 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
             id={id}
             className="dsh-skills-settings-tabs"
             value={source}
-            options={groups.map((group) => ({ value: group.value, label: `${group.label} ${group.skills.length}` }))}
+            options={groups.map((group) => ({ value: group.value, label: `${group.label} ${groupCount(group)}` }))}
             onChange={setSource}
             label={text.nav}
+          />
+          <Input
+            className="dsh-skills-search"
+            type="search"
+            value={query}
+            aria-label={text.search}
+            placeholder={text.searchPlaceholder}
+            autoComplete="off"
+            onChange={(event) => setQuery(event.target.value)}
           />
           {groups.map((group) => (
             <div
@@ -292,12 +319,14 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
               tabIndex={0}
             >
               {group.skills.length === 0 ? (
-                <p className="dsh-skills-muted">{text.empty}</p>
+                <p className="dsh-skills-muted">
+                  {group.total > 0 && searchTerms.length ? text.noResults : text.empty}
+                </p>
               ) : (
                 <>
                   <div className="dsh-skills-list-header dsh-skills-muted" aria-hidden="true">
                     <span>
-                      {text.nav} {group.skills.length}
+                      {text.nav} {groupCount(group)}
                     </span>
                     <span>{text.use}</span>
                   </div>
@@ -305,6 +334,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                     {group.skills.map((skill) => (
                       <li key={skill.path ?? skill.name}>
                         <details
+                          open={expanded[skill.path ?? skill.name] ?? false}
                           onToggle={(event) => {
                             const open = event.currentTarget.open
                             setExpanded((current) => ({ ...current, [skill.path ?? skill.name]: open }))

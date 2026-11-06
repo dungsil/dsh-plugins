@@ -40,7 +40,26 @@ async function mount(t, available = true) {
               Button: ({ icon, children, variant: _variant, size: _size, ...props }) =>
                 React.createElement('button', props, icon, children),
               Tooltip: ({ children }) => children,
-              SegmentedControl: () => null,
+              Input: React.forwardRef(({ onChange, ...props }, ref) =>
+                React.createElement('input', { ...props, ref, onInput: onChange })
+              ),
+              SegmentedControl: ({ options, value, onChange }) =>
+                React.createElement(
+                  'div',
+                  { role: 'tablist' },
+                  options.map((option) =>
+                    React.createElement(
+                      'button',
+                      {
+                        key: option.value,
+                        role: 'tab',
+                        'aria-selected': value === option.value,
+                        onClick: () => onChange(option.value),
+                      },
+                      option.label
+                    )
+                  )
+                ),
               Switch: () => null,
               ...Object.fromEntries(
                 ['ChevronRight', 'FolderOpen', 'Loading', 'Skill'].map((name) => [
@@ -102,6 +121,13 @@ async function mount(t, available = true) {
   return {
     doc,
     requests,
+    async search(value) {
+      await React.act(async () => {
+        const input = doc.querySelector('input[type="search"]')
+        input.value = value
+        input.dispatchEvent(new window.Event('input', { bubbles: true }))
+      })
+    },
     button: (text) => [...doc.querySelectorAll('button')].find((button) => button.textContent === text),
     async toggle(index, open) {
       await React.act(async () => {
@@ -180,6 +206,60 @@ await test('전체 번역은 펼치기로 진행 중인 요청을 재사용하�
   assert.ok(ui.button('翻译全部技能'))
   await React.act(async () => ui.requests[2].resolve({ ok: true, value: '中文描述' }))
   assert.equal(ui.doc.querySelector('.dsh-skills-preview').textContent, '中文描述')
+})
+
+await test('검색은 이름과 설명과 경로를 정규화해 모든 검색어로 필터링하고 탭 전환과 입력값 삭제를 지원한다', async (t) => {
+  const ui = await mount(t, false)
+  const names = () =>
+    [...ui.doc.querySelectorAll('[role="tabpanel"]:not([hidden]) strong')].map((node) => node.textContent)
+  const input = ui.doc.querySelector('input[type="search"]')
+  assert.ok(ui.doc.querySelector('[role="tablist"]').compareDocumentPosition(input) & 4)
+  assert.ok(input.compareDocumentPosition(ui.doc.querySelector('.dsh-skills-list-header')) & 4)
+  assert.equal(ui.doc.querySelector('label'), null)
+  assert.equal(ui.doc.querySelector('[role="status"]'), null)
+  assert.equal(ui.button('검색 지우기'), undefined)
+  assert.deepEqual(names(), ['alpha', 'empty'])
+  for (const query of ['  ＡＬＰＨＡ  ', 'Original alpha', '/alpha/SKILL.md', 'alpha\tOriginal']) {
+    await ui.search(query)
+    assert.deepEqual(names(), ['alpha'])
+    assert.ok(ui.button('공용 스킬 1/2'))
+  }
+  await ui.search('alpha missing')
+  assert.deepEqual(names(), [])
+  assert.match(ui.doc.querySelector('[role="tabpanel"]:not([hidden])').textContent, /검색 조건에 맞는 스킬이 없습니다/)
+  await ui.search('beta')
+  await React.act(async () => ui.button('DSH 스킬 1/1').click())
+  assert.deepEqual(names(), ['beta'])
+  assert.equal(ui.doc.querySelector('input[type="search"]').value, 'beta')
+  await ui.search('')
+  assert.equal(ui.doc.querySelector('input[type="search"]').value, '')
+  await React.act(async () => ui.button('공용 스킬 2').click())
+  await ui.search('   ')
+  assert.deepEqual(names(), ['alpha', 'empty'])
+  assert.equal(ui.requests.length, 0)
+  for (const [language, label, placeholder] of [
+    ['en', 'Search skills', 'Search by name, description, or path'],
+    ['zh', '搜索技能', '按名称、描述或路径搜索'],
+    ['ko', '스킬 검색', '이름, 설명 또는 경로로 검색'],
+  ]) {
+    await ui.language(language)
+    assert.equal(input.getAttribute('aria-label'), label)
+    assert.equal(input.placeholder, placeholder)
+  }
+})
+
+await test('검색은 불러온 번역문도 찾되 추가 번역 요청을 보내지 않는다', async (t) => {
+  const ui = await mount(t)
+  await ui.toggle(0, true)
+  await React.act(async () => ui.requests[0].resolve({ ok: true, value: '알파 번역' }))
+  await ui.toggle(0, false)
+  await ui.search('알파')
+  assert.equal(ui.doc.querySelectorAll('li').length, 1)
+  assert.equal(ui.doc.querySelector('strong').textContent, 'alpha')
+  assert.equal(ui.requests.length, 1)
+  await ui.language('en')
+  assert.equal(ui.doc.querySelectorAll('li').length, 0)
+  assert.equal(ui.requests.length, 1)
 })
 
 await test('번역 서비스가 없으면 전체 번역 버튼과 자동 번역 요청을 제공하지 않는다', async (t) => {
