@@ -18,6 +18,7 @@ async function mount(operation, language = 'en', options = {}) {
   const calls = []
   const messages = []
   const openedTabs = []
+  const styles = []
   const listeners = new Map()
   const sidebar = options.sidebar === true
   const settings = options.settings === true
@@ -57,7 +58,7 @@ async function mount(operation, language = 'en', options = {}) {
     setTimeout,
     clearTimeout,
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
-    document: { head: { append() {} }, createElement: () => ({ remove() {} }) },
+    document: { head: { append: (style) => styles.push(style) }, createElement: () => ({ remove() {} }) },
     MutationObserver: class {
       observe() {}
       disconnect() {}
@@ -168,6 +169,7 @@ async function mount(operation, language = 'en', options = {}) {
     calls,
     messages,
     openedTabs,
+    styles,
     session,
     render,
     setRequestResult: (result) => (requestResult = result),
@@ -486,29 +488,29 @@ await test('사이드바는 세부 정보보다 개요를 먼저 보여 주고, 
     { sidebar: true }
   )
   const initial = await f.render()
-  assert.equal(initial.props.children[2].props.children[0].type, 'div')
+  assert.equal(initial.props.children[1].props.children[0].type, 'div')
   overview.resolve({ ok: true, value: view })
   await f.render()
   const partial = await f.render()
   assert.ok(JSON.stringify(partial).includes('Fast overview'))
-  assert.equal(partial.props.children[2].props['aria-busy'], true)
-  assert.equal(partial.props.children[2].props.children[0], false)
-  assert.equal(partial.props.children[3].props.children[0], undefined)
-  assert.equal(partial.props.children[1].props.children[1].props['aria-busy'], true)
+  assert.equal(partial.props.children[1].props['aria-busy'], true)
+  assert.equal(partial.props.children[1].props.children[0], false)
+  assert.equal(partial.props.children[2].props.children[0], undefined)
+  assert.equal(partial.props.children[0].props.children[1].props['aria-busy'], true)
   assert.deepEqual(
     calls.map((call) => call.summary),
     [true, false]
   )
   details.resolve({ ok: true, value: { ...view, request: { ...item, headSha: 'a'.repeat(40) } } })
   await f.render()
-  assert.equal((await f.render()).props.children[2].props['aria-busy'], false)
+  assert.equal((await f.render()).props.children[1].props['aria-busy'], false)
   f.unmount()
   const cached = await f.render()
   assert.ok(JSON.stringify(cached).includes('Fast overview'))
-  assert.equal(cached.props.children[2].props['aria-busy'], true)
-  assert.equal(cached.props.children[2].props.children[0], false)
-  assert.equal(cached.props.children[3].props.children[0], undefined)
-  const merge = cached.props.children[3].props.children[1].props.anchor.props.children[0]
+  assert.equal(cached.props.children[1].props['aria-busy'], true)
+  assert.equal(cached.props.children[1].props.children[0], false)
+  assert.equal(cached.props.children[2].props.children[0], undefined)
+  const merge = cached.props.children[2].props.children[1].props.anchor.props.children[0]
   assert.equal(merge.props.disabled, true)
   f.unmount()
   const otherSession = await f.render('other')
@@ -609,8 +611,9 @@ await test('PR 업데이트는 재조회 동안 표시를 유지하지만 Git �
   mounted.unmount()
 })
 
-await test('CI 아이콘은 고정 크기 래퍼 안에서 SVG 기준선의 영향 없이 중앙 정렬한다', async () => {
-  const source = await readFile(new URL('../src/pull-requests-styles.ts', import.meta.url), 'utf8')
+await test('PR 패널을 열기 전에도 CI 아이콘을 고정 크기 래퍼 안에서 중앙 정렬한다', async () => {
+  const mounted = await mount(() => {}, 'en', { sidebar: true })
+  const source = mounted.styles.map((style) => style.textContent).join('\n')
   assert.match(source, /\.dsh-vcs-check-status\{[^}]*width:14px;height:14px;align-items:center;justify-content:center/)
   assert.match(
     source,
