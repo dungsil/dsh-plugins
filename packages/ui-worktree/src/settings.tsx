@@ -16,7 +16,7 @@ const copy = {
     remote: '추적 중인 원격 브랜치 사용',
     deleteOnArchive: '보관 시 워크트리 삭제',
     deleteOnArchiveDescription:
-      '이 플러그인이 만든 워크트리만 삭제합니다. 미커밋·미추적·무시된 파일이나 다른 세션이 있으면 유지하며, 브랜치는 삭제하지 않습니다.',
+      '이 플러그인이 만든 워크트리만 삭제하며 Git 무시 파일도 함께 삭제합니다. 미커밋 변경·무시되지 않은 새 파일·다른 대화나 실행 중인 하위 작업이 있으면 유지합니다. 완료된 하위 작업 기록은 삭제를 막지 않으며, 브랜치는 유지합니다.',
     naming: '자동 브랜치 이름 형식',
     semantic: '시멘틱 (feat/… 또는 fix/…)',
     dsh: 'DSH (dsh/*)',
@@ -39,7 +39,7 @@ const copy = {
     remote: '使用跟踪的远程分支',
     deleteOnArchive: '归档时删除工作树',
     deleteOnArchiveDescription:
-      '仅删除此插件创建的工作树。有未提交、未跟踪、被忽略的文件或其他会话使用时保留，不删除分支。',
+      '仅删除此插件创建的工作树，包括被 Git 忽略的文件。有未提交的更改、未被忽略的未跟踪文件、其他对话或运行中的子任务时保留。已完成的子任务记录不会阻止删除，分支会保留。',
     naming: '自动分支命名格式',
     semantic: '语义化（feat/… 或 fix/…）',
     dsh: 'DSH（dsh/*）',
@@ -62,7 +62,7 @@ const copy = {
     remote: 'Use tracked remote branch',
     deleteOnArchive: 'Delete worktree on archive',
     deleteOnArchiveDescription:
-      'Only removes worktrees created by this plugin. Keeps worktrees with uncommitted, untracked or ignored files, or other sessions. Branches are kept.',
+      'Only removes worktrees created by this plugin, including Git-ignored files. Keeps worktrees with uncommitted changes, non-ignored untracked files, other conversations or active subtasks. Completed subtask history does not prevent removal. Branches are kept.',
     naming: 'Automatic branch naming',
     semantic: 'Semantic (feat/… or fix/…)',
     dsh: 'DSH (dsh/*)',

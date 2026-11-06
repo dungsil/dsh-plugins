@@ -42,6 +42,7 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
                   { value: selectedId, onChange: (event) => onSelect(event.target.value) },
                   items.map(({ id, label }) => React.createElement('option', { key: id, value: id }, label))
                 ),
+              Input: ({ onChange, ...props }) => React.createElement('input', { ...props, onInput: onChange }),
               StateDot: () => null,
               IconChevronDownOutlineRegular: () => null,
               IconGaugeOutlineRegular: () => null,
@@ -53,9 +54,13 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
     },
   })
   const pending = []
+  const requests = []
   const makeConnection = () => ({
     rpc: {
-      call: () => new Promise((resolve) => pending.push(resolve)),
+      call: (_channel, _method, payload) => {
+        requests.push(payload)
+        return new Promise((resolve) => pending.push(resolve))
+      },
     },
   })
   let connection = makeConnection()
@@ -156,6 +161,68 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
   assert.equal(total(), '0', 'empty usage is also a successful cached result')
   assert.equal(loading(), false)
   assert.equal(pending.length, 0)
+
+  await t.test(
+    '사용자 지정 기간은 적용할 때만 조회하며 잘못된 범위는 요청하지 않고 날짜별 캐시를 분리한다',
+    async () => {
+      await changePeriod('custom')
+      assert.equal(pending.length, 0)
+      const inputs = [...container.querySelectorAll('input[type=date]')]
+      assert.equal(inputs.length, 2)
+      assert.ok(inputs.every((input) => input.closest('label')))
+      const enter = async (start, end) =>
+        React.act(async () => {
+          for (const [index, value] of [start, end].entries()) {
+            inputs[index].value = value
+            inputs[index].dispatchEvent(new window.Event('input', { bubbles: true }))
+            inputs[index].dispatchEvent(new window.Event('change', { bubbles: true }))
+          }
+        })
+      const submit = () =>
+        React.act(async () => {
+          container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
+        })
+      await enter('2026-11-05', '2026-11-01')
+      await submit()
+      assert.ok(container.querySelector('form [role=alert]'))
+      assert.equal(pending.length, 0)
+      await enter('2026-11-01', '2026-11-05')
+      assert.equal(pending.length, 0)
+      await submit()
+      assert.equal(requests.at(-1).startDate, '2026-11-01')
+      assert.equal(requests.at(-1).endDate, '2026-11-05')
+      assert.equal('days' in requests.at(-1), false)
+      assert.equal(total(), undefined)
+      await reply(success(456))
+      await leave()
+      await mount()
+      assert.equal(container.querySelector('select').value, 'custom')
+      assert.equal(container.querySelector('input').value, '2026-11-01')
+      assert.equal(total(), '456')
+      assert.equal(pending.length, 0)
+      await changePeriod('7')
+      assert.equal(total(), '0')
+    }
+  )
+
+  await t.test('사용자 지정 입력과 적용 안내는 영어와 한국어 및 중국어로 표시한다', async () => {
+    for (const [language, labels] of [
+      ['en', ['Custom range', 'Start date', 'End date', 'Apply', 'Showing']],
+      ['ko', ['사용자 지정', '시작일', '종료일', '적용', '조회 중인 기간']],
+      ['zh', ['自定义范围', '开始日期', '结束日期', '应用', '当前查询范围']],
+    ]) {
+      await leave()
+      snapshot.active = language
+      connection = makeConnection()
+      await mount()
+      await reply(success(0))
+      await changePeriod('custom')
+      for (const label of labels) assert.ok(container.textContent.includes(label))
+      assert.ok(container.querySelector('form').textContent.includes('366'))
+      assert.equal(container.querySelectorAll('form input').length, 2)
+      assert.equal(pending.length, 0)
+    }
+  })
 
   await t.test('토큰은 현재 언어의 단위로 축약하고 정확한 값과 호출 수는 유지한다', async () => {
     for (const [language, expected] of [

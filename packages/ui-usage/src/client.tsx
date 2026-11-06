@@ -1,25 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { Button, ButtonPicker, PluginPage, pageStyles, StateDot } from '@dungsil/dsh-ui'
+import { Button, ButtonPicker, Input, PluginPage, pageStyles, StateDot } from '@dungsil/dsh-ui'
 import { IconGaugeOutlineRegular, IconRefreshOutlineRegular } from '@dungsil/dsh-ui/icons'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { localizedCopy } from './copy.js'
-import { channel, method, type UsageView } from './protocol.js'
+import { channel, isValidDateRange, method, type UsageView } from './protocol.js'
 
 export const name = 'dungsil-ui-usage'
 export const inject = ['connection', 'locale', 'slots']
 
 const cachedViews = new WeakMap<ConnectionHandle, Map<string, UsageView>>()
+type Period = { days: number } | { startDate: string; endDate: string }
+const savedPeriods = new WeakMap<ConnectionHandle, Period>()
+
+function localDay(offset = 0) {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
 
 const styles = `${pageStyles}
 .dsh-usage { container-type: inline-size; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-usage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dsh-usage-status { display: flex; align-items: center; gap: 6px; }
+.dsh-usage-range { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.dsh-usage-range label { display: flex; flex: 1 1 160px; min-width: 0; flex-direction: column; gap: 6px; }
+.dsh-usage-range input { width: 100%; min-width: 0; box-sizing: border-box; color-scheme: light dark; }
+.dsh-usage-range-note { flex-basis: 100%; margin: 0; }
 @keyframes dsh-usage-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: no-preference) {
   .dsh-usage-refresh[aria-busy=true] svg { animation: dsh-usage-spin .8s linear infinite; }
@@ -67,10 +79,19 @@ function Usage({ ctx }: { ctx: Context }) {
   const text = localizedCopy(locale.active)
   const number = new Intl.NumberFormat(locale.active)
   const tokens = new Intl.NumberFormat(locale.active, { notation: 'compact', maximumFractionDigits: 1 })
-  const [period, setPeriod] = useState(7)
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const [period, setPeriod] = useState<Period>(() => savedPeriods.get(connection) ?? { days: 7 })
+  const [editingRange, setEditingRange] = useState(() => !('days' in period))
+  const [startDate, setStartDate] = useState(() => ('startDate' in period ? period.startDate : localDay(-6)))
+  const [endDate, setEndDate] = useState(() => ('endDate' in period ? period.endDate : localDay()))
+  const [rangeError, setRangeError] = useState(false)
+  const rangeId = useId()
+  const applyPeriod = (next: Period) => {
+    savedPeriods.set(connection, next)
+    setPeriod(next)
+  }
   const [refresh, setRefresh] = useState(0)
   const refreshRequested = useRef(false)
-  const connection = ctx.get('connection') as unknown as ConnectionHandle
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const cacheKey = JSON.stringify([period, timeZone])
   let cache = cachedViews.get(connection)
@@ -94,7 +115,7 @@ function Usage({ ctx }: { ctx: Context }) {
     setBusy(true)
     void (async () => {
       try {
-        const result = await connection.rpc.call(channel, method, { days: period, timeZone }, controller.signal)
+        const result = await connection.rpc.call(channel, method, { ...period, timeZone }, controller.signal)
         if (controller.signal.aborted) return
         if (!result.ok) throw new Error('Usage unavailable')
         const next = result.value as unknown as UsageView
@@ -115,6 +136,7 @@ function Usage({ ctx }: { ctx: Context }) {
     { id: '7', label: text.week },
     { id: '30', label: text.month },
     { id: '0', label: text.all },
+    { id: 'custom', label: text.custom },
   ]
   const selected = view?.days.find(({ day }) => day === selectedDay)
   const maximum = Math.max(1, ...(view?.days.map(({ total }) => total) ?? []))
@@ -130,9 +152,13 @@ function Usage({ ctx }: { ctx: Context }) {
         <ButtonPicker
           variant="outline"
           label={text.period}
-          value={String(period)}
+          value={editingRange || !('days' in period) ? 'custom' : String(period.days)}
           items={periods}
-          onChange={(id) => setPeriod(Number(id))}
+          onChange={(id) => {
+            setEditingRange(id === 'custom')
+            setRangeError(false)
+            if (id !== 'custom') applyPeriod({ days: Number(id) })
+          }}
         />
         <Button
           variant="outline"
@@ -148,6 +174,67 @@ function Usage({ ctx }: { ctx: Context }) {
           {busy ? text.refreshing : text.refresh}
         </Button>
       </div>
+      {editingRange && (
+        <form
+          className="dsh-usage-range"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!isValidDateRange(startDate, endDate)) {
+              setRangeError(true)
+              return
+            }
+            setRangeError(false)
+            applyPeriod({ startDate, endDate })
+          }}
+        >
+          <label>
+            {text.startDate}
+            <Input
+              type="date"
+              value={startDate}
+              required
+              aria-invalid={rangeError}
+              aria-describedby={`${rangeId}-hint${rangeError ? ` ${rangeId}-error` : ''}`}
+              onChange={(event) => {
+                setStartDate(event.target.value)
+                setRangeError(false)
+              }}
+            />
+          </label>
+          <label>
+            {text.endDate}
+            <Input
+              type="date"
+              value={endDate}
+              required
+              aria-invalid={rangeError}
+              aria-describedby={`${rangeId}-hint${rangeError ? ` ${rangeId}-error` : ''}`}
+              onChange={(event) => {
+                setEndDate(event.target.value)
+                setRangeError(false)
+              }}
+            />
+          </label>
+          <Button type="submit" variant="outline">
+            {text.apply}
+          </Button>
+          <p id={`${rangeId}-hint`} className="dsh-usage-muted dsh-usage-range-note">
+            {text.rangeHint} ({timeZone})
+          </p>
+          {rangeError && (
+            <p id={`${rangeId}-error`} className="dsh-usage-range-note" role="alert">
+              {text.rangeError}
+            </p>
+          )}
+        </form>
+      )}
+      <p className="dsh-usage-muted">
+        {text.showing}:{' '}
+        {'days' in period
+          ? periods.find(({ id }) => id === String(period.days))?.label
+          : `${period.startDate} – ${period.endDate}`}
+      </p>
       {busy && !view && (
         <p role="status" className="dsh-usage-status">
           <StateDot state="ongoing" />
@@ -193,7 +280,7 @@ function Usage({ ctx }: { ctx: Context }) {
             <p role="status">{text.empty}</p>
           ) : (
             <>
-              <h3>{period === 0 ? text.recent : text.daily}</h3>
+              <h3>{'days' in period && period.days === 0 ? text.recent : text.daily}</h3>
               <div className="dsh-usage-chart" role="group" aria-label={`${text.daily} (${view.timeZone})`}>
                 {view.days.map(({ day, total }) => (
                   <button

@@ -200,12 +200,12 @@ async function fixture(t, options = {}, settings = {}, taskModels) {
     agent = await harness.create(SessionId(`worktree-task-${++sessionNumber}`), config, { cwd })
     return agent
   }
-  const archive = async () => {
+  const archive = async (options) => {
     const maintenance = agent.runMaintenance.bind(agent)
     let cleanup
     agent.runMaintenance = (...args) => (cleanup = maintenance(...args))
     try {
-      await ctx.workspaceRegistry.archiveSession(agent.id)
+      await ctx.workspaceRegistry.archiveSession(agent.id, options)
       await new Promise((resolve) => setImmediate(resolve))
       // Cleanup failures are intentionally contained by the archive observer.
       // The assertions below check the resulting Git state, not its promise.
@@ -1756,17 +1756,148 @@ await test('아카이브 정리는 선택해야 동작하고 다시 불러와도
   await submit('Continue from the source checkout')
 })
 
-await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된, 잠긴, 외부, 공유 체크아웃을 보존한다', async (t) => {
+await test('아카이브 정리는 무시된 파일과 디렉터리가 있어도 강제 옵션 없이 체크아웃을 삭제한다', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit, archive } = await fixture(t, {}, { deleteOnArchive: true })
+  await writeFile(join(repo, '.gitignore'), 'ignored.txt\nnode_modules/\n')
+  git('add', '.gitignore')
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'ignore generated files')
+  await rpc('create', { cwd: repo, name: 'feat/ignored-cleanup' })
+  await submit()
+  const path = ctx.workingDirectory.get(agent.session)
+  await writeFile(join(path, 'ignored.txt'), 'ignored artifact')
+  await mkdir(join(path, 'node_modules'))
+  await writeFile(join(path, 'node_modules/package.json'), '{}')
+  assert.match(git('-C', path, 'status', '--porcelain', '--ignored'), /!!/)
+  const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
+  const removals = []
+  ctx.subprocess.spawn = (spec) => {
+    if (spec.argv.includes('worktree') && spec.argv.includes('remove')) removals.push(spec.argv)
+    return spawn(spec)
+  }
+  await archive()
+  assert.equal(removals.length, 1)
+  assert.equal(
+    removals[0].some((arg) => arg === '--force' || arg === '-f'),
+    false
+  )
+  assert.equal(git('worktree', 'list', '--porcelain').includes(gitPath(path)), false)
+  await assert.rejects(readFile(join(path, 'ignored.txt')), { code: 'ENOENT' })
+  await assert.rejects(readFile(join(path, 'node_modules/package.json')), { code: 'ENOENT' })
+  assert.equal(ctx.workingDirectory.get(agent.session), repo)
+  assert.equal(git('branch', '--list', 'feat/ignored-cleanup'), 'feat/ignored-cleanup')
+})
+
+await test('아카이브 정리는 완료된 직접 자손과 중첩 자손의 세션 기록만 남으면 체크아웃을 삭제한다', async (t) => {
+  for (const scenario of ['live', 'stored', 'nested-live', 'nested-stored']) {
+    await t.test(`${scenario} 자손이 완료되면 체크아웃을 삭제한다`, async (t) => {
+      const { ctx, agent, repo, git, rpc, submit, archive, harness } = await fixture(t, {}, { deleteOnArchive: true })
+      await rpc('create', { cwd: repo, name: 'feat/descendant-cleanup' })
+      await submit()
+      const path = ctx.workingDirectory.get(agent.session)
+      const store = async (id, parentSession, cwd) => {
+        const stored = Session.create(SessionId(id), agent.session.snapshotEvents(), {
+          ...agent.session.header,
+          id: SessionId(id),
+          origin: 'subagent',
+          parentSession,
+          cwd,
+        })
+        // Replay the completed task but give this child its own effective directory.
+        stored.append('working-directory/change', { cwd })
+        const handle = await ctx.sessionPersistence.create(stored.header)
+        await handle.append(stored.snapshotEvents())
+        await handle.close()
+        assert.equal(ctx.sessions.get(stored.id), undefined)
+        return stored.id
+      }
+      const parentSession = scenario.startsWith('nested-')
+        ? await store('intermediate-child', agent.id, repo)
+        : agent.id
+      if (scenario.endsWith('stored')) {
+        await store('completed-child', parentSession, path)
+      } else {
+        const child = await harness.create(
+          SessionId('completed-child'),
+          { provider: 'test', model: 'test-model' },
+          { cwd: path, origin: 'subagent', parentSession }
+        )
+        assert.equal(child.session.header.origin, 'subagent')
+        assert.equal(child.session.header.parentSession, parentSession)
+        child.followup(
+          createUserMessage({ content: [{ type: 'text', text: 'Finish child task' }], source: { kind: 'user' } })
+        )
+        await child.whenIdle()
+        assert.equal(child.status, 'idle')
+        assert.ok(
+          child.session
+            .snapshotEvents()
+            .some((event) => event.type === 'turn/end' && event.data.reason.kind === 'completed')
+        )
+      }
+      await archive()
+      assert.equal(git('worktree', 'list', '--porcelain').includes(gitPath(path)), false)
+      assert.equal(ctx.workingDirectory.get(agent.session), repo)
+      assert.equal(git('branch', '--list', 'feat/descendant-cleanup'), 'feat/descendant-cleanup')
+    })
+  }
+})
+
+await test('아카이브 정리는 유휴 자손이 별도 활동을 보고하면 체크아웃을 보존한다', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit, archive, harness } = await fixture(t, {}, { deleteOnArchive: true })
+  await rpc('create', { cwd: repo, name: 'feat/active-child' })
+  await submit()
+  const path = ctx.workingDirectory.get(agent.session)
+  const child = await harness.create(
+    SessionId('active-child'),
+    { provider: 'test', model: 'test-model' },
+    { cwd: path, origin: 'subagent', parentSession: agent.id }
+  )
+  assert.equal(child.status, 'idle')
+  let queried = false
+  ctx.on('workspace/session-activity', async ({ sessionId }, next) => {
+    const rest = await next()
+    if (sessionId !== child.id) return rest
+    queried = true
+    return [{ kind: 'turn' }, ...rest]
+  })
+  await archive()
+  assert.equal(queried, true)
+  assert.ok(git('worktree', 'list', '--porcelain').includes(gitPath(path)))
+  assert.equal(ctx.workingDirectory.get(agent.session), path)
+})
+
+await test('활동 중지와 함께 보관해도 남아 있는 활동이 있으면 체크아웃을 보존한다', async (t) => {
+  const { ctx, agent, repo, git, rpc, submit, archive } = await fixture(t, {}, { deleteOnArchive: true })
+  await rpc('create', { cwd: repo, name: 'feat/stopping-activity' })
+  await submit()
+  const path = ctx.workingDirectory.get(agent.session)
+  let stopped = false
+  ctx.on('workspace/session-activity', async ({ sessionId }, next) => {
+    const rest = await next()
+    return sessionId === agent.id ? [{ kind: 'turn' }, ...rest] : rest
+  })
+  ctx.on('workspace/session-stop', ({ sessionId }) => {
+    if (sessionId === agent.id) stopped = true
+  })
+  await archive({ stopActivity: true })
+  assert.equal(stopped, true)
+  assert.ok(ctx.workspaceRegistry.archivedSessionIds.includes(agent.id))
+  assert.ok(git('worktree', 'list', '--porcelain').includes(gitPath(path)))
+  assert.equal(ctx.workingDirectory.get(agent.session), path)
+})
+
+await test('아카이브 정리는 비활성, 변경 사항이 있는, 잠긴, 외부, 공유 체크아웃을 보존한다', async (t) => {
   for (const scenario of [
     'disabled',
     'tracked',
     'untracked',
-    'ignored',
     'locked',
     'foreign',
     'shared-live',
     'shared-stored',
     'fork',
+    'missing-parent',
+    'cyclic-parent',
   ]) {
     await t.test(`${scenario} 상태의 체크아웃을 보존한다`, async (t) => {
       const { ctx, agent, repo, other, git, rpc, submit, harness, archive } = await fixture(
@@ -1787,7 +1918,7 @@ await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된
         await submit()
       }
       const path = ctx.workingDirectory.get(agent.session)
-      if (['tracked', 'untracked', 'ignored'].includes(scenario)) {
+      if (['tracked', 'untracked'].includes(scenario)) {
         await writeFile(join(path, `${scenario}.txt`), 'must survive')
       }
       if (scenario === 'locked') git('worktree', 'lock', path)
@@ -1797,9 +1928,21 @@ await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된
       if (scenario === 'fork') {
         const fork = ctx.sessions.create(SessionId('forked'), {
           seed: agent.session.snapshotEvents(),
-          meta: { cwd: repo },
+          meta: { cwd: repo, parentSession: agent.id },
         })
+        assert.equal(fork.header.origin, undefined)
+        assert.equal(fork.header.parentSession, agent.id)
         assert.equal(ctx.workingDirectory.get(fork), path)
+      }
+      if (scenario === 'missing-parent' || scenario === 'cyclic-parent') {
+        const childId = SessionId('unverified-child')
+        ctx.sessions.create(childId, {
+          meta: {
+            cwd: path,
+            origin: 'subagent',
+            parentSession: scenario === 'missing-parent' ? SessionId('missing-parent') : childId,
+          },
+        })
       }
       if (scenario === 'shared-stored') {
         const stored = Session.create(SessionId('shared-stored'), [], {
@@ -1814,7 +1957,7 @@ await test('아카이브 정리는 비활성, 변경 사항이 있는, 무시된
       await archive()
       assert.ok(git('worktree', 'list', '--porcelain').includes(gitPath(path)))
       assert.equal(ctx.workingDirectory.get(agent.session), path)
-      if (['tracked', 'untracked', 'ignored'].includes(scenario)) {
+      if (['tracked', 'untracked'].includes(scenario)) {
         assert.equal(await readFile(join(path, `${scenario}.txt`), 'utf8'), 'must survive')
       }
     })
