@@ -27,9 +27,7 @@
     "@dungsil/dsh-plugin-ui-setting-skills": "workspace:*",
     "@dungsil/dsh-plugin-ui-sidebar-inbox": "workspace:*",
     "@dungsil/dsh-plugin-ui-turn-rail-left": "workspace:*",
-    "@dungsil/dsh-plugin-ui-usage": "workspace:*",
-    "@dungsil/dsh-plugin-ui-vcs": "workspace:*",
-    "@dungsil/dsh-plugin-ui-worktree": "workspace:*"
+    "@dungsil/dsh-plugin-ui-usage": "workspace:*"
   },
   "engines": {
     "dsh": "^0.2.2-rc.1",
