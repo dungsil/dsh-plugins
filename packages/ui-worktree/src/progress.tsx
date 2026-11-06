@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ChatNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { DisclosureRow } from '@dungsil/dsh-ui'
 import type { ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
+  IconBranchOutlineRegular,
   IconCheckCircleOutlineRegular,
   IconCloseOutlineRegular,
   IconStopFillRegular,
@@ -74,18 +78,28 @@ export const progressDefinition: ConversationNodeDefinitionInput<{
       anchorSeq: context.state.anchorSeq,
       location: context.start.location,
       visibility: 'visible',
-      groupTree: context.state.progress.status === 'completed' ? undefined : 'turn',
+      groupTree: 'turn',
       data: context.state.progress,
     }
   },
 }
 
 export function installProgress(ctx: Context) {
+  const settings = ctx.configForms.get<{ collapseTiming?: 'completion' | 'next-input' }>('ui-chat')
+  const subscribe = (listener: () => void) => settings.subscribe(listener)
+  const getCollapseTiming = () => settings.getSnapshot().value?.collapseTiming ?? 'completion'
   ctx.uiConversation.events.register(progressDefinition)
   ctx.slots.inject('conversation.chat.node', () =>
     ctx.slots.register(
       { name: 'conversation.chat.node', key: 'dungsil-worktree-progress', inject: () => ({}) },
-      function Progress({ node }: { node: ChatNode<'dungsil-worktree-progress'> }) {
+      function Progress({ node, useChat }: PropsRuntime<'conversation.chat.node', 'dungsil-worktree-progress'>) {
+        const collapseTiming = useSyncExternalStore(subscribe, getCollapseTiming)
+        const turn =
+          node.location.kind === 'turn' || node.location.kind === 'step' ? node.location.turn.turn : undefined
+        const hasNextInput = useChat((chat) => {
+          const latestTurn = chat.navigation.items().at(-1)?.turn
+          return turn !== undefined && latestTurn !== undefined && latestTurn > turn
+        })
         const { active: language } = useLocaleSnapshot(ctx.locale)
         const text = labels[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
         const progress = node.data
@@ -94,6 +108,11 @@ export function installProgress(ctx: Context) {
             ? node.location.turn.status === 'closed'
             : false
         const status = progress.status === 'running' && ended ? 'cancelled' : progress.status
+        // A new automatic phase resets a manual choice; unrelated progress ticks do not.
+        const automaticOpen = status !== 'completed' || (collapseTiming === 'next-input' && !hasNextInput)
+        const [disclosure, setDisclosure] = useState({ automaticOpen, open: automaticOpen })
+        const open = disclosure.automaticOpen === automaticOpen ? disclosure.open : automaticOpen
+        if (disclosure.automaticOpen !== automaticOpen) setDisclosure({ automaticOpen, open: automaticOpen })
         const [now, setNow] = useState(Date.now)
         useEffect(() => {
           if (status !== 'running') return
@@ -102,45 +121,54 @@ export function installProgress(ctx: Context) {
         }, [status])
         return (
           <section className="dsh-worktree-progress" aria-label={text[status]} aria-busy={status === 'running'}>
-            <p role="status">
+            <span className="dsh-worktree-sr" role="status">
               {text[status]}
-              {status === 'completed' && progress.branch ? ` · ${progress.branch}` : ''}
-            </p>
-            <ol>
-              {text.steps.map((label, index) => {
-                const state =
-                  index < progress.step || status === 'completed'
-                    ? 'completed'
-                    : index === progress.step
-                      ? status
-                      : 'pending'
-                const duration =
-                  progress.durations[index]! + (state === 'running' ? Math.max(0, now - progress.updatedAt) : 0)
-                const Icon =
-                  state === 'completed'
-                    ? IconCheckCircleOutlineRegular
-                    : state === 'failed'
-                      ? IconCloseOutlineRegular
-                      : state === 'cancelled'
-                        ? IconStopFillRegular
-                        : state === 'running'
-                          ? IconLoadingOutlineRegular
-                          : IconClockOutlineRegular
-                return (
-                  <li key={label} data-state={state} aria-current={state === 'running' ? 'step' : undefined}>
-                    <span className="dsh-worktree-progress-mark" aria-hidden="true">
-                      <Icon size={14} />
-                    </span>
-                    <span>{label}</span>
-                    {state !== 'pending' && (
-                      <span className="dsh-worktree-progress-time">
-                        {duration < 1000 ? `${Math.floor(duration)}ms` : `${(duration / 1000).toFixed(1)}s`}
+            </span>
+            <DisclosureRow
+              icon={<IconBranchOutlineRegular size={14} />}
+              title={`${text[status]}${status === 'completed' && progress.branch ? ` · ${progress.branch}` : ''}`}
+              open={open}
+              expandable
+              expandOnRowClick
+              onToggle={() => setDisclosure({ automaticOpen, open: !open })}
+              running={status === 'running'}
+            >
+              <ol>
+                {text.steps.map((label, index) => {
+                  const state =
+                    index < progress.step || status === 'completed'
+                      ? 'completed'
+                      : index === progress.step
+                        ? status
+                        : 'pending'
+                  const duration =
+                    progress.durations[index]! + (state === 'running' ? Math.max(0, now - progress.updatedAt) : 0)
+                  const Icon =
+                    state === 'completed'
+                      ? IconCheckCircleOutlineRegular
+                      : state === 'failed'
+                        ? IconCloseOutlineRegular
+                        : state === 'cancelled'
+                          ? IconStopFillRegular
+                          : state === 'running'
+                            ? IconLoadingOutlineRegular
+                            : IconClockOutlineRegular
+                  return (
+                    <li key={label} data-state={state} aria-current={state === 'running' ? 'step' : undefined}>
+                      <span className="dsh-worktree-progress-mark" aria-hidden="true">
+                        <Icon size={14} />
                       </span>
-                    )}
-                  </li>
-                )
-              })}
-            </ol>
+                      <span>{label}</span>
+                      {state !== 'pending' && (
+                        <span className="dsh-worktree-progress-time">
+                          {duration < 1000 ? `${Math.floor(duration)}ms` : `${(duration / 1000).toFixed(1)}s`}
+                        </span>
+                      )}
+                    </li>
+                  )
+                })}
+              </ol>
+            </DisclosureRow>
             {(status === 'failed' || status === 'cancelled') && <p role="alert">{text.failure}</p>}
           </section>
         )
