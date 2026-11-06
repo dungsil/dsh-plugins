@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Forge PR 预览",
-    "description": "在右侧栏预览并审查当前分支的 Forge PR 或 MR。"
+    "title": "PR 预览",
+    "description": "在右侧栏预览并审查当前分支的 PR 或 MR。"
   },
   "title": "PR / MR",
   "description": "查看从此会话当前分支推送的 PR 或 MR",
@@ -14,7 +14,7 @@
   "merged": "已合并",
   "hint": "请在 DSH 主机上安装 gh（GitHub）、glab（GitLab）或 tea 0.12.x（Gitea/Forgejo）并登录。",
   "repository": "未找到此会话的 Git 仓库或远程地址。",
-  "unsupported": "无法识别主机。请检查此会话的 Forge 提供商和仓库绑定设置。",
+  "unsupported": "无法识别主机。请确认主机是否受支持，并检查此会话的仓库连接设置。",
   "cli_missing": "DSH 主机上缺少所需的 CLI 或版本不受支持。Gitea 和 Forgejo 使用 tea 0.12.x。",
   "command_failed": "无法加载请求。请检查 CLI 登录状态、仓库访问权限和会话的沙箱网络策略。",
   "invalid_response": "CLI 返回了无效响应。",

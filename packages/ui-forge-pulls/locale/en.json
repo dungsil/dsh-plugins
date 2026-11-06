@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Forge PR Preview",
-    "description": "Preview and review the current branch's Forge pull request or merge request in the right sidebar."
+    "title": "PR Preview",
+    "description": "Preview and review the current branch's pull request or merge request in the right sidebar."
   },
   "title": "PR / MR",
   "description": "The PR or MR pushed from this session's current branch",
@@ -14,7 +14,7 @@
   "merged": "Merged",
   "hint": "Install gh (GitHub), glab (GitLab) or tea 0.12.x (Gitea/Forgejo) and sign in on the DSH host.",
   "repository": "No Git repository or remote was found for this session.",
-  "unsupported": "Host not recognized. Check the Forge provider and repository binding for this session.",
+  "unsupported": "Host not recognized. Check that the host is supported and review this session's repository connection settings.",
   "cli_missing": "The required CLI is missing or unsupported on the DSH host. Gitea and Forgejo use tea 0.12.x.",
   "command_failed": "Could not load requests. Check CLI authentication, repository access and the session's sandbox network policy.",
   "invalid_response": "The CLI returned an invalid response.",

@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-pulls",
   "version": "0.0.0",
-  "description": "Forge-connected PR/MR previews, descriptions, checks and reviews for DeepSeek Harness.",
+  "description": "PR/MR previews, descriptions, checks and reviews for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -104,19 +104,18 @@
   "market": {
     "order": 13,
     "title": {
-      "en": "Forge Pull Requests",
-      "ko": "Forge PR 미리보기",
-      "zh": "Forge 合并请求预览"
+      "en": "PR Preview",
+      "ko": "PR 미리보기",
+      "zh": "PR 预览"
     },
     "description": {
-      "en": "Preview Forge-linked PR/MR descriptions, changes, checks and reviews.",
-      "ko": "Forge에 연결된 PR/MR의 본문, 변경 내용, 검사와 리뷰를 확인합니다.",
-      "zh": "预览 Forge 关联的 PR/MR 描述、更改、检查和审查。"
+      "en": "Preview PR/MR descriptions, changes, checks and reviews.",
+      "ko": "PR/MR의 본문, 변경 내용, 검사와 리뷰를 확인합니다.",
+      "zh": "预览 PR/MR 描述、更改、检查和审查。"
     },
     "category": "ui",
     "labels": [],
     "keywords": [
-      "forge",
       "pull-request",
       "preview"
     ]

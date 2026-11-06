@@ -20,6 +20,30 @@ void test('세 로케일은 같은 번역 키와 비어 있지 않은 문구를 
   }
 })
 
+void test('사용자 표시 메타데이터는 내부 연동 이름을 노출하지 않고 PR 미리보기 제목을 사용한다', async () => {
+  const manifest = await json('../package.json')
+  const titles = { en: 'PR Preview', ko: 'PR 미리보기', zh: 'PR 预览' }
+  const visible = [manifest.description, ...manifest.market.keywords]
+  for (const [lang, title] of Object.entries(titles)) {
+    const locale = await json(`../locale/${lang}.json`)
+    assert.equal(manifest.market.title[lang], title)
+    assert.equal(locale.meta.title, title)
+    visible.push(
+      manifest.market.title[lang],
+      manifest.market.description[lang],
+      locale.meta.title,
+      locale.meta.description,
+      locale.unsupported
+    )
+    assert.match(locale.hint, /Forgejo/)
+    assert.match(locale.cli_missing, /Forgejo/)
+  }
+  for (const text of visible) {
+    assert.equal(typeof text, 'string')
+    assert.doesNotMatch(text, /\bforge\b/i)
+  }
+})
+
 void test('새 번들은 공식 Forge 번들을 제거하거나 같은 서비스와 탭을 재등록하지 않는다', async () => {
   const manifest = await json('../package.json')
   assert.equal(manifest.name, '@dungsil/dsh-plugin-ui-forge-pulls')
