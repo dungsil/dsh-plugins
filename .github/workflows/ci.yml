@@ -15,6 +15,7 @@ on:
       - 'turbo.json'
       - '.oxfmtrc.json'
       - '.oxlintrc.json'
+      - 'lint-staged.config.mjs'
       - '.editorconfig'
       - '.gitignore'
       # Skills are shipped plugin content, so do not exclude Markdown globally.
@@ -37,6 +38,7 @@ on:
       - 'turbo.json'
       - '.oxfmtrc.json'
       - '.oxlintrc.json'
+      - 'lint-staged.config.mjs'
       - '.editorconfig'
       - '.gitignore'
       - '!**/AGENTS.md'
