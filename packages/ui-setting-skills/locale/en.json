@@ -13,9 +13,11 @@
     "search": "Search skills",
     "searchPlaceholder": "Search by name, description, or path",
     "noResults": "No skills match your search.",
+    "loadedCount": "({total} loaded)",
+    "filteredCount": "({total} loaded · {count} matching)",
     "error": "Could not load skills. Close and reopen this settings section to try again.",
     "incomplete": "Some skill sources could not be loaded. This list may be incomplete.",
-    "use": "Use",
+    "use": "Enabled",
     "disabled": "Off",
     "openFolder": "Open folder",
     "openingFolder": "Opening folder…",
@@ -29,7 +31,6 @@
     "translateAll": "Translate all skills",
     "translatingAll": "Translating all skills…",
     "translationAllError": "Some skill descriptions could not be translated. Try again to translate only the failed items.",
-    "translationNotice": "Expanding a skill or translating all skills sends descriptions to the service selected in reasoning translation settings. Translate all includes both shared and DSH skills. Translations are cached using its target language.",
     "translationError": "Could not translate. The original is shown. Paid services require a Session and are unavailable here.",
     "saveError": "Could not save the setting. Close and reopen this section to check the saved state before trying again."
   }
