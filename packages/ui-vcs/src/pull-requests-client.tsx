@@ -97,11 +97,11 @@ export function CheckStatusIcon({ state }: { state: StateDotState }) {
   return (
     <span className="dsh-vcs-check-status" data-state={state} aria-hidden="true">
       {state === 'done' ? (
-        <IconCheckCircleOutlineRegular />
+        <IconCheckCircleOutlineRegular size={14} />
       ) : state === 'ongoing' ? (
-        <IconLoadingOutlineRegular />
+        <IconLoadingOutlineRegular size={14} />
       ) : state === 'warning' ? (
-        <IconQuestionOutlineRegular />
+        <IconQuestionOutlineRegular size={14} />
       ) : (
         <span dangerouslySetInnerHTML={{ __html: state === 'error' ? circleXIconSvg : circleMinusIconSvg }} />
       )}
@@ -149,6 +149,12 @@ export function apply(ctx: Context) {
   const sessions = ctx.get('sessions') as unknown as ISessions
   const views = new Map<string, RequestView>()
   ctx.effect(() => () => views.clear())
+  ctx.effect(() => {
+    const style = document.createElement('style')
+    style.textContent = styles
+    document.head.append(style)
+    return () => style.remove()
+  }, 'ui-vcs: pull request styles')
   const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
   const text = () => {
     const language = ctx.locale.getSnapshot().active
@@ -487,7 +493,6 @@ export function apply(ctx: Context) {
 
     return (
       <section className="dsh-pr-panel" aria-label={copy.title}>
-        <style>{styles}</style>
         <header>
           <div>
             <strong>{view ? providerNames[view.provider] : copy.title}</strong>
