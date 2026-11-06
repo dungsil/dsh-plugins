@@ -1,0 +1,18 @@
+{
+  "title": "Browser",
+  "description": "Watch the browser controlled by agent-browser in this conversation.",
+  "idle": "No browser is open in this conversation.",
+  "hint": "Ask the agent to browse with the agent_browser tool. Install agent-browser 0.38.1 or later and run agent-browser install on the dsh host first. Full access mode is required.",
+  "starting": "Connecting to the browser…",
+  "live": "Live",
+  "closed": "The browser is closed.",
+  "error": "The browser is unavailable.",
+  "unavailable": "Could not start agent-browser. Check that agent-browser 0.38.1 or later and Chrome are installed on the dsh host.",
+  "command_failed": "The browser command failed. Check the tool result in the conversation.",
+  "stream_failed": "The live screen disconnected. Ask the agent to run another browser command to reconnect.",
+  "permission": "Browser automation requires full access mode. It cannot run inside the dsh file sandbox.",
+  "connection_error": "Could not connect to dsh. Reconnecting…",
+  "screen": "Live browser screen controlled by the agent",
+  "readonly": "View only · Controlled by agent-browser",
+  "command": "Command"
+}

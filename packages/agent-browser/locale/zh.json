@@ -1,0 +1,18 @@
+{
+  "title": "浏览器",
+  "description": "查看 agent-browser 在此对话中控制的浏览器。",
+  "idle": "此对话尚未打开浏览器。",
+  "hint": "请让智能体使用 agent_browser 工具浏览。请先在 dsh 主机上安装 agent-browser 0.38.1 或更高版本并运行 agent-browser install。需要完全访问模式。",
+  "starting": "正在连接浏览器…",
+  "live": "实时",
+  "closed": "浏览器已关闭。",
+  "error": "浏览器不可用。",
+  "unavailable": "无法启动 agent-browser。请确认 dsh 主机已安装 agent-browser 0.38.1 或更高版本及 Chrome。",
+  "command_failed": "浏览器命令失败。请查看对话中的工具执行结果。",
+  "stream_failed": "实时画面已断开。请让智能体再次运行浏览器命令以重新连接。",
+  "permission": "浏览器自动化需要完全访问模式，无法在 dsh 文件沙箱内运行。",
+  "connection_error": "无法连接 dsh，正在重新连接…",
+  "screen": "智能体控制的浏览器实时画面",
+  "readonly": "仅查看 · 由 agent-browser 控制",
+  "command": "命令"
+}

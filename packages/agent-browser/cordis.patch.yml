@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-agent-browser
+      name: '@dungsil/dsh-plugin-agent-browser'
