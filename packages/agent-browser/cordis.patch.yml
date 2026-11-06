@@ -1,0 +1,5 @@
+- id: ui-sidebar-browser
+  disabled: false
+- insert:
+    - id: dungsil-agent-browser
+      name: '@dungsil/dsh-plugin-agent-browser'
