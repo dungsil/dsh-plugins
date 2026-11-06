@@ -12,12 +12,19 @@ await test('클라이언트 번들은 사용하는 UI 내보내기만 유지한�
   const directory = await mkdtemp(join(cwd, '.treeshaking-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const Button = () => null
+  const DiffBlock = () => null
   const cases = [
     {
       name: '프리미티브는 설정이나 React를 끌어오지 않는다',
       source: "export { Button } from '@dungsil/dsh-ui'",
       modules: { '@deepseek-ai/dsh-client-ui-primitives': { Button } },
       check: (exports) => assert.equal(exports.Button, Button),
+    },
+    {
+      name: 'DiffBlock은 공통 컴포넌트의 동일성과 props 계약을 유지한다',
+      source: "export { DiffBlock } from '@dungsil/dsh-ui'",
+      modules: { '@deepseek-ai/dsh-client-ui-primitives': { DiffBlock } },
+      check: (exports) => assert.equal(exports.DiffBlock, DiffBlock),
     },
     {
       name: '페이지 스타일은 React나 프리미티브를 끌어오지 않는다',

@@ -6,7 +6,7 @@
   "ui": {
     "title": "Nota de cambios",
     "codeLabel": "Código",
-    "open": "Abrir archivo",
+    "annotationLabel": "Motivo del cambio",
     "waiting": "Registrando la explicación del cambio…",
     "failed": "No se pudo registrar la explicación del cambio.",
     "wrapLabel": "Ajustar líneas",

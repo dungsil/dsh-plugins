@@ -6,7 +6,7 @@
   "ui": {
     "title": "変更の説明",
     "codeLabel": "コード",
-    "open": "ファイルを開く",
+    "annotationLabel": "変更理由",
     "waiting": "変更の説明を記録中…",
     "failed": "変更の説明を記録できませんでした。",
     "wrapLabel": "行を折り返す",
