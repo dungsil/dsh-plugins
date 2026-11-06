@@ -1,5 +1,12 @@
 # @dungsil/dsh-plugin-tool-diff-note
 
+## [0.1.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-diff-note%400.1.1...%40dungsil%2Fdsh-plugin-tool-diff-note%400.1.2) (2026-11-06)
+
+### Bug Fixes
+
+- **diff-note:** 말풍선을 첫 hunk의 마지막 변경 줄 뒤에 배치한다 ([#175](https://github.com/dungsil/dsh-plugins/issues/175)) ([6b07be1](https://github.com/dungsil/dsh-plugins/commit/6b07be1d1bff496656afc45f9df4d9fad6dab248))
+- **diff-note:** 최종 답변 직전에만 변경 이유를 설명하도록 안내한다 ([#178](https://github.com/dungsil/dsh-plugins/issues/178)) ([cb70b29](https://github.com/dungsil/dsh-plugins/commit/cb70b29f8fef5a77f325a0e65c5d6ee501118a0c))
+
 ## [0.1.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-diff-note%400.1.0...%40dungsil%2Fdsh-plugin-tool-diff-note%400.1.1) (2026-11-05)
 
 ### Bug Fixes

@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-model-picker
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.6...%40dungsil%2Fdsh-plugin-ui-model-picker%400.3.0) (2026-11-06)
+
+### Features
+
+- **model-picker:** 추론 수준을 조작 완료 시 자동 적용한다 ([#173](https://github.com/dungsil/dsh-plugins/issues/173)) ([90c271a](https://github.com/dungsil/dsh-plugins/commit/90c271acb0b12ba9ab352bd73bf0bc2d256883ee))
+- **ui-model-picker:** 추론 수준 툴팁과 모델 피커 단축키를 추가한다 ([#179](https://github.com/dungsil/dsh-plugins/issues/179)) ([1465e99](https://github.com/dungsil/dsh-plugins/commit/1465e994016ce432f24fb9f0adcb0f10cca0da99))
+
+### Bug Fixes
+
+- **model-picker:** 응답 중 자동 스크롤에도 선택 화면을 유지한다 ([#170](https://github.com/dungsil/dsh-plugins/issues/170)) ([5563fde](https://github.com/dungsil/dsh-plugins/commit/5563fde2bb87cebc6ceef1781f634e50091c6154))
+
 ## [0.2.6](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.5...%40dungsil%2Fdsh-plugin-ui-model-picker%400.2.6) (2026-11-05)
 
 ### Bug Fixes

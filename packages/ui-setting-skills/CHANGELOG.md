@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-setting-skills
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.3.2...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.4.0) (2026-11-06)
+
+### Features
+
+- **skills:** 번역문 미리보기와 전체 스킬 번역을 추가한다 ([#176](https://github.com/dungsil/dsh-plugins/issues/176)) ([643e422](https://github.com/dungsil/dsh-plugins/commit/643e422e058ebf19ef3d075186d064362427c48e))
+- **skills:** 스킬 설정에 검색 기능을 추가한다 ([#185](https://github.com/dungsil/dsh-plugins/issues/185)) ([9c50d63](https://github.com/dungsil/dsh-plugins/commit/9c50d63bc9750e40a5323f12f6077e97765ba4cc))
+
+### Performance Improvements
+
+- **skills:** 원문과 대상 언어가 같으면 번역 요청을 생략한다 ([#172](https://github.com/dungsil/dsh-plugins/issues/172)) ([2d8943b](https://github.com/dungsil/dsh-plugins/commit/2d8943b8869da711fe80d8152b56c429e274f435))
+
 ## [0.3.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.3.1...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.3.2) (2026-11-05)
 
 ### Bug Fixes

@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-vcs
 
+## [0.4.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.4.2...%40dungsil%2Fdsh-plugin-ui-vcs%400.4.3) (2026-11-06)
+
+### Bug Fixes
+
+- **ui-vcs:** CI 아이콘 정렬과 PR 보기 버튼 깜빡임을 수정한다 ([#177](https://github.com/dungsil/dsh-plugins/issues/177)) ([00f6fc7](https://github.com/dungsil/dsh-plugins/commit/00f6fc72518c98052bfa2fd5455361db46d9b8f5))
+
 ## [0.4.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-vcs%400.4.1...%40dungsil%2Fdsh-plugin-ui-vcs%400.4.2) (2026-11-05)
 
 ### Bug Fixes

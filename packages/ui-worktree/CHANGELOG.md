@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-worktree
 
+## [0.7.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.6.1...%40dungsil%2Fdsh-plugin-ui-worktree%400.7.0) (2026-11-06)
+
+### Features
+
+- **worktree:** 준비 내역에 작업 세부 정보 접기 설정을 적용한다 ([#174](https://github.com/dungsil/dsh-plugins/issues/174)) ([4f8f81d](https://github.com/dungsil/dsh-plugins/commit/4f8f81d243828a835228f0d4ca81413d977b1d85))
+
+### Bug Fixes
+
+- **ui-worktree:** 보관 시 워크트리 삭제 차단 조건을 수정한다 ([#182](https://github.com/dungsil/dsh-plugins/issues/182)) ([fa56546](https://github.com/dungsil/dsh-plugins/commit/fa56546b63710e0f168c5954ce205a4e0b99174f))
+- **worktree:** 테스트 완료를 기다려 CI 린트 실패를 해결한다 ([e038749](https://github.com/dungsil/dsh-plugins/commit/e038749ff95f5b303d3a25f19a0e3aec1b630be9))
+
 ## [0.6.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-worktree%400.6.0...%40dungsil%2Fdsh-plugin-ui-worktree%400.6.1) (2026-11-05)
 
 ### Bug Fixes

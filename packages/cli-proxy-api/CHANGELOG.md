@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-cli-proxy-api
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.3...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.3.0) (2026-11-06)
+
+### Features
+
+- **cli-proxy-api:** 연결 설정을 입력 완료 시 자동 저장한다 ([#188](https://github.com/dungsil/dsh-plugins/issues/188)) ([957eb77](https://github.com/dungsil/dsh-plugins/commit/957eb77c1774c5f3561068869fa5647af0d3824b))
+
 ## [0.2.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.2...%40dungsil%2Fdsh-plugin-cli-proxy-api%400.2.3) (2026-11-05)
 
 ### Bug Fixes

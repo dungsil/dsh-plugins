@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-preset-ui",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A preset that installs UI plugins for DeepSeek Harness.",
   "license": "MIT",
   "repository": {

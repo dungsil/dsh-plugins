@@ -1,7 +1,13 @@
 # @dungsil/dsh-plugin-ui-usage
 
-- fix(compat): dsh 0.2.2 프리릴리스 호환성을 수정한다 (#80) (da66780)
-- fix(release): 하위 패키지 업데이트를 프리셋 릴리즈에 반영한다 (#168) (e54d5ac)
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.3.1...%40dungsil%2Fdsh-plugin-ui-usage%400.4.0) (2026-11-06)
+
+### Features
+
+- **usage:** 사용량 조회에 사용자 지정 날짜 범위를 추가한다 ([#184](https://github.com/dungsil/dsh-plugins/issues/184)) ([b43b76b](https://github.com/dungsil/dsh-plugins/commit/b43b76b5a4bc5515defe0a1accea97ce8762a795))
+
+* fix(compat): dsh 0.2.2 프리릴리스 호환성을 수정한다 (#80) (da66780)
+* fix(release): 하위 패키지 업데이트를 프리셋 릴리즈에 반영한다 (#168) (e54d5ac)
 
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.2.0...%40dungsil%2Fdsh-plugin-ui-usage%400.3.0) (2026-11-05)
 

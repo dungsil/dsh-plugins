@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.8.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.7.3...%40dungsil%2Fdsh-plugin-locale-ko%400.8.0) (2026-11-06)
+
+### Features
+
+- **locale-ko:** DSH 0.2.2 신규 로케일 번역을 추가한다 ([#171](https://github.com/dungsil/dsh-plugins/issues/171)) ([0875704](https://github.com/dungsil/dsh-plugins/commit/0875704d6bf9cc764a4a396619b0e5e57a0e7adf))
+
 ## [0.7.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.7.2...%40dungsil%2Fdsh-plugin-locale-ko%400.7.3) (2026-11-05)
 
 ### Bug Fixes

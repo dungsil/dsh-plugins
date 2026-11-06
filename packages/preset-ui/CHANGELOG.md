@@ -1,5 +1,15 @@
 # @dungsil/dsh-preset-ui
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.1.2...%40dungsil%2Fdsh-preset-ui%400.2.0) (2026-11-06)
+
+### ⚠ BREAKING CHANGES
+
+- **compat:** 모델 설정의 DSH rc.5 호환성을 제거한다 ([#169](https://github.com/dungsil/dsh-plugins/issues/169))
+
+### Bug Fixes
+
+- **compat:** 모델 설정의 DSH rc.5 호환성을 제거한다 ([#169](https://github.com/dungsil/dsh-plugins/issues/169)) ([cce2f6b](https://github.com/dungsil/dsh-plugins/commit/cce2f6b8a81ad91276f1d6c89ab846e9a2c0e909))
+
 ## [0.1.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.1.1...%40dungsil%2Fdsh-preset-ui%400.1.2) (2026-11-05)
 
 ### Bug Fixes
