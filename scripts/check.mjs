@@ -1,12 +1,18 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { runPnpm } from './pnpm.mjs'
 
 function output(command, args) {
-  return execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd()
+  const options = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+  if (command !== 'pnpm') return execFileSync(command, args, options).trimEnd()
+  const result = runPnpm(args, options)
+  if (result.status !== 0) throw new Error(result.stderr || 'pnpm failed')
+  return result.stdout.trimEnd()
 }
 
 function run(args) {
-  execFileSync('pnpm', args, { stdio: 'inherit' })
+  const result = runPnpm(args, { stdio: 'inherit' })
+  if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
 function check() {
@@ -57,6 +63,10 @@ function check() {
     'tsconfig.json',
     '.oxfmtrc.json',
     '.oxlintrc.json',
+    'lint-staged.config.mjs',
+    'scripts/lint.mjs',
+    'scripts/pnpm.mjs',
+    'scripts/check.mjs',
     '.editorconfig',
     '.gitignore',
   ])
@@ -99,9 +109,19 @@ function check() {
   }
 
   console.log(`Checking ${selected.length} affected packages and ${files.length} other files.`)
-  run(['exec', 'oxfmt', '--check', '--no-error-on-unmatched-pattern', '--', ...paths])
-  if (filters.length) run(['exec', 'turbo', 'run', 'typecheck', 'test', ...filters])
   run(['lint'])
+  if (filters.length) run(['exec', 'turbo', 'run', 'typecheck', 'test', ...filters])
 }
 
-check()
+const args = process.argv.slice(2)
+if (args.length > 1 || (args.length === 1 && args[0] !== '--all')) {
+  console.error('Usage: node scripts/check.mjs [--all]')
+  process.exit(1)
+}
+
+if (args[0] === '--all') {
+  run(['lint'])
+  run(['exec', 'turbo', 'run', 'typecheck', 'test'])
+} else {
+  check()
+}
