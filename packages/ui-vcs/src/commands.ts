@@ -46,17 +46,23 @@ export function apply(ctx: Context, config: Config) {
   const repositories = new Set<string>()
   const completed = new Map<string, { input: string; result: Result }>()
   ctx.effect(() => () => lifetime.abort(), 'ui-vcs: cancel commands')
-  const failure = (code: string) => ({
+  type Progress = { stage: 'inspect' | 'generate' | 'commit' | 'push' | 'pr'; committed: boolean; pushed: boolean }
+  const failure = (code: string, details: Partial<Progress> = {}) => ({
     ok: false as const,
     error: {
       code,
       message: 'Git operation could not be confirmed. Check the repository before retrying.',
-      details: {},
+      details,
     },
   })
   type Result = { ok: true; value: GitActionResult } | ReturnType<typeof failure>
 
-  const execute = async (agent: Agent, input: GitActionRequest, signal: AbortSignal): Promise<GitActionResult> => {
+  const execute = async (
+    agent: Agent,
+    input: GitActionRequest,
+    signal: AbortSignal,
+    progress: Progress
+  ): Promise<GitActionResult> => {
     const settings = {
       authorName: config.authorName ?? '',
       authorEmail: config.authorEmail ?? '',
@@ -74,7 +80,14 @@ export function apply(ctx: Context, config: Config) {
       options: { allowed?: number[]; maxBytes?: number; stdin?: string } = {}
     ) => {
       const bounded = AbortSignal.any([signal, AbortSignal.timeout(executable === 'git' ? 60_000 : 90_000)])
-      const argv = [await ctx.subprocess.resolveExecutable(executable, undefined, bounded), ...args]
+      let resolved: string
+      try {
+        resolved = await ctx.subprocess.resolveExecutable(executable, undefined, bounded)
+      } catch {
+        bounded.throwIfAborted()
+        throw new Error('cli_missing')
+      }
+      const argv = [resolved, ...args]
       const currentPolicy = ctx.sandboxPolicy.resolve({ session: agent.session })
       if (currentPolicy.mode === 'read-only') throw new Error('read_only')
       const command =
@@ -124,6 +137,9 @@ export function apply(ctx: Context, config: Config) {
           if (headers.lossy || !/^HTTP\/[\d.]+ 2\d\d\b/m.test(headers.text)) throw new Error('command_failed')
         }
         return output.text
+      } catch (error) {
+        if (bounded.aborted && bounded.reason?.name === 'TimeoutError') throw new Error('timeout')
+        throw error
       } finally {
         child.terminate()
         await child.waitForExit()
@@ -236,7 +252,11 @@ export function apply(ctx: Context, config: Config) {
           .slice(-24_000),
         checks: ['git diff --check; repository commit hooks run during git commit; no other tests run by this action'],
       })
-      const texts = await generateTexts(ctx, agent, input.operation, context, signal)
+      progress.stage = 'generate'
+      const texts = await generateTexts(ctx, agent, input.operation, context, signal).catch((error) => {
+        signal.throwIfAborted()
+        throw new Error('generation_failed', { cause: error })
+      })
       const paths = texts.paths
       if (paths.some((path) => !before.entries.some((entry) => entry.path === path))) throw new Error('invalid_plan')
       if (
@@ -254,6 +274,7 @@ export function apply(ctx: Context, config: Config) {
         throw new Error('conflict')
       const value: GitActionResult = { operation: input.operation, branch, checks: [] }
       if (paths.length) {
+        progress.stage = 'commit'
         await readGit(['diff', '--check', 'HEAD', '--', ...paths])
         value.checks.push('git diff --check')
         const additions = paths.filter((path) =>
@@ -270,12 +291,17 @@ export function apply(ctx: Context, config: Config) {
           '--',
           ...paths,
         ])
+        progress.committed = true
         value.commit = (await readGit(['rev-parse', '--verify', 'HEAD'])).trim()
         value.checks.push('git commit hooks')
       }
-      if (input.operation === 'push') await pushBranch(run, push!)
+      if (input.operation === 'push' || input.operation === 'pr') {
+        progress.stage = 'push'
+        await pushBranch(run, input.operation === 'pr' ? forge! : push!)
+        progress.pushed = true
+      }
       if (input.operation === 'pr') {
-        await pushBranch(run, forge!)
+        progress.stage = 'pr'
         value.url = (await updateReview(run, forge!, texts)).url
       }
       return value
@@ -298,6 +324,7 @@ export function apply(ctx: Context, config: Config) {
     if (pending.has(input.sessionId)) return failure('busy')
     pending.add(input.sessionId)
     let result: Result
+    const progress: Progress = { stage: 'inspect', committed: false, pushed: false }
     try {
       const resolved = await ctx.sessionController.resolveAgent(SessionId(input.sessionId))
       if ('error' in resolved) return failure('session_not_found')
@@ -309,14 +336,35 @@ export function apply(ctx: Context, config: Config) {
       result = await agent.runMaintenance(async (maintenanceSignal) => {
         const bounded = AbortSignal.any([signal, maintenanceSignal, lifetime.signal, AbortSignal.timeout(300_000)])
         bounded.throwIfAborted()
-        return { ok: true as const, value: await execute(agent, input, bounded) }
+        return { ok: true as const, value: await execute(agent, input, bounded, progress) }
       })
     } catch (error) {
-      const code = error instanceof Error ? error.message : ''
+      const code = error instanceof Error ? (error.name === 'TimeoutError' ? 'timeout' : error.message) : ''
+      // Only fixed codes and confirmed milestones cross the UI boundary, never CLI output or model text.
       result = failure(
-        ['busy', 'invalid', 'conflict', 'read_only', 'partial_stage', 'invalid_plan'].includes(code)
+        [
+          'busy',
+          'invalid',
+          'conflict',
+          'read_only',
+          'partial_stage',
+          'invalid_plan',
+          'missing_base',
+          'unsupported',
+          'default_branch',
+          'detached_head',
+          'ambiguous_review',
+          'ambiguous_target',
+          'stale_request',
+          'cli_missing',
+          'command_failed',
+          'generation_failed',
+          'timeout',
+          'sensitive_file',
+        ].includes(code)
           ? code
-          : 'operation_failed'
+          : 'operation_failed',
+        { ...progress }
       )
     } finally {
       pending.delete(input.sessionId)

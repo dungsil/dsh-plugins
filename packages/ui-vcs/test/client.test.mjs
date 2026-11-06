@@ -5,11 +5,19 @@ import { runInNewContext } from 'node:vm'
 
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
-function assertButtonsOnly(node) {
-  if (Array.isArray(node)) return node.forEach(assertButtonsOnly)
-  assert.notEqual(typeof node, 'string', 'Text must remain inside a button or its action menu')
-  if (!node || node.type === 'Pill' || node.type === 'Menu') return
-  if (node.props) assertButtonsOnly(node.props.children)
+function nodes(node) {
+  return Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : []
+}
+
+function feedback(tree, role) {
+  return nodes(tree).find((node) => node.props.role === role)?.props.children
+}
+
+function assertActionFeedback(node) {
+  if (Array.isArray(node)) return node.forEach(assertActionFeedback)
+  assert.notEqual(typeof node, 'string', 'Text must remain inside an action or an accessible feedback region')
+  if (!node || node.type === 'Pill' || node.type === 'Menu' || ['alert', 'status'].includes(node.props?.role)) return
+  if (node.props) assertActionFeedback(node.props.children)
 }
 
 async function mount(operation, language = 'en', options = {}) {
@@ -181,7 +189,7 @@ async function mount(operation, language = 'en', options = {}) {
   await render()
   await render()
   let tree = await render()
-  let actions = tree.props.children?.[0]?.props.children ?? []
+  let actions = tree.props.children?.[0]?.props?.children ?? []
   return {
     ...common,
     get ci() {
@@ -196,7 +204,7 @@ async function mount(operation, language = 'en', options = {}) {
     async refresh() {
       await render()
       tree = await render()
-      actions = tree.props.children?.[0]?.props.children ?? []
+      actions = tree.props.children?.[0]?.props?.children ?? []
       return actions[0]?.props
     },
   }
@@ -344,7 +352,7 @@ await test('모든 로케일에서 Git 작업은 대화 프롬프트를 보내�
         method: 'dungsil-vcs/execute',
         payload: { sessionId: 'session', cwd: '/repo', operation, requestId: '11111111-1111-4111-8111-111111111111' },
       })
-      assertButtonsOnly(await view.render())
+      assertActionFeedback(await view.render())
       assert.equal(view.messages.length, 0)
     }
   }
@@ -361,25 +369,172 @@ await test('빠르게 반복 클릭해도 중복 명령을 제출할 수 없다'
   assert.equal(view.messages.length, 0)
 })
 
-await test('모든 로케일에서 서버 오류와 연결 실패는 버튼 밖에 텍스트를 출력하지 않고 자동으로 재시도하지 않는다', async () => {
+await test('모든 로케일에서 서버 오류와 연결 실패를 안전한 알림으로 표시하고 자동으로 재시도하지 않는다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
-    for (const code of ['partial_stage', 'read_only', 'conflict', 'busy', 'unknown', 'connection']) {
+    const rendered = new Map()
+    for (const code of [
+      'busy',
+      'invalid',
+      'conflict',
+      'read_only',
+      'partial_stage',
+      'invalid_plan',
+      'missing_base',
+      'unsupported',
+      'default_branch',
+      'detached_head',
+      'ambiguous_review',
+      'ambiguous_target',
+      'stale_request',
+      'cli_missing',
+      'command_failed',
+      'generation_failed',
+      'timeout',
+      'operation_failed',
+      'sensitive_file',
+      'unknown',
+      '__proto__',
+      'connection',
+    ]) {
       const view = await mount('pr', language, {
         execute: () => {
-          if (code === 'connection') throw new Error('Connection unavailable')
-          return { ok: false, error: { code } }
+          if (code === 'connection') throw new Error('SECRET raw connection text')
+          return {
+            ok: false,
+            error: {
+              code,
+              message: 'SECRET raw server text',
+              details: { stage: 'pr', committed: true, pushed: true, stderr: 'SECRET' },
+            },
+          }
         },
       })
       view.menu.onSelect('commit')
       await new Promise((resolve) => setImmediate(resolve))
-      assertButtonsOnly(await view.render())
+      const alert = feedback(await view.render(), 'alert')
+      assert.equal(typeof alert, 'string')
+      assert.ok(alert.length > 30)
+      assert.ok(!alert.includes('SECRET'))
+      rendered.set(code, alert)
+      if (code !== 'connection') {
+        for (const expected of {
+          en: [
+            'Failed stage: PR creation or update',
+            'A local commit was completed.',
+            'The branch was pushed.',
+            'Check the repository and remote before retrying',
+          ],
+          ko: [
+            '실패한 단계: PR 생성 또는 업데이트',
+            '로컬 커밋을 완료했습니다.',
+            '브랜치를 푸시했습니다.',
+            '다시 시도하기 전에 저장소와 원격 상태를 확인하세요',
+          ],
+          zh: ['失败阶段: 创建或更新 PR', '本地提交已完成。', '分支已推送。', '重试前请检查仓库和远程状态'],
+        }[language])
+          assert.ok(alert.includes(expected), alert)
+      }
+      assertActionFeedback(await view.render())
       await view.refresh()
       assert.equal(view.primary.disabled, false)
       assert.equal(view.primary['aria-busy'], false)
       assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
       assert.equal(view.messages.length, 0)
     }
+    assert.equal(rendered.get('unknown'), rendered.get('operation_failed'))
+    assert.equal(rendered.get('__proto__'), rendered.get('operation_failed'))
+    assert.equal(
+      new Set(
+        [...rendered.entries()].filter(([code]) => !['unknown', '__proto__'].includes(code)).map(([, value]) => value)
+      ).size,
+      20
+    )
   }
+})
+
+await test('실패 알림은 조회 중과 조회 실패 및 세션 실행 중에도 유지되고 작업 버튼은 숨긴다', async () => {
+  const waiting = Promise.withResolvers()
+  let describe = (context) => ({ ok: true, value: context })
+  const view = await mount('pr', 'ko', {
+    describe: (context) => describe(context),
+    execute: () => ({
+      ok: false,
+      error: { code: 'partial_stage', details: { stage: 'push', committed: true, pushed: false } },
+    }),
+  })
+  view.primary.onClick()
+  await view.refresh()
+  const alert = feedback(await view.render(), 'alert')
+  assert.ok(alert.includes('로컬 커밋을 완료했습니다.'))
+  assert.ok(!alert.includes('브랜치를 푸시했습니다.'))
+  describe = () => waiting.promise
+  const refreshing = view.focus()
+  await view.refresh()
+  assert.equal(view.primary, undefined)
+  assert.equal(feedback(await view.render(), 'alert'), alert)
+  waiting.resolve({ ok: false, error: { code: 'command_failed' } })
+  await refreshing
+  await view.refresh()
+  assert.equal(view.primary, undefined)
+  assert.equal(feedback(await view.render(), 'alert'), alert)
+  view.session.running = true
+  await view.refresh()
+  assert.equal(view.primary, undefined)
+  assert.equal(feedback(await view.render(), 'alert'), alert)
+  assert.equal(view.calls.filter((call) => call.method.endsWith('/execute')).length, 1)
+})
+
+await test('서버 작업으로 버튼이 숨겨져도 실행 중 상태를 계속 표시한다', async () => {
+  for (const [language, label] of [
+    ['en', 'Running Git action'],
+    ['ko', 'Git 작업 실행 중'],
+    ['zh', '正在执行 Git 操作'],
+  ]) {
+    const executed = Promise.withResolvers()
+    const view = await mount('pr', language, { execute: () => executed.promise })
+    view.primary.onClick()
+    view.session.running = true
+    await view.refresh()
+    assert.equal(view.primary, undefined)
+    assert.ok(feedback(await view.render(), 'status').includes(label))
+    executed.resolve({ ok: false, error: { code: 'command_failed' } })
+    await view.refresh()
+    assert.ok(feedback(await view.render(), 'alert'))
+    assert.equal(feedback(await view.render(), 'status'), '')
+    view.unmount()
+  }
+})
+
+await test('포커스 반복은 진행 중인 조회를 중단하거나 중복 실행하지 않고 Git 작업 중에는 조회하지 않는다', async () => {
+  const waiting = Promise.withResolvers()
+  const executed = Promise.withResolvers()
+  let describe = (context) => ({ ok: true, value: context })
+  const view = await mount('pr', 'en', {
+    describe: (context) => describe(context),
+    execute: () => executed.promise,
+  })
+  const count = () => view.calls.filter((call) => call.method.endsWith('/describe')).length
+  const initial = count()
+  describe = () => waiting.promise
+  const first = view.focus()
+  await view.focus()
+  await view.focus()
+  assert.equal(count(), initial + 1)
+  waiting.resolve({ ok: true, value: { operation: 'pr', headSha: 'head', dirty: false } })
+  await first
+  await view.refresh()
+  assert.ok(view.primary)
+  view.primary.onClick()
+  await view.focus()
+  await view.focus()
+  assert.equal(count(), initial + 1)
+  assert.equal((await view.refresh()).disabled, true)
+  executed.resolve({ ok: true, value: { operation: 'pr', branch: 'topic', checks: [] } })
+  await view.refresh()
+  assert.ok(feedback(await view.render(), 'status').includes('PR'))
+  await view.focus()
+  assert.equal(count(), initial + 2)
+  view.unmount()
 })
 
 await test('사용 중인 상태, 읽기 전용 뷰어, 없는 디렉터리는 Git 작업을 비활성화한다', async () => {
@@ -422,7 +577,7 @@ await test('모든 로케일에서 execute RPC가 성공하면 PR 생성이 곧�
     })
     await new Promise((resolve) => setImmediate(resolve))
     const primary = await mounted.refresh()
-    assertButtonsOnly(await mounted.render())
+    assertActionFeedback(await mounted.render())
     assert.equal(mounted.session.running, undefined)
     assert.equal(primary.children[1], viewLabel)
     assert.equal(primary.disabled, false)

@@ -80,7 +80,7 @@ function fixture(options = {}) {
     }
     throw new Error(`Unexpected command: ${executable} ${JSON.stringify(args)}`)
   }
-  return { run, calls, state, makeReview, repository, origin, remoteUrl }
+  return { run, calls, state, config: cfg, makeReview, repository, origin, remoteUrl }
 }
 
 void test('GitHub 탐색은 명시한 호스트/저장소를 고정하고 기존 제목/본문을 읽는다', async () => {
@@ -166,6 +166,77 @@ void test('실제 푸시 URL과 설정된 pushRemote는 가져오기 업스트�
   const push = f.calls.find((call) => call.executable === 'git' && call.args[2] === 'push')
   assert.deepEqual(push.args.slice(2), ['push', '--porcelain', '--', f.remoteUrl, 'HEAD:refs/heads/feat/topic'])
   assert.ok(f.calls.every((call) => call.executable === 'git'))
+})
+
+void test('ForgeContext의 푸시와 리뷰 쓰기는 기본 HEAD 네트워크 조회를 반복하지 않는다', async () => {
+  const f = fixture()
+  const context = await inspectForge(f.run, 'github')
+  const networkCalls = f.calls.filter((call) => call.args[2] === 'ls-remote').length
+  assert.equal(f.calls.filter((call) => call.args.includes('--symref')).length, 1)
+  await pushBranch(f.run, context)
+  await updateReview(f.run, context, { title: '새 PR', body: '본문' })
+  await updateReview(f.run, context, { title: '수정 PR', body: '수정 본문' })
+  assert.equal(f.calls.filter((call) => call.args[2] === 'ls-remote').length, networkCalls)
+  assert.equal(f.calls.filter((call) => call.args[2] === 'symbolic-ref').length, 4)
+  assert.equal(f.calls.filter((call) => call.args[2] === 'remote').length, 4)
+  assert.equal(f.state.mutations, 2)
+})
+
+void test('일반 PushContext의 재검증은 기본 HEAD를 계속 조회한다', async () => {
+  const f = fixture()
+  const context = await discoverPush(f.run)
+  await pushBranch(f.run, context)
+  assert.equal(f.calls.filter((call) => call.args.includes('--symref')).length, 2)
+})
+
+void test('리뷰 대상이 기본 브랜치와 달라도 기본 브랜치로 변경하면 쓰기를 막는다', async () => {
+  for (const operation of ['push', 'review']) {
+    const f = fixture()
+    const row = f.makeReview()
+    row.base.ref = 'release'
+    f.state.rows = [row]
+    const context = await inspectForge(f.run, 'github')
+    assert.equal(context.baseBranch, 'release')
+    assert.equal(context.defaultBranch, 'main')
+    f.state.branch = 'main'
+    await assert.rejects(
+      operation === 'push' ? pushBranch(f.run, context) : updateReview(f.run, context, { title: '차단', body: '' }),
+      /default_branch/
+    )
+    assert.equal(f.calls.filter((call) => call.args.includes('--symref')).length, 1)
+    assert.ok(!f.calls.some((call) => call.args[2] === 'push'))
+    assert.equal(f.state.mutations, 0)
+  }
+})
+
+void test('기본 HEAD 조회를 생략해도 변경된 푸시 설정은 다시 검증한다', async () => {
+  for (const [key, value, error] of [
+    ['branch.feat/topic.pushRemote', 'other', /stale_request/],
+    ['remote.origin.push', 'refs/heads/*:refs/heads/*', /unsupported/],
+    ['remote.origin.mirror', 'true', /unsupported/],
+    ['push.default', 'matching', /unsupported/],
+    ['branch.feat/topic.merge', 'refs/heads/other', /unsupported/],
+  ]) {
+    const f = fixture()
+    const context = await inspectForge(f.run, 'github')
+    f.config[key] = value
+    await assert.rejects(pushBranch(f.run, context), error)
+    await assert.rejects(updateReview(f.run, context, { title: '차단', body: '' }), error)
+    assert.equal(f.calls.filter((call) => call.args.includes('--symref')).length, 1)
+    assert.ok(!f.calls.some((call) => call.args[2] === 'push'))
+    assert.equal(f.state.mutations, 0)
+  }
+})
+
+void test('업스트림 푸시 대상이 기본 브랜치로 바뀌면 HEAD 조회 없이도 쓰기를 막는다', async () => {
+  const f = fixture({ config: { 'push.default': 'upstream' } })
+  const context = await inspectForge(f.run, 'github')
+  f.config['branch.feat/topic.merge'] = 'refs/heads/main'
+  await assert.rejects(pushBranch(f.run, context), /default_branch/)
+  await assert.rejects(updateReview(f.run, context, { title: '차단', body: '' }), /default_branch/)
+  assert.equal(f.calls.filter((call) => call.args.includes('--symref')).length, 1)
+  assert.ok(!f.calls.some((call) => call.args[2] === 'push'))
+  assert.equal(f.state.mutations, 0)
 })
 
 void test('기본 브랜치 푸시는 호스팅 CLI가 필요 없고, 기본 브랜치 PR은 실패한다', async () => {
@@ -284,6 +355,7 @@ void test('baseRef는 새 PR과 기존 provider 리뷰에서 검증된 로컬 SH
   }
   const missing = fixture({ missingBase: true })
   assert.equal((await inspectForge(missing.run, 'github')).baseRef, undefined)
+  assert.ok(!missing.calls.some((call) => call.executable === 'git' && call.args[2] === 'fetch'))
 })
 
 void test('기존 리뷰의 제목이나 본문이 바뀌면 생성 후 덮어쓰기를 막는다', async () => {

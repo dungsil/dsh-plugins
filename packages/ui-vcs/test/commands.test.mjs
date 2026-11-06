@@ -26,10 +26,17 @@ async function fixture(t, options = {}) {
     await rm(home, { recursive: true, force: true })
   })
   const git = (...args) =>
-    execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+    execFileSync('git', args, {
+      cwd: repo,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+    }).trim()
   git('init', '-b', 'feat/test')
   git('config', 'user.name', 'Test')
   git('config', 'user.email', 'test@example.invalid')
+  git('config', 'gpg.format', 'openpgp')
+  git('config', 'commit.gpgSign', 'false')
   await writeFile(join(repo, 'task.txt'), 'initial\n')
   await writeFile(join(repo, 'unrelated.txt'), 'initial\n')
   await writeFile(join(repo, 'AGENTS.md'), 'Commit subjects must be Korean Conventional Commits.\n')
@@ -140,7 +147,7 @@ await test('저장소 기준 계획은 중첩된 세션 디렉터리와 분리�
   await mkdir(nested)
   await ctx.workingDirectory.set(agent, nested, new AbortController().signal)
   git('checkout', '--detach')
-  const result = await rpc({ cwd: nested })
+  const result = await rpc({ cwd: ctx.workingDirectory.get(agent.session) })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.value.branch, '')
   assert.equal(git('show', '--format=', '--name-only', 'HEAD'), 'task.txt')
@@ -225,7 +232,15 @@ await test('잘못된 계획, 잘못된 모델 응답, 비밀은 부작용 전�
         if (kind === 'secret') await writeFile(join(repo, '.env'), 'PRIVATE_TEST_PLACEHOLDER=not-a-real-secret\n')
         const initial = git('rev-parse', 'HEAD')
         const staged = git('diff', '--cached', '--binary')
-        assert.equal((await rpc()).ok, false)
+        const result = await rpc()
+        assert.equal(result.ok, false)
+        assert.equal(
+          result.error.code,
+          { outside: 'invalid_plan', malformed: 'generation_failed', secret: 'sensitive_file' }[kind]
+        )
+        assert.equal(result.error.details.stage, kind === 'secret' ? 'inspect' : 'generate')
+        assert.equal(result.error.details.committed, false)
+        assert.equal(result.error.details.pushed, false)
         assert.equal(git('rev-parse', 'HEAD'), initial)
         assert.equal(git('diff', '--cached', '--binary'), staged)
         if (kind === 'secret') assert.equal(requests.length, 0)
@@ -263,7 +278,10 @@ await test('저장소 커밋 훅은 계속 활성 상태이고 실패한 훅은 
   const hook = join(repo, '.git', 'hooks', 'pre-commit')
   await writeFile(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 })
   const before = git('rev-parse', 'HEAD')
-  assert.equal((await rpc()).ok, false)
+  const result = await rpc()
+  assert.equal(result.ok, false)
+  assert.equal(result.error.code, 'command_failed')
+  assert.deepEqual(result.error.details, { stage: 'commit', committed: false, pushed: false })
   assert.equal(git('rev-parse', 'HEAD'), before)
   assert.match(await readFile(join(repo, 'task.txt'), 'utf8'), /current task/)
 })
@@ -296,6 +314,39 @@ await test('작성자를 비워 두면 기존 작성자를 사용하고 서명 �
   git('config', 'commit.gpgSign', 'false')
   assert.equal((await rpc({ requestId: '22222222-2222-4222-8222-222222222222' })).ok, true)
   assert.equal(git('log', '-1', '--format=%an <%ae>'), 'Test <test@example.invalid>')
+})
+
+await test('PR API 실패는 확인된 커밋과 푸시를 보존하고 원문 출력은 노출하지 않는다', async (t) => {
+  const { ctx, git, rpc } = await fixture(t, {
+    answer: { commitMessage: 'fix: 작업을 수정한다', title: 'fix: 작업을 수정한다', body: '본문', paths: ['task.txt'] },
+  })
+  git('remote', 'add', 'origin', 'https://github.com/owner/project.git')
+  const base = git('rev-parse', 'HEAD')
+  const resolve = ctx.subprocess.resolveExecutable.bind(ctx.subprocess)
+  ctx.subprocess.resolveExecutable = (name, env, signal) => resolve(name === 'gh' ? 'git' : name, env, signal)
+  const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
+  const fake = (text, exitCode = 0) => ({
+    done: Promise.resolve({ exitCode, signal: null }),
+    collected: { stdout: { readFrom: () => ({ text, lossy: false }) } },
+    terminate() {},
+    waitForExit: async () => true,
+  })
+  ctx.subprocess.spawn = (spec) => {
+    const args = spec.argv.slice(1)
+    if (args[0] === 'api') {
+      if (args.includes('POST')) return fake('PRIVATE_ERROR_OUTPUT', 1)
+      if (args.at(-1).includes('/pulls?')) return fake('[]')
+      return fake(JSON.stringify({ full_name: 'owner/project', default_branch: 'main' }))
+    }
+    if (args.includes('ls-remote')) return fake(`ref: refs/heads/main\tHEAD\n${base}\trefs/heads/main\n`)
+    if (args.includes('push') && args.includes('--porcelain')) return fake('ok')
+    return spawn(spec)
+  }
+  const result = await rpc({ operation: 'pr' })
+  assert.equal(result.error.code, 'command_failed')
+  assert.deepEqual(result.error.details, { stage: 'pr', committed: true, pushed: true })
+  assert.notEqual(git('rev-parse', 'HEAD'), base)
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_ERROR_OUTPUT/)
 })
 
 await test('불완전하거나 제어 문자가 있는 작성자는 변경 사항을 스테이징하기 전에 거부한다', async (t) => {

@@ -23,6 +23,7 @@ export interface ForgeReview {
 }
 
 export interface ForgeContext extends PushContext {
+  defaultBranch: string
   provider: Exclude<ForgeProvider, 'auto'>
   host: string
   origin: string
@@ -77,7 +78,7 @@ const branchName = (value: string): string => {
   return value
 }
 
-export async function discoverPush(run: ForgeRun): Promise<PushContext> {
+export async function discoverPush(run: ForgeRun, options: { knownDefaultBranch?: string } = {}): Promise<PushContext> {
   const sourceBranch = await git(run, ['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1])
   if (!sourceBranch) fail('detached_head')
   branchName(sourceBranch)
@@ -107,11 +108,15 @@ export async function discoverPush(run: ForgeRun): Promise<PushContext> {
   } else if (mode === 'simple') {
     if (tracked === remote && merge && merge !== `refs/heads/${sourceBranch}`) fail('unsupported')
   } else if (mode !== 'current') fail('unsupported')
-  // Read the actual push destination, not origin's possibly unrelated cached HEAD.
-  const head = await git(run, ['ls-remote', '--symref', '--', remoteUrl, 'HEAD'])
-  const defaultRef = /^ref: refs\/heads\/(.+)\s+HEAD\r?$/m.exec(head)
-  if (!defaultRef) fail('unsupported')
-  return { remote, remoteUrl, sourceBranch, pushBranch, baseBranch: branchName(defaultRef[1]!) }
+  let baseBranch = options.knownDefaultBranch
+  if (baseBranch === undefined) {
+    // Read the actual push destination, not origin's possibly unrelated cached HEAD.
+    const head = await git(run, ['ls-remote', '--symref', '--', remoteUrl, 'HEAD'])
+    const defaultRef = /^ref: refs\/heads\/(.+)\s+HEAD\r?$/m.exec(head)
+    if (!defaultRef) fail('unsupported')
+    baseBranch = defaultRef[1]!
+  }
+  return { remote, remoteUrl, sourceBranch, pushBranch, baseBranch: branchName(baseBranch) }
 }
 
 function parseRemote(raw: string): URL {
@@ -263,6 +268,7 @@ export async function inspectForge(run: ForgeRun, provider: ForgeProvider): Prom
   )
   const context: ForgeContext = {
     ...push,
+    defaultBranch: push.baseBranch,
     provider: detected,
     host,
     origin: `${remote.protocol === 'http:' ? 'http' : 'https'}://${host}`,
@@ -352,8 +358,9 @@ export async function inspectForge(run: ForgeRun, provider: ForgeProvider): Prom
   return context
 }
 
-async function assertPush(run: ForgeRun, context: PushContext) {
-  const current = await discoverPush(run)
+async function assertPush(run: ForgeRun, context: PushContext | ForgeContext) {
+  // A review's baseBranch may differ from the push repository's default branch.
+  const current = await discoverPush(run, 'provider' in context ? { knownDefaultBranch: context.defaultBranch } : {})
   if (
     'provider' in context &&
     (current.sourceBranch === current.baseBranch || current.pushBranch === current.baseBranch)
