@@ -51,7 +51,9 @@ async function fixture(t) {
     },
     sandboxPolicy: { resolve: () => ({ mode }) },
     subprocess: {
-      resolveExecutable: async () => '/agent-browser',
+      resolveExecutable: async () => {
+        throw new Error('No executable on PATH')
+      },
       spawn(spec) {
         const id = spec.argv[spec.argv.indexOf('--session') + 1]
         const args = spec.argv.slice(spec.argv.indexOf('--json') + 1)
@@ -125,7 +127,7 @@ async function fixture(t) {
   }
 }
 
-await test('대화별 브라우저와 화면을 분리하고 변경된 프레임만 전달한다', async (t) => {
+await test('전역 설치 없이 대화별 브라우저와 화면을 분리하고 변경된 프레임만 전달한다', async (t) => {
   const f = await fixture(t)
   assert.equal((await f.view('a')).status, 'idle')
   assert.equal(f.sessions.size, 0)
