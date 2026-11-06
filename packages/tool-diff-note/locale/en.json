@@ -5,6 +5,7 @@
   },
   "ui": {
     "title": "Diff note",
+    "codeLabel": "Code",
     "open": "Open file",
     "waiting": "Recording change explanation…",
     "failed": "The change explanation could not be recorded.",
