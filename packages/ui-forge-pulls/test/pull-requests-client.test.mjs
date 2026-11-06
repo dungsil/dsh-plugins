@@ -628,13 +628,146 @@ await test('Forge가 squash를 허용하지 않으면 허용된 병합 방식을
     )
     assert.equal(menu.selectedId, 'merge')
     assert.equal(menu.anchor.props.children[0].props.disabled, false)
+    const before = fixture.calls.length
     menu.anchor.props.children[0].props.onClick()
-    const confirmation = findByClass(fixture.render(), 'dsh-forge-pulls-confirm')[0]
-    confirmation.footer.props.children[1].props.onClick()
+    assert.equal(fixture.calls.length, before + 1)
+    assert.equal(findByClass(fixture.render(), 'dsh-forge-pulls-confirm').length, 0)
     assert.equal(fixture.calls.at(-1).payload.action, 'merge')
     assert.equal(fixture.calls.at(-1).payload.strategy, 'merge')
+    assert.equal(fixture.calls.at(-1).payload.headSha, view.request.headSha)
     fixture.calls.at(-1).resolve({ ok: true })
     await settle()
+  } finally {
+    fixture.dispose()
+  }
+})
+
+function findByType(node, type) {
+  if (Array.isArray(node)) return node.flatMap((child) => findByType(child, type))
+  if (!node?.props) return []
+  return [...(node.type === type ? [node.props] : []), ...findByType(node.props.children, type)]
+}
+
+async function openReview(fixture, fields = {}) {
+  const view = request(42)
+  Object.assign(view.request, { diff: '+change', ...fields })
+  fixture.render()
+  fixture.calls[0].resolve({ ok: true, value: view })
+  await settle()
+  fixture.calls[1].resolve({ ok: true, value: view })
+  await settle()
+  findByClass(fixture.render(), 'dsh-forge-pulls-tabs')[0].children.props.onChange('conversation')
+  return view
+}
+
+const submitReview = (tree) => {
+  let prevented = false
+  findByType(tree, 'form')[0].onSubmit({
+    preventDefault() {
+      prevented = true
+    },
+  })
+  assert.equal(prevented, true)
+}
+
+await test('리뷰 폼은 모든 로케일에서 추가 확인 없이 댓글과 표시된 SHA를 즉시 한 번 전송한다', async () => {
+  for (const [language, label] of [
+    ['en', 'Submit review'],
+    ['ko', '리뷰 제출'],
+    ['zh', '提交审查'],
+  ]) {
+    const fixture = mount(language)
+    try {
+      const view = await openReview(fixture)
+      findByType(fixture.render(), 'textarea')[0].onChange({ target: { value: '  확인한 내용입니다  ' } })
+      const tree = fixture.render()
+      assert.ok(texts(tree).includes(label), language)
+      const before = fixture.calls.length
+      submitReview(tree)
+      assert.equal(fixture.calls.length, before + 1)
+      const action = fixture.calls.at(-1)
+      assert.deepEqual(JSON.parse(JSON.stringify(action.payload)), {
+        sessionId: 'session',
+        requestUrl: view.request.url,
+        headSha: view.request.headSha,
+        action: 'comment',
+        body: '확인한 내용입니다',
+      })
+      assert.equal(findByClass(fixture.render(), 'dsh-forge-pulls-confirm').length, 0)
+      action.resolve({ ok: true })
+      await settle()
+      assert.equal(findByType(fixture.render(), 'textarea')[0].value, '')
+      assert.equal(fixture.calls.length, before + 1)
+    } finally {
+      fixture.dispose()
+    }
+  }
+})
+
+await test('리뷰 제출 중 연속 제출을 차단하고 실패 응답이나 연결 오류 후에는 자동 재시도하지 않는다', async () => {
+  for (const reject of [false, true]) {
+    const fixture = mount()
+    try {
+      await openReview(fixture)
+      findByType(fixture.render(), 'textarea')[0].onChange({ target: { value: '검토 의견' } })
+      const tree = fixture.render()
+      const before = fixture.calls.length
+      submitReview(tree)
+      const action = fixture.calls.at(-1)
+      submitReview(tree)
+      submitReview(fixture.render())
+      fixture.focus()
+      assert.equal(findByType(fixture.render(), 'textarea')[0].disabled, true)
+      assert.equal(fixture.calls.length, before + 1)
+      if (reject) action.reject(new Error('connection lost'))
+      else action.resolve({ ok: false, error: { code: 'command_failed' } })
+      await settle()
+      const failed = fixture.render()
+      assert.ok(texts(failed).includes('The action could not be confirmed'))
+      assert.equal(findByType(failed, 'textarea')[0].value, '검토 의견')
+      submitReview(failed)
+      await settle()
+      fixture.render()
+      assert.equal(fixture.calls.length, before + 1)
+      assert.equal(findByClass(fixture.render(), 'dsh-forge-pulls-confirm').length, 0)
+    } finally {
+      fixture.dispose()
+    }
+  }
+})
+
+await test('잘린 diff의 승인은 선택 항목과 제출 버튼에서 차단하고 폼을 직접 제출해도 전송하지 않는다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture, { diffTruncated: true })
+    const picker = findByClass(fixture.render(), 'dsh-forge-pulls-picker')[0]
+    assert.equal(picker.items.find((item) => item.id === 'approve').disabled, true)
+    picker.onChange('approve')
+    const tree = fixture.render()
+    const form = findByType(tree, 'form')[0]
+    assert.equal(form.children.at(-1).props.children.at(-1).props.disabled, true)
+    const before = fixture.calls.length
+    submitReview(tree)
+    assert.equal(fixture.calls.length, before)
+    assert.equal(findByClass(fixture.render(), 'dsh-forge-pulls-confirm').length, 0)
+  } finally {
+    fixture.dispose()
+  }
+})
+
+await test('빈 댓글과 공백뿐인 댓글은 제출 버튼에서 차단하고 폼을 직접 제출해도 전송하지 않는다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture)
+    for (const body of ['', ' \n\t ']) {
+      findByType(fixture.render(), 'textarea')[0].onChange({ target: { value: body } })
+      const tree = fixture.render()
+      const form = findByType(tree, 'form')[0]
+      assert.equal(form.children.at(-1).props.children.at(-1).props.disabled, true)
+      const before = fixture.calls.length
+      submitReview(tree)
+      assert.equal(fixture.calls.length, before)
+    }
   } finally {
     fixture.dispose()
   }

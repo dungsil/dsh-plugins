@@ -96,9 +96,4 @@ export const styles = `
 .dsh-forge-pulls-diff pre{max-height:60vh}
 .dsh-forge-pulls-comment{padding:12px 0;border-bottom:.5px solid var(--dsw-alias-border-l2);margin-bottom:12px}
 .dsh-forge-pulls-comment>strong{font-size:12px;font-weight:500}
-.dsh-forge-pulls-confirm-content{max-height:60vh;overflow:auto;overscroll-behavior:contain;overflow-wrap:anywhere;font-size:13px;line-height:1.6}
-.dsh-forge-pulls-confirm-content>strong{font-weight:500}
-.dsh-forge-pulls-confirm-content>p{margin:8px 0}
-.dsh-forge-pulls-confirm-content>code{font-size:12px;word-break:break-all;color:var(--dsw-alias-label-secondary)}
-.dsh-forge-pulls-confirm-content pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:160px;overflow:auto;font:inherit}
 `

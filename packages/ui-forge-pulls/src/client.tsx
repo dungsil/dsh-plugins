@@ -16,7 +16,6 @@ import {
   CodeBlock,
   MarkdownText,
   Menu,
-  Modal,
   SegmentedTabs,
   Tag,
   type StateDotState,
@@ -297,7 +296,6 @@ export function apply(ctx: Context) {
     const [strategy, setStrategy] = useState<Strategy>('squash')
     const [strategyOpen, setStrategyOpen] = useState(false)
     const [checksOpen, setChecksOpen] = useState(false)
-    const [confirmation, setConfirmation] = useState<RequestAction>()
     const [notice, setNotice] = useState<'completed' | 'action_failed' | 'stale_request'>()
     const [pending, setPending] = useState(false)
     const submitting = useRef(false)
@@ -352,7 +350,6 @@ export function apply(ctx: Context) {
       setLoading(true)
       setStrategyOpen(false)
       setError(undefined)
-      setConfirmation(undefined)
       setNotice(undefined)
       try {
         // A cached snapshot is display-only while the fresh, full read is in flight.
@@ -391,7 +388,6 @@ export function apply(ctx: Context) {
     useEffect(() => {
       setView(views.get(cacheKey))
       setBody('')
-      setConfirmation(undefined)
       setNotice(undefined)
       setPage('overview')
       setStrategy('squash')
@@ -425,26 +421,30 @@ export function apply(ctx: Context) {
       }
     }, [sessionId, tab.visible, running, requestUrl, tab.navigation.revision])
 
-    const prepare = (action: RequestAction['action']) => {
-      if (!item || !canReview || confirmation || (action === 'merge' && !canMerge) || submitting.current) return
-      setStrategyOpen(false)
-      setNotice(undefined)
-      setConfirmation({
+    const submit = async (action: RequestAction['action']) => {
+      if (!item || !canReview || (action === 'merge' && !canMerge) || submitting.current) return
+      if (
+        action !== 'merge' &&
+        ((action !== 'approve' && !body.trim()) ||
+          (view?.provider === 'gitlab' && action === 'approve' && !!body.trim()) ||
+          (action === 'approve' && (item.draft || item.diffTruncated || !item.diff)))
+      )
+        return
+      const payload: RequestAction = {
         sessionId,
         requestUrl: item.url,
         headSha: item.headSha,
         action,
         ...(action === 'merge' ? { strategy: selectedStrategy } : { body: body.trim() }),
-      })
-    }
-    const submit = async () => {
-      if (!confirmation || submitting.current || confirmation.sessionId !== sessionId) return
+      }
+      setStrategyOpen(false)
+      setNotice(undefined)
       submitting.current = true
       setPending(true)
       active.current?.abort()
       setLoading(false)
       try {
-        const result = await connection.rpc.call(channel, actionMethod, confirmation, tab.signal)
+        const result = await connection.rpc.call(channel, actionMethod, payload, tab.signal)
         if (!result.ok) throw result.error
         setBody('')
         setNotice('completed')
@@ -452,7 +452,6 @@ export function apply(ctx: Context) {
         setNotice((cause as { code?: string } | null)?.code === 'stale_request' ? 'stale_request' : 'action_failed')
       } finally {
         // A lost response may follow a successful write. Never automatically retry a mutation.
-        setConfirmation(undefined)
         submitting.current = false
         setPending(false)
       }
@@ -732,7 +731,7 @@ export function apply(ctx: Context) {
                       <form
                         onSubmit={(event) => {
                           event.preventDefault()
-                          prepare(reviewAction)
+                          void submit(reviewAction)
                         }}
                       >
                         <h3>{copy.review}</h3>
@@ -780,64 +779,13 @@ export function apply(ctx: Context) {
                               (reviewAction === 'approve' && (item.draft || item.diffTruncated || !item.diff))
                             }
                           >
-                            {copy.submit}
+                            {pending ? copy.pending : copy.submit}
                           </Button>
                         </div>
                       </form>
                     </section>
                   )}
                 </div>
-                {confirmation && (
-                  <Modal
-                    open
-                    title={copy.confirm}
-                    description={copy.confirm_hint}
-                    closeLabel={copy.cancel}
-                    className="dsh-forge-pulls-confirm"
-                    contentClassName="dsh-forge-pulls-confirm-content"
-                    onClose={() => {
-                      if (!pending) setConfirmation(undefined)
-                    }}
-                    footer={
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={pending}
-                          data-modal-autofocus
-                          onClick={() => setConfirmation(undefined)}
-                        >
-                          {copy.cancel}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="primary"
-                          disabled={pending}
-                          onClick={() => {
-                            void submit()
-                          }}
-                        >
-                          {pending ? copy.pending : copy.confirm}
-                        </Button>
-                      </>
-                    }
-                  >
-                    <strong>
-                      {copy[confirmation.action]}
-                      {confirmation.action === 'merge' &&
-                        ` · ${confirmation.strategy === 'merge' ? copy.merge_commit : copy[confirmation.strategy!]}`}
-                    </strong>
-                    <p>
-                      <a href={confirmation.requestUrl} target="_blank" rel="noopener noreferrer">
-                        {confirmation.requestUrl}
-                      </a>
-                      <br />
-                      {item.source} → {item.target}
-                    </p>
-                    <code>{confirmation.headSha}</code>
-                    {confirmation.body && <pre>{confirmation.body}</pre>}
-                  </Modal>
-                )}
               </article>
             ) : (
               <p role="status">{copy.empty}</p>
@@ -871,7 +819,9 @@ export function apply(ctx: Context) {
                     variant="primary"
                     disabled={!canMerge}
                     aria-describedby={mergeBlockedReason ? `${tabsId}-merge-reason` : undefined}
-                    onClick={() => prepare('merge')}
+                    onClick={() => {
+                      void submit('merge')
+                    }}
                   >
                     {copy.merge}
                   </Button>
