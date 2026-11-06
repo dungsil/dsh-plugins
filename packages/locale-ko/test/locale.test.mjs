@@ -7,6 +7,7 @@ import semver from 'semver'
 import { parse } from 'yaml'
 import ko from '../src/ko.json' with { type: 'json' }
 import manifest from '../package.json' with { type: 'json' }
+import releaseLocale from './fixtures/dsh-0.2.2.json' with { type: 'json' }
 
 function loadClient(source) {
   let loaded
@@ -117,6 +118,26 @@ await test('한국어 사전은 완전하고 형식이 올바르게 유지된다
   }
 })
 
+await test('DSH 0.2.2 신규 문구는 영어와 중국어에 대응하는 한국어 번역과 보간 변수를 빠짐없이 유지한다', () => {
+  const placeholders = (text) =>
+    [...text.matchAll(/\{\w+\}/g)].map(([value]) => value).sort((a, b) => a.localeCompare(b))
+  assert.equal(releaseLocale.version, '0.2.2-rc.1')
+  assert.equal(releaseLocale.commit, '66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db')
+  assert.ok(Object.keys(releaseLocale.namespaces).length > 0)
+  for (const [namespace, dictionary] of Object.entries(releaseLocale.namespaces)) {
+    for (const [key, { en, zh }] of Object.entries(dictionary)) {
+      const id = `${namespace}.${key}`
+      const translated = ko[namespace]?.[key]
+      assert.ok(en.trim(), `${id}: en`)
+      assert.ok(zh.trim(), `${id}: zh`)
+      assert.equal(typeof translated, 'string', `${id}: ko`)
+      assert.ok(translated.trim(), `${id}: ko`)
+      assert.deepEqual(placeholders(translated), placeholders(en), id)
+      assert.deepEqual(placeholders(translated), placeholders(zh), id)
+    }
+  }
+})
+
 await test('빌드된 플러그인은 실제 Cordis와 LocaleRuntime을 통해 번역하고, 대체값으로 넘어가며, 언로드하고 다시 로드한다', async () => {
   assert.equal(plugin.id, manifest.name)
   const { LocaleRuntime } = loadClient(upstreamSource).exports
@@ -198,6 +219,39 @@ await test('빌드된 플러그인은 실제 Cordis와 LocaleRuntime을 통해 �
   }
 })
 
+await test('빌드된 0.2.2 신규 문구는 영어와 한국어와 중국어 전환 및 보간을 지원한다', async () => {
+  const { LocaleRuntime } = loadClient(upstreamSource).exports
+  const ctx = new Context()
+  const locale = new LocaleRuntime(ctx)
+  ctx.provide('locale', locale)
+  try {
+    for (const [namespace, dictionary] of Object.entries(releaseLocale.namespaces)) {
+      for (const language of ['en', 'zh']) {
+        locale.register(
+          namespace,
+          language,
+          Object.fromEntries(Object.entries(dictionary).map(([key, translations]) => [key, translations[language]]))
+        )
+      }
+    }
+    await ctx.plugin(plugin.exports).await()
+    for (const language of ['en', 'ko', 'zh']) {
+      locale.setLocale(language)
+      for (const [namespace, dictionary] of Object.entries(releaseLocale.namespaces)) {
+        const t = locale.bind(namespace)
+        for (const [key, translations] of Object.entries(dictionary)) {
+          const text = language === 'ko' ? ko[namespace][key] : translations[language]
+          const params = Object.fromEntries([...text.matchAll(/\{(\w+)\}/g)].map(([, name]) => [name, `값-${name}`]))
+          const expected = text.replace(/\{(\w+)\}/g, (_, name) => params[name])
+          assert.equal(t(key, params), expected, `${language}:${namespace}.${key}`)
+        }
+      }
+    }
+  } finally {
+    await ctx.fiber.dispose()
+  }
+})
+
 await test('공식 플러그인 메타데이터는 번역되고 명시적 텍스트를 유지하며 플러그인과 함께 언로드된다', async () => {
   const { LocaleRuntime } = loadClient(upstreamSource).exports
   const ctx = new Context()
@@ -217,6 +271,9 @@ await test('공식 플러그인 메타데이터는 번역되고 명시적 텍스
     await fiber.await()
     locale.setLocale('ko')
     assert.equal(locale.resolveText(metadata), '개발자 도구')
+    assert.equal(locale.resolveText({ en: 'Action cards', zh: '操作卡片' }), '작업 카드')
+    assert.equal(locale.resolveText({ en: 'File actions', zh: '文件操作' }), '파일 작업')
+    assert.equal(locale.resolveText({ en: 'Agent teams', zh: '智能体团队' }), '에이전트 팀')
     for (const en of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
       assert.equal(locale.resolveText({ en }), en)
       assert.equal(locale.resolveText({ en, ko: '명시적 번역' }), '명시적 번역')

@@ -17,6 +17,7 @@ import { workspaceDomainState } from '@deepseek-ai/dsh-workspace'
 import { createTaskQueue } from '@dungsil/dsh-async'
 import type { TaskDefinition, TaskRegistration } from '@dungsil/dsh-plugin-model-settings/contract'
 import { worktreeInstructions } from '@dungsil/dsh-task-prompts'
+import { isOwnedDescendant } from './archive.js'
 import {
   channel,
   endpointPrefix,
@@ -667,23 +668,31 @@ export function apply(ctx: Context, config: Config) {
         const selected = currentWorktree({ cwd: path, worktrees: view.worktrees })
         if (!selected || selected.branch !== branch || !contains(selected.path)) return
         const env = await withoutFilters(agent.session, path, signal)
-        if (
-          await run(
-            agent.session,
-            path,
-            ['status', '--porcelain', '--untracked-files=all', '--ignored'],
-            signal,
-            'git',
-            env
-          )
-        )
+        if (await run(agent.session, path, ['status', '--porcelain', '--untracked-files=all'], signal, 'git', env))
           return
-        // Include closed conversations, not just currently loaded Agents. A fork
-        // inherits the ownership record but is never its owner.
-        for (const session of ctx.sessions.list()) {
-          if (session.id !== sessionId && contains(ctx.workingDirectory.get(session))) return
+        // Include closed conversations and nested descendants. Only this owner's
+        // inactive subagents may retain a historical cwd without protecting it.
+        const stored = await ctx.sessionPersistence.list({ signal })
+        const live = ctx.sessions.list()
+        const headers = new Map(stored.map(({ header }) => [header.id, header]))
+        for (const session of live) headers.set(session.id, session.header)
+        const protects = async (id: SessionId) => {
+          if (!isOwnedDescendant(id, sessionId, headers)) return true
+          const child = ctx.agents.get(id)
+          if (child?.status === 'running') return true
+          // Maintenance also reports idle; let any in-flight filesystem work settle.
+          await child?.whenIdle()
+          signal.throwIfAborted()
+          if (ctx.agents.get(id)?.status === 'running') return true
+          return (
+            (await ctx.waterfall('workspace/session-activity', { sessionId: id }, () => Promise.resolve([]))).length > 0
+          )
         }
-        for (const { header } of await ctx.sessionPersistence.list({ signal })) {
+        for (const session of live) {
+          if (session.id !== sessionId && contains(ctx.workingDirectory.get(session)) && (await protects(session.id)))
+            return
+        }
+        for (const { header } of stored) {
           if (header.id === sessionId || ctx.sessions.get(header.id)) continue
           const handle = await ctx.sessionPersistence.open(header.id, 'read', { signal })
           try {
@@ -694,7 +703,8 @@ export function apply(ctx: Context, config: Config) {
                 cwd?.type === 'working-directory/change'
                   ? cwd.data.cwd
                   : (header.cwd ?? ctx.workingDirectory.defaultDirectory)
-              )
+              ) &&
+              (await protects(header.id))
             )
               return
           } finally {
