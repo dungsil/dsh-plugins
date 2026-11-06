@@ -251,7 +251,7 @@ async function mount(options = {}) {
   }
 }
 
-void test('모든 로케일의 Git 작업은 현재 화면이 아닌 대상 세션의 conversation에 해당 프롬프트만 보낸다', async () => {
+await test('모든 로케일의 Git 작업은 현재 화면이 아닌 대상 세션의 conversation에 해당 프롬프트만 보낸다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
     for (const [operation, key] of [
       ['commit', 'promptCommit'],
@@ -277,7 +277,7 @@ void test('모든 로케일의 Git 작업은 현재 화면이 아닌 대상 세�
   }
 })
 
-void test('실행 중이거나 제출 대기 중이거나 프롬프트 권한이 없으면 직접 호출해도 전송하지 않는다', async () => {
+await test('실행 중이거나 제출 대기 중이거나 프롬프트 권한이 없으면 직접 호출해도 전송하지 않는다', async () => {
   for (const options of [
     { session: { running: true } },
     { session: { pendingSubmissions: [{}] } },
@@ -296,7 +296,7 @@ void test('실행 중이거나 제출 대기 중이거나 프롬프트 권한이
   }
 })
 
-void test('전송 완료 전 같은 렌더의 버튼과 메뉴를 반복 호출해도 한 번만 전송한다', async () => {
+await test('전송 완료 전 같은 렌더의 버튼과 메뉴를 반복 호출해도 한 번만 전송한다', async () => {
   const pending = Promise.withResolvers()
   const view = await mount({ send: () => pending.promise })
   try {
@@ -316,7 +316,7 @@ void test('전송 완료 전 같은 렌더의 버튼과 메뉴를 반복 호출�
   }
 })
 
-void test('관련 없는 PR은 보기를 제공하거나 차이를 조회하지 않고 현재 브랜치의 열린 PR만 사용한다', async () => {
+await test('관련 없는 PR은 보기를 제공하거나 차이를 조회하지 않고 현재 브랜치의 열린 PR만 사용한다', async () => {
   const unrelated = await mount({ panel: panel({ changeRequests: [request('other')] }) })
   try {
     assert.equal(unrelated.primary.children[1], locales.en.push)
@@ -343,7 +343,7 @@ void test('관련 없는 PR은 보기를 제공하거나 차이를 조회하지 
   }
 })
 
-void test('연결 초기화와 디렉터리 변경은 이전 스트림을 중단하고 늦게 도착한 상태를 무시한다', async () => {
+await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중단하고 늦게 도착한 상태를 무시한다', async () => {
   const view = await mount()
   try {
     const initial = view.streams[0]
@@ -369,7 +369,7 @@ void test('연결 초기화와 디렉터리 변경은 이전 스트림을 중단
   }
 })
 
-void test('새 패널을 조회한 뒤 도착한 이전 diff 응답은 새 패널의 작업 가능 상태를 덮어쓰지 않는다', async () => {
+await test('새 패널을 조회한 뒤 도착한 이전 diff 응답은 새 패널의 작업 가능 상태를 덮어쓰지 않는다', async () => {
   const pending = Promise.withResolvers()
   const view = await mount({ localDiff: () => pending.promise })
   try {
@@ -389,7 +389,7 @@ void test('새 패널을 조회한 뒤 도착한 이전 diff 응답은 새 패�
   }
 })
 
-void test('조회 실패는 전송을 차단하고 포커스로 다시 조회하면 복구한다', async () => {
+await test('조회 실패는 전송을 차단하고 포커스로 다시 조회하면 복구한다', async () => {
   const view = await mount({ localDiff: () => ({ ok: false, error: { code: 'unavailable' } }) })
   try {
     assert.equal(view.primary.disabled, true)
