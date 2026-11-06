@@ -123,7 +123,8 @@ async function mount(t) {
       update({ status: 'ready', ...(ok && project ? { current: selection } : {}) })
       resolve({ ok })
     })
-  return { document, slider, click, change, commit, reply, requests, update, snapshot: () => snapshot }
+  const scroll = (target) => React.act(async () => target.dispatchEvent(new window.Event('scroll')))
+  return { window, document, slider, click, change, commit, reply, requests, update, scroll, snapshot: () => snapshot }
 }
 
 await test('입력과 드래그 및 방향키는 초안만 변경하고 적용 버튼은 변경을 한 번만 확정한다', async (t) => {
@@ -206,6 +207,58 @@ await test('다른 모델의 추론 강도를 적용하고 늦게 선택 상태�
   await h.click('.dsh-codex-reset')
   await h.reply()
   assert.equal(h.slider(), null)
+})
+
+await test('응답으로 대화 영역이 스크롤되어도 모델 목록과 포커스를 유지하고 위치를 갱신한다', async (t) => {
+  const h = await mount(t)
+  const anchor = h.document.querySelector('.dsh-codex-picker')
+  let top = 400
+  anchor.getBoundingClientRect = () => ({ top, bottom: top + 32, right: 500 })
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const popup = h.document.querySelector('[role=dialog]')
+  const focused = h.document.activeElement
+  const conversation = h.document.createElement('div')
+  h.document.body.append(conversation)
+  top = 300
+  await h.scroll(conversation)
+  assert.ok(h.document.querySelector('[role=dialog]') === popup)
+  assert.ok(h.document.querySelector('.dsh-codex-models'))
+  assert.ok(h.document.activeElement === focused)
+  assert.equal(popup.style.top, '292px')
+  await h.click('.dsh-codex-models button:last-child')
+  await h.commit(2)
+  await h.reply()
+  assert.equal(h.snapshot().current.model, 'second')
+})
+
+await test('응답과 팝업 내부 스크롤은 준비 중인 모델과 추론 강도 초안을 초기화하지 않는다', async (t) => {
+  const h = await mount(t)
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const models = h.document.querySelector('.dsh-codex-models')
+  await h.scroll(models)
+  assert.ok(h.document.querySelector('.dsh-codex-models') === models)
+  await h.click('.dsh-codex-models button:last-child')
+  await h.change(2)
+  const input = h.slider()
+  await React.act(async () => h.update({ current: { ...h.snapshot().current } }))
+  await h.scroll(h.document)
+  await h.scroll(h.window)
+  assert.ok(h.slider() === input)
+  assert.ok(h.document.activeElement === input)
+  assert.equal(input.value, '2')
+  assert.match(h.document.querySelector('.dsh-codex-model').textContent, /high.*second/)
+  assert.equal(h.requests.length, 0)
+  await h.click('.dsh-codex-apply')
+  await h.reply()
+  assert.equal(h.snapshot().current.model, 'second')
+  assert.equal(h.snapshot().current.reasoningEffort, 'high')
+  await React.act(async () =>
+    input.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  )
+  assert.equal(h.slider(), null)
+  assert.ok(h.document.activeElement === h.document.querySelector('.dsh-codex-trigger'))
 })
 
 await test('외부 변경으로 팝업을 닫아도 팝업 밖 컨트롤의 포커스를 빼앗지 않는다', async (t) => {
