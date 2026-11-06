@@ -12,7 +12,6 @@
     "empty": "No loaded skills from this source.",
     "search": "Search skills",
     "searchPlaceholder": "Search by name, description, or path",
-    "clearSearch": "Clear search",
     "noResults": "No skills match your search.",
     "error": "Could not load skills. Close and reopen this settings section to try again.",
     "incomplete": "Some skill sources could not be loaded. This list may be incomplete.",

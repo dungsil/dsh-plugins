@@ -26,10 +26,7 @@ const styles = `
 .dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-skills-settings p { margin: 4px 0; }
 .dsh-skills-settings-tabs { margin: 20px 0 12px; }
-.dsh-skills-search { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
-.dsh-skills-search-controls { display: flex; align-items: center; gap: 8px; }
-.dsh-skills-search-input { flex: 1; min-width: 0; }
-.dsh-skills-search-controls button { flex: none; }
+.dsh-skills-search { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
 .dsh-skills-settings .dsh-skills-muted { color: var(--dsw-alias-label-secondary); }
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
@@ -124,7 +121,6 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [source, setSource] = useState<'user-agents' | 'user-dsh'>('user-agents')
   const [query, setQuery] = useState('')
-  const searchInput = useRef<HTMLInputElement>(null)
   const [, refreshTranslations] = useState(0)
   const translations = useMemo(
     () => ({
@@ -213,7 +209,6 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   })
   const groupCount = (group: (typeof groups)[number]) =>
     searchTerms.length ? `${group.skills.length}/${group.total}` : `${group.total}`
-  const activeGroup = groups.find((group) => group.value === source)!
 
   useEffect(() => {
     const controller = new AbortController()
@@ -297,35 +292,6 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
       {view && !view.complete && <p role="alert">{text.incomplete}</p>}
       {view && (
         <>
-          <div className="dsh-skills-search">
-            <label htmlFor={`${id}-search`}>{text.search}</label>
-            <div className="dsh-skills-search-controls">
-              <Input
-                ref={searchInput}
-                id={`${id}-search`}
-                className="dsh-skills-search-input"
-                type="search"
-                value={query}
-                placeholder={text.searchPlaceholder}
-                autoComplete="off"
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!query}
-                onClick={() => {
-                  setQuery('')
-                  searchInput.current?.focus()
-                }}
-              >
-                {text.clearSearch}
-              </Button>
-            </div>
-            <p className="dsh-skills-muted" role="status" aria-live="polite" aria-atomic="true">
-              {activeGroup.label} {groupCount(activeGroup)}
-            </p>
-          </div>
           <SegmentedControl
             id={id}
             className="dsh-skills-settings-tabs"
@@ -333,6 +299,15 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
             options={groups.map((group) => ({ value: group.value, label: `${group.label} ${groupCount(group)}` }))}
             onChange={setSource}
             label={text.nav}
+          />
+          <Input
+            className="dsh-skills-search"
+            type="search"
+            value={query}
+            aria-label={text.search}
+            placeholder={text.searchPlaceholder}
+            autoComplete="off"
+            onChange={(event) => setQuery(event.target.value)}
           />
           {groups.map((group) => (
             <div

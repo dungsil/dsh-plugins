@@ -208,16 +208,21 @@ await test('전체 번역은 펼치기로 진행 중인 요청을 재사용하�
   assert.equal(ui.doc.querySelector('.dsh-skills-preview').textContent, '中文描述')
 })
 
-await test('검색은 이름과 설명과 경로를 정규화해 모든 검색어로 필터링하고 탭 전환과 초기화를 지원한다', async (t) => {
+await test('검색은 이름과 설명과 경로를 정규화해 모든 검색어로 필터링하고 탭 전환과 입력값 삭제를 지원한다', async (t) => {
   const ui = await mount(t, false)
   const names = () =>
     [...ui.doc.querySelectorAll('[role="tabpanel"]:not([hidden]) strong')].map((node) => node.textContent)
-  const status = () => ui.doc.querySelector('.dsh-skills-search [role="status"]').textContent
+  const input = ui.doc.querySelector('input[type="search"]')
+  assert.ok(ui.doc.querySelector('[role="tablist"]').compareDocumentPosition(input) & 4)
+  assert.ok(input.compareDocumentPosition(ui.doc.querySelector('.dsh-skills-list-header')) & 4)
+  assert.equal(ui.doc.querySelector('label'), null)
+  assert.equal(ui.doc.querySelector('[role="status"]'), null)
+  assert.equal(ui.button('검색 지우기'), undefined)
   assert.deepEqual(names(), ['alpha', 'empty'])
   for (const query of ['  ＡＬＰＨＡ  ', 'Original alpha', '/alpha/SKILL.md', 'alpha\tOriginal']) {
     await ui.search(query)
     assert.deepEqual(names(), ['alpha'])
-    assert.match(status(), /1\/2/)
+    assert.ok(ui.button('공용 스킬 1/2'))
   }
   await ui.search('alpha missing')
   assert.deepEqual(names(), [])
@@ -226,21 +231,20 @@ await test('검색은 이름과 설명과 경로를 정규화해 모든 검색�
   await React.act(async () => ui.button('DSH 스킬 1/1').click())
   assert.deepEqual(names(), ['beta'])
   assert.equal(ui.doc.querySelector('input[type="search"]').value, 'beta')
-  await React.act(async () => ui.button('검색 지우기').click())
+  await ui.search('')
   assert.equal(ui.doc.querySelector('input[type="search"]').value, '')
-  assert.equal(ui.doc.activeElement, ui.doc.querySelector('input[type="search"]'))
   await React.act(async () => ui.button('공용 스킬 2').click())
   await ui.search('   ')
   assert.deepEqual(names(), ['alpha', 'empty'])
   assert.equal(ui.requests.length, 0)
-  for (const [language, label, clear] of [
-    ['en', 'Search skills', 'Clear search'],
-    ['zh', '搜索技能', '清除搜索'],
-    ['ko', '스킬 검색', '검색 지우기'],
+  for (const [language, label, placeholder] of [
+    ['en', 'Search skills', 'Search by name, description, or path'],
+    ['zh', '搜索技能', '按名称、描述或路径搜索'],
+    ['ko', '스킬 검색', '이름, 설명 또는 경로로 검색'],
   ]) {
     await ui.language(language)
-    assert.equal(ui.doc.querySelector('label').textContent, label)
-    assert.ok(ui.button(clear))
+    assert.equal(input.getAttribute('aria-label'), label)
+    assert.equal(input.placeholder, placeholder)
   }
 })
 
