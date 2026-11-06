@@ -103,7 +103,7 @@ function SkillDescription({
       {available && skill.path && skill.description && (
         <>
           {pending && <p role="status">{text.translating}</p>}
-          {translated !== undefined && (
+          {translated !== undefined && translated !== skill.description && (
             <Button variant="ghost" size="sm" onClick={() => setOriginal((value) => !value)}>
               {original ? text.translate : text.original}
             </Button>
