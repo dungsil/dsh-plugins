@@ -16,7 +16,7 @@ function request(branch, state = 'open') {
   return { url: `https://github.com/team/repo/pull/${branch}`, snapshot: { headBranch: branch, state } }
 }
 
-void test('체크아웃이나 브랜치 또는 원격 저장소가 없으면 기본 작업은 커밋이다', () => {
+await test('체크아웃이나 브랜치 또는 원격 저장소가 없으면 기본 작업은 커밋이다', () => {
   for (const value of [
     panel({ checkout: { state: 'loading' } }),
     panel({ checkout: { state: 'ready', checkout: {} } }),
@@ -26,13 +26,13 @@ void test('체크아웃이나 브랜치 또는 원격 저장소가 없으면 기
     assert.equal(primaryOperation(value), 'commit')
 })
 
-void test('기준 브랜치 정보가 없으면 main과 master를 추측하지 않고 푸시를 선택한다', () => {
+await test('기준 브랜치 정보가 없으면 main과 master를 추측하지 않고 푸시를 선택한다', () => {
   for (const branch of ['topic', 'main', 'master', 'release']) {
     assert.equal(primaryOperation(panel({ checkout: { state: 'ready', checkout: { branch } } })), 'push')
   }
 })
 
-void test('기준 브랜치와 현재 브랜치가 같으면 푸시하고 다르면 PR을 선택한다', () => {
+await test('기준 브랜치와 현재 브랜치가 같으면 푸시하고 다르면 PR을 선택한다', () => {
   for (const base of ['origin/main', 'refs/remotes/origin/main']) {
     assert.equal(primaryOperation(panel({ local: { base } })), 'pr')
     assert.equal(
@@ -42,7 +42,7 @@ void test('기준 브랜치와 현재 브랜치가 같으면 푸시하고 다르
   }
 })
 
-void test('현재 브랜치와 일치하는 열린 PR만 선택하고 관련 없는 PR과 닫힌 PR은 선택하지 않는다', () => {
+await test('현재 브랜치와 일치하는 열린 PR만 선택하고 관련 없는 PR과 닫힌 PR은 선택하지 않는다', () => {
   const matching = request('topic')
   const unrelated = request('unrelated')
   const closed = request('topic', 'closed')
@@ -56,7 +56,7 @@ void test('현재 브랜치와 일치하는 열린 PR만 선택하고 관련 없
   assert.equal(requestForCheckout(panel({ checkout: { state: 'loading' }, changeRequests: [matching] })), undefined)
 })
 
-void test('영어와 한국어와 중국어 로케일은 같은 키와 비어 있지 않은 번역을 제공한다', async () => {
+await test('영어와 한국어와 중국어 로케일은 같은 키와 비어 있지 않은 번역을 제공한다', async () => {
   const locales = await Promise.all(
     ['en', 'ko', 'zh'].map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
