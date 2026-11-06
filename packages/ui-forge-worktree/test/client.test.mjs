@@ -347,6 +347,13 @@ for (const [language, label, current] of [
   ['en', 'New worktree', 'Current branch'],
   ['ko-KR', '새 워크트리', '현재 브랜치'],
   ['zh-CN', '新建工作树', '当前分支'],
+  ['ja-JP', '新しいワークツリー', '現在のブランチ'],
+  ['es-ES', 'Nuevo árbol de trabajo', 'Rama actual'],
+  ['fr-FR', 'Nouvel arbre de travail', 'Branche actuelle'],
+  ['de-DE', 'Neuer Worktree', 'Aktueller Branch'],
+  ['ru-RU', 'Новое рабочее дерево', 'Текущая ветка'],
+  ['pt-BR', 'Nova árvore de trabalho', 'Branch atual'],
+  ['xx-XX', 'New worktree', 'Current branch'],
 ]) {
   await test(`${language} 로케일에서 확인된 선택과 현재 브랜치 항목을 표시한다`, () => {
     const h = load({ panel: panel({ from: null }), busy: false, error: false }, language)
@@ -367,8 +374,21 @@ for (const [language, label, current] of [
   })
 }
 
-await test('영어 한국어 중국어 문구를 모두 번들에 포함하고 다른 플러그인을 DOM이나 CSS로 숨기지 않는다', () => {
-  for (const value of ['New worktree', '새 워크트리', '新建工作树', 'Refresh selection', '선택 새로고침', '刷新选择'])
+await test('모든 지원 로케일의 문구를 번들에 포함하고 다른 플러그인을 DOM이나 CSS로 숨기지 않는다', () => {
+  for (const value of [
+    'New worktree',
+    '새 워크트리',
+    '新建工作树',
+    'Refresh selection',
+    '선택 새로고침',
+    '刷新选择',
+    '新しいワークツリー',
+    'Nuevo árbol de trabajo',
+    'Nouvel arbre de travail',
+    'Neuer Worktree',
+    'Новое рабочее дерево',
+    'Nova árvore de trabalho',
+  ])
     assert.ok(bundle.includes(value))
   assert.ok(!bundle.includes('MutationObserver'))
   assert.ok(!bundle.includes('mtc7-a_'))

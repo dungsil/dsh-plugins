@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "title": "Seletor de modelos",
+    "description": "Um seletor compacto no campo de entrada com menus de modelos e um controle deslizante de esforço de raciocínio."
+  },
+  "ui": {
+    "model": "Selecionar modelo",
+    "effort": "Esforço de raciocínio",
+    "choose": "Selecionar esforço de raciocínio",
+    "configure": "Configurar esforço de raciocínio",
+    "openPicker": "Abrir seletor de modelos",
+    "reset": "Restaurar padrão",
+    "loading": "Carregando modelos…",
+    "empty": "Nenhum modelo disponível.",
+    "partial": "Não foi possível carregar alguns provedores.",
+    "missing": "O modelo atual não está disponível.",
+    "error": "Não foi possível alterar a seleção. Verifique a seleção atual antes de tentar novamente.",
+    "retry": "Recarregar modelos",
+    "busy": "Alterando…",
+    "apply": "Aplicar"
+  }
+}

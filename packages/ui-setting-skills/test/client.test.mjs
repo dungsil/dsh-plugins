@@ -69,7 +69,7 @@ await test('설정은 로케일, 내비게이션 재마운트, 플러그인 언�
   const wrappedSkills = makeRow('Skills', true)
   nav.append(neighbor, skills, wrappedSkills)
   await settle()
-  for (const label of ['Skills', '스킬', '技能']) {
+  for (const label of ['Skills', '스킬', '技能', 'スキル', 'Habilidades', 'Compétences', 'Навыки']) {
     skills.querySelector('span:last-child').textContent = label
     wrappedSkills.querySelector(':scope > span:last-child').textContent = label
     await settle()

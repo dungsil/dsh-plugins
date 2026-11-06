@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "title": "Modelos e instruções por tarefa",
+    "description": "Configure modelos, esforço de raciocínio e instruções por tarefa, incluindo a descrição da ferramenta nativa pwsh. Inclui a API de configurações."
+  },
+  "ui": {
+    "nav": "Modelos e instruções por tarefa",
+    "taskSettings": "Configurações por tarefa",
+    "model": "Modelo",
+    "inherit": "Usar modelo da conversa",
+    "useAuxiliary": "Usar modelo auxiliar",
+    "auxiliaryHint": "Usa o modelo auxiliar e seu esforço de raciocínio. Se não estiver definido, usa o modelo da conversa.",
+    "instructions": "Instruções",
+    "editInstructions": "Editar instruções",
+    "instructionsHint": "Edite o prompt padrão desta tarefa. Limpe o conteúdo e salve para restaurar o padrão.",
+    "save": "Salvar",
+    "effort": "Esforço de raciocínio",
+    "automatic": "Automático",
+    "effortHint": "Escolha um modelo para definir seu esforço de raciocínio. Automático mantém o comportamento existente.",
+    "noEfforts": "Este modelo não oferece configurações de esforço de raciocínio.",
+    "missingEffort": "Esforço salvo (indisponível no momento)",
+    "saving": "Salvando…",
+    "loading": "Carregando modelos…",
+    "resyncing": "Verificando as configurações salvas…",
+    "loadError": "Não foi possível carregar as configurações. Feche e reabra esta seção para tentar novamente.",
+    "resyncError": "Não foi possível verificar as configurações salvas. As alterações estão desabilitadas. Feche e reabra esta seção para tentar novamente.",
+    "unavailable": "Nenhuma tarefa registrada. Ative um plugin que registre tarefas de configuração de modelos.",
+    "catalog": "Não foi possível carregar algumas listas de modelos. Você ainda pode usar o modelo da conversa.",
+    "missing": "Modelo salvo (ausente no catálogo atual)",
+    "error": "Não foi possível confirmar a alteração. Ela não será tentada novamente de forma automática.",
+    "conflict": "As configurações foram alteradas em outro lugar. Sua alteração não será tentada novamente de forma automática.",
+    "model_unavailable": "Este modelo está indisponível. Escolha um modelo disponível após a verificação das configurações.",
+    "reasoning_unavailable": "Este esforço de raciocínio está indisponível. Escolha um nível compatível ou Automático."
+  }
+}

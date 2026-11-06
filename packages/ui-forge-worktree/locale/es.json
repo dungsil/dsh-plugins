@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "title": "Selector de árboles de trabajo",
+    "description": "Elige la rama actual o un nuevo árbol de trabajo de Git desde el cuadro de entrada."
+  },
+  "ui": {
+    "title": "Árbol de trabajo",
+    "create": "Nuevo árbol de trabajo",
+    "current": "Rama actual",
+    "detached": "HEAD separado",
+    "loading": "Cargando el árbol de trabajo…",
+    "saving": "Guardando la selección…",
+    "reserved": "Se creará un nuevo árbol de trabajo al enviar tu primer mensaje.",
+    "locked": "No se puede cambiar la selección del árbol de trabajo una vez iniciada esta sesión.",
+    "error": "No se pudo confirmar la selección del árbol de trabajo. Actualiza antes de volver a intentarlo.",
+    "refresh": "Actualizar selección",
+    "blocked": "No hay un nuevo árbol de trabajo disponible para este checkout."
+  }
+}

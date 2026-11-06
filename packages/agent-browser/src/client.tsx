@@ -13,6 +13,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { SlotComponent, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { installStyles } from '@dungsil/dsh-ui/client'
 import en from '../locale/en.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
 import { name, method, controlMethod, type BrowserView } from './protocol.js'
@@ -23,12 +29,13 @@ export const inject = ['slots', 'locale', 'connection', 'sidebarRight']
 const browserSlot = 'sidebar.right.pane.tab'
 const browserId = '@deepseek-ai/dsh-client-ui-sidebar-browser'
 type Actions = Parameters<BrowserInjected['rebind']>[0]
+const dictionaries: Record<string, typeof en> = { en, ko, zh, ja, es, fr, de, ru, pt }
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const text = () => {
-    const language = ctx.locale.getSnapshot().active
-    return language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
+  const text = (): Omit<typeof en, 'meta'> => {
+    const language = ctx.locale.getSnapshot().active.toLowerCase().split(/[-_]/)[0]!
+    return Object.hasOwn(dictionaries, language) ? dictionaries[language]! : en
   }
   const controllers = new Map<string, BrowserInjected>()
 
@@ -253,7 +260,11 @@ export function apply(ctx: Context) {
               canGoForward: !!view.canGoForward,
               error:
                 view.error || issue
-                  ? { code: 1, description: text()[(view.error ?? issue) as keyof typeof en] ?? text().command_failed }
+                  ? {
+                      code: 1,
+                      description:
+                        text()[(view.error ?? issue) as keyof ReturnType<typeof text>] ?? text().command_failed,
+                    }
                   : undefined,
             },
           })

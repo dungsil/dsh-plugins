@@ -1,41 +1,21 @@
+import en from '../locale/en.json' with { type: 'json' }
+import ko from '../locale/ko.json' with { type: 'json' }
+import zh from '../locale/zh.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
+
 export const copy = {
-  en: {
-    title: 'Worktree',
-    create: 'New worktree',
-    current: 'Current branch',
-    detached: 'Detached HEAD',
-    loading: 'Loading worktree…',
-    saving: 'Saving selection…',
-    reserved: 'A new worktree will be created when you send your first message.',
-    locked: 'The worktree selection cannot be changed after this session starts.',
-    error: 'Could not confirm the worktree selection. Refresh before trying again.',
-    refresh: 'Refresh selection',
-    blocked: 'A new worktree is not available for this checkout.',
-  },
-  ko: {
-    title: '워크트리',
-    create: '새 워크트리',
-    current: '현재 브랜치',
-    detached: '분리된 HEAD',
-    loading: '워크트리를 불러오는 중…',
-    saving: '선택을 저장하는 중…',
-    reserved: '첫 메시지를 보내면 새 워크트리가 생성됩니다.',
-    locked: '세션이 시작된 후에는 워크트리 선택을 변경할 수 없습니다.',
-    error: '워크트리 선택을 확인하지 못했습니다. 새로고침한 후 다시 시도하세요.',
-    refresh: '선택 새로고침',
-    blocked: '이 체크아웃에서는 새 워크트리를 사용할 수 없습니다.',
-  },
-  zh: {
-    title: '工作树',
-    create: '新建工作树',
-    current: '当前分支',
-    detached: '分离的 HEAD',
-    loading: '正在加载工作树…',
-    saving: '正在保存选择…',
-    reserved: '发送第一条消息时将创建新工作树。',
-    locked: '会话开始后无法更改工作树选择。',
-    error: '无法确认工作树选择。请刷新后重试。',
-    refresh: '刷新选择',
-    blocked: '此检出目录无法使用新工作树。',
-  },
+  en: en.ui,
+  ko: ko.ui,
+  zh: zh.ui,
+  ja: ja.ui,
+  es: es.ui,
+  fr: fr.ui,
+  de: de.ui,
+  ru: ru.ui,
+  pt: pt.ui,
 } as const

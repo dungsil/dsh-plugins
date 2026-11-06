@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Agent Browser",
+    "description": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser is included; uses the host Chrome/Chromium in full access mode."
+  },
   "unavailable": "Could not start the included agent-browser. Chrome or Chromium must be available on the dsh host.",
   "command_failed": "The browser action failed. Try again after the current action finishes.",
   "stream_failed": "The browser connection was lost. Reload to reconnect.",

@@ -108,13 +108,23 @@ await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 
   assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
 })
 
-await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 있다', async () => {
+await test('모든 지원 로케일에 같은 키와 비어 있지 않은 차이 카드 번역이 있다', async () => {
+  const languages = ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   const locales = await Promise.all(
-    ['en', 'ko', 'zh'].map(async (language) =>
+    languages.map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     )
   )
-  for (const locale of locales) {
+  for (const [index, locale] of locales.entries()) {
+    const language = languages[index]
+    assert.deepEqual(Object.keys(locale).sort(), Object.keys(locales[0]).sort())
+    assert.deepEqual(Object.keys(locale.meta).sort(), Object.keys(locales[0].meta).sort())
+    assert.ok(Object.values(locale.meta).every((value) => typeof value === 'string' && value.trim()))
+    assert.equal(manifest.market.title[language], locale.meta.title)
+    assert.ok(manifest.market.description[language]?.trim())
+    if (!['en', 'ko', 'zh'].includes(language))
+      assert.equal(manifest.market.description[language], locale.meta.description)
     assert.deepEqual(Object.keys(locale.ui).sort(), Object.keys(locales[0].ui).sort())
     assert.ok(Object.values(locale.ui).every((value) => typeof value === 'string' && value.trim()))
     assert.ok(locale.ui.expand.includes('{count}'))
@@ -204,10 +214,12 @@ await test('도구 뷰는 원본 스냅샷과 번역을 DSH DiffBlock에 전달�
   assert.equal(receivedDiff.labels.expandAria(12), '숨겨진 12줄 표시')
   openFile()
   assert.deepEqual(opened, ['src/example.tsx'])
-  for (const language of ['en', 'ko', 'zh']) {
-    active = language
+  for (const language of ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt', 'xx']) {
+    active = `${language}-REGION`
     render('before', 'after')
-    const { ui } = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
+    const { ui } = JSON.parse(
+      await readFile(new URL(`../locale/${language === 'xx' ? 'en' : language}.json`, import.meta.url), 'utf8')
+    )
     for (const key of ['codeLabel', 'wrapLabel', 'unwrapLabel', 'copy', 'copied', 'collapse', 'collapseAria'])
       assert.equal(receivedDiff.labels[key], ui[key])
     assert.equal(receivedDiff.labels.expand(12), ui.expand.replace('{count}', '12'))

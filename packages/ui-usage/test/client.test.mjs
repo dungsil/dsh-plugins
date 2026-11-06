@@ -205,11 +205,17 @@ await test('캐시된 사용량은 합계를 숨기거나 기간과 연결을 �
     }
   )
 
-  await t.test('사용자 지정 입력과 적용 안내는 영어와 한국어 및 중국어로 표시한다', async () => {
+  await t.test('사용자 지정 입력과 적용 안내는 지원하는 모든 언어의 지역 로케일로 표시한다', async () => {
     for (const [language, labels] of [
       ['en', ['Custom range', 'Start date', 'End date', 'Apply', 'Showing']],
       ['ko', ['사용자 지정', '시작일', '종료일', '적용', '조회 중인 기간']],
       ['zh', ['自定义范围', '开始日期', '结束日期', '应用', '当前查询范围']],
+      ['ja-JP', ['期間を指定', '開始日', '終了日', '適用', '表示期間']],
+      ['es-MX', ['Intervalo personalizado', 'Fecha de inicio', 'Fecha de fin', 'Aplicar', 'Mostrando']],
+      ['fr-CA', ['Période personnalisée', 'Date de début', 'Date de fin', 'Appliquer', 'Période affichée']],
+      ['de-DE', ['Benutzerdefinierter Zeitraum', 'Startdatum', 'Enddatum', 'Anwenden', 'Angezeigter Zeitraum']],
+      ['ru-RU', ['Свой период', 'Дата начала', 'Дата окончания', 'Применить', 'Показан период']],
+      ['pt-BR', ['Intervalo personalizado', 'Data de início', 'Data de término', 'Aplicar', 'Exibindo']],
     ]) {
       await leave()
       snapshot.active = language

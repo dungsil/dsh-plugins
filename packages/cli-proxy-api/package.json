@@ -88,12 +88,24 @@
     "title": {
       "en": "CLIProxyAPI",
       "ko": "CLIProxyAPI",
-      "zh": "CLIProxyAPI"
+      "zh": "CLIProxyAPI",
+      "ja": "CLIProxyAPI",
+      "es": "CLIProxyAPI",
+      "fr": "CLIProxyAPI",
+      "de": "CLIProxyAPI",
+      "ru": "CLIProxyAPI",
+      "pt": "CLIProxyAPI"
     },
     "description": {
       "en": "Connect CLIProxyAPI models and inspect account quota from the DSH sidebar. Requires CLIProxyAPI v8.",
       "ko": "CLIProxyAPI 모델을 연결하고 DSH 사이드바에서 계정별 할당량을 확인합니다. CLIProxyAPI v8이 필요합니다.",
-      "zh": "连接 CLIProxyAPI 模型，并从 DSH 侧边栏查看账户配额。需要 CLIProxyAPI v8。"
+      "zh": "连接 CLIProxyAPI 模型，并从 DSH 侧边栏查看账户配额。需要 CLIProxyAPI v8。",
+      "ja": "CLIProxyAPI モデルを接続し、DSH サイドバーでアカウントの割り当て量を確認します。CLIProxyAPI v8 が必要です。",
+      "es": "Conecta modelos de CLIProxyAPI y consulta la cuota de las cuentas desde la barra lateral de DSH. Requiere CLIProxyAPI v8.",
+      "fr": "Connectez les modèles CLIProxyAPI et consultez les quotas des comptes dans la barre latérale de DSH. Nécessite CLIProxyAPI v8.",
+      "de": "Verbinde CLIProxyAPI-Modelle und prüfe Kontingente der Konten in der DSH-Seitenleiste. Erfordert CLIProxyAPI v8.",
+      "ru": "Подключайте модели CLIProxyAPI и проверяйте квоты аккаунтов на боковой панели DSH. Требуется CLIProxyAPI v8.",
+      "pt": "Conecte modelos do CLIProxyAPI e consulte as cotas das contas na barra lateral do DSH. Requer CLIProxyAPI v8."
     },
     "category": "tools",
     "labels": [],

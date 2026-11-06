@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "title": "Paramètres des compétences",
+    "description": "Consultez dans les paramètres les compétences chargées depuis les répertoires de compétences partagées des agents et de DSH."
+  },
+  "ui": {
+    "nav": "Compétences",
+    "description": "Ce paramètre s’applique uniquement à DSH.",
+    "agents": "Compétences partagées",
+    "dsh": "Compétences DSH",
+    "loading": "Chargement des compétences…",
+    "empty": "Aucune compétence chargée depuis cette source.",
+    "search": "Rechercher des compétences",
+    "searchPlaceholder": "Rechercher par nom, description ou chemin",
+    "noResults": "Aucune compétence ne correspond à votre recherche.",
+    "loadedCount": "({total} chargées)",
+    "filteredCount": "({total} chargées · {count} correspondantes)",
+    "error": "Impossible de charger les compétences. Fermez puis rouvrez cette section des paramètres pour réessayer.",
+    "incomplete": "Certaines sources de compétences n’ont pas pu être chargées. Cette liste peut être incomplète.",
+    "use": "Activée",
+    "disabled": "Désactivée",
+    "openFolder": "Ouvrir le dossier",
+    "openingFolder": "Ouverture du dossier…",
+    "openFolderHint": "Ouvre le dossier de cette compétence dans le gestionnaire de fichiers de l’hôte DSH.",
+    "openFolderUnavailable": "L’ouverture de dossiers nécessite un environnement de bureau sur l’hôte DSH.",
+    "openFolderError": "Impossible d’ouvrir le dossier de la compétence. Vérifiez le gestionnaire de fichiers de l’hôte DSH et réessayez.",
+    "translate": "Voir la traduction",
+    "original": "Voir l’original",
+    "retry": "Réessayer",
+    "translating": "Traduction…",
+    "translateAll": "Traduire toutes les compétences",
+    "translatingAll": "Traduction de toutes les compétences…",
+    "translationAllError": "Certaines descriptions de compétences n’ont pas pu être traduites. Réessayez pour traduire uniquement les éléments ayant échoué.",
+    "translationError": "Traduction impossible. L’original est affiché. Les services payants nécessitent une Session et ne sont pas disponibles ici.",
+    "saveError": "Impossible d’enregistrer le paramètre. Fermez puis rouvrez cette section pour vérifier l’état enregistré avant de réessayer."
+  }
+}

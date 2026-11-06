@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "title": "Private Eingabe geheimer Werte",
+    "description": "Fordert Zugangsdaten über ein privates Formular an und gibt nur deren Referenz an den Agenten zurück."
+  },
+  "ui": {
+    "title": "Private Eingabe geheimer Werte",
+    "value": "Geheimer Wert",
+    "privacy": "Ihr geheimer Wert wird dem Agenten nicht angezeigt.",
+    "target": "Speicherreferenz der Zugangsdaten",
+    "context": "Vom Agenten bereitgestellte Beschreibung",
+    "replace": "Beim Speichern werden die vorhandenen Zugangsdaten unter dieser Referenz ersetzt:",
+    "save": "Zugangsdaten speichern",
+    "saving": "Wird gespeichert…",
+    "decline": "Ablehnen",
+    "error": "Das Speichern konnte nicht bestätigt werden. Der Wert wurde gelöscht. Prüfen Sie vor einem erneuten Versuch die Verbindung und den Zugangsdaten-Speicher.",
+    "waiting": "Warten auf private Eingabe…",
+    "closed": "Die Eingabe ist nicht mehr verfügbar.",
+    "saved": "Zugangsdaten gespeichert",
+    "declined": "Anfrage abgelehnt",
+    "cancelled": "Anfrage abgebrochen",
+    "timed_out": "Anfrage abgelaufen",
+    "unavailable": "Private Eingabe nicht verfügbar"
+  }
+}

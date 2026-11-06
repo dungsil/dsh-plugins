@@ -10,6 +10,13 @@ await test('승인 화면은 모든 로케일에서 오해를 부르는 에이�
     ['en', 'Credential storage reference'],
     ['ko', '비밀값 저장 참조'],
     ['zh', '凭据存储引用'],
+    ['ja-JP', '認証情報の保存先参照'],
+    ['es-ES', 'Referencia de almacenamiento de credenciales'],
+    ['fr-FR', 'Référence de stockage des identifiants'],
+    ['de-DE', 'Speicherreferenz der Zugangsdaten'],
+    ['ru-RU', 'Ссылка на хранилище учётных данных'],
+    ['pt-BR', 'Referência de armazenamento de credenciais'],
+    ['xx-XX', 'Credential storage reference'],
   ]) {
     const request = {
       id: 'request-id',
@@ -90,5 +97,21 @@ await test('승인 화면은 모든 로케일에서 오해를 부르는 에이�
       nodes.some((node) => node.props?.className === 'dsh-secret-context' && node.props.children === request.label)
     )
     effects.forEach((dispose) => dispose?.())
+  }
+})
+
+await test('모든 지원 로케일은 같은 메타데이터와 입력 카드 키 및 비어 있지 않은 번역을 제공한다', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  const english = JSON.parse(await readFile(new URL('../locale/en.json', import.meta.url), 'utf8'))
+  for (const language of ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
+    const locale = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
+    assert.deepEqual(Object.keys(locale).sort(), Object.keys(english).sort())
+    for (const section of ['meta', 'ui']) {
+      assert.deepEqual(Object.keys(locale[section]).sort(), Object.keys(english[section]).sort())
+      assert.ok(Object.values(locale[section]).every((value) => typeof value === 'string' && value.trim()))
+    }
+    assert.ok(manifest.market.title[language]?.trim())
+    assert.ok(manifest.market.description[language]?.trim())
+    if (!['en', 'ko', 'zh'].includes(language)) assert.equal(manifest.market.title[language], locale.meta.title)
   }
 })

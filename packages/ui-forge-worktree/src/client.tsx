@@ -184,7 +184,8 @@ export function apply(ctx: Context) {
   })
   function Picker({ sessionId, useSession, useInput }: Props) {
     const { active } = useLocaleSnapshot(ctx.locale)
-    const text = copy[active.startsWith('ko') ? 'ko' : active.startsWith('zh') ? 'zh' : 'en']
+    const text =
+      (copy as Record<string, (typeof copy)[keyof typeof copy]>)[active.toLowerCase().split(/[-_]/)[0]] ?? copy.en
     const [controller] = useState(() => new SelectionController(remote, sessionId))
     const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
     const unavailable = useSession(

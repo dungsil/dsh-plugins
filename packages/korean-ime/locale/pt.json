@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "IME coreano",
+    "description": "Envia a mensagem quando Enter confirma uma composição do IME no campo de conversa. Funciona independentemente do idioma da interface."
+  }
+}

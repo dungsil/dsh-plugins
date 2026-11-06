@@ -1,4 +1,7 @@
+import { additionalCopy } from './copy-locales.ts'
+
 export const copy = {
+  ...additionalCopy,
   en: {
     quota: 'Quota',
     remainingPercent: '{percent} remaining',
@@ -235,5 +238,7 @@ export const copy = {
   },
 }
 
-export const localizedCopy = (language: string) =>
-  copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
+export const localizedCopy = (language: string): typeof copy.en => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return Object.hasOwn(copy, base) ? copy[base as keyof typeof copy] : copy.en
+}

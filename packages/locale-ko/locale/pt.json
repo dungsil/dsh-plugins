@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Interface em coreano",
+    "description": "Adiciona coreano ao seletor de idioma da interface e traduz os metadados dos plugins oficiais e integrados. Textos não traduzidos são exibidos em inglês."
+  }
+}

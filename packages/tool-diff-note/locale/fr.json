@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "title": "Notes de modifications",
+    "description": "Explique les décisions importantes à côté des instantanés du code avant et après les modifications, sans modifier les fichiers source."
+  },
+  "ui": {
+    "title": "Note de modification",
+    "codeLabel": "Code",
+    "open": "Ouvrir le fichier",
+    "waiting": "Enregistrement de l’explication de la modification…",
+    "failed": "Impossible d’enregistrer l’explication de la modification.",
+    "wrapLabel": "Activer le retour à la ligne",
+    "unwrapLabel": "Désactiver le retour à la ligne",
+    "copy": "Copier",
+    "copied": "Copié",
+    "collapseAria": "Réduire les différences",
+    "expandAria": "Afficher {count} lignes masquées",
+    "collapse": "Réduire",
+    "expand": "Afficher {count} lignes supplémentaires"
+  }
+}
