@@ -9,6 +9,7 @@ import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import Llm, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import Tools from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
@@ -36,7 +37,13 @@ async function fixture(t, { enabled = true, duplicate = false, withSystemPrompt 
       {
         insert: [
           { id: 'editor', name: 'cordis:editor' },
-          { id: 'service', name: '@dungsil/dsh-plugin-model-settings', disabled: !enabled },
+          { id: 'native-pwsh', name: '@deepseek-ai/dsh-tool-pwsh', disabled: !withSystemPrompt },
+          {
+            id: 'service',
+            name: '@dungsil/dsh-plugin-model-settings',
+            disabled: !enabled,
+            config: { pwshInstructions: 'Old supplement must not become a replacement.', unrelated: 'keep' },
+          },
           ...['summary-a', 'summary-b'].map((id) => ({ id, name: '@example/summary', config: { untouched: id } })),
         ],
       },
@@ -116,13 +123,35 @@ async function fixture(t, { enabled = true, duplicate = false, withSystemPrompt 
       import: async (name) => {
         if (name === '@dungsil/dsh-plugin-model-settings') return plugin
         if (name === '@example/summary') return consumer
+        if (name === '@deepseek-ai/dsh-tool-pwsh')
+          return {
+            inject: ['tools'],
+            apply(owner) {
+              owner.tools.register({
+                name: 'pwsh',
+                description: 'Builtin pwsh description.',
+                parameters: { type: 'object' },
+                output: { schema: { type: 'string' }, render: () => [] },
+                execute: async () => 'native',
+              })
+            },
+          }
         throw new Error(name)
       },
     }
     await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
     await root.plugin(Connection)
     await root.plugin(Llm)
-    if (withSystemPrompt) await root.plugin(SystemPrompt)
+    if (withSystemPrompt) {
+      await root.plugin(SystemPrompt)
+      await root.plugin(Tools, {})
+      root.tools.setExecutor({
+        describe: (definitions) => ({
+          schemas: definitions.map(({ name, description, parameters }) => ({ name, description, parameters })),
+        }),
+        execute: async () => ({ results: [], additionalContexts: [], concluded: false }),
+      })
+    }
     root.llm.registerAdapter(['chat', 'aux'], new Adapter())
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -163,22 +192,23 @@ async function fixture(t, { enabled = true, duplicate = false, withSystemPrompt 
   }
 }
 
-await test('systemPrompt가 없는 프로필에서도 기존 모델 설정과 지침 저장을 제공한다', async (t) => {
+await test('네이티브 도구가 없는 프로필에서는 pwsh 편집을 숨기고 기존 모델 설정은 제공한다', async (t) => {
   const h = await fixture(t, { withSystemPrompt: false })
   const pwsh = (await h.rpc('describe')).value.tasks.find((task) => task.key === 'tool:pwsh')
-  assert.equal((await h.rpc('instructions', { ...pwsh, instructions: '한국어로 설명한다' })).ok, true)
+  assert.equal(pwsh, undefined)
   await h.generate('summary-a')
   assert.equal(h.requests.at(-1).system, 'Summarize summary-a.')
 })
 
-await test('pwsh 추가 지침을 저장하고 기본 규칙을 보존하며 보조 모델 지침을 상속하지 않는다', async (t) => {
+await test('pwsh 기본 설명을 표시하고 정확히 대체하며 빈 값과 기본값 저장으로 복원한다', async (t) => {
   const h = await fixture(t)
   const sections = async () => (await h.ctx.systemPrompt.assemble()).sections
   h.ctx.systemPrompt.section({ name: 'test:built-in', order: 1, text: 'Built-in safety rules.' })
   const getPwsh = async () => (await h.rpc('describe')).value.tasks.find((task) => task.key === 'tool:pwsh')
   let pwsh = await getPwsh()
   assert.equal(pwsh.kind, 'instructions')
-  assert.equal(pwsh.instructions, '')
+  assert.equal(pwsh.instructions, 'Builtin pwsh description.')
+  assert.equal(pwsh.defaultInstructions, 'Builtin pwsh description.')
   assert.deepEqual(pwsh.selection, { mode: 'conversation' })
   for (const selection of [{ mode: 'conversation' }, { mode: 'auxiliary' }, { mode: 'model', route: conversation }]) {
     assert.equal((await h.rpc('save', { ...pwsh, selection })).error.code, 'invalid')
@@ -190,26 +220,35 @@ await test('pwsh 추가 지침을 저장하고 기본 규칙을 보존하며 보
   assert.equal(saved.ok, true, JSON.stringify(saved))
   let prompt = await sections()
   assert.equal(prompt.find((section) => section.name === 'test:built-in').text, 'Built-in safety rules.')
+  assert.equal(h.ctx.tools.get('pwsh').description, 'description은 한국어로 작성한다 {{literal}}')
   assert.equal(
-    prompt.find((section) => section.name === 'dungsil:pwsh-additional-instructions').text,
-    'Additional instructions when calling pwsh:\ndescription은 한국어로 작성한다 {{literal}}'
+    (await h.ctx.systemPrompt.assemble()).tools.find((tool) => tool.name === 'pwsh').description,
+    'description은 한국어로 작성한다 {{literal}}'
   )
+  assert.ok(!prompt.some((section) => section.name === 'dungsil:pwsh-additional-instructions'))
   assert.equal((await h.rpc('instructions', { ...pwsh, instructions: 'stale' })).error.code, 'conflict')
   const auxiliary = (await h.rpc('describe')).value.auxiliary
   assert.equal((await h.rpc('instructions', { ...auxiliary, instructions: 'Shared guidance.' })).ok, true)
   prompt = await sections()
-  assert.ok(
-    !prompt.find((section) => section.name === 'dungsil:pwsh-additional-instructions').text.includes('Shared guidance.')
-  )
+  assert.equal(h.ctx.tools.get('pwsh').description, 'description은 한국어로 작성한다 {{literal}}')
+  assert.ok(!prompt.some((section) => section.text.includes('Shared guidance.')))
   assert.equal(h.requests.length, 0)
   pwsh = await getPwsh()
   assert.equal((await h.rpc('instructions', { ...pwsh, instructions: '   ' })).ok, true)
-  assert.equal((await getPwsh()).instructions, '')
+  assert.equal((await getPwsh()).instructions, 'Builtin pwsh description.')
+  assert.equal(h.ctx.tools.get('pwsh').description, 'Builtin pwsh description.')
   assert.ok(
     !(await sections()).some((section) => section.name === 'dungsil:pwsh-additional-instructions' && section.text)
   )
   const entry = h.ctx.configEditor.entries().find((entry) => entry.options.id === 'service')
+  assert.equal(entry.options.config.pwshToolDescription, undefined)
   assert.equal(entry.options.config.pwshInstructions, undefined)
+  assert.equal(entry.options.config.unrelated, 'keep')
+  pwsh = await getPwsh()
+  const edited = await h.rpc('instructions', { ...pwsh, instructions: 'Replacement.' })
+  assert.equal(edited.ok, true)
+  assert.equal((await h.rpc('instructions', { ...edited.value, instructions: pwsh.defaultInstructions })).ok, true)
+  assert.equal(h.ctx.tools.get('pwsh').description, pwsh.defaultInstructions)
 })
 
 await test('알려지지 않은 작업과 복수 entry를 등록하고 독립적으로 저장하며 실제 요청에 적용한다', async (t) => {

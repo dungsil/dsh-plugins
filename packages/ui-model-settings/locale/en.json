@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Models and instructions by task",
-    "description": "Configure task models, reasoning effort, and instructions, including additional pwsh instructions. Includes the settings API."
+    "description": "Configure task models, reasoning effort, and instructions, including the native pwsh tool description. Includes the settings API."
   }
 }

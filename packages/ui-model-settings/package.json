@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-settings",
   "version": "0.8.0",
-  "description": "Task model and instruction settings UI for DeepSeek Harness, including additional pwsh instructions.",
+  "description": "Task model and instruction settings UI for DeepSeek Harness, including the native pwsh tool description.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -75,9 +75,9 @@
       "zh": "任务模型与指令"
     },
     "description": {
-      "en": "Configure task models, reasoning effort, and instructions, including additional pwsh instructions. Includes the settings API.",
-      "ko": "작업별 모델·추론 수준·지침과 pwsh 추가 지침을 설정합니다. 설정 API를 함께 설치합니다.",
-      "zh": "设置各任务的模型、推理级别和指令，以及 pwsh 附加指令。同时安装设置 API。"
+      "en": "Configure task models, reasoning effort, and instructions, including the native pwsh tool description. Includes the settings API.",
+      "ko": "작업별 모델·추론 수준·지침과 pwsh 기본 도구 설명을 설정합니다. 설정 API를 함께 설치합니다.",
+      "zh": "设置各任务的模型、推理级别和指令，以及 pwsh 默认工具说明。同时安装设置 API。"
     },
     "category": "ui",
     "labels": [],

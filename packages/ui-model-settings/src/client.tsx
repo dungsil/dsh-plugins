@@ -30,9 +30,6 @@ const copy = {
   en: {
     nav: 'Models and instructions by task',
     taskSettings: 'Task-specific settings',
-    toolInstructions: 'Tool instructions',
-    additionalInstructions: 'Additional instructions',
-    additionalInstructionsHint: 'Add instructions for this tool. Clear and save to remove them.',
     model: 'Model',
     inherit: 'Use conversation model',
     useAuxiliary: 'Use auxiliary model',
@@ -63,9 +60,6 @@ const copy = {
   ko: {
     nav: '상황 별 모델 및 지침',
     taskSettings: '작업별 설정',
-    toolInstructions: '도구 지침',
-    additionalInstructions: '추가 지침',
-    additionalInstructionsHint: '이 도구에 적용할 지침을 추가합니다. 내용을 비우고 저장하면 추가 지침을 제거합니다.',
     model: '모델',
     inherit: '대화 모델 따르기',
     useAuxiliary: '보조 모델 따르기',
@@ -95,9 +89,6 @@ const copy = {
   zh: {
     nav: '任务模型与指令',
     taskSettings: '各任务设置',
-    toolInstructions: '工具指令',
-    additionalInstructions: '附加指令',
-    additionalInstructionsHint: '为此工具添加指令。清空并保存即可移除附加指令。',
     model: '模型',
     inherit: '使用对话模型',
     useAuxiliary: '使用辅助模型',
@@ -371,7 +362,6 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const task = target.id
         const auxiliary = target.id === view?.auxiliary?.id
         const instructionsOnly = target.kind === 'instructions'
-        const instructionsLabel = instructionsOnly ? text.additionalInstructions : text.instructions
         const title = target.label[language]
         const draft = drafts[task]
         const effort = effortDrafts[task]
@@ -403,14 +393,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                   : automaticHint
         return (
           <div key={task} className="dsh-model-settings-field" data-task={task} data-auxiliary={auxiliary}>
-            {!auxiliary &&
-              (instructionsOnly
-                ? snapshots[index - 1]?.kind !== 'instructions'
-                : index === (view?.auxiliary ? 1 : 0)) && (
-                <h3 className="dsh-model-settings-task-heading">
-                  {instructionsOnly ? text.toolInstructions : text.taskSettings}
-                </h3>
-              )}
+            {!auxiliary && index === (view?.auxiliary ? 1 : 0) && (
+              <h3 className="dsh-model-settings-task-heading">{text.taskSettings}</h3>
+            )}
             <SettingsRow
               label={
                 <>
@@ -491,19 +476,15 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               <form
                 id={`${fieldId}-instructions`}
                 className="dsh-model-settings-instructions"
-                aria-label={`${title} ${instructionsLabel}`}
+                aria-label={`${title} ${text.instructions}`}
                 onSubmit={(event) => {
                   event.preventDefault()
                   void save(task, draft, effort, instructionDrafts[task])
                 }}
               >
-                {instructionsOnly && (
-                  <div className="dsh-model-settings-description">{target.description[language]}</div>
-                )}
-                <label htmlFor={`${fieldId}-instructions-input`}>{instructionsLabel}</label>
+                <label htmlFor={`${fieldId}-instructions-input`}>{text.instructions}</label>
                 <div id={`${fieldId}-instructions-hint`} className="dsh-model-settings-description">
-                  {target.instructionsHint?.[language] ??
-                    (instructionsOnly ? text.additionalInstructionsHint : text.instructionsHint)}
+                  {target.instructionsHint?.[language] ?? text.instructionsHint}
                 </div>
                 <textarea
                   id={`${fieldId}-instructions-input`}

@@ -2,11 +2,11 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
-import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { ModelSettingsService, TaskDefinition, TaskSettings } from './contract.js'
 import { legacyRole, legacyTarget, readLegacySettings } from './compatibility.js'
 import { channel, endpointPrefix, type ModelSelection, type Route, type TaskSnapshot } from './protocol.js'
 import { createTitleAdapter } from './title-adapter.js'
+import { createPwshInstructionsAdapter } from './pwsh-adapter.js'
 
 export const name = 'dungsil-model-settings'
 export const inject = ['connection', 'configEditor', 'llm']
@@ -170,38 +170,46 @@ export async function apply(ctx: Context) {
     },
   }
   ctx.provide('dungsilModelSettings', service)
+  let pwshDefault: string | null = null
+  const pwshAdapter = createPwshInstructionsAdapter(ctx, () => {
+    const value = settingsEntry()?.options.config?.pwshToolDescription
+    return typeof value === 'string' && value.trim() ? value : null
+  })
   const pwshDefinition: TaskDefinition = {
     key: 'tool:pwsh',
     kind: 'instructions',
-    label: { en: 'PowerShell (pwsh)', ko: 'PowerShell (pwsh)', zh: 'PowerShell (pwsh)' },
+    label: { en: 'pwsh', ko: 'pwsh', zh: 'pwsh' },
     description: {
-      en: 'Additional guidance for the conversation model when calling pwsh. Does not select a separate model.',
-      ko: '대화 모델이 pwsh를 호출할 때 따를 추가 지침입니다. 별도 모델을 선택하지 않습니다.',
-      zh: '对话模型调用 pwsh 时使用的附加指令，不选择单独的模型。',
+      en: 'Edit the native pwsh tool description.',
+      ko: '기본 pwsh 도구 설명을 수정합니다.',
+      zh: '编辑原生 pwsh 工具说明。',
     },
     automaticReasoningLabel: { en: 'Not applicable', ko: '해당 없음', zh: '不适用' },
     instructionsHint: {
-      en: 'Added alongside the built-in tool rules from the next conversation request in this profile. For example: write description in the language of the current user request. Clear and save to remove. Existing call descriptions are unchanged.',
-      ko: '이 프로필의 다음 대화 요청부터 기본 도구 규칙과 함께 적용합니다. 예: description은 현재 사용자 요청의 언어로 작성한다. 비우고 저장하면 해제하며 기존 호출 설명은 바뀌지 않습니다.',
-      zh: '从此配置的下一次对话请求起，与内置工具规则一同生效。例如：使用当前用户请求的语言编写 description。清空并保存即可移除，已有调用说明保持不变。',
+      en: 'Replaces the default tool description from the next request. Clear and save to restore it. Parameter descriptions and execution permissions stay unchanged.',
+      ko: '다음 요청부터 기본 도구 설명을 대체합니다. 비우고 저장하면 기본값으로 복원합니다. 인자별 설명과 실행 권한은 유지합니다.',
+      zh: '从下次请求起替换默认工具说明。清空并保存可恢复默认值。参数说明和执行权限保持不变。',
     },
     read: (config) => ({
       selection: { mode: 'conversation' },
-      instructions: typeof config.pwshInstructions === 'string' ? config.pwshInstructions : null,
+      instructions: typeof config.pwshToolDescription === 'string' ? config.pwshToolDescription : null,
     }),
     write: (config, settings) => {
       const next = { ...config }
-      if (settings.instructions) next.pwshInstructions = settings.instructions
-      else delete next.pwshInstructions
+      // Supplemental text from older revisions must never become a replacement.
+      delete next.pwshInstructions
+      if (settings.instructions && settings.instructions !== pwshDefault)
+        next.pwshToolDescription = settings.instructions
+      else delete next.pwshToolDescription
       return next
     },
-    defaultInstructions: () => '',
+    defaultInstructions: () => pwshDefault ?? '',
   }
   // This task lives on the settings service itself; saving remounts that service.
   // Read it directly from the current entry, not the disposed registration map.
   const pwshSnapshot = (): TaskSnapshot | null => {
     const entry = settingsEntry()
-    if (!entry) return null
+    if (!entry || pwshDefault === null) return null
     const settings = pwshDefinition.read(entry.options.config ?? {})
     return {
       id: JSON.stringify([entry.options.id, pwshDefinition.key]),
@@ -213,22 +221,11 @@ export async function apply(ctx: Context) {
       automaticReasoningLabel: pwshDefinition.automaticReasoningLabel,
       instructionsHint: pwshDefinition.instructionsHint,
       selection: { mode: 'conversation' },
-      instructions: settings.instructions ?? '',
-      defaultInstructions: '',
-      revision: revision([entry.options.id, entry.options.config?.pwshInstructions ?? null]),
+      instructions: settings.instructions ?? pwshDefault,
+      defaultInstructions: pwshDefault,
+      revision: revision([entry.options.id, entry.options.config?.pwshToolDescription ?? null, pwshDefault]),
     }
   }
-  ctx.inject(['systemPrompt'], (child) => {
-    child.systemPrompt.section({
-      name: 'dungsil:pwsh-additional-instructions',
-      order: child.systemPrompt.getSectionOrder('TOOL_PWSH') + 0.5,
-      interpolate: false,
-      text: () => {
-        const instructions = pwshSnapshot()?.instructions
-        return instructions ? `Additional instructions when calling pwsh:\n${instructions}` : ''
-      },
-    })
-  })
   const titles = createTitleAdapter(ctx, settingsEntry, auxiliary)
   const snapshots = () => [...tasks.keys()].map(snapshot).filter((task): task is TaskSnapshot => task !== null)
   const legacyTasks = () => {
@@ -287,6 +284,7 @@ export async function apply(ctx: Context) {
   const handle = async (method: string, payload: unknown, signal: AbortSignal) => {
     const v2 = method.startsWith('v2/')
     const endpoint = v2 ? method.slice(3) : method
+    if (v2) pwshDefault = await pwshAdapter.defaultInstructions()
     if (endpoint === 'describe') {
       const models = await catalog(signal)
       if (!v2) {
