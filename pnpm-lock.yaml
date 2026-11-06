@@ -459,12 +459,6 @@ importers:
       '@dungsil/dsh-plugin-ui-usage':
         specifier: workspace:*
         version: link:../ui-usage
-      '@dungsil/dsh-plugin-ui-vcs':
-        specifier: workspace:*
-        version: link:../ui-vcs
-      '@dungsil/dsh-plugin-ui-worktree':
-        specifier: workspace:*
-        version: link:../ui-worktree
 
   packages/tool-diff-note:
     dependencies:

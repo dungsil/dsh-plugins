@@ -13,10 +13,6 @@
       name: '@dungsil/dsh-plugin-model-settings'
     - id: dungsil-ui-setting-skills
       name: '@dungsil/dsh-plugin-ui-setting-skills'
-    - id: dungsil-ui-worktree
-      name: '@dungsil/dsh-plugin-ui-worktree'
-    - id: dungsil-ui-vcs
-      name: '@dungsil/dsh-plugin-ui-vcs'
     - id: dungsil-ui-usage
       name: '@dungsil/dsh-plugin-ui-usage'
     - id: dungsil-ui-model-picker
