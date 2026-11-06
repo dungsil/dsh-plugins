@@ -63,12 +63,24 @@
     "title": {
       "en": "Korean UI",
       "ko": "한국어 UI",
-      "zh": "韩语界面"
+      "zh": "韩语界面",
+      "ja": "韓国語 UI",
+      "es": "Interfaz en coreano",
+      "fr": "Interface en coréen",
+      "de": "Koreanische Benutzeroberfläche",
+      "ru": "Корейский интерфейс",
+      "pt": "Interface em coreano"
     },
     "description": {
       "en": "Korean interface strings for DeepSeek Harness, including the plugin pages and the Korean IME and writing skills.",
       "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다.",
-      "zh": "为 DeepSeek Harness 提供韩语界面，包含插件管理页面翻译、韩语输入法和写作技能。"
+      "zh": "为 DeepSeek Harness 提供韩语界面，包含插件管理页面翻译、韩语输入法和写作技能。",
+      "ja": "DeepSeek Harness の韓国語インターフェースを提供します。プラグインページの翻訳、韓国語 IME、文章作成スキルを含みます。",
+      "es": "Interfaz en coreano para DeepSeek Harness, con traducciones de las páginas de complementos, el IME coreano y habilidades de escritura.",
+      "fr": "Interface en coréen pour DeepSeek Harness, avec les pages de plugins traduites, l’IME coréen et des compétences de rédaction.",
+      "de": "Koreanische Oberflächentexte für DeepSeek Harness, einschließlich Plugin-Seiten, koreanischer IME und Schreib-Skills.",
+      "ru": "Корейский интерфейс для DeepSeek Harness, включая страницы плагинов, корейский IME и навыки работы с текстом.",
+      "pt": "Interface em coreano para o DeepSeek Harness, incluindo as páginas de plugins, o IME coreano e habilidades de escrita."
     },
     "category": "ui",
     "labels": [

@@ -80,12 +80,24 @@
     "title": {
       "en": "Model Picker",
       "ko": "모델 피커",
-      "zh": "模型选择器"
+      "zh": "模型选择器",
+      "ja": "モデル選択",
+      "es": "Selector de modelos",
+      "fr": "Sélecteur de modèles",
+      "de": "Modellauswahl",
+      "ru": "Выбор модели",
+      "pt": "Seletor de modelos"
     },
     "description": {
       "en": "A compact composer picker with model menus and a reasoning effort slider.",
       "ko": "입력창에서 모델 메뉴와 추론 강도 슬라이더를 사용합니다.",
-      "zh": "在输入框中使用模型菜单和推理强度滑块。"
+      "zh": "在输入框中使用模型菜单和推理强度滑块。",
+      "ja": "入力欄でモデルメニューと推論強度スライダーを使えるコンパクトな選択ツールです。",
+      "es": "Un selector compacto en el cuadro de entrada con menús de modelos y un control deslizante de esfuerzo de razonamiento.",
+      "fr": "Un sélecteur compact dans la zone de saisie avec des menus de modèles et un curseur d’effort de raisonnement.",
+      "de": "Eine kompakte Auswahl im Eingabefeld mit Modellmenüs und einem Schieberegler für den Denkaufwand.",
+      "ru": "Компактный инструмент в поле ввода с меню моделей и ползунком глубины рассуждений.",
+      "pt": "Um seletor compacto no campo de entrada com menus de modelos e um controle deslizante de esforço de raciocínio."
     },
     "category": "ui",
     "labels": [],

@@ -42,12 +42,24 @@
     "title": {
       "en": "Tools Preset",
       "ko": "도구 프리셋",
-      "zh": "工具预设"
+      "zh": "工具预设",
+      "ja": "ツールプリセット",
+      "es": "Preajuste de herramientas",
+      "fr": "Préréglage d’outils",
+      "de": "Werkzeug-Voreinstellung",
+      "ru": "Набор инструментов",
+      "pt": "Predefinição de ferramentas"
     },
     "description": {
       "en": "Install Agent Browser, Diff Notes, and Secret input together.",
       "ko": "에이전트 브라우저, 변경 설명, 비밀값 입력 도구를 함께 설치합니다.",
-      "zh": "一起安装智能体浏览器、变更说明和私密凭据输入工具。"
+      "zh": "一起安装智能体浏览器、变更说明和私密凭据输入工具。",
+      "ja": "Agent Browser、Diff Notes、Secret input をまとめてインストールします。",
+      "es": "Instala Agent Browser, Diff Notes y Secret input juntos.",
+      "fr": "Installez Agent Browser, Diff Notes et Secret input ensemble.",
+      "de": "Installiere Agent Browser, Diff Notes und Secret input zusammen.",
+      "ru": "Установите Agent Browser, Diff Notes и Secret input вместе.",
+      "pt": "Instale Agent Browser, Diff Notes e Secret input juntos."
     },
     "category": "tools",
     "labels": [],

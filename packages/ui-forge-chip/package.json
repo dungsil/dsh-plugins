@@ -75,12 +75,24 @@
     "title": {
       "en": "Forge Chips",
       "ko": "Forge 칩",
-      "zh": "Forge 操作按钮"
+      "zh": "Forge 操作按钮",
+      "ja": "Forge チップ",
+      "es": "Chips de Forge",
+      "fr": "Pastilles Forge",
+      "de": "Forge-Chips",
+      "ru": "Кнопки Forge",
+      "pt": "Chips do Forge"
     },
     "description": {
       "en": "Commit, push and create or view PRs from compact composer chips using Forge.",
       "ko": "Forge와 연결된 입력창 칩으로 커밋·푸시·PR 생성과 조회를 실행합니다.",
-      "zh": "通过连接 Forge 的紧凑输入框按钮提交、推送、创建或查看 PR。"
+      "zh": "通过连接 Forge 的紧凑输入框按钮提交、推送、创建或查看 PR。",
+      "ja": "Forge と連携した入力欄のコンパクトなチップから、コミット、プッシュ、PR の作成や表示を行います。",
+      "es": "Haz commit, push y crea o consulta PR desde chips compactos en el cuadro de entrada con Forge.",
+      "fr": "Effectuez des commits et des push, créez ou consultez des PR depuis des pastilles compactes dans la zone de saisie avec Forge.",
+      "de": "Committen, pushen und PRs erstellen oder anzeigen – über kompakte Chips im Eingabefeld mit Forge.",
+      "ru": "Делайте коммиты, отправляйте изменения, создавайте и просматривайте PR с помощью компактных кнопок Forge в поле ввода.",
+      "pt": "Faça commit, push e crie ou veja PRs em chips compactos no campo de mensagem com o Forge."
     },
     "category": "ui",
     "keywords": [

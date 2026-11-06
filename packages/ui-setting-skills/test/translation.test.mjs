@@ -282,6 +282,12 @@ await test('전체 번역 버튼은 탭 옆에 있고 안내 문구 없이 모�
     ['en', 'Skills (2 loaded)Enabled'],
     ['zh', '技能 （已加载 2 个）是否启用'],
     ['ko', '스킬 (2개 로드됨)사용 여부'],
+    ['ja-JP', 'スキル （2 件読み込み済み）有効'],
+    ['es-MX', 'Habilidades (2 cargadas)Habilitada'],
+    ['fr-CA', 'Compétences (2 chargées)Activée'],
+    ['de-DE', 'Skills (2 geladen)Aktiviert'],
+    ['ru-RU', 'Навыки (загружено: 2)Включён'],
+    ['pt-BR', 'Habilidades (2 carregadas)Ativada'],
   ]) {
     await ui.language(language)
     assert.equal(ui.doc.querySelector('.dsh-skills-list-header').textContent, header)

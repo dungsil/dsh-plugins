@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Caixa de entrada lateral",
+    "description": "Adiciona a ordenação por atividade do agente às opções de visualização nativas. Quando selecionada na lista única, as sessões são ordenadas por caixa de entrada, em andamento e arquivadas; as sessões arquivadas no DSH são recolhidas no fim da visualização de todas as conversas."
+  },
+  "ui": {
+    "heading.working": "Em andamento",
+    "heading.archived": "Arquivadas",
+    "sort.agentActivity": "Atividade do agente"
+  }
+}

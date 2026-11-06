@@ -56,18 +56,23 @@ await test('현재 브랜치와 일치하는 열린 PR만 선택하고 관련 �
   assert.equal(requestForCheckout(panel({ checkout: { state: 'loading' }, changeRequests: [matching] })), undefined)
 })
 
-await test('영어와 한국어와 중국어 로케일은 같은 키와 비어 있지 않은 번역을 제공한다', async () => {
+await test('모든 지원 로케일은 같은 키와 비어 있지 않은 번역 및 시장 메타데이터를 제공한다', async () => {
+  const languages = ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   const locales = await Promise.all(
-    ['en', 'ko', 'zh'].map(async (language) =>
+    languages.map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     )
   )
   const keys = Object.keys(locales[0]).sort()
-  for (const locale of locales) {
+  for (const [index, locale] of locales.entries()) {
+    const { meta, ...text } = locale
+    assert.equal(meta.title, manifest.market.title[languages[index]])
+    assert.equal(meta.description, manifest.market.description[languages[index]])
     assert.deepEqual(Object.keys(locale).sort(), keys)
     assert.equal(locale.panel, locale.viewPr)
-    assert.ok(Object.values(locale).every((value) => !/forge|포지/iu.test(value)))
-    for (const [key, value] of Object.entries(locale)) {
+    assert.ok(Object.values(text).every((value) => !/forge|포지/iu.test(value)))
+    for (const [key, value] of Object.entries(text)) {
       assert.equal(typeof value, 'string', key)
       assert.ok(value.trim().length > 0, key)
     }

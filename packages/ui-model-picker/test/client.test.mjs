@@ -327,6 +327,14 @@ for (const [language, tooltip, label] of [
   ['ko', '추론 수준 설정', '모델 피커 열기'],
   ['en', 'Configure reasoning effort', 'Open model picker'],
   ['zh', '设置推理级别', '打开模型选择器'],
+  ['ja-JP', '推論強度を設定', 'モデル選択を開く'],
+  ['es-MX', 'Configurar esfuerzo de razonamiento', 'Abrir selector de modelos'],
+  ['fr-CA', 'Configurer l’effort de raisonnement', 'Ouvrir le sélecteur de modèles'],
+  ['de-DE', 'Denkaufwand einstellen', 'Modellauswahl öffnen'],
+  ['ru-RU', 'Настроить глубину рассуждений', 'Открыть выбор модели'],
+  ['pt-BR', 'Configurar esforço de raciocínio', 'Abrir seletor de modelos'],
+  ['JA_jp', '推論強度を設定', 'モデル選択を開く'],
+  ['unknown', 'Configure reasoning effort', 'Open model picker'],
 ]) {
   await test(`${language} 로케일에서 추론 수준 툴팁과 단축키 이름을 제공한다`, async (t) => {
     const h = await mount(t, { language })

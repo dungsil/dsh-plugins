@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Chips do Forge",
+    "description": "Faça commit, push e crie ou veja PRs em chips compactos no campo de mensagem com o Forge."
+  },
+  "commit": "Apenas commit",
+  "push": "Push",
+  "pr": "Criar PR",
+  "updatePr": "Atualizar PR",
+  "viewPr": "Ver PR",
+  "menu": "Mais ações do Git",
+  "panel": "Ver PR",
+  "hint": "Pedir a esta sessão para executar a ação do Git",
+  "sending": "Enviando solicitação…",
+  "error": "Não foi possível enviar a solicitação. Verifique a sessão antes de tentar novamente.",
+  "lookupError": "O status do Git não está disponível. Selecione Ver PR para verificar.",
+  "checks": "Verificações",
+  "none": "Sem verificações",
+  "pending": "Pendente",
+  "success": "Aprovado",
+  "failure": "Falhou",
+  "unknown": "Desconhecido",
+  "promptCommit": "Revise as alterações do checkout atual e faça commit das alterações apropriadas com uma mensagem descritiva, seguindo as instruções do repositório. Não faça push nem crie um PR. Não faça amend nem reset, não descarte alterações nem inclua segredos. Pergunte se o escopo pretendido não estiver claro.",
+  "promptPush": "Revise as alterações do checkout atual, faça commit das alterações apropriadas seguindo as instruções do repositório e faça push da branch atual para o remoto configurado. Não faça push forçado nem crie um PR. Não faça amend nem reset, não descarte alterações nem inclua segredos. Pergunte se o escopo pretendido ou o remoto não estiverem claros.",
+  "promptPr": "Revise as alterações do checkout atual, faça commit das alterações apropriadas seguindo as instruções do repositório, faça push da branch atual e crie um PR (ou atualize o PR existente para esta branch). Siga o modelo de PR do repositório. Não faça push forçado, amend nem reset, não descarte alterações nem inclua segredos. Pergunte se o escopo pretendido ou a branch de destino não estiverem claros."
+}

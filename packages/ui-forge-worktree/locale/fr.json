@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "title": "Sélecteur d’arbres de travail",
+    "description": "Choisissez la branche actuelle ou un nouvel arbre de travail Git depuis la zone de saisie."
+  },
+  "ui": {
+    "title": "Arbre de travail",
+    "create": "Nouvel arbre de travail",
+    "current": "Branche actuelle",
+    "detached": "HEAD détachée",
+    "loading": "Chargement de l’arbre de travail…",
+    "saving": "Enregistrement de la sélection…",
+    "reserved": "Un nouvel arbre de travail sera créé à l’envoi de votre premier message.",
+    "locked": "La sélection de l’arbre de travail ne peut plus être modifiée une fois cette session démarrée.",
+    "error": "Impossible de confirmer la sélection de l’arbre de travail. Actualisez avant de réessayer.",
+    "refresh": "Actualiser la sélection",
+    "blocked": "Aucun nouvel arbre de travail n’est disponible pour cette copie de travail."
+  }
+}

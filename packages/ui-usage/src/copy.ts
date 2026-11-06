@@ -1,4 +1,17 @@
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
+
 export const copy = {
+  ja: ja.ui,
+  es: es.ui,
+  fr: fr.ui,
+  de: de.ui,
+  ru: ru.ui,
+  pt: pt.ui,
   en: {
     nav: 'Usage',
     period: 'Period',
@@ -145,5 +158,7 @@ export const copy = {
   },
 }
 
-export const localizedCopy = (language: string) =>
-  copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
+export const localizedCopy = (language: string) => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en']
+}

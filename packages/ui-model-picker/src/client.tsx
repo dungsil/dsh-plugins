@@ -21,11 +21,23 @@ import {
 } from '@dungsil/dsh-ui/icons'
 import { MenuSurface, Tooltip, focusWithoutRing, useDismissOnOutsidePointer } from '@dungsil/dsh-ui'
 import { styles } from './styles.js'
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 
 export const name = 'dungsil-ui-model-picker'
 export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.session', 'modelDirectories', 'shortcuts']
 
 const copy = {
+  ja: ja.ui,
+  es: es.ui,
+  fr: fr.ui,
+  de: de.ui,
+  ru: ru.ui,
+  pt: pt.ui,
   ko: {
     model: '모델 선택',
     effort: '추론 강도',
@@ -76,6 +88,11 @@ const copy = {
   },
 }
 
+const localizedCopy = (language: string) => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en']
+}
+
 export function apply(ctx: Context) {
   const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
   const pickers = new Map<HTMLDivElement, { disabled: boolean; open: () => void }>()
@@ -84,7 +101,7 @@ export function apply(ctx: Context) {
   ctx.effect(() => {
     const label = () => {
       const locale = ctx.locale.getSnapshot().active
-      return copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en'].openPicker
+      return localizedCopy(locale).openPicker
     }
     const resolve = () => {
       const visible = [...pickers].filter(([element]) => element.isConnected && element.getClientRects().length > 0)
@@ -158,7 +175,7 @@ export function apply(ctx: Context) {
       (entry) => entry.id === commandId
     )?.keys
     const { active: locale } = useLocaleSnapshot(ctx.locale)
-    const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
+    const text = localizedCopy(locale)
     const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
     // A model chosen from the list while its reasoning effort is still unset.
     // It is staged only inside the popover; the selection changes when the

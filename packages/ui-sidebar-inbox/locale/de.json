@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Seitenleisten-Posteingang",
+    "description": "Ergänzt die nativen Ansichtsoptionen um die Sortierung nach Agentenaktivität. In der Einzelliste werden Sitzungen damit nach Posteingang, in Arbeit und archiviert geordnet; in DSH archivierte Sitzungen werden unten in der Ansicht aller Gespräche eingeklappt."
+  },
+  "ui": {
+    "heading.working": "In Arbeit",
+    "heading.archived": "Archiviert",
+    "sort.agentActivity": "Agentenaktivität"
+  }
+}

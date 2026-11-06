@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "title": "Modelle und Anweisungen nach Aufgabe",
+    "description": "Konfigurieren Sie Aufgabenmodelle, Denkaufwand und Anweisungen einschließlich der Beschreibung des nativen pwsh-Werkzeugs. Enthält die Einstellungs-API."
+  },
+  "ui": {
+    "nav": "Modelle und Anweisungen nach Aufgabe",
+    "taskSettings": "Aufgabenspezifische Einstellungen",
+    "model": "Modell",
+    "inherit": "Gesprächsmodell verwenden",
+    "useAuxiliary": "Hilfsmodell verwenden",
+    "auxiliaryHint": "Verwendet das Hilfsmodell und dessen Denkaufwand. Falls nicht festgelegt, wird das Gesprächsmodell verwendet.",
+    "instructions": "Anweisungen",
+    "editInstructions": "Anweisungen bearbeiten",
+    "instructionsHint": "Bearbeiten Sie den Standard-Prompt für diese Aufgabe. Leeren und speichern Sie ihn, um den Standard wiederherzustellen.",
+    "save": "Speichern",
+    "effort": "Denkaufwand",
+    "automatic": "Automatisch",
+    "effortHint": "Wählen Sie ein Modell, um dessen Denkaufwand festzulegen. Automatisch behält das bestehende Verhalten bei.",
+    "noEfforts": "Dieses Modell bietet keine Einstellungen für den Denkaufwand.",
+    "missingEffort": "Gespeicherter Denkaufwand (derzeit nicht verfügbar)",
+    "saving": "Wird gespeichert…",
+    "loading": "Modelle werden geladen…",
+    "resyncing": "Gespeicherte Einstellungen werden geprüft…",
+    "loadError": "Die Einstellungen konnten nicht geladen werden. Schließen und öffnen Sie diesen Bereich erneut, um es noch einmal zu versuchen.",
+    "resyncError": "Die gespeicherten Einstellungen konnten nicht geprüft werden. Änderungen sind deaktiviert. Schließen und öffnen Sie diesen Bereich erneut, um es noch einmal zu versuchen.",
+    "unavailable": "Keine Aufgaben registriert. Aktivieren Sie ein Plugin, das Aufgaben für Modelleinstellungen registriert.",
+    "catalog": "Einige Modelllisten konnten nicht geladen werden. Sie können weiterhin das Gesprächsmodell verwenden.",
+    "missing": "Gespeichertes Modell (nicht im aktuellen Katalog)",
+    "error": "Die Änderung konnte nicht bestätigt werden. Sie wird nicht automatisch erneut versucht.",
+    "conflict": "Die Einstellungen wurden an anderer Stelle geändert. Ihre Änderung wird nicht automatisch erneut versucht.",
+    "model_unavailable": "Dieses Modell ist nicht verfügbar. Wählen Sie nach der Einstellungsprüfung ein verfügbares Modell.",
+    "reasoning_unavailable": "Dieser Denkaufwand ist nicht verfügbar. Wählen Sie einen unterstützten Wert oder Automatisch."
+  }
+}

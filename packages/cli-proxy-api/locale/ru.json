@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "CLIProxyAPI",
+    "description": "Подключайте модели CLIProxyAPI и управляйте аккаунтами OAuth и маршрутизацией. Требуется CLIProxyAPI v8."
+  }
+}

@@ -15,12 +15,22 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
 
-const localizedCopy = (language: string) => (language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en).ui
+const copy = { en, ko, zh, ja, es, fr, de, ru, pt }
+const localizedCopy = (language: string) => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'].ui
+}
 
 const styles = `
 .dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
@@ -428,11 +438,15 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
 
 export function apply(ctx: Context) {
   ctx.effect(() =>
-    installSettingsIcon(name, [en.ui.nav, ko.ui.nav, zh.ui.nav], (container) => {
-      const root = createRoot(container)
-      root.render(<IconSkillOutlineRegular size={16} />)
-      return () => root.unmount()
-    })
+    installSettingsIcon(
+      name,
+      Object.values(copy).map(({ ui }) => ui.nav),
+      (container) => {
+        const root = createRoot(container)
+        root.render(<IconSkillOutlineRegular size={16} />)
+        return () => root.unmount()
+      }
+    )
   )
   ctx.effect(() => {
     const style = document.createElement('style')

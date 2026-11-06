@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "title": "Saisie privée de secrets",
+    "description": "Demande des identifiants via un formulaire privé et ne renvoie que leur référence à l’agent."
+  },
+  "ui": {
+    "title": "Saisie privée de secrets",
+    "value": "Valeur secrète",
+    "privacy": "Votre secret n’est pas montré à l’agent.",
+    "target": "Référence de stockage des identifiants",
+    "context": "Description fournie par l’agent",
+    "replace": "L’enregistrement remplace les identifiants existants à cette référence :",
+    "save": "Enregistrer les identifiants",
+    "saving": "Enregistrement…",
+    "decline": "Refuser",
+    "error": "Impossible de confirmer l’enregistrement. La valeur a été effacée. Vérifiez la connexion et le stockage des identifiants avant de réessayer.",
+    "waiting": "En attente de la saisie privée…",
+    "closed": "La saisie n’est plus disponible.",
+    "saved": "Identifiants enregistrés",
+    "declined": "Demande refusée",
+    "cancelled": "Demande annulée",
+    "timed_out": "Demande expirée",
+    "unavailable": "Saisie privée indisponible"
+  }
+}

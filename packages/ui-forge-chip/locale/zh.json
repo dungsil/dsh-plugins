@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Forge 操作按钮",
+    "description": "通过连接 Forge 的紧凑输入框按钮提交、推送、创建或查看 PR。"
+  },
   "commit": "仅提交",
   "push": "推送",
   "pr": "创建 PR",

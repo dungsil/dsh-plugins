@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "title": "Configuración de habilidades",
+    "description": "Consulta en la configuración las habilidades cargadas desde los directorios de habilidades compartidas de agentes y de DSH."
+  },
+  "ui": {
+    "nav": "Habilidades",
+    "description": "Esta configuración solo se aplica a DSH.",
+    "agents": "Habilidades compartidas",
+    "dsh": "Habilidades de DSH",
+    "loading": "Cargando habilidades…",
+    "empty": "No hay habilidades cargadas desde esta fuente.",
+    "search": "Buscar habilidades",
+    "searchPlaceholder": "Buscar por nombre, descripción o ruta",
+    "noResults": "Ninguna habilidad coincide con tu búsqueda.",
+    "loadedCount": "({total} cargadas)",
+    "filteredCount": "({total} cargadas · {count} coincidentes)",
+    "error": "No se pudieron cargar las habilidades. Cierra y vuelve a abrir esta sección de configuración para intentarlo de nuevo.",
+    "incomplete": "No se pudieron cargar algunas fuentes de habilidades. La lista podría estar incompleta.",
+    "use": "Habilitada",
+    "disabled": "Desactivada",
+    "openFolder": "Abrir carpeta",
+    "openingFolder": "Abriendo carpeta…",
+    "openFolderHint": "Abre la carpeta de esta habilidad en el gestor de archivos del equipo anfitrión de DSH.",
+    "openFolderUnavailable": "Para abrir carpetas se necesita un escritorio en el equipo anfitrión de DSH.",
+    "openFolderError": "No se pudo abrir la carpeta de la habilidad. Comprueba el gestor de archivos del equipo anfitrión de DSH y vuelve a intentarlo.",
+    "translate": "Ver traducción",
+    "original": "Ver original",
+    "retry": "Reintentar",
+    "translating": "Traduciendo…",
+    "translateAll": "Traducir todas las habilidades",
+    "translatingAll": "Traduciendo todas las habilidades…",
+    "translationAllError": "No se pudieron traducir algunas descripciones de habilidades. Vuelve a intentarlo para traducir solo las que fallaron.",
+    "translationError": "No se pudo traducir. Se muestra el original. Los servicios de pago requieren una Session y no están disponibles aquí.",
+    "saveError": "No se pudo guardar la configuración. Cierra y vuelve a abrir esta sección para comprobar el estado guardado antes de reintentarlo."
+  }
+}

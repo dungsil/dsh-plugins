@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "API de modelos e instrucciones por tarea",
+    "description": "Configura modelos, instrucciones y la descripción de la herramienta nativa pwsh mediante una API exclusiva del propietario, sin interfaz de ajustes."
+  }
+}

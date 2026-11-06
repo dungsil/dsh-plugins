@@ -318,8 +318,8 @@ await test('공유 날짜 검증은 실제 날짜와 순서 및 양 끝을 포�
   }
 })
 
-await test('모든 대시보드 문자열을 영어, 한국어, 중국어로 사용할 수 있다', () => {
-  for (const language of ['ko', 'zh']) {
+await test('모든 대시보드 문자열을 지원하는 아홉 언어로 사용할 수 있다', () => {
+  for (const language of ['ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
     assert.deepEqual(Object.keys(copy[language]).sort(), Object.keys(copy.en).sort())
     for (const value of Object.values(copy[language])) assert.ok(value.trim())
   }

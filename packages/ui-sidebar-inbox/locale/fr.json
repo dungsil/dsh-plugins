@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Boîte de réception latérale",
+    "description": "Ajoute le tri par activité de l’agent aux options d’affichage natives. Lorsqu’il est sélectionné dans la liste unique, les sessions sont classées en réception, en cours et archivées ; les sessions archivées dans DSH sont repliées en bas de la vue de toutes les conversations."
+  },
+  "ui": {
+    "heading.working": "En cours",
+    "heading.archived": "Archivées",
+    "sort.agentActivity": "Activité de l’agent"
+  }
+}

@@ -51,12 +51,24 @@
     "title": {
       "en": "Korean IME",
       "ko": "한국어 IME",
-      "zh": "韩语输入法"
+      "zh": "韩语输入法",
+      "ja": "韓国語 IME",
+      "es": "IME coreano",
+      "fr": "IME coréen",
+      "de": "Koreanische IME",
+      "ru": "Корейский IME",
+      "pt": "IME coreano"
     },
     "description": {
       "en": "Sends the message when Enter commits a Korean IME composition, without changing other key behavior.",
       "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다.",
-      "zh": "按 Enter 确认韩语输入法组字时发送消息，不改变其他按键行为。"
+      "zh": "按 Enter 确认韩语输入法组字时发送消息，不改变其他按键行为。",
+      "ja": "Enter キーで韓国語 IME の変換を確定するとメッセージを送信し、他のキー操作は変更しません。",
+      "es": "Envía el mensaje cuando Enter confirma una composición del IME coreano, sin cambiar el comportamiento de otras teclas.",
+      "fr": "Envoie le message lorsque Enter valide une composition de l’IME coréen, sans modifier le comportement des autres touches.",
+      "de": "Sendet die Nachricht, wenn Enter eine koreanische IME-Eingabe bestätigt, ohne das Verhalten anderer Tasten zu ändern.",
+      "ru": "Отправляет сообщение, когда Enter подтверждает ввод корейского IME, не меняя поведение других клавиш.",
+      "pt": "Envia a mensagem quando Enter confirma uma composição do IME coreano, sem alterar o comportamento de outras teclas."
     },
     "category": "ui",
     "labels": [
