@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import claude from './icons/brands/simple-icons/claude.svg'
 import gemini from './icons/brands/simple-icons/googlegemini.svg'
@@ -79,39 +80,39 @@ export function ProviderIcon({
   const normalized = provider.trim().toLowerCase().replace(/_/g, '-')
   const name = Object.hasOwn(aliases, normalized) ? aliases[normalized] : undefined
   const asset = name ? sources[name] : undefined
-  return (
-    <span
-      className={className}
-      data-provider-brand={name ?? 'generic'}
-      data-provider-source={asset?.source ?? 'generic'}
-      aria-hidden="true"
-      style={{
+  // The icons entry point is also consumed by TypeScript-only plugins. Keep
+  // this component JSX-free rather than imposing a jsx option on every caller.
+  return createElement(
+    'span',
+    {
+      className,
+      'data-provider-brand': name ?? 'generic',
+      'data-provider-source': asset?.source ?? 'generic',
+      'aria-hidden': true,
+      style: {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
         width: size,
         height: size,
-      }}
-    >
-      {!asset ? (
-        <IconDataOutlineRegular size={size} aria-hidden="true" />
-      ) : asset.monochrome ? (
-        <span
-          style={{
-            width: '100%',
-            height: '100%',
-            background: 'currentColor',
-            maskImage: `url("${asset.uri}")`,
-            WebkitMaskImage: `url("${asset.uri}")`,
-            maskSize: 'contain',
-            maskPosition: 'center',
-            maskRepeat: 'no-repeat',
-          }}
-        />
-      ) : (
-        <img src={asset.uri} alt="" width={size} height={size} draggable={false} />
-      )}
-    </span>
+      },
+    },
+    !asset
+      ? createElement(IconDataOutlineRegular, { size })
+      : asset.monochrome
+        ? createElement('span', {
+            style: {
+              width: '100%',
+              height: '100%',
+              background: 'currentColor',
+              maskImage: `url("${asset.uri}")`,
+              WebkitMaskImage: `url("${asset.uri}")`,
+              maskSize: 'contain',
+              maskPosition: 'center',
+              maskRepeat: 'no-repeat',
+            },
+          })
+        : createElement('img', { src: asset.uri, alt: '', width: size, height: size, draggable: false })
   )
 }
