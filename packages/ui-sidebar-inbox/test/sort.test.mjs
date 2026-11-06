@@ -94,7 +94,7 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
   }
 }
 
-void test('정렬 이름은 여섯 추가 언어의 지역 식별자와 실시간 언어 변경을 지원한다', () => {
+await test('정렬 이름은 여섯 추가 언어의 지역 식별자와 실시간 언어 변경을 지원한다', () => {
   const app = harness()
   app.mount()
   for (const [language, expected] of [
@@ -113,7 +113,7 @@ void test('정렬 이름은 여섯 추가 언어의 지역 식별자와 실시�
   assert.equal(app.label('zh-CN'), 'sort.agentActivity', 'existing host dictionary fallback is preserved')
 })
 
-void test('신규 설치는 기존 그룹과 관계없이 에이전트 활동을 기본 선택한다', () => {
+await test('신규 설치는 기존 그룹과 관계없이 에이전트 활동을 기본 선택한다', () => {
   const app = harness()
   app.mount()
   assert.equal(app.snapshot().orderBy, 'agent-activity')
@@ -122,7 +122,7 @@ void test('신규 설치는 기존 그룹과 관계없이 에이전트 활동을
   assert.equal(app.storage.get(selectedKey), 'agent-activity')
 })
 
-void test('업데이트 정리 시 기본 정렬로 돌려도 재마운트는 에이전트 활동을 복원한다', () => {
+await test('업데이트 정리 시 기본 정렬로 돌려도 재마운트는 에이전트 활동을 복원한다', () => {
   const app = harness()
   const dispose = app.mount()
   dispose()
@@ -132,7 +132,7 @@ void test('업데이트 정리 시 기본 정렬로 돌려도 재마운트는 �
   assert.equal(app.snapshot().orderBy, 'agent-activity')
 })
 
-void test('페이지 재시작으로 호스트가 정렬값을 정규화해도 저장한 에이전트 활동을 복원한다', () => {
+await test('페이지 재시작으로 호스트가 정렬값을 정규화해도 저장한 에이전트 활동을 복원한다', () => {
   const app = harness({
     saved: [
       [previousKey, 'updated'],
@@ -145,7 +145,7 @@ void test('페이지 재시작으로 호스트가 정렬값을 정규화해도 �
 })
 
 for (const mode of ['manual', 'updated']) {
-  void test(`사용자가 직접 선택한 ${mode} 정렬은 업데이트 후에도 유지한다`, () => {
+  await test(`사용자가 직접 선택한 ${mode} 정렬은 업데이트 후에도 유지한다`, () => {
     const app = harness()
     app.mount()
     app.set({ orderBy: mode })
@@ -156,7 +156,7 @@ for (const mode of ['manual', 'updated']) {
   })
 }
 
-void test('에이전트 활동을 다시 누르면 이전 기본 정렬을 선택하고 재마운트에도 유지한다', () => {
+await test('에이전트 활동을 다시 누르면 이전 기본 정렬을 선택하고 재마운트에도 유지한다', () => {
   const app = harness()
   const dispose = app.mount()
   app.toggle()
@@ -166,7 +166,7 @@ void test('에이전트 활동을 다시 누르면 이전 기본 정렬을 선�
   assert.equal(app.snapshot().orderBy, 'updated')
 })
 
-void test('그룹 보기를 바꾸면 기본 정렬로 전환하고 재마운트에서 강제로 되돌리지 않는다', () => {
+await test('그룹 보기를 바꾸면 기본 정렬로 전환하고 재마운트에서 강제로 되돌리지 않는다', () => {
   const app = harness()
   const dispose = app.mount()
   app.set({ groupBy: 'workspace' })
@@ -177,7 +177,7 @@ void test('그룹 보기를 바꾸면 기본 정렬로 전환하고 재마운트
   assert.equal(app.snapshot().orderBy, 'updated')
 })
 
-void test('세션과 에이전트 상태가 갱신되어도 선택한 에이전트 활동을 유지한다', () => {
+await test('세션과 에이전트 상태가 갱신되어도 선택한 에이전트 활동을 유지한다', () => {
   const app = harness()
   app.mount()
   app.refresh()
@@ -185,20 +185,20 @@ void test('세션과 에이전트 상태가 갱신되어도 선택한 에이전�
   assert.equal(app.snapshot().orderBy, 'agent-activity')
 })
 
-void test('이전 버전에서 기본 정렬을 선택한 사용자는 새 저장 키로 이관한다', () => {
+await test('이전 버전에서 기본 정렬을 선택한 사용자는 새 저장 키로 이관한다', () => {
   const app = harness({ saved: [[previousKey, 'manual']] })
   app.mount()
   assert.equal(app.snapshot().orderBy, 'updated')
   assert.equal(app.storage.get(selectedKey), 'updated')
 })
 
-void test('이전 버전에서 활성화된 에이전트 활동은 새 저장 키로 이관한다', () => {
+await test('이전 버전에서 활성화된 에이전트 활동은 새 저장 키로 이관한다', () => {
   const app = harness({ saved: [[previousKey, 'manual']], orderBy: 'agent-activity', groupBy: 'flat' })
   app.mount()
   assert.equal(app.storage.get(selectedKey), 'agent-activity')
 })
 
-void test('저장소 접근이 거부되어도 기본 선택과 정리 코드가 동작한다', () => {
+await test('저장소 접근이 거부되어도 기본 선택과 정리 코드가 동작한다', () => {
   const app = harness({ denied: true })
   const dispose = app.mount()
   assert.equal(app.snapshot().orderBy, 'agent-activity')

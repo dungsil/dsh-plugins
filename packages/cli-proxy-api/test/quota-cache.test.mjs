@@ -4,7 +4,7 @@ import test from 'node:test'
 import { loadQuotaSnapshot, QuotaCache, quotaKey, subscribeQuotaGeneration } from '../src/quota-cache.ts'
 import { copy, localizedCopy } from '../src/copy.ts'
 
-void test('자동 로딩과 캐시 문구에 지원하는 모든 로케일이 갖춰져 있다', () => {
+await test('자동 로딩과 캐시 문구에 지원하는 모든 로케일이 갖춰져 있다', () => {
   const keys = Object.keys(copy.en).sort()
   for (const language of ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
     assert.deepEqual(Object.keys(copy[language]).sort(), keys)
@@ -62,7 +62,7 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-void test('캐시는 같은 연결을 읽고 스냅샷을 교체하며 명시적으로 비운다', () => {
+await test('캐시는 같은 연결을 읽고 스냅샷을 교체하며 명시적으로 비운다', () => {
   const cache = new QuotaCache()
   assert.equal(cache.connection, undefined)
   assert.equal(cache.read(connection), undefined)
@@ -83,7 +83,7 @@ for (const [field, value] of [
   ['revision', 'revision-2'],
   ['managementKeySaved', false],
 ]) {
-  void test(`연결의 ${field} 변경은 이전 스냅샷을 영구히 버린다`, () => {
+  await test(`연결의 ${field} 변경은 이전 스냅샷을 영구히 버린다`, () => {
     const cache = new QuotaCache()
     cache.write(connection, snapshot())
     assert.equal(cache.read({ ...connection, [field]: value }), undefined)
@@ -91,14 +91,14 @@ for (const [field, value] of [
   })
 }
 
-void test('저장된 API 키 플래그만 변경하면 관리 쿼터 데이터를 버리지 않는다', () => {
+await test('저장된 API 키 플래그만 변경하면 관리 쿼터 데이터를 버리지 않는다', () => {
   const cache = new QuotaCache()
   const value = snapshot()
   cache.write(connection, value)
   assert.strictEqual(cache.read({ ...connection, apiKeySaved: false }), value)
 })
 
-void test('쿼터 키는 구분자 충돌 없이 이름과 인증 인덱스를 모두 구분한다', () => {
+await test('쿼터 키는 구분자 충돌 없이 이름과 인증 인덱스를 모두 구분한다', () => {
   const values = [
     account('same', { authIndex: 'auth-1' }),
     account('same', { authIndex: 'auth-2' }),
@@ -110,7 +110,7 @@ void test('쿼터 키는 구분자 충돌 없이 이름과 인증 인덱스를 �
   assert.equal(quotaKey(values[0]), quotaKey({ ...values[0] }))
 })
 
-void test('쿼터 업데이트는 계정, 다른 쿼터, 원래 조회 시각을 보존한다', () => {
+await test('쿼터 업데이트는 계정, 다른 쿼터, 원래 조회 시각을 보존한다', () => {
   const cache = new QuotaCache()
   const first = account('same', { authIndex: 'auth-1' })
   const second = account('same', { authIndex: 'auth-2' })
@@ -133,7 +133,7 @@ void test('쿼터 업데이트는 계정, 다른 쿼터, 원래 조회 시각을
   assert.equal(cache.read(connection).quotas[quotaKey(first)], null)
 })
 
-void test('쿼터 업데이트는 캐시 항목을 만들거나 다른 연결의 데이터를 되살릴 수 없다', () => {
+await test('쿼터 업데이트는 캐시 항목을 만들거나 다른 연결의 데이터를 되살릴 수 없다', () => {
   const cache = new QuotaCache()
   const first = account('first')
   cache.update(connection, first, quota())
@@ -145,7 +145,7 @@ void test('쿼터 업데이트는 캐시 항목을 만들거나 다른 연결의
   assert.equal(cache.read(connection), undefined)
 })
 
-void test('로딩은 계정을 먼저 게시하고 불변인 증분 쿼터 스냅샷을 게시한다', async (t) => {
+await test('로딩은 계정을 먼저 게시하고 불변인 증분 쿼터 스냅샷을 게시한다', async (t) => {
   const accounts = [account('first'), account('second')]
   const results = accounts.map((_, index) => quota(index * 10))
   const published = []
@@ -176,7 +176,7 @@ void test('로딩은 계정을 먼저 게시하고 불변인 증분 쿼터 스�
   assert.strictEqual(loaded, published.at(-1))
 })
 
-void test('비활성화되었거나 지원되지 않거나 인증 정보가 없는 계정도 쿼터 요청 없이 계속 표시된다', async () => {
+await test('비활성화되었거나 지원되지 않거나 인증 정보가 없는 계정도 쿼터 요청 없이 계속 표시된다', async () => {
   const accounts = [
     account('disabled', { disabled: true }),
     account('unsupported', { supported: false }),
@@ -202,7 +202,7 @@ void test('비활성화되었거나 지원되지 않거나 인증 정보가 없�
   assert.equal(published.length, 2)
 })
 
-void test('쿼터 요청은 최대 세 개의 워커로 실행되고 대기 중인 계정을 모두 처리한다', async (t) => {
+await test('쿼터 요청은 최대 세 개의 워커로 실행되고 대기 중인 계정을 모두 처리한다', async (t) => {
   const accounts = Array.from({ length: 8 }, (_, index) => account(`account-${index}`))
   const gates = accounts.map(() => deferred())
   const requested = []
@@ -240,7 +240,7 @@ void test('쿼터 요청은 최대 세 개의 워커로 실행되고 대기 중�
   assert.equal(Object.keys(loaded.quotas).length, accounts.length)
 })
 
-void test('동기와 비동기 쿼터 실패가 다른 계정 로딩을 막지 않는다', async () => {
+await test('동기와 비동기 쿼터 실패가 다른 계정 로딩을 막지 않는다', async () => {
   const accounts = Array.from({ length: 5 }, (_, index) => account(`account-${index}`))
   const requested = []
   const published = []
@@ -264,7 +264,7 @@ void test('동기와 비동기 쿼터 실패가 다른 계정 로딩을 막지 �
   assert.deepEqual(published[0].quotas, {})
 })
 
-void test('빈 계정 목록은 쿼터를 가져오지 않고 재사용 가능한 빈 스냅샷을 게시한다', async () => {
+await test('빈 계정 목록은 쿼터를 가져오지 않고 재사용 가능한 빈 스냅샷을 게시한다', async () => {
   const published = []
   const loaded = await loadQuotaSnapshot(
     async () => [],
@@ -278,7 +278,7 @@ void test('빈 계정 목록은 쿼터를 가져오지 않고 재사용 가능�
   assert.strictEqual(loaded, published[0])
 })
 
-void test('건너뛴 계정만 있는 목록은 쿼터를 가져오지 않고 한 번만 게시한다', async () => {
+await test('건너뛴 계정만 있는 목록은 쿼터를 가져오지 않고 한 번만 게시한다', async () => {
   const accounts = [account('disabled', { disabled: true }), account('unsupported', { supported: false })]
   const published = []
   const loaded = await loadQuotaSnapshot(
@@ -292,7 +292,7 @@ void test('건너뛴 계정만 있는 목록은 쿼터를 가져오지 않고 �
   assert.equal(published.length, 1)
 })
 
-void test('이미 중단된 신호는 계정 목록 요청조차 막는다', async () => {
+await test('이미 중단된 신호는 계정 목록 요청조차 막는다', async () => {
   const controller = new AbortController()
   const reason = new Error('already inactive')
   controller.abort(reason)
@@ -307,7 +307,7 @@ void test('이미 중단된 신호는 계정 목록 요청조차 막는다', asy
   )
 })
 
-void test('목록을 가져오는 중에 중단하면 계정 게시와 쿼터 요청 시작을 막는다', async () => {
+await test('목록을 가져오는 중에 중단하면 계정 게시와 쿼터 요청 시작을 막는다', async () => {
   const controller = new AbortController()
   const gate = deferred()
   const reason = new Error('view unmounted')
@@ -323,7 +323,7 @@ void test('목록을 가져오는 중에 중단하면 계정 게시와 쿼터 �
   await rejected
 })
 
-void test('초기 계정 게시 중에 중단하면 모든 쿼터 요청이 멈춘다', async () => {
+await test('초기 계정 게시 중에 중단하면 모든 쿼터 요청이 멈춘다', async () => {
   const controller = new AbortController()
   const reason = new Error('view changed during publish')
   const published = []
@@ -344,7 +344,7 @@ void test('초기 계정 게시 중에 중단하면 모든 쿼터 요청이 멈�
 })
 
 for (const outcome of ['resolve', 'reject']) {
-  void test(`대기 중인 쿼터 요청을 중단하면 늦은 ${outcome} 게시와 대기 요청을 막는다`, async (t) => {
+  await test(`대기 중인 쿼터 요청을 중단하면 늦은 ${outcome} 게시와 대기 요청을 막는다`, async (t) => {
     const controller = new AbortController()
     const accounts = Array.from({ length: 6 }, (_, index) => account(`account-${index}`))
     const gates = accounts.map(() => deferred())
@@ -378,7 +378,7 @@ for (const outcome of ['resolve', 'reject']) {
   })
 }
 
-void test('쿼터를 게시한 뒤 중단하면 해당 스냅샷은 보존하지만 이후 작업은 멈춘다', async () => {
+await test('쿼터를 게시한 뒤 중단하면 해당 스냅샷은 보존하지만 이후 작업은 멈춘다', async () => {
   const controller = new AbortController()
   const accounts = Array.from({ length: 6 }, (_, index) => account(`account-${index}`))
   const requested = []
@@ -405,7 +405,7 @@ void test('쿼터를 게시한 뒤 중단하면 해당 스냅샷은 보존하지
   assert.equal(Object.keys(published[1].quotas).length, 1)
 })
 
-void test('캐시 세대가 바뀌면 캐시를 비우기 전에 대기 중인 쿼터 작업을 취소하고 준비 상태를 기다린다', async () => {
+await test('캐시 세대가 바뀌면 캐시를 비우기 전에 대기 중인 쿼터 작업을 취소하고 준비 상태를 기다린다', async () => {
   const cache = new QuotaCache()
   cache.write(connection, snapshot())
   const controller = new AbortController()
@@ -462,7 +462,7 @@ void test('캐시 세대가 바뀌면 캐시를 비우기 전에 대기 중인 �
 })
 
 for (const accounts of [[], [account('last')]]) {
-  void test(`최종 게시 중 중단하면 ${accounts.length}개 계정의 스냅샷을 완성할 수 없다`, async () => {
+  await test(`최종 게시 중 중단하면 ${accounts.length}개 계정의 스냅샷을 완성할 수 없다`, async () => {
     const controller = new AbortController()
     await assert.rejects(
       loadQuotaSnapshot(
@@ -478,7 +478,7 @@ for (const accounts of [[], [account('last')]]) {
   })
 }
 
-void test('계정 목록 거부는 쿼터를 게시하거나 가져오지 않고 전파된다', async () => {
+await test('계정 목록 거부는 쿼터를 게시하거나 가져오지 않고 전파된다', async () => {
   const reason = new Error('management list failed')
   await assert.rejects(
     loadQuotaSnapshot(

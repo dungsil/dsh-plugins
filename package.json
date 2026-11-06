@@ -38,7 +38,7 @@
   },
   "lint-staged": {
     "*": [
-      "oxlint --fix --fix-suggestions --deny-warnings --no-error-on-unmatched-pattern",
+      "oxlint --fix --fix-suggestions --deny-warnings --no-error-on-unmatched-pattern .",
       "oxfmt --write --no-error-on-unmatched-pattern"
     ]
   },
