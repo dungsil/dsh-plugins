@@ -35,7 +35,7 @@
     "yaml": "2.9.0"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm exec lint-staged --hide-all --config lint-staged.config.mjs"
+    "pre-commit": "pnpm exec lint-staged --hide-all"
   },
   "devEngines": {
     "runtime": {
