@@ -32,6 +32,7 @@ import { settingsLabel, WorktreeSettingsSection } from './settings.js'
 import { styles } from './styles.js'
 import { installSidebarLabel } from './sidebar.js'
 import { installProgress } from './progress.js'
+import { installWorktreeHover } from './hover.js'
 
 export const name = 'dungsil-ui-worktree'
 export const inject = ['slots', 'locale', 'connection', 'uiConversation', 'conversation']
@@ -42,6 +43,7 @@ export function apply(ctx: Context) {
   ctx.effect(() => installSettingsIcon(name, ['en', 'ko', 'zh'].map(settingsLabel), worktreeSettingsIconSvg))
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   installProgress(ctx)
+  installWorktreeHover(ctx, connection)
   const synced = new Map<Props['sessionId'], WorktreeView>()
   // Keep unresolved gates across keyed navigation until that session is reconciled.
   // ComposerBlocks is a shared single-value registry, not an owner-keyed stack.

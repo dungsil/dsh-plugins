@@ -2,6 +2,7 @@ export const copy = {
   zh: {
     title: '下一任务的位置',
     choose: '选择工作树',
+    currentWorktree: '当前工作树',
     savingSelection: '正在保存下一任务的位置…',
     selectionError: '请确认工作树选择后再发送提示。',
     locked: '任务开始后无法更改此会话的工作树。请在其他工作树中新建会话。',
@@ -49,6 +50,7 @@ export const copy = {
   en: {
     title: 'Next task location',
     choose: 'Choose worktree',
+    currentWorktree: 'Current worktree',
     savingSelection: 'Saving next task location…',
     selectionError: 'Confirm the worktree selection before sending your prompt.',
     locked: 'The worktree cannot change after work starts. Create a new session in another worktree.',
@@ -99,6 +101,7 @@ export const copy = {
   ko: {
     title: '다음 작업 위치',
     choose: '워크트리 선택',
+    currentWorktree: '현재 워크트리',
     savingSelection: '다음 작업 위치를 저장하는 중…',
     selectionError: '워크트리 선택을 확인한 뒤 프롬프트를 전송하세요.',
     locked: '작업을 시작한 세션에서는 워크트리를 바꿀 수 없습니다. 다른 워크트리에서 새 세션을 만드세요.',

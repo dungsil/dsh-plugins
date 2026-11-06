@@ -56,6 +56,7 @@ async function mount(
   {
     initial = {},
     language = 'en',
+    surface = 'conversation.input.left',
     rpc = ({ operation, payload }) => success(operation === 'select' ? selection(payload) : view()),
   } = {}
 ) {
@@ -209,7 +210,7 @@ async function mount(
     slots: {
       inject: (_slot, setup) => setup(),
       register: (options, render) => {
-        if (options.name === 'conversation.input.left') registered = render
+        if (options.name === surface) registered = render
       },
     },
     effect(start) {
@@ -1233,3 +1234,97 @@ for (const [language, title, hint] of [
     assert.match(h.text, hint)
   })
 }
+
+for (const [language, label, detached] of [
+  ['en', 'Current worktree', 'Detached HEAD'],
+  ['ko', '현재 워크트리', '분리된 HEAD'],
+  ['zh', '当前工作树', '分离的 HEAD'],
+]) {
+  await test(`${language} 사이드바 툴팁은 해당 세션의 현재 브랜치와 전체 워크트리 경로를 표시한다`, async (t) => {
+    const h = await mount(t, {
+      language,
+      surface: 'sidebar.session.row.hover',
+      rpc: () => success(linkedView()),
+    })
+    assert.match(h.text, new RegExp(label))
+    assert.match(h.text, /feature\/worktree/)
+    assert.match(h.text, /\/other-worktree/)
+    assert.deepEqual(operations(h), ['describe'])
+    assert.equal(h.calls[0].payload.sessionId, 'original')
+    assert.equal(h.block, undefined)
+    await h.navigate('detached', {})
+    assert.equal(h.calls[0].signal.aborted, true)
+    h.unmount()
+    assert.equal(h.calls.at(-1).signal.aborted, true)
+
+    const main = await mount(t, {
+      language,
+      surface: 'sidebar.session.row.hover',
+      rpc: () => success(view(null)),
+    })
+    assert.match(main.text, new RegExp(detached))
+    assert.match(main.text, /\/repo/)
+  })
+}
+
+await test('사이드바 툴팁은 기본 체크아웃과 하위 경로에서도 워크트리 루트를 표시한다', async (t) => {
+  const h = await mount(t, {
+    surface: 'sidebar.session.row.hover',
+    rpc: () => success({ ...view(), cwd: '/repo/src/nested' }),
+  })
+  assert.match(h.text, /Current worktree\s*:\s*main/)
+  assert.match(h.text, /\/repo/)
+  assert.doesNotMatch(h.text, /src\/nested/)
+})
+
+for (const response of [
+  failure('forbidden'),
+  failure('operation_failed'),
+  success({}),
+  success({ cwd: '/repo', worktrees: [] }),
+]) {
+  await test('조회 실패나 Git 워크트리 정보가 없으면 기본 툴팁에 잘못된 정보를 추가하지 않는다', async (t) => {
+    const h = await mount(t, { surface: 'sidebar.session.row.hover', rpc: () => response })
+    assert.equal(h.tree, null)
+    assert.deepEqual(operations(h), ['describe'])
+    assert.equal(h.block, undefined)
+  })
+}
+
+await test('새 워크트리 생성 예약이 있어도 툴팁은 다음 위치가 아니라 현재 체크아웃을 표시한다', async (t) => {
+  const h = await mount(t, {
+    surface: 'sidebar.session.row.hover',
+    rpc: () => success({ ...linkedView(), pendingCreation: { name: 'New worktree', failed: false } }),
+  })
+  assert.match(h.text, /feature\/worktree/)
+  assert.doesNotMatch(h.text, /New worktree/)
+  assert.deepEqual(operations(h), ['describe'])
+})
+
+await test('툴팁 조회 중 연결 예외가 발생해도 기본 카드를 방해하지 않는다', async (t) => {
+  const h = await mount(t, {
+    surface: 'sidebar.session.row.hover',
+    rpc: () => {
+      throw new Error('disconnected')
+    },
+  })
+  assert.equal(h.tree, null)
+  assert.equal(h.block, undefined)
+})
+
+await test('툴팁을 닫거나 다른 세션으로 이동하면 늦게 도착한 이전 응답을 표시하지 않는다', async (t) => {
+  const response = deferred()
+  const h = await mount(t, {
+    surface: 'sidebar.session.row.hover',
+    rpc: ({ payload }) => (payload.sessionId === 'original' ? response.promise : success(view('other-branch'))),
+  })
+  assert.equal(h.tree, null)
+  await h.navigate('other')
+  assert.equal(h.calls[0].signal.aborted, true)
+  response.resolve(success(linkedView()))
+  await h.flush()
+  assert.match(h.text, /other-branch/)
+  assert.doesNotMatch(h.text, /feature\/worktree/)
+  h.unmount()
+  assert.equal(h.calls.at(-1).signal.aborted, true)
+})
