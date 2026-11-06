@@ -1,0 +1,95 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-forge-worktree",
+  "version": "0.0.0",
+  "description": "A composer worktree picker backed by Forge's worktree lifecycle.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-forge-worktree"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./dist/icon.svg"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1"
+  },
+  "icon": "./dist/icon.svg",
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-experimental-client-ui-forge"
+      ]
+    }
+  },
+  "market": {
+    "order": 9,
+    "title": {
+      "en": "Forge worktree picker",
+      "ko": "Forge 워크트리 선택기",
+      "zh": "Forge 工作树选择器"
+    },
+    "description": {
+      "en": "Replace Forge's new-session worktree controls with a composer picker while keeping Forge's creation and recovery flow.",
+      "ko": "Forge의 새 세션 워크트리 컨트롤을 입력창 선택기로 교체하고 생성·복구 흐름은 유지합니다.",
+      "zh": "用输入框选择器替换 Forge 的新会话工作树控件，保留创建与恢复流程。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "git",
+      "worktree",
+      "forge",
+      "composer"
+    ]
+  }
+}
