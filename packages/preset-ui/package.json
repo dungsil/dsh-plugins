@@ -32,7 +32,7 @@
     "@dungsil/dsh-plugin-ui-worktree": "workspace:*"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "dsh": "^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {
