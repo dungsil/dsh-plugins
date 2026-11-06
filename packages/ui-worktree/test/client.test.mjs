@@ -88,6 +88,7 @@ async function mount(
   const listeners = new Map()
   let plugin,
     registered,
+    progressRenderer,
     instance,
     active,
     sessionId = 'original'
@@ -160,6 +161,8 @@ async function mount(
     disconnect() {}
   }
   const window = {
+    setInterval: () => 1,
+    clearInterval() {},
     addEventListener(type, listener) {
       if (!listeners.has(type)) listeners.set(type, new Set())
       listeners.get(type).add(listener)
@@ -170,7 +173,8 @@ async function mount(
         plugin = factory((id) => {
           if (id === 'react') return react
           if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' }
-          if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Menu: 'Menu', MenuItemButton: 'MenuItemButton' }
+          if (id === '@deepseek-ai/dsh-client-ui-primitives')
+            return { Menu: 'Menu', MenuItemButton: 'MenuItemButton', DisclosureRow: 'DisclosureRow' }
           throw new Error(`Unexpected dependency: ${id}`)
         })
       },
@@ -189,6 +193,7 @@ async function mount(
     MutationObserver,
     window,
   })
+  let progressCollapseTiming = 'completion'
   assert.ok(plugin.inject.includes('conversation'), 'ComposerBlocks must be an explicit plugin dependency')
   plugin.apply({
     get(name) {
@@ -204,12 +209,19 @@ async function mount(
       }
     },
     locale: { getSnapshot: () => ({ active: language }), subscribe: () => () => {} },
+    configForms: {
+      get: () => ({
+        subscribe: () => () => {},
+        getSnapshot: () => ({ value: { collapseTiming: progressCollapseTiming } }),
+      }),
+    },
     conversation: { blocks },
     uiConversation: { events: { register() {} } },
     slots: {
       inject: (_slot, setup) => setup(),
       register: (options, render) => {
         if (options.name === 'conversation.input.left') registered = render
+        if (options.key === 'dungsil-worktree-progress') progressRenderer = render
       },
     },
     effect(start) {
@@ -269,7 +281,26 @@ async function mount(
     }
     assert.fail('Client did not settle within 16 render passes')
   }
+  const progressInstance = { hooks: [], mounted: true }
   const harness = {
+    progress({ status = 'completed', collapseTiming = 'completion', latestTurn = 1, closed = false } = {}) {
+      progressCollapseTiming = collapseTiming
+      active = progressInstance
+      active.cursor = 0
+      active.effects = []
+      const tree = progressRenderer({
+        node: {
+          data: { status, step: 3, branch: 'feat/example', durations: [100, 200, 300, 400], updatedAt: Date.now() },
+          location: { kind: 'turn', turn: { turn: 1, status: closed ? 'closed' : 'open' } },
+        },
+        useChat: (select) => select({ navigation: { items: () => [{ turn: latestTurn }] } }),
+      })
+      active = undefined
+      return {
+        tree,
+        disclosure: elements(tree).find((element) => element.type === 'DisclosureRow').props,
+      }
+    },
     calls,
     warnings,
     listeners,
@@ -1213,6 +1244,59 @@ for (const phase of ['adjudicating', 'claimed', 'submitting']) {
     assert.equal(h.menu.anchor.props.disabled, true)
     await h.select('create')
     assert.deepEqual(operations(h), ['describe'])
+  })
+}
+
+await test('준비 중에는 펼치고 완료 시점 설정이면 완료 직후 접으며 수동으로 다시 펼친다', async (t) => {
+  const h = await mount(t)
+  assert.equal(h.progress({ status: 'running' }).disclosure.open, true)
+  const completed = h.progress().disclosure
+  assert.equal(completed.open, false)
+  assert.match(completed.title, /Worktree ready · feat\/example/)
+  completed.onToggle()
+  assert.equal(h.progress().disclosure.open, true)
+  h.progress().disclosure.onToggle()
+  assert.equal(h.progress().disclosure.open, false)
+})
+
+await test('다음 입력 시점 설정이면 완료 후 유지하고 다음 Turn에서 접는다', async (t) => {
+  const h = await mount(t)
+  const options = { collapseTiming: 'next-input' }
+  assert.equal(h.progress(options).disclosure.open, true)
+  h.progress(options).disclosure.onToggle()
+  assert.equal(h.progress(options).disclosure.open, false)
+  h.progress(options).disclosure.onToggle()
+  assert.equal(h.progress({ ...options, latestTurn: 2 }).disclosure.open, false)
+  h.progress({ ...options, latestTurn: 2 }).disclosure.onToggle()
+  assert.equal(h.progress({ ...options, latestTurn: 2 }).disclosure.open, true)
+})
+
+await test('접기 설정을 변경하면 완료 내역에 새 시점을 반영한다', async (t) => {
+  const h = await mount(t)
+  assert.equal(h.progress({ collapseTiming: 'next-input' }).disclosure.open, true)
+  h.progress({ collapseTiming: 'next-input' }).disclosure.onToggle()
+  assert.equal(h.progress({ collapseTiming: 'next-input' }).disclosure.open, false)
+  assert.equal(h.progress({ collapseTiming: 'completion' }).disclosure.open, false)
+  assert.equal(h.progress({ collapseTiming: 'next-input' }).disclosure.open, true)
+})
+
+for (const status of ['failed', 'cancelled', 'running']) {
+  await test(`${status} 상태는 종료된 Turn에서도 자동으로 접지 않는다`, async (t) => {
+    const h = await mount(t)
+    const result = h.progress({ status, closed: true })
+    assert.equal(result.disclosure.open, true)
+    assert.ok(elements(result.tree).some((element) => element.props.role === 'alert'))
+  })
+}
+
+for (const [language, title] of [
+  ['en', 'Worktree ready'],
+  ['ko', '워크트리 준비 완료'],
+  ['zh', '工作树已就绪'],
+]) {
+  await test(`${language} 로케일은 접힌 준비 완료 제목과 브랜치를 표시한다`, async (t) => {
+    const h = await mount(t, { language })
+    assert.equal(h.progress().disclosure.title, `${title} · feat/example`)
   })
 }
 

@@ -34,7 +34,7 @@ import { installSidebarLabel } from './sidebar.js'
 import { installProgress } from './progress.js'
 
 export const name = 'dungsil-ui-worktree'
-export const inject = ['slots', 'locale', 'connection', 'uiConversation', 'conversation']
+export const inject = ['slots', 'locale', 'connection', 'uiConversation', 'conversation', 'configForms']
 
 type Props = PropsRuntime<'conversation.input.left'>
 
