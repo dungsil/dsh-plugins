@@ -18,6 +18,8 @@ import * as plugin from '../dist/index.js'
 await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜치와 연결된 워크트리를 따른다', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'dsh-git-action-'))
   const ctx = new Context()
+  ctx.provide('forge', { register() {} })
+  ctx.provide('forgeSession', { changeRequests: () => [] })
   t.after(async () => {
     await ctx.fiber.dispose()
     await rm(home, { recursive: true, force: true })
@@ -73,11 +75,14 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
     if (response.status !== 200) return { status: response.status }
     return (await response.json()).result
   }
-  assert.deepEqual(await read(), { ok: true, value: { operation: 'push', headSha: initial, dirty: false } })
+  assert.deepEqual(await read(), {
+    ok: true,
+    value: { operation: 'push', headSha: initial, dirty: false, request: null },
+  })
   const before = agent.session.snapshotEvents()
   assert.deepEqual(await read('cold-session'), {
     ok: true,
-    value: { operation: 'push', headSha: initial, dirty: false },
+    value: { operation: 'push', headSha: initial, dirty: false, request: null },
   })
   const persisted = await ctx.sessionPersistence.open(id, 'read')
   try {
@@ -90,22 +95,36 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
   assert.deepEqual(agent.session.snapshotEvents(), before)
   assert.equal(ctx.agents.get('cold-session'), undefined)
   git('switch', '-c', 'main') // A familiar name is not necessarily the default branch.
-  assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } })
+  assert.deepEqual(await read(), {
+    ok: true,
+    value: { operation: 'pr', headSha: initial, dirty: false, request: null },
+  })
   await writeFile(join(home, 'change.txt'), 'new file')
   assert.equal((await read()).value.dirty, true) // Untracked files need an update too.
   git('add', 'change.txt')
   assert.equal((await read()).value.dirty, true)
   git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'change')
-  assert.deepEqual((await read()).value, { operation: 'pr', headSha: git('rev-parse', 'HEAD'), dirty: false })
+  assert.deepEqual((await read()).value, {
+    operation: 'pr',
+    headSha: git('rev-parse', 'HEAD'),
+    dirty: false,
+    request: null,
+  })
   await writeFile(join(home, 'change.txt'), 'modified file')
   assert.equal((await read()).value.dirty, true)
   git('reset', '--hard', initial)
   const linked = join(home, 'linked')
   git('worktree', 'add', linked, 'trunk')
   await ctx.workingDirectory.set(agent, linked, new AbortController().signal)
-  assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } }) // Worktree takes precedence over trunk.
+  assert.deepEqual(await read(), {
+    ok: true,
+    value: { operation: 'pr', headSha: initial, dirty: false, request: null },
+  }) // Worktree takes precedence over trunk.
   git('-C', linked, 'checkout', '--detach')
-  assert.deepEqual(await read(), { ok: true, value: { operation: 'pr', headSha: initial, dirty: false } })
+  assert.deepEqual(await read(), {
+    ok: true,
+    value: { operation: 'pr', headSha: initial, dirty: false, request: null },
+  })
   await ctx.workingDirectory.set(agent, home, new AbortController().signal)
   git('symbolic-ref', '--delete', 'refs/remotes/upstream/HEAD')
   assert.equal((await read()).ok, false) // Do not guess a default when its metadata is absent.
@@ -115,4 +134,25 @@ await test('Git 작업은 저장소를 바꾸지 않고 리모트 기본 브랜�
   assert.deepEqual(await read(agent.id, { kind: 'anonymous' }), { status: 403 })
   assert.equal(git('rev-parse', 'HEAD'), initial)
   assert.equal(git('rev-parse', 'refs/remotes/upstream/trunk'), initial)
+  for (const method of ['dungsil-vcs/pull-requests/list', 'dungsil-vcs/pull-requests/action']) {
+    const removed = await handler.fetch(
+      new Request(`http://localhost/api/${method}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'client-request', rpcId: 'removed', method, payload: { sessionId: agent.id } }),
+      }),
+      { principal: { kind: 'owner' }, interactions: 'deny' }
+    )
+    assert.equal(removed.status, 404)
+  }
+  const method = 'dungsil-vcs/discussion'
+  const denied = await handler.fetch(
+    new Request(`http://localhost/api/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'discussion', method, payload: { sessionId: agent.id } }),
+    }),
+    { principal: { kind: 'anonymous' }, interactions: 'deny' }
+  )
+  assert.equal(denied.status, 403)
 })

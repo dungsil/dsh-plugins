@@ -6,17 +6,21 @@ import type {} from '@deepseek-ai/dsh-config-editor'
 import z from '@deepseek-ai/schemastery'
 import { inspectCliStatus } from './cli-status.js'
 import { channel, validCommitSettings, type CommitSettings } from './protocol.js'
-import type { Config as ForgeConfig } from './pull-requests.js'
+import type { ForgeProvider } from './forge-commands.js'
 
 export const name = 'dungsil-vcs-settings'
 export const inject = ['connection', 'configEditor', 'subprocess', 'sandbox', 'sandboxPolicy']
 export const Config = z.object({
   provider: z.union(['auto', 'github', 'gitlab', 'gitea', 'forgejo']).default('auto'),
+  providerHosts: z.array(z.string()).default([]),
   authorName: z.string().default(''),
   authorEmail: z.string().default(''),
   noSign: z.boolean().default(false),
 })
-export interface Config extends ForgeConfig, CommitSettings {}
+export interface Config extends CommitSettings {
+  providerHosts?: string[]
+  provider: ForgeProvider
+}
 
 export function apply(ctx: Context) {
   const editor = ctx.configEditor

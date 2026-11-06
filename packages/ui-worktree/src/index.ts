@@ -11,10 +11,8 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { Session, SessionId, appendPluginRecord, pluginRecordOf, type PluginRecordMap } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
-import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import { workspaceDomainState } from '@deepseek-ai/dsh-workspace'
-import { createTaskQueue } from '@dungsil/dsh-async'
 import type { TaskDefinition, TaskRegistration } from '@dungsil/dsh-plugin-model-settings/contract'
 import { worktreeInstructions } from '@dungsil/dsh-task-prompts'
 import {
@@ -22,16 +20,19 @@ import {
   endpointPrefix,
   currentWorktree,
   ownershipRecord,
-  progressRecord,
-  selectionRecord,
-  type WorktreeProgress,
   type WorktreeSettings,
   type WorktreeSelectionView,
   type WorktreeView,
 } from './protocol.js'
 
+import WorktreeService, {
+  type CreateWorktreeRequest,
+  type CreateWorktreePhase,
+  type CreatedWorktree,
+} from '@deepseek-ai/dsh-experimental-worktree'
 export const name = 'dungsil-ui-worktree'
 export const inject = [
+  ...WorktreeService.inject,
   'connection',
   'sessionController',
   'agents',
@@ -47,7 +48,6 @@ export const inject = [
 ]
 
 export const Config = z.object({
-  defaultSelection: z.union(['current', 'new']).default('current'),
   directory: z.string().default('.agents/worktrees'),
   remote: z.boolean().default(false),
   deleteOnArchive: z.boolean().default(false),
@@ -66,8 +66,10 @@ function validSettings(value: unknown): value is WorktreeSettings {
   if (!value || typeof value !== 'object') return false
   const input = value as WorktreeSettings
   return (
-    ['current', 'new'].includes(input.defaultSelection) &&
     typeof input.directory === 'string' &&
+    !input.directory.includes('\\') &&
+    !input.directory.includes(':') &&
+    input.directory.split('/').every((part) => !!part && part !== '.' && part !== '..') &&
     input.directory.trim().length > 0 &&
     input.directory.length <= 4096 &&
     !/[\0\r\n]/.test(input.directory) &&
@@ -151,10 +153,66 @@ export const modelSettingsDefinition: TaskDefinition = {
   defaultInstructions: (config) => worktreeInstructions(typeof config.naming === 'string' ? config.naming : 'semantic'),
 }
 
-export function apply(ctx: Context, config: Config) {
+export default class ForgeWorktreeExtensions extends WorktreeService {
+  static inject = inject
+  static Config = Config
+  private readonly prepareRequest: (
+    agent: Agent,
+    request: CreateWorktreeRequest,
+    signal: AbortSignal
+  ) => Promise<CreateWorktreeRequest>
+  private readonly recordCreated: (agent: Agent, result: CreatedWorktree) => Promise<void>
+  private readonly active: Set<string>
+  constructor(ctx: Context, config: Config) {
+    super(ctx, {
+      directory: config.directory,
+      namePrefix: 'dsh-',
+      gitCommand: 'git',
+      nodeCommand: 'node',
+      timeoutMs: 60_000,
+      graceMs: 3_000,
+      maxOutputBytes: 65_536,
+    })
+    const extension = installExtensions(ctx, config)
+    this.prepareRequest = extension.prepareRequest
+    this.recordCreated = extension.recordCreated
+    this.active = extension.pending
+  }
+  override async create(
+    agent: Agent,
+    request: CreateWorktreeRequest = {},
+    signal: AbortSignal = new AbortController().signal,
+    onPhase?: (phase: CreateWorktreePhase) => void
+  ) {
+    if (this.active.has(agent.id)) throw new Error('Worktree operation is busy')
+    this.active.add(agent.id)
+    try {
+      const prepared = await this.prepareRequest(agent, request, signal)
+      const result = await super.create(agent, prepared, signal, onPhase)
+      await this.recordCreated(agent, result)
+      return result
+    } finally {
+      this.active.delete(agent.id)
+    }
+  }
+}
+
+function installExtensions(ctx: Context, config: Config) {
   if (!validSettings(config)) throw new Error('Invalid worktree settings')
   const pending = new Set<string>()
-  const read = createTaskQueue({ concurrency: 2, maxPending: 128 })
+  const prompts = new WeakMap<Agent, string>()
+  // Observe input only; Forge alone owns admission, reservations and maintenance holds.
+  ctx.on('agent/inbox/inserted', ({ agent, message }) => {
+    if (!['user', 'user-rpc'].includes(message.source.kind)) return
+    prompts.set(
+      agent,
+      message.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n')
+        .slice(-12_000)
+    )
+  })
   const lifetime = new AbortController()
   let saving = false
   ctx.effect(() => () => lifetime.abort(), 'ui-worktree: cancel disposed operations')
@@ -167,208 +225,6 @@ export function apply(ctx: Context, config: Config) {
       if (registration === current) registration = undefined
     })
   })
-  // Reservations follow the live Agent, including browser navigation and reloads.
-  // Disposing the Agent or restarting the host cancels unexecuted reservations.
-  type Creation = { cwd: string; name: string; failed: boolean }
-  type Selection = { creation: Creation }
-  const creations = new WeakMap<Agent, Creation>()
-  const started = new WeakSet<Agent>()
-  const explicitSelections = new WeakSet<Agent>()
-  const creating = new WeakSet<Agent>()
-  const admitted = new WeakMap<Agent, Map<string, Selection>>()
-  const completed = new WeakSet<Creation>()
-
-  const hasStarted = (session: Session, agent?: Agent) => {
-    const user = (kind: string) => ['user', 'user-rpc'].includes(kind)
-    if ((agent && started.has(agent)) || session.deriveMessages().some((message) => user(message.source.kind)))
-      return true
-    // A failed/rejected pre-step can consume input without committing user/message.
-    // Replay durable claims too, so restarting an Agent or host cannot unlock it.
-    const inboxes = new Map<string, string[]>()
-    for (const event of session.snapshotEvents()) {
-      if (event.type !== 'agent/inbox/spliced') continue
-      const { target, start, removedCount, inserted, outcome } = event.data
-      const inbox = inboxes.get(target) ?? []
-      const removed = inbox.splice(start, removedCount ?? 0, ...inserted.map((message) => message.source.kind))
-      inboxes.set(target, inbox)
-      if (outcome !== 'canceled' && removed.some(user)) return true
-    }
-    return false
-  }
-  const locked = (agent: Agent) => !creations.has(agent) && hasStarted(agent.session, agent)
-
-  // Claims precede pre-step admission and survive downstream rejection or failure.
-  ctx.on('agent/inbox/claimed', ({ agent, message }) => {
-    if (['user', 'user-rpc'].includes(message.source.kind)) started.add(agent)
-  })
-
-  // Freeze intent at prompt admission, not when a queued prompt eventually enters a step.
-  ctx.on('agent/inbox/inserted', ({ agent, message }) => {
-    if (!['user', 'user-rpc'].includes(message.source.kind)) return
-    const creation = creations.get(agent)
-    if (!creation) return
-    let messages = admitted.get(agent)
-    if (!messages) admitted.set(agent, (messages = new Map()))
-    messages.set(message.id, { creation })
-  })
-  ctx.on('agent/inbox/discarded', ({ agent, message }) => {
-    admitted.get(agent)?.delete(message.id)
-  })
-
-  ctx.on('agent/pre-step', async ({ agent, messages: proposed, signal }, next) => {
-    const messages = admitted.get(agent)
-    const decision = await next().catch((error: unknown) => {
-      for (const message of proposed) messages?.delete(message.id)
-      throw error
-    })
-    const entered = new Set(decision.kind === 'enter' ? decision.messages.map((message) => message.id) : [])
-    for (const message of proposed) if (!entered.has(message.id)) messages?.delete(message.id)
-    if (decision.kind !== 'enter') return decision
-    if (creations.get(agent)?.failed)
-      throw new Error('Worktree selection needs confirmation. Select a worktree before retrying.')
-    const submitted = decision.messages.filter((message) => ['user', 'user-rpc'].includes(message.source.kind))
-    if (!submitted.length) return decision
-    started.add(agent)
-    const seen = new Set<Creation>()
-    const selections = submitted.flatMap((message) => {
-      const selection = messages?.get(message.id)
-      const intent = selection?.creation
-      if (!intent) return []
-      if (completed.has(intent)) {
-        messages!.delete(message.id)
-        return []
-      }
-      if (seen.has(intent)) return []
-      seen.add(intent)
-      return [{ id: message.id, ...selection }]
-    })
-    if (selections.length > 1) throw new Error('Conflicting worktree selections in one step')
-    const selection = selections[0]
-    const creation = selection?.creation
-    if (creation?.failed) throw new Error('Worktree selection needs confirmation. Select a worktree before retrying.')
-    if (!selection || !creation) {
-      // A reservation saved after this input was admitted cannot move a later task either.
-      creations.delete(agent)
-      return decision
-    }
-    // Mark the reservation before any side effect. A timeout or partial failure
-    // must never create another checkout on the next prompt.
-    creation.failed = true
-    const operationSignal = AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(60_000)])
-    pending.add(agent.id)
-    creating.add(agent)
-    const progress: WorktreeProgress = {
-      id: selection.id,
-      step: 0,
-      status: 'running',
-      updatedAt: Date.now(),
-      durations: [0, 0, 0, 0],
-    }
-    const report = (step: number, status: WorktreeProgress['status'] = 'running', branch?: string) => {
-      const now = Date.now()
-      progress.durations[progress.step]! += Math.max(0, now - progress.updatedAt)
-      progress.step = step
-      progress.status = status
-      progress.updatedAt = now
-      if (branch) progress.branch = branch
-      appendPluginRecord(agent.session, progressRecord, progress)
-    }
-    try {
-      report(0)
-      if (ctx.workingDirectory.get(agent.session) !== creation.cwd) throw new Error('Working directory changed')
-      let branch = creation.name
-      if (!branch) {
-        const conversation = agent.session.requestHeader()?.config ?? agent.options
-        const resolved = registration?.resolve({
-          provider: conversation.provider ?? '',
-          model: conversation.model ?? '',
-        })
-        const route = resolved?.route ?? (config.provider && config.model ? config : conversation)
-        if (!route.provider || !route.model) throw new Error('No model selected')
-        const effort = resolved
-          ? resolved.reasoningEffort
-          : config.provider && config.model
-            ? config.reasoningEffort
-            : undefined
-        const context = submitted
-          .flatMap((message) => message.content.filter((block) => block.type === 'text'))
-          .map((block) => block.text)
-          .join('\n')
-          .slice(-12_000)
-        const call = await ctx.llm.prepareCall(
-          {
-            provider: route.provider,
-            model: route.model,
-            reasoningEffort: effort ? ReasoningEffortId(effort) : undefined,
-          },
-          operationSignal,
-          (controls, model) => ({
-            ...controls,
-            // Some adapters send an unsupported "none" value when no effort is set.
-            reasoningEffort:
-              controls.reasoningEffort ??
-              model.reasoning?.defaultEffort ??
-              model.reasoning?.efforts.find((effort) => effort.id !== 'off')?.id,
-          })
-        )
-        const assembler = new BlockAssembler()
-        // A naming-only call uses the submitted prompt, never a conversation turn or tools.
-        for await (const chunk of call.stream({
-          ...call.config,
-          system: [
-            resolved?.instructions ?? config.modelSettings?.instructions ?? worktreeInstructions(config.naming),
-            resolved?.additionalInstructions,
-          ]
-            .filter(Boolean)
-            .join('\n\n'),
-          messages: [
-            createUserMessage({
-              content: [{ type: 'text', text: context || 'New worktree' }],
-              source: { kind: 'user' },
-            }),
-          ],
-          sessionId: agent.id,
-          signal: operationSignal,
-        })) {
-          operationSignal.throwIfAborted()
-          assembler.push(chunk)
-        }
-        branch = assembler
-          .blocks()
-          .filter((block) => block.type === 'text')
-          .map((block) => block.text)
-          .join('')
-          .trim()
-        const pattern =
-          config.naming === 'semantic'
-            ? /^(feat|fix|refactor|docs|test|chore|perf|build|ci)\/[a-z0-9][a-z0-9-]*$/
-            : /^[a-z0-9][a-z0-9-]*$/
-        if (assembler.finish.kind !== 'stop' || branch.length > 80 || !pattern.test(branch))
-          throw new Error('Invalid generated branch name')
-        if (config.naming !== 'semantic') {
-          const prefix = config.naming === 'dsh' ? 'dsh/' : config.prefix
-          branch = prefix + branch
-        }
-      }
-      operationSignal.throwIfAborted()
-      await create(agent, branch, operationSignal, report)
-      await ctx.sessions.flush(agent.session)
-      completed.add(creation)
-      if (creations.get(agent) === creation) creations.delete(agent)
-      report(3, 'completed', branch)
-      return decision
-    } catch {
-      report(progress.step, signal.aborted || lifetime.signal.aborted ? 'cancelled' : 'failed')
-      throw new Error(
-        'Worktree creation could not be confirmed. Refresh the list and select a worktree before retrying.'
-      )
-    } finally {
-      for (const message of submitted) messages!.delete(message.id)
-      creating.delete(agent)
-      pending.delete(agent.id)
-    }
-  })
-
   const run = async (
     session: Session,
     cwd: string,
@@ -426,18 +282,9 @@ export function apply(ctx: Context, config: Config) {
   const readGit = (session: Session, cwd: string, args: string[], signal: AbortSignal) =>
     run(session, cwd, args, signal, 'git', {}, [0], true)
 
-  const selectionInitialized = (session: Session) =>
-    session.snapshotEvents().some((event) => pluginRecordOf(event)?.type === selectionRecord)
-
-  const selectionView = (session: Session, agent?: Agent): WorktreeSelectionView => {
-    const creation = agent ? creations.get(agent) : undefined
-    const running = !!agent && creating.has(agent)
-    return {
-      cwd: ctx.workingDirectory.get(session),
-      ...(creation ? { pendingCreation: { name: creation.name, failed: creation.failed && !running } } : {}),
-      ...(!creation && hasStarted(session, agent) ? { locked: true } : {}),
-    }
-  }
+  const selectionView = (session: Session, _agent?: Agent): WorktreeSelectionView => ({
+    cwd: ctx.workingDirectory.get(session),
+  })
 
   const describe = async (session: Session, signal: AbortSignal, agent?: Agent): Promise<WorktreeView> => {
     const cwd = ctx.workingDirectory.get(session)
@@ -456,24 +303,8 @@ export function apply(ctx: Context, config: Config) {
       // The Git output belongs to this captured directory, even if a concurrent task has moved on.
       cwd,
       worktrees,
-      ...(!selectionInitialized(session) ? { needsInitialization: true } : {}),
     }
   }
-
-  const initializeSelection = (agent: Agent, cwd: string, applyDefault: boolean) => {
-    if (selectionInitialized(agent.session)) return
-    if (
-      applyDefault &&
-      config.defaultSelection === 'new' &&
-      !explicitSelections.has(agent) &&
-      !creations.has(agent) &&
-      !hasStarted(agent.session, agent)
-    ) {
-      creations.set(agent, { cwd, name: '', failed: false })
-    }
-    appendPluginRecord(agent.session, selectionRecord, { initialized: true })
-  }
-
   const entry = () => {
     const entries = ctx.configEditor.entries().filter((item) => item.options.name === '@dungsil/dsh-plugin-ui-worktree')
     if (entries.length !== 1) throw new Error('Settings unavailable')
@@ -486,7 +317,6 @@ export function apply(ctx: Context, config: Config) {
         .update(JSON.stringify(current ?? {}))
         .digest('hex'),
       settings: {
-        defaultSelection: current?.defaultSelection ?? 'current',
         directory: current?.directory ?? '.agents/worktrees',
         remote: current?.remote ?? false,
         deleteOnArchive: current?.deleteOnArchive ?? false,
@@ -495,119 +325,6 @@ export function apply(ctx: Context, config: Config) {
       },
     }
   }
-
-  const create = async (agent: Agent, branch: string, signal: AbortSignal, report: (step: number) => void) => {
-    report(1)
-    // Resolve against the source worktree root, never a nested Session directory.
-    const cwd = await ctx.workingDirectory.ensure(agent, signal)
-    const git = (args: string[], env?: Record<string, string>, allowed?: number[]) =>
-      run(agent.session, cwd, args, signal, 'git', env, allowed)
-    if (
-      branch.startsWith('-') ||
-      branch.includes('\\') ||
-      branch.split('/').some((part) => !part || part === '.' || part === '..')
-    )
-      throw new Error('Invalid branch')
-    await git(['check-ref-format', `refs/heads/${branch}`])
-    const root = (await git(['rev-parse', '--show-toplevel'])).replace(/\r?\n$/, '')
-    let revision = 'HEAD'
-    if (config.remote) {
-      revision = (await git(['rev-parse', '--symbolic-full-name', '@{upstream}'])).trim()
-      if (!revision.startsWith('refs/remotes/')) throw new Error('No tracked remote branch')
-    }
-    const commit = (await git(['rev-parse', '--verify', '--end-of-options', `${revision}^{commit}`])).trim()
-    // Existing branches (including a conflicting namespace) are rejected before allocating paths.
-    if (await git(['for-each-ref', '--format=%(refname)', `refs/heads/${branch}`]))
-      throw new Error('Branch already exists')
-    // Keep paths lexical until the allocator has rejected every symlink component.
-    // Resolving through ctx.fs first would hide repository-controlled redirects.
-    const allocate = async (checkOnly = false) =>
-      JSON.parse(
-        await run(
-          agent.session,
-          cwd,
-          [
-            '--input-type=module',
-            '-e',
-            `
-          import fs from 'node:fs/promises';
-          import path from 'node:path';
-          const [source, configured, branch, checkOnly] = process.argv.slice(1);
-          let pool = path.resolve(source, configured);
-          const fromSource = path.relative(source, pool);
-          // An explicitly configured external pool may use owner-selected symlinks.
-          // Repository-relative pools must be inspected before following links.
-          if (fromSource === '..' || fromSource.startsWith('..' + path.sep) || path.isAbsolute(fromSource)) {
-            async function canonicalParent(target) {
-              try { return await fs.realpath(target); }
-              catch (error) {
-                if (error.code !== 'ENOENT') throw error;
-                const parent = path.dirname(target);
-                if (parent === target) throw error;
-                return path.join(await canonicalParent(parent), path.basename(target));
-              }
-            }
-            pool = await canonicalParent(pool);
-          }
-          const destination = path.resolve(pool, branch);
-          const relative = path.relative(pool, destination);
-          if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative))
-            throw new Error('Invalid destination');
-          async function walk(target, create) {
-            let current = path.parse(target).root;
-            for (const component of target.slice(current.length).split(path.sep).filter(Boolean)) {
-              current = path.join(current, component);
-              if (create) {
-                try { await fs.mkdir(current); }
-                catch (error) { if (error.code !== 'EEXIST') throw error; }
-              }
-              const info = await fs.lstat(current);
-              if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe directory');
-            }
-            if (await fs.realpath(target) !== target) throw new Error('Directory changed');
-          }
-          await walk(path.dirname(pool), !checkOnly);
-          if (!checkOnly) {
-            try {
-              await fs.mkdir(pool);
-              await fs.writeFile(path.join(pool, '.gitignore'), '*\\n', { flag: 'wx' });
-            } catch (error) { if (error.code !== 'EEXIST') throw error; }
-          }
-          await walk(pool, false);
-          await walk(path.dirname(destination), !checkOnly);
-          if (!checkOnly) await fs.mkdir(destination);
-          await walk(destination, false);
-          process.stdout.write(JSON.stringify(destination));
-        `,
-            root,
-            config.directory.trim(),
-            branch,
-            checkOnly ? 'check' : '',
-          ],
-          signal,
-          'node'
-        )
-      ) as string
-    const path = await allocate()
-    report(2)
-    await allocate(true)
-    await git(['worktree', 'add', '--no-checkout', '-b', branch, '--', path, commit])
-    const env = await withoutFilters(agent.session, path, signal)
-    await allocate(true)
-    await run(
-      agent.session,
-      path,
-      ['--work-tree', path, 'reset', '--hard', '--no-recurse-submodules', commit],
-      signal,
-      'git',
-      env
-    )
-    report(3)
-    appendPluginRecord(agent.session, ownershipRecord, { path, source: root, branch, sessionId: agent.id })
-    await ctx.sessions.flush(agent.session)
-    await ctx.workingDirectory.set(agent, path, signal)
-  }
-
   // Both checkout and status/removal can run repository-defined filter programs.
   const withoutFilters = async (session: Session, path: string, signal: AbortSignal) => {
     const filters = await run(
@@ -705,7 +422,8 @@ export function apply(ctx: Context, config: Config) {
         // Git refuses dirty, locked and primary checkouts. Never force removal
         // or delete the branch; restoring the conversation keeps its commits.
         await run(agent.session, source, ['worktree', 'remove', '--', path], signal, 'git', env)
-        await ctx.workingDirectory.ensure(agent, signal)
+        // Keep the recorded directory: Forge detects the missing checkout and offers restore.
+        // Falling back to the source would hide Forge's restoration state.
         await ctx.sessions.flush(agent.session)
       })
     } finally {
@@ -723,7 +441,6 @@ export function apply(ctx: Context, config: Config) {
         ctx.logger.warn('ui-worktree: archive cleanup skipped or failed; worktree was not force-removed')
       })
   })
-
   const failure = (code: string) => ({
     ok: false as const,
     error: {
@@ -732,13 +449,6 @@ export function apply(ctx: Context, config: Config) {
       details: {},
     },
   })
-  const maintain = <T>(agent: Agent, task: (signal: AbortSignal) => Promise<T>) => {
-    try {
-      return agent.runMaintenance(task)
-    } catch {
-      return Promise.resolve(failure('busy'))
-    }
-  }
   const handle = async (endpoint: string, payload: unknown, signal: AbortSignal) => {
     if (endpoint === 'settings' || endpoint === 'save-settings') {
       if (endpoint === 'save-settings' && (saving || pending.size > 0)) return failure('busy')
@@ -750,9 +460,8 @@ export function apply(ctx: Context, config: Config) {
         signal.throwIfAborted()
         await ctx.configEditor.edit(entry(), (current) => {
           if (snapshot().revision !== input.revision) throw new Error('conflict')
-          const { defaultSelection, directory, remote, deleteOnArchive, naming, prefix } =
-            input.settings as WorktreeSettings
-          return { ...current, defaultSelection, directory, remote, deleteOnArchive, naming, prefix }
+          const { directory, remote, deleteOnArchive, naming, prefix } = input.settings as WorktreeSettings
+          return { ...current, directory, remote, deleteOnArchive, naming, prefix }
         })
         return { ok: true as const, value: snapshot() }
       } catch (error) {
@@ -761,99 +470,10 @@ export function apply(ctx: Context, config: Config) {
         if (endpoint === 'save-settings') saving = false
       }
     }
-    if (!payload || typeof payload !== 'object') return failure('invalid')
-    const input = payload as { sessionId?: unknown; cwd?: unknown; name?: unknown; choice?: unknown }
-    if (typeof input.sessionId !== 'string' || !input.sessionId) return failure('invalid')
-    if (endpoint !== 'describe' && typeof input.cwd !== 'string') return failure('invalid')
-    if (
-      (endpoint === 'create' || endpoint === 'select') &&
-      input.name !== undefined &&
-      (typeof input.name !== 'string' || input.name.length > 200)
-    )
-      return failure('invalid')
-    if (endpoint === 'select' && !['current', 'new'].includes(input.choice as string)) return failure('invalid')
-    const mutation = endpoint !== 'describe'
-    if (mutation && (saving || pending.has(input.sessionId))) return failure('busy')
-    if (mutation) pending.add(input.sessionId)
-    try {
-      const sessionId = SessionId(input.sessionId)
-      if (!mutation) {
-        const operationSignal = AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(60_000)])
-        return await read(operationSignal, async () => {
-          operationSignal.throwIfAborted()
-          const live = ctx.agents.get(sessionId)
-          if (live) return { ok: true as const, value: await describe(live.session, operationSignal, live) }
-          const handle = await ctx.sessionPersistence.open(sessionId, 'read', { signal: operationSignal })
-          let session: Session
-          try {
-            const { events } = await handle.read(undefined, undefined, { signal: operationSignal })
-            session = Session.create(sessionId, events, handle.header, handle.inheritedEventCount)
-          } finally {
-            await handle.close()
-          }
-          return { ok: true as const, value: await describe(session, operationSignal) }
-        })
-      }
-      const resolved = await ctx.sessionController.resolveAgent(sessionId)
-      if ('error' in resolved)
-        return {
-          ok: false as const,
-          error: { code: resolved.error.code, message: resolved.error.message, details: {} },
-        }
-      const { agent } = resolved
-      // Directory and approval changes leave non-waking notices, not queued work.
-      const queued = [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some(
-        (message) => !['working-directory', 'user-approval'].includes(message.source.kind)
-      )
-      if (agent.status !== 'idle' || queued) return failure('busy')
-      if ((endpoint === 'select' || endpoint === 'create') && locked(agent)) return failure('conflict')
-      if (endpoint === 'select') {
-        // Intent only: no maintenance, filesystem access, Git, log writes, or list refresh.
-        AbortSignal.any([signal, lifetime.signal]).throwIfAborted()
-        if (ctx.workingDirectory.get(agent.session) !== input.cwd) return failure('conflict')
-        explicitSelections.add(agent)
-        creations.delete(agent)
-        if (input.choice === 'new')
-          creations.set(agent, {
-            cwd: input.cwd as string,
-            name: typeof input.name === 'string' ? input.name.trim() : '',
-            failed: false,
-          })
-        return { ok: true as const, value: selectionView(agent.session, agent) }
-      }
-      return await maintain(agent, async (maintenanceSignal) => {
-        const operationSignal = AbortSignal.any([
-          signal,
-          maintenanceSignal,
-          lifetime.signal,
-          AbortSignal.timeout(60_000),
-        ])
-        operationSignal.throwIfAborted()
-        if (ctx.workingDirectory.get(agent.session) !== input.cwd) return failure('conflict')
-        if (endpoint === 'initialize') {
-          const cwd = await ctx.workingDirectory.ensure(agent, operationSignal)
-          if (cwd !== input.cwd) return failure('conflict')
-        } else if (endpoint === 'create') {
-          creations.set(agent, {
-            cwd: input.cwd as string,
-            name: typeof input.name === 'string' ? input.name.trim() : '',
-            failed: false,
-          })
-        }
-        initializeSelection(agent, ctx.workingDirectory.get(agent.session), endpoint === 'initialize')
-        await ctx.sessions.flush(agent.session)
-        return { ok: true as const, value: await describe(agent.session, operationSignal, agent) }
-      })
-    } catch (error) {
-      if (!mutation && error instanceof SessionPersistenceNotFoundError) return failure('session/not-found')
-      return failure(!mutation && error instanceof Error && error.message === 'busy' ? 'busy' : 'operation_failed')
-    } finally {
-      if (mutation) pending.delete(input.sessionId)
-    }
+    return failure('invalid')
   }
-
   // Exact Connection routes admit only authenticated owner Peers, not shared Session viewers.
-  for (const endpoint of ['describe', 'initialize', 'select', 'create', 'settings', 'save-settings']) {
+  for (const endpoint of ['settings', 'save-settings']) {
     ctx.effect(
       () =>
         ctx.connection.fetch.register({
@@ -878,5 +498,109 @@ export function apply(ctx: Context, config: Config) {
         }),
       `ui-worktree: owner-only ${endpoint}`
     )
+  }
+  return {
+    pending,
+    async prepareRequest(
+      this: void,
+      agent: Agent,
+      request: CreateWorktreeRequest,
+      signal: AbortSignal
+    ): Promise<CreateWorktreeRequest> {
+      const operationSignal = AbortSignal.any([signal, lifetime.signal, AbortSignal.timeout(60_000)])
+      const submitted = [...agent.inbox.nextTurn, ...agent.inbox.nextStep].filter((message) =>
+        ['user', 'user-rpc'].includes(message.source.kind)
+      )
+      let branch = ''
+      const conversation = agent.session.requestHeader()?.config ?? agent.options
+      const resolved = registration?.resolve({
+        provider: conversation.provider ?? '',
+        model: conversation.model ?? '',
+      })
+      const route = resolved?.route ?? (config.provider && config.model ? config : conversation)
+      if (!route.provider || !route.model) throw new Error('No model selected')
+      const effort = resolved
+        ? resolved.reasoningEffort
+        : config.provider && config.model
+          ? config.reasoningEffort
+          : undefined
+      const context = submitted
+        .flatMap((message) => message.content.filter((block) => block.type === 'text'))
+        .map((block) => block.text)
+        .join('\n')
+        .slice(-12_000)
+      const call = await ctx.llm.prepareCall(
+        {
+          provider: route.provider,
+          model: route.model,
+          reasoningEffort: effort ? ReasoningEffortId(effort) : undefined,
+        },
+        operationSignal,
+        (controls, model) => ({
+          ...controls,
+          // Some adapters send an unsupported "none" value when no effort is set.
+          reasoningEffort:
+            controls.reasoningEffort ??
+            model.reasoning?.defaultEffort ??
+            model.reasoning?.efforts.find((effort) => effort.id !== 'off')?.id,
+        })
+      )
+      const assembler = new BlockAssembler()
+      // A naming-only call uses the submitted prompt, never a conversation turn or tools.
+      for await (const chunk of call.stream({
+        ...call.config,
+        system: [
+          resolved?.instructions ?? config.modelSettings?.instructions ?? worktreeInstructions(config.naming),
+          resolved?.additionalInstructions,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        messages: [
+          createUserMessage({
+            content: [{ type: 'text', text: context || prompts.get(agent) || 'New worktree' }],
+            source: { kind: 'user' },
+          }),
+        ],
+        sessionId: agent.id,
+        signal: operationSignal,
+      })) {
+        operationSignal.throwIfAborted()
+        assembler.push(chunk)
+      }
+      branch = assembler
+        .blocks()
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('')
+        .trim()
+      const pattern =
+        config.naming === 'semantic'
+          ? /^(feat|fix|refactor|docs|test|chore|perf|build|ci)\/[a-z0-9][a-z0-9-]*$/
+          : /^[a-z0-9][a-z0-9-]*$/
+      if (assembler.finish.kind !== 'stop' || branch.length > 80 || !pattern.test(branch))
+        throw new Error('Invalid generated branch name')
+      if (config.naming !== 'semantic') {
+        const prefix = config.naming === 'dsh' ? 'dsh/' : config.prefix
+        branch = prefix + branch
+      }
+      let from = request.from
+      if (config.remote && !from) {
+        const cwd = ctx.workingDirectory.get(agent.session)
+        from = (
+          await readGit(agent.session, cwd, ['rev-parse', '--symbolic-full-name', '@{upstream}'], operationSignal)
+        ).trim()
+        if (!from.startsWith('refs/remotes/')) throw new Error('No tracked remote branch')
+      }
+      return { ...request, name: branch, ...(from ? { from } : {}) }
+    },
+    async recordCreated(this: void, agent: Agent, result: CreatedWorktree) {
+      appendPluginRecord(agent.session, ownershipRecord, {
+        path: result.path,
+        source: result.repositoryRoot,
+        branch: result.branch,
+        sessionId: agent.id,
+      })
+      await ctx.sessions.flush(agent.session)
+    },
   }
 }

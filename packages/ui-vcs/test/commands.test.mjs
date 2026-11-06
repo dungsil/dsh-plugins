@@ -21,6 +21,8 @@ async function fixture(t, options = {}) {
   const repo = join(home, 'repo')
   await mkdir(repo)
   const ctx = new Context()
+  ctx.provide('forge', { register() {} })
+  ctx.provide('forgeSession', { changeRequests: () => [] })
   t.after(async () => {
     await ctx.fiber.dispose()
     await rm(home, { recursive: true, force: true })
@@ -140,7 +142,7 @@ await test('저장소 기준 계획은 중첩된 세션 디렉터리와 분리�
   await mkdir(nested)
   await ctx.workingDirectory.set(agent, nested, new AbortController().signal)
   git('checkout', '--detach')
-  const result = await rpc({ cwd: nested })
+  const result = await rpc({ cwd: ctx.workingDirectory.get(agent.session) })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.value.branch, '')
   assert.equal(git('show', '--format=', '--name-only', 'HEAD'), 'task.txt')
@@ -273,6 +275,7 @@ await test('UI 커밋에만 작성자와 서명 비활성화를 적용하고 Git
     config: { authorName: 'UI 작성자', authorEmail: 'ui@example.invalid', noSign: true },
   })
   git('config', 'commit.gpgSign', 'true')
+  git('config', 'gpg.format', 'openpgp')
   git('config', 'gpg.program', 'dsh-nonexistent-signing-program')
   const config = await readFile(join(repo, '.git/config'), 'utf8')
   assert.equal((await rpc()).ok, true)
@@ -289,6 +292,7 @@ await test('UI 커밋에만 작성자와 서명 비활성화를 적용하고 Git
 await test('작성자를 비워 두면 기존 작성자를 사용하고 서명 비활성화를 끄면 Git 서명 설정을 따른다', async (t) => {
   const { git, rpc } = await fixture(t)
   git('config', 'commit.gpgSign', 'true')
+  git('config', 'gpg.format', 'openpgp')
   git('config', 'gpg.program', 'dsh-nonexistent-signing-program')
   const before = git('rev-parse', 'HEAD')
   assert.equal((await rpc()).ok, false)

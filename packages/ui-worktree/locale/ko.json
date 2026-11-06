@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Git Worktree UI",
-    "description": "새 워크트리를 선택하고 작업을 전송하면 자동으로 이름을 정하고 생성·전환합니다. 대화에서 준비 상태를 확인합니다."
+    "description": "공식 Forge 워크트리 패널에 AI 브랜치 이름과 안전한 보관 정리를 추가합니다."
   }
 }

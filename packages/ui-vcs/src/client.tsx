@@ -1,3 +1,4 @@
+import type {} from '@deepseek-ai/dsh-experimental-client-ui-forge/client'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
@@ -8,13 +9,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill } from '@dungsil/dsh-ui'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
-import * as PullRequests from './pull-requests-client.js'
-import * as Settings from './settings-client.js'
+
+import * as Discussion from './discussion-client.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import * as Settings from './settings-client.js'
 import { channel, describeMethod, executeMethod, isGitActionResult, type GitOperation } from './protocol.js'
-import { method, type GitContext, type RequestView } from './pull-requests-protocol.js'
+import type { GitContext } from './pull-requests-protocol.js'
 
 export const name = 'dungsil-ui-vcs'
 export const inject = ['slots', 'locale', 'connection', 'sidebarRightTabs', 'sidebarRight']
@@ -53,8 +55,8 @@ const copy = {
 }
 
 export function apply(ctx: Context) {
-  ctx.plugin(PullRequests)
   ctx.plugin(Settings)
+  ctx.plugin(Discussion)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   function Action({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const language = useSyncExternalStore(
@@ -62,7 +64,7 @@ export function apply(ctx: Context) {
       () => ctx.locale.getSnapshot().active
     )
     const text = copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']
-    const labels = language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
+    const labels = language.startsWith('en') ? en : language.startsWith('zh') ? zh : ko
     const canPrompt = useAccess('session.prompt')
     const hidden = useSession((s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open')
     const unavailable = useSession(
@@ -73,7 +75,6 @@ export function apply(ctx: Context) {
     const cwd = useProjection('workingDirectory')
     const [operation, setOperation] = useState<'push' | 'pr'>()
     const [hasRequest, setHasRequest] = useState(false)
-    const [ciRequest, setCiRequest] = useState<RequestView['request']>(null)
     const [needsUpdate, setNeedsUpdate] = useState(false)
     const [lookup, setLookup] = useState<'loading' | 'ready' | 'error'>('loading')
     const [open, setOpen] = useState(false)
@@ -88,15 +89,6 @@ export function apply(ctx: Context) {
     }, [])
     const disabled = !canPrompt || unavailable || sending || typeof cwd !== 'string'
     const viewOnly = hasRequest && !needsUpdate
-    const ciState = ciRequest ? PullRequests.checksState(ciRequest) : 'warning'
-    const ciLabel = {
-      done: labels.success,
-      error: labels.failure,
-      warning: labels.checks_unknown,
-      ongoing: labels.pending_check,
-      idle: labels.checks_complete,
-    }[ciState]
-
     useEffect(() => {
       if (!hasChanges || hidden || unavailable) return
       let controller: AbortController | undefined
@@ -107,7 +99,6 @@ export function apply(ctx: Context) {
         setLookup('loading')
         setOperation(undefined)
         setHasRequest(false)
-        setCiRequest(null)
         setNeedsUpdate(false)
         try {
           const result = await connection.rpc.call(channel, describeMethod, { sessionId }, signal)
@@ -116,22 +107,9 @@ export function apply(ctx: Context) {
           const context = result.value as GitContext
           if (context.operation !== 'push' && context.operation !== 'pr') throw new Error('Git context unavailable')
           setOperation(context.operation)
-          if (context.operation === 'pr') {
-            // Review lookup may be unavailable before the first push or without a hosting CLI.
-            // Keep creation available. The server checks for an existing PR before each write.
-            try {
-              const requests = await connection.rpc.call(channel, method, { sessionId }, signal)
-              if (signal.aborted) return
-              if (requests.ok) {
-                const request = (requests.value as RequestView).request
-                setCiRequest(request)
-                setHasRequest(!!request)
-                setNeedsUpdate(!!request && (context.dirty || context.headSha !== request.headSha))
-              }
-            } catch {
-              if (signal.aborted) return
-            }
-          }
+          const request = context.request
+          setHasRequest(!!request)
+          setNeedsUpdate(!!request && (context.dirty || !request.headSha || context.headSha !== request.headSha))
           setLookup('ready')
         } catch {
           if (!signal.aborted) setLookup('error')
@@ -146,8 +124,8 @@ export function apply(ctx: Context) {
     }, [sessionId, cwd, hasChanges, hidden, unavailable])
 
     useEffect(() => {
-      if (disabled || viewOnly) setOpen(false)
-    }, [disabled, viewOnly])
+      if (disabled) setOpen(false)
+    }, [disabled])
 
     useEffect(() => {
       const conversation = anchor.current?.closest('[data-conversation-session]')
@@ -211,7 +189,7 @@ export function apply(ctx: Context) {
             title={viewOnly ? text.viewPr : text.hint}
             aria-busy={sending}
             onClick={() => {
-              if (viewOnly) ctx.sidebarRight.openTab(PullRequests.name)
+              if (viewOnly) ctx.sidebarRight.openTab('forge-panel')
               else if (operation) void send(operation)
             }}
           >
@@ -226,7 +204,7 @@ export function apply(ctx: Context) {
                     ? text.updatePr
                     : text.pr}
           </Pill>
-          {!viewOnly && (
+          {
             <Menu
               open={open}
               side="top"
@@ -234,13 +212,17 @@ export function apply(ctx: Context) {
               compact
               items={[
                 ...(hasRequest ? [{ id: 'view', label: text.viewPr }] : []),
-                { id: 'commit', label: text.commit },
+                { id: 'discussion', label: labels.discussion_title },
+                ...(!viewOnly ? [{ id: 'commit', label: text.commit }] : []),
               ]}
               onClose={() => setOpen(false)}
               onSelect={(id) => {
-                if (id === 'view') {
+                if (id === 'discussion') {
                   setOpen(false)
-                  ctx.sidebarRight.openTab(PullRequests.name)
+                  ctx.sidebarRight.openTab(Discussion.name)
+                } else if (id === 'view') {
+                  setOpen(false)
+                  ctx.sidebarRight.openTab('forge-panel')
                 } else void send('commit')
               }}
               anchor={
@@ -262,18 +244,8 @@ export function apply(ctx: Context) {
                 </Pill>
               }
             />
-          )}
+          }
         </div>
-        {hasRequest && (
-          <Pill
-            className="dsh-vcs-trigger"
-            title={`${labels.checks}: ${ciLabel}`}
-            onClick={() => ctx.sidebarRight.openTab(PullRequests.name, { params: { section: 'checks' } })}
-          >
-            <PullRequests.CheckStatusIcon state={ciState} />
-            {`${labels.checks}: ${ciLabel}`}
-          </Pill>
-        )}
       </div>
     )
   }

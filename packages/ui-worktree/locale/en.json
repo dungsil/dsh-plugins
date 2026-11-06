@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Git Worktree UI",
-    "description": "Select New worktree, then send a task to automatically name, create, and enter it. Follow setup progress in the conversation."
+    "description": "Adds AI branch naming and safe archive cleanup to the official Forge worktree panel."
   }
 }

@@ -13,8 +13,6 @@
       name: '@dungsil/dsh-plugin-model-settings'
     - id: dungsil-ui-setting-skills
       name: '@dungsil/dsh-plugin-ui-setting-skills'
-    - id: dungsil-ui-worktree
-      name: '@dungsil/dsh-plugin-ui-worktree'
     - id: dungsil-ui-vcs
       name: '@dungsil/dsh-plugin-ui-vcs'
     - id: dungsil-ui-usage
@@ -24,3 +22,10 @@
     - id: dungsil-turn-rail-left
       name: '@dungsil/dsh-plugin-ui-turn-rail-left'
       config: {}
+# The official Forge bundle must precede this preset in the profile bundle list.
+- id: forge-worktree
+  disabled: true
+- id: optional-forge-panel
+  insert:
+    - id: dungsil-ui-worktree
+      name: '@dungsil/dsh-plugin-ui-worktree'

@@ -127,3 +127,6 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-llm-pi-ai@0.2.2-rc.1'
   - '@deepseek-ai/dsh-session-persistence-jsonl@0.2.2-rc.1'
   - '@deepseek-ai/dsh-storage-json@0.2.2-rc.1'
+  - '@deepseek-ai/dsh-experimental-forge@0.2.2-rc.1'
+  - '@deepseek-ai/dsh-experimental-forge-session@0.2.2-rc.1'
+  - '@deepseek-ai/dsh-experimental-worktree@0.2.2-rc.1'

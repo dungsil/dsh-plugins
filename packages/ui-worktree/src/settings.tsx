@@ -27,7 +27,7 @@ const copy = {
     error: '변경 결과를 확인하지 못했습니다. 저장된 값을 확인한 뒤 다시 변경하세요.',
     conflict: '다른 곳에서 설정을 변경했습니다. 저장된 값을 확인한 뒤 다시 변경하세요.',
     unavailable: '설정을 불러오지 못했습니다. 연결을 확인한 뒤 설정 화면을 다시 여세요.',
-    invalidDirectory: '공백이 아닌 경로를 4096자 이내로 입력하세요. 줄바꿈은 사용할 수 없습니다.',
+    invalidDirectory: '4096자 이내의 저장소 상대경로를 입력하세요. 빈 구간, 점 경로, 역슬래시는 사용할 수 없습니다.',
     invalidPrefix: '올바른 접두사를 100자 이내로 입력하세요. 사용자 지정 접두사는 비워 둘 수 없습니다.',
   },
   zh: {
@@ -50,7 +50,7 @@ const copy = {
     error: '无法确认更改结果，请检查已保存的值后再进行更改。',
     conflict: '设置已在其他位置更改，请检查已保存的值后再进行更改。',
     unavailable: '无法加载设置，请检查连接后重新打开此设置页面。',
-    invalidDirectory: '请输入不超过 4096 个字符的非空路径，不能包含换行符。',
+    invalidDirectory: '请输入不超过 4096 个字符的仓库相对路径，不能包含空段、点路径或反斜杠。',
     invalidPrefix: '请输入不超过 100 个字符的有效前缀，自定义前缀不能为空。',
   },
   en: {
@@ -73,7 +73,8 @@ const copy = {
     error: 'Could not confirm the change. Check the saved values before you change them again.',
     conflict: 'Settings changed elsewhere. Check the saved values before you change them again.',
     unavailable: 'Could not load settings. Check the connection and reopen this settings page.',
-    invalidDirectory: 'Enter a nonblank path of at most 4096 characters without line breaks.',
+    invalidDirectory:
+      'Enter a repository-relative path of at most 4096 characters without empty segments, dot segments or backslashes.',
     invalidPrefix: 'Enter a valid prefix of at most 100 characters. A custom prefix cannot be empty.',
   },
 }
@@ -81,7 +82,13 @@ const copy = {
 const languageKey = (language: string) => (language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en')
 export const settingsLabel = (language: string) => copy[languageKey(language)].nav
 
-const validDirectory = (value: string) => value.trim().length > 0 && value.length <= 4096 && !/[\0\r\n]/.test(value)
+const validDirectory = (value: string) =>
+  !value.includes('\\') &&
+  !value.includes(':') &&
+  value.split('/').every((part) => !!part && part !== '.' && part !== '..') &&
+  value.trim().length > 0 &&
+  value.length <= 4096 &&
+  !/[\0\r\n]/.test(value)
 const validPrefix = (value: string) =>
   value.length <= 100 && (value === '' || /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\/[a-zA-Z0-9][a-zA-Z0-9_-]*)*\/?$/.test(value))
 const validSettings = (settings: WorktreeSettings) =>
@@ -223,25 +230,6 @@ export function WorktreeSettingsSection({ ctx }: { ctx: Context }) {
       <form onSubmit={(event) => event.preventDefault()}>
         {draft && (
           <fieldset disabled={disabled}>
-            <SettingsRow
-              label={
-                <div id={`${id}-default-selection`} className="dsh-worktree-settings-title">
-                  {text.defaultSelection}
-                </div>
-              }
-            >
-              <SettingsPicker
-                className="dsh-worktree-settings-picker"
-                disabled={disabled}
-                aria-labelledby={`${id}-default-selection`}
-                value={text[draft.defaultSelection]}
-                selectedId={draft.defaultSelection}
-                items={(['current', 'new'] as const).map((id) => ({ id, label: text[id] }))}
-                onSelect={(defaultSelection) => {
-                  change({ defaultSelection: defaultSelection as WorktreeSettings['defaultSelection'] })
-                }}
-              />
-            </SettingsRow>
             <SettingsRow
               label={
                 <>

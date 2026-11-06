@@ -1,3 +1,7 @@
-- insert:
+# Load after the official Forge bundle: replace only its isolated panel service.
+- id: forge-worktree
+  disabled: true
+- id: optional-forge-panel
+  insert:
     - id: dungsil-ui-worktree
       name: '@dungsil/dsh-plugin-ui-worktree'

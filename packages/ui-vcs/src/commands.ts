@@ -1,6 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-fs'
+import type {} from '@deepseek-ai/dsh-experimental-forge'
+import type {} from '@deepseek-ai/dsh-experimental-forge-session'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { discoverPush, inspectForge, pushBranch, updateReview } from './forge-commands.js'
@@ -10,6 +12,8 @@ import type { Config } from './settings.js'
 
 export const name = 'dungsil-vcs-commands'
 export const inject = [
+  'forge',
+  'forgeSession',
   'connection',
   'sessionController',
   'workingDirectory',
@@ -273,10 +277,19 @@ export function apply(ctx: Context, config: Config) {
         value.commit = (await readGit(['rev-parse', '--verify', 'HEAD'])).trim()
         value.checks.push('git commit hooks')
       }
-      if (input.operation === 'push') await pushBranch(run, push!)
+      if (input.operation === 'push') {
+        await pushBranch(run, push!)
+        await ctx.forgeSession.discoverBranch(agent.session, push!.remoteUrl, push!.pushBranch)
+      }
       if (input.operation === 'pr') {
         await pushBranch(run, forge!)
         value.url = (await updateReview(run, forge!, texts)).url
+        // Subprocess RPC writes do not produce shell tool-result evidence.
+        // Persist the official binding explicitly so Forge owns polling and review UI.
+        if (ctx.forge.changeRequestFromUrl(value.url)) {
+          ctx.forgeSession.track(agent.session, value.url)
+          ctx.forge.refresh(ctx.forge.changeRequestFromUrl(value.url)!)
+        }
       }
       return value
     } finally {

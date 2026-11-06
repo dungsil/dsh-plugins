@@ -15,6 +15,8 @@ const tick = () => new Promise((resolve) => setImmediate(resolve))
 async function fixture(t) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-vcs-limits-'))
   const ctx = new Context()
+  ctx.provide('forge', { register() {} })
+  ctx.provide('forgeSession', { changeRequests: () => [] })
   let released = false
   let active = 0
   let peak = 0
@@ -115,9 +117,9 @@ async function fixture(t) {
   }
 }
 const describe = 'dungsil-vcs/describe'
-const list = 'dungsil-vcs/pull-requests/list'
+const list = 'dungsil-vcs/describe'
 
-await test('Git 문맥과 PR 조회는 같은 실행 한도를 공유하고 자식 종료 정리 전에는 다음 조회를 시작하지 않는다', async (t) => {
+await test('Git 문맥 조회는 실행 한도를 지키고 자식 종료 정리 전에는 다음 조회를 시작하지 않는다', async (t) => {
   const f = await fixture(t)
   const requests = Array.from({ length: 24 }, (_, index) => f.rpc(index % 2 ? list : describe, `session-${index}`))
   await tick()

@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-vcs",
   "version": "0.4.2",
-  "description": "Git actions and PR/MR review for GitHub, GitLab, Gitea and Forgejo.",
+  "description": "Git commit, push and PR/MR authoring add-on for official Forge.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -48,6 +48,9 @@
     "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.1",
     "@deepseek-ai/dsh-config-editor": "0.2.2-rc.1",
     "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-client-ui-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-forge-session": "0.2.2-rc.1",
     "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
     "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
     "@deepseek-ai/dsh-sandbox": "0.2.2-rc.1",
@@ -79,11 +82,15 @@
     "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-client-ui-forge": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-forge": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-forge-session": "^0.2.2-rc.1",
     "@deepseek-ai/dsh-session": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-session-persistence": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+    "@deepseek-ai/dsh-session-persistence": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "^0.2.2-rc.1"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "dsh": "^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {
@@ -99,7 +106,8 @@
         "@deepseek-ai/dsh-client-ui-session",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-sidebar-right",
-        "@deepseek-ai/dsh-client-ui-workspace"
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-experimental-client-ui-forge"
       ]
     }
   },
@@ -111,9 +119,9 @@
       "zh": "版本控制"
     },
     "description": {
-      "en": "Request Git commits, pushes and PR/MR updates, then review CI, diffs and discussions and merge GitHub, GitLab, Gitea or Forgejo requests with gh / glab / tea. Self-hosted instances use an explicit provider.",
-      "ko": "Git 커밋·푸시·PR/MR 업데이트를 요청하고 GitHub·GitLab·Gitea·Forgejo의 CI·차이·토론을 검토한 뒤 gh / glab / tea로 병합합니다. 자체 호스팅은 provider 설정으로 지원합니다.",
-      "zh": "请求 Git 提交、推送和 PR/MR 更新，审查 GitHub、GitLab、Gitea 或 Forgejo 的 CI、差异与讨论，并通过 gh / glab / tea 合并。自托管实例需显式设置 provider。"
+      "en": "Commit, push and create or update PR/MRs; official Forge owns status, review and merge.",
+      "ko": "커밋·푸시·PR/MR 생성과 업데이트를 추가합니다. 상태·리뷰·병합은 공식 Forge를 사용합니다.",
+      "zh": "添加提交、推送和 PR/MR 创建及更新；状态、审查与合并由官方 Forge 提供。"
     },
     "category": "ui",
     "labels": [],

@@ -6,7 +6,10 @@ import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import * as PullRequests from './pull-requests.js'
+import type {} from '@deepseek-ai/dsh-experimental-forge'
+import type {} from '@deepseek-ai/dsh-experimental-forge-session'
+import * as Providers from './forge-providers.js'
+import * as Discussion from './discussion.js'
 import * as Commands from './commands.js'
 import * as Settings from './settings.js'
 import type { GitContext } from './pull-requests-protocol.js'
@@ -17,6 +20,8 @@ export { Config } from './settings.js'
 
 export const name = 'dungsil-ui-vcs'
 export const inject = [
+  'forge',
+  'forgeSession',
   'connection',
   'sessionController',
   'sessionPersistence',
@@ -30,8 +35,9 @@ export function apply(ctx: Context, config: Settings.Config) {
   const lifetime = new AbortController()
   const read = readQueue(ctx.subprocess)
   ctx.effect(() => () => lifetime.abort(), 'ui-vcs: cancel context reads')
-  ctx.plugin(PullRequests, config)
+  ctx.plugin(Providers, config)
   ctx.plugin(Commands, config)
+  ctx.plugin(Discussion)
   ctx.plugin(Settings)
   ctx.effect(
     () =>
@@ -117,10 +123,22 @@ export function apply(ctx: Context, config: Settings.Config) {
                 const head = await git(['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`])
                 operation = head === `refs/remotes/${remote}/${branch}` ? 'push' : 'pr'
               }
+              const branchName = await git(['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')
               const headSha = await git(['rev-parse', 'HEAD'])
               const dirty = !!(await git(['status', '--porcelain', '--untracked-files=normal']))
               if (ctx.workingDirectory.get(session) !== cwd) throw new Error('Working directory changed')
-              return { ok: true as const, value: { operation, headSha, dirty } }
+              const bindings = ctx.forgeSession.changeRequests(session)
+              const active = bindings.find(
+                (entry) =>
+                  entry.update &&
+                  'snapshot' in entry.update &&
+                  entry.update.snapshot.state === 'open' &&
+                  entry.update.snapshot.headBranch === branchName
+              )
+              const request = active
+                ? { headSha: active.update && 'snapshot' in active.update ? active.update.snapshot.headSha : '' }
+                : null
+              return { ok: true as const, value: { operation, headSha, dirty, request } }
             })
           } catch {
             result = failure

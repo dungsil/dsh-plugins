@@ -57,6 +57,8 @@ await test('소유자만 커밋 설정을 영속 저장하며 오래된 값과 �
   const start = () =>
     boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
       root.provide('profileContext', profile)
+      root.provide('forge', { register() {} })
+      root.provide('forgeSession', { changeRequests: () => [] })
       root.loader.builtins.editor = ConfigEditor
       root.loader.internal = { version: 'v2', import: async () => plugin }
       await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })

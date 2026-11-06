@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-worktree",
   "version": "0.6.1",
-  "description": "Automatically name, create, and enter Git worktrees after sending a task, with setup progress in the conversation.",
+  "description": "AI branch naming, remote baselines and safe archive cleanup for the official Forge worktree panel.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -46,6 +46,7 @@
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
     "@deepseek-ai/dsh-config-editor": "0.2.2-rc.1",
     "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-worktree": "0.2.2-rc.1",
     "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
     "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
     "@deepseek-ai/dsh-sandbox": "0.2.2-rc.1",
@@ -62,7 +63,6 @@
     "@deepseek-ai/dsh-working-directory": "0.2.2-rc.1",
     "@deepseek-ai/dsh-workspace": "0.2.2-rc.1",
     "@deepseek-ai/schemastery": "3.19.0",
-    "@dungsil/dsh-async": "workspace:*",
     "@dungsil/dsh-plugin-model-settings": "workspace:*",
     "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
@@ -74,17 +74,18 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-session": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-session-persistence": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-workspace": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-connection": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-config-editor": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-worktree": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-session": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-persistence": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-workspace": "^0.2.2-rc.1",
     "@deepseek-ai/schemastery": "~3.18.5 || ~3.19.0"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "dsh": "^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {
@@ -97,9 +98,6 @@
       "inject": [
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-chat",
-        "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-session",
         "@deepseek-ai/dsh-client-ui-settings"
       ]
     }
@@ -112,9 +110,9 @@
       "zh": "Git 工作树界面"
     },
     "description": {
-      "en": "Select New worktree, then send a task to automatically name, create, and enter it. Follow setup progress in the conversation.",
-      "ko": "새 워크트리를 선택하고 작업을 전송하면 자동으로 이름을 정하고 생성·전환합니다. 대화에서 준비 상태를 확인합니다.",
-      "zh": "选择新工作树并发送任务，自动命名、创建并切换工作树，在对话中查看准备进度。"
+      "en": "Adds AI branch naming and safe archive cleanup to the official Forge worktree panel.",
+      "ko": "공식 Forge 워크트리 패널에 AI 브랜치 이름과 안전한 보관 정리를 추가합니다.",
+      "zh": "为官方 Forge 工作树面板添加 AI 分支命名和安全归档清理。"
     },
     "category": "ui",
     "labels": [],

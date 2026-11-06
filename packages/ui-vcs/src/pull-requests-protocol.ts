@@ -6,6 +6,7 @@ export interface GitContext {
   operation: 'push' | 'pr'
   headSha: string
   dirty: boolean
+  request?: { headSha: string } | null
 }
 
 export interface RequestAction {
