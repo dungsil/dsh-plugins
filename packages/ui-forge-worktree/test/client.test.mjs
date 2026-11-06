@@ -153,7 +153,7 @@ function harness(t, initial = panel()) {
   }
 }
 
-test('Forge의 선택 슬롯만 동일 ID와 우선순위로 교체하고 진행 카드와 사이드바는 변경하지 않는다', () => {
+await test('Forge의 선택 슬롯만 동일 ID와 우선순위로 교체하고 진행 카드와 사이드바는 변경하지 않는다', () => {
   const h = load({ busy: false, error: false })
   h.plugin.apply(h.ctx)
   assert.deepEqual(
@@ -166,7 +166,7 @@ test('Forge의 선택 슬롯만 동일 ID와 우선순위로 교체하고 진행
   for (const cleanup of h.cleanups) cleanup()
 })
 
-test('새 워크트리 요청은 HEAD를 사용하고 RPC 완료만으로 선택을 확정하지 않는다', async (t) => {
+await test('새 워크트리 요청은 HEAD를 사용하고 RPC 완료만으로 선택을 확정하지 않는다', async (t) => {
   const h = harness(t)
   await tick()
   await h.controller.choose('new')
@@ -182,7 +182,7 @@ test('새 워크트리 요청은 HEAD를 사용하고 RPC 완료만으로 선택
   assert.notEqual(h.controller.getSnapshot().panel.worktree.request, null)
 })
 
-test('취소 요청은 확인 프레임이 올 때까지 대기하고 병렬 변경을 보내지 않는다', async (t) => {
+await test('취소 요청은 확인 프레임이 올 때까지 대기하고 병렬 변경을 보내지 않는다', async (t) => {
   const h = harness(t, panel({ from: 'main' }))
   await tick()
   await h.controller.choose('current')
@@ -197,7 +197,7 @@ test('취소 요청은 확인 프레임이 올 때까지 대기하고 병렬 변
   assert.equal(h.controller.getSnapshot().busy, false)
 })
 
-test('응답을 기다리는 동안 빠른 중복 클릭을 직렬화한다', async (t) => {
+await test('응답을 기다리는 동안 빠른 중복 클릭을 직렬화한다', async (t) => {
   const h = harness(t)
   await tick()
   const wait = deferred()
@@ -216,7 +216,7 @@ for (const { condition, variant } of [
   { condition: '워크트리를 생성 중이면', variant: { creation: { phase: 'prepare' } } },
   { condition: '워크트리를 복구 중이면', variant: { restoration: { phase: 'checkout' } } },
 ])
-  test(`${condition} 선택을 변경하지 않는다`, async (t) => {
+  await test(`${condition} 선택을 변경하지 않는다`, async (t) => {
     const h = harness(t, panel(null, variant))
     await tick()
     await h.controller.choose('new')
@@ -224,7 +224,7 @@ for (const { condition, variant } of [
     assert.equal(h.calls.length, 0)
   })
 
-test('생성 차단 상태에서는 새 요청만 막고 기존 요청 취소는 허용한다', async (t) => {
+await test('생성 차단 상태에서는 새 요청만 막고 기존 요청 취소는 허용한다', async (t) => {
   const h = harness(t, panel(null, { blocker: 'read-only' }))
   await tick()
   await h.controller.choose('new')
@@ -235,7 +235,7 @@ test('생성 차단 상태에서는 새 요청만 막고 기존 요청 취소는
   assert.equal(h.calls.length, 1)
 })
 
-test('이미 선택된 항목은 다시 요청하지 않는다', async (t) => {
+await test('이미 선택된 항목은 다시 요청하지 않는다', async (t) => {
   const h = harness(t)
   await tick()
   await h.controller.choose('current')
@@ -247,7 +247,7 @@ test('이미 선택된 항목은 다시 요청하지 않는다', async (t) => {
 })
 
 for (const kind of ['result', 'throw'])
-  test(`${kind} 실패 후 자동 재시도하지 않고 새 상태 확인 후에만 변경한다`, async (t) => {
+  await test(`${kind} 실패 후 자동 재시도하지 않고 새 상태 확인 후에만 변경한다`, async (t) => {
     const h = harness(t)
     await tick()
     h.mutation(() =>
@@ -264,7 +264,7 @@ for (const kind of ['result', 'throw'])
     assert.equal(h.calls.length, 1)
   })
 
-test('구독 실패와 정상 스트림 종료를 처리하여 확인되지 않은 변경을 막는다', async (t) => {
+await test('구독 실패와 정상 스트림 종료를 처리하여 확인되지 않은 변경을 막는다', async (t) => {
   const h = harness(t)
   await tick()
   h.streams[0].fail(Error('offline'))
@@ -276,7 +276,7 @@ test('구독 실패와 정상 스트림 종료를 처리하여 확인되지 않�
   assert.equal(h.controller.getSnapshot().error, true)
 })
 
-test('해제 시 스트림과 요청을 중단하고 늦은 응답으로 다시 구독하지 않는다', async (t) => {
+await test('해제 시 스트림과 요청을 중단하고 늦은 응답으로 다시 구독하지 않는다', async (t) => {
   const h = harness(t)
   await tick()
   const wait = deferred()
@@ -291,7 +291,7 @@ test('해제 시 스트림과 요청을 중단하고 늦은 응답으로 다시 
   assert.equal(h.streams.length, 1)
 })
 
-test('확인 프레임이 오지 않으면 제한 시간 후 오류를 표시하고 스트림을 정리한다', () => {
+await test('확인 프레임이 오지 않으면 제한 시간 후 오류를 표시하고 스트림을 정리한다', () => {
   let timeout,
     disposed = false
   const { plugin } = load(undefined, 'en', {
@@ -327,7 +327,7 @@ test('확인 프레임이 오지 않으면 제한 시간 후 오류를 표시하
   controller.dispose()
 })
 
-test('StrictMode의 효과 재실행 후 새 구독을 만들고 이전 요청 응답은 무시한다', async (t) => {
+await test('StrictMode의 효과 재실행 후 새 구독을 만들고 이전 요청 응답은 무시한다', async (t) => {
   const h = harness(t)
   await tick()
   const wait = deferred()
@@ -348,7 +348,7 @@ for (const [language, label, current] of [
   ['ko-KR', '새 워크트리', '현재 브랜치'],
   ['zh-CN', '新建工作树', '当前分支'],
 ]) {
-  test(`${language} 로케일에서 확인된 선택과 현재 브랜치 항목을 표시한다`, () => {
+  await test(`${language} 로케일에서 확인된 선택과 현재 브랜치 항목을 표시한다`, () => {
     const h = load({ panel: panel({ from: null }), busy: false, error: false }, language)
     h.plugin.apply(h.ctx)
     const wrapped = h.registrations[1].component({
@@ -367,7 +367,7 @@ for (const [language, label, current] of [
   })
 }
 
-test('영어 한국어 중국어 문구를 모두 번들에 포함하고 다른 플러그인을 DOM이나 CSS로 숨기지 않는다', () => {
+await test('영어 한국어 중국어 문구를 모두 번들에 포함하고 다른 플러그인을 DOM이나 CSS로 숨기지 않는다', () => {
   for (const value of ['New worktree', '새 워크트리', '新建工作树', 'Refresh selection', '선택 새로고침', '刷新选择'])
     assert.ok(bundle.includes(value))
   assert.ok(!bundle.includes('MutationObserver'))

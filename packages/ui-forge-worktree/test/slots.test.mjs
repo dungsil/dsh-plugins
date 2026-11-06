@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
 
-test('같은 ID의 낮은 우선순위는 기본 옵션만 교체하고 해제하면 원래 옵션을 복원한다', () => {
+await test('같은 ID의 낮은 우선순위는 기본 옵션만 교체하고 해제하면 원래 옵션을 복원한다', () => {
   const core = new SlotCore()
   core.register(
     {
