@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Forge worktree picker",
-    "description": "Replace Forge's new-session worktree controls with a composer picker while keeping Forge's creation and recovery flow. Requires the Forge bundle."
+    "title": "Worktree picker",
+    "description": "Choose the current branch or a new Git worktree from the composer."
   }
 }

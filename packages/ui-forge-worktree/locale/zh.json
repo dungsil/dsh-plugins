@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Forge 工作树选择器",
-    "description": "用输入框选择器替换 Forge 的新会话工作树控件，保留创建与恢复流程。需要 Forge 扩展包。"
+    "title": "工作树选择器",
+    "description": "在输入框中选择当前分支或新建 Git 工作树。"
   }
 }

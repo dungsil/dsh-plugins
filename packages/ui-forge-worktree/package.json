@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-worktree",
   "version": "0.0.0",
-  "description": "A composer worktree picker backed by Forge's worktree lifecycle.",
+  "description": "Choose the current branch or a new Git worktree from the composer.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -74,21 +74,20 @@
   "market": {
     "order": 9,
     "title": {
-      "en": "Forge worktree picker",
-      "ko": "Forge 워크트리 선택기",
-      "zh": "Forge 工作树选择器"
+      "en": "Worktree picker",
+      "ko": "워크트리 선택기",
+      "zh": "工作树选择器"
     },
     "description": {
-      "en": "Replace Forge's new-session worktree controls with a composer picker while keeping Forge's creation and recovery flow.",
-      "ko": "Forge의 새 세션 워크트리 컨트롤을 입력창 선택기로 교체하고 생성·복구 흐름은 유지합니다.",
-      "zh": "用输入框选择器替换 Forge 的新会话工作树控件，保留创建与恢复流程。"
+      "en": "Choose the current branch or a new Git worktree from the composer.",
+      "ko": "입력창에서 현재 브랜치나 새 Git 워크트리를 선택합니다.",
+      "zh": "在输入框中选择当前分支或新建 Git 工作树。"
     },
     "category": "ui",
     "labels": [],
     "keywords": [
       "git",
       "worktree",
-      "forge",
       "composer"
     ]
   }
