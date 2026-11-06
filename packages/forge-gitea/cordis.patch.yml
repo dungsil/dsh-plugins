@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-forge-gitea
+      name: '@dungsil/dsh-plugin-forge-gitea'

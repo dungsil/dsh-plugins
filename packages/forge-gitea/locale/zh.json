@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gitea",
+    "description": "通过 tea 为官方 DSH forge 注册表提供 Gitea PR。"
+  }
+}

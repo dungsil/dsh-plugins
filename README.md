@@ -25,5 +25,12 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-model-picker](./packages/ui-model-picker)         | 입력창 모델 메뉴와 추론 강도 슬라이더                                    |   MIT    |
 | [@dungsil/dsh-plugin-ui-turn-rail-left](./packages/ui-turn-rail-left)     | 공식 턴 레일을 대화 화면 왼쪽으로 옮기는 플러그인                        |   MIT    |
 | [@dungsil/dsh-plugin-ui-vcs](./packages/ui-vcs)                           | Git 커밋·푸시·PR 생성을 요청하고 사이드바에서 PR / MR을 검토·병합하는 UI |   MIT    |
+| [@dungsil/dsh-plugin-forge-gitlab](./packages/forge-gitlab)               | 공식 forge registry에 GitLab provider를 등록하는 플러그인 (`glab`)       |   MIT    |
+| [@dungsil/dsh-plugin-forge-gitea](./packages/forge-gitea)                 | 공식 forge registry에 Gitea provider를 등록하는 플러그인 (`tea`)         |   MIT    |
+| [@dungsil/dsh-plugin-forge-forgejo](./packages/forge-forgejo)             | 공식 forge registry에 Forgejo provider를 등록하는 플러그인 (`tea`)       |   MIT    |
 | [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드         |   MIT    |
 | [@dungsil/dsh-plugin-cli-proxy-api](./packages/cli-proxy-api)             | CLIProxyAPI 모델 연결과 계정별 할당량 조회 UI                            |   MIT    |
+
+서비스별 forge 플러그인은 DSH `0.2.2-rc.1`의 공식 `@deepseek-ai/dsh-experimental-forge` 서비스에 provider를 등록합니다. 별도 UI나 Git 작업 버튼은 추가하지 않습니다. 공식 forge 서비스와 이를 사용하는 기능을 활성화한 환경에서 사용합니다. 자체 호스팅은 각 플러그인의 `hosts`에 호스트 이름을 등록합니다. Gitea와 Forgejo는 해당 HTTPS 호스트에 연결된 `tea` 로그인이 하나 있어야 합니다.
+
+현재 세 provider는 리뷰 제출과 초안 해제를 지원하지 않습니다. GitLab은 호스트가 병합 가능 상태와 권한을 확인한 경우에만 병합을 허용합니다. Gitea와 Forgejo는 브랜치 보호 규칙을 로컬에서 미리 판정하지 않습니다. 열린 PR은 병합을 시도하고, 서버가 거부하면 HTTP 상태와 서버 오류 메시지를 반환합니다. 닫힌 PR, 초안, 명시적인 병합 충돌은 제외합니다.

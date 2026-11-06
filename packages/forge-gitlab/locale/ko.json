@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GitLab",
+    "description": "호스트의 glab CLI로 GitLab MR을 읽고 공식 forge registry에 제공합니다. 별도 UI는 추가하지 않습니다."
+  }
+}
