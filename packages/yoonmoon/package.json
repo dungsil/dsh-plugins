@@ -80,12 +80,24 @@
     "title": {
       "en": "Yoonmoon",
       "ko": "윤문",
-      "zh": "韩语润色"
+      "zh": "韩语润色",
+      "ja": "Yoonmoon",
+      "es": "Yoonmoon",
+      "fr": "Yoonmoon",
+      "de": "Yoonmoon",
+      "ru": "Yoonmoon",
+      "pt": "Yoonmoon"
     },
     "description": {
       "en": "Six Korean writing skills for proofreading, translation cleanup, AI-style removal, and style conversion.",
       "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다.",
-      "zh": "提供六项韩语写作技能，涵盖校对、翻译腔修正、AI 文风去除和文体转换。"
+      "zh": "提供六项韩语写作技能，涵盖校对、翻译腔修正、AI 文风去除和文体转换。",
+      "ja": "校正、翻訳調の修正、AI 文体の除去、文体変換のための韓国語文章作成スキルを 6 つ提供します。",
+      "es": "Seis habilidades de escritura en coreano para corregir textos, depurar traducciones, eliminar el estilo de IA y convertir estilos.",
+      "fr": "Six compétences de rédaction en coréen pour la relecture, la correction des traductions, la suppression du style IA et la conversion de style.",
+      "de": "Sechs koreanische Schreib-Skills für Korrekturlesen, Übersetzungsüberarbeitung, Entfernung von KI-Stil und Stilumwandlung.",
+      "ru": "Шесть навыков работы с корейскими текстами: корректура, исправление переводных оборотов, устранение стиля ИИ и преобразование стиля.",
+      "pt": "Seis habilidades de escrita em coreano para revisão, correção de traduções, remoção do estilo de IA e conversão de estilo."
     },
     "category": "skills",
     "labels": [

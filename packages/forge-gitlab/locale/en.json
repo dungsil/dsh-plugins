@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GitLab",
+    "description": "GitLab provider for the DSH experimental forge registry, using glab on the host."
+  }
+}

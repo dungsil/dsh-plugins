@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "title": "Seletor de árvores de trabalho",
+    "description": "Escolha a branch atual ou uma nova árvore de trabalho do Git no campo de mensagem."
+  },
+  "ui": {
+    "title": "Árvore de trabalho",
+    "create": "Nova árvore de trabalho",
+    "current": "Branch atual",
+    "detached": "HEAD desanexado",
+    "loading": "Carregando a árvore de trabalho…",
+    "saving": "Salvando a seleção…",
+    "reserved": "Uma nova árvore de trabalho será criada quando você enviar a primeira mensagem.",
+    "locked": "A seleção da árvore de trabalho não pode ser alterada após o início desta sessão.",
+    "error": "Não foi possível confirmar a seleção da árvore de trabalho. Atualize antes de tentar novamente.",
+    "refresh": "Atualizar seleção",
+    "blocked": "Uma nova árvore de trabalho não está disponível para este checkout."
+  }
+}

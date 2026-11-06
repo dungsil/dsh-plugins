@@ -76,12 +76,24 @@
     "title": {
       "en": "Worktree picker",
       "ko": "워크트리 선택기",
-      "zh": "工作树选择器"
+      "zh": "工作树选择器",
+      "ja": "ワークツリー選択",
+      "es": "Selector de árboles de trabajo",
+      "fr": "Sélecteur d’arbres de travail",
+      "de": "Worktree-Auswahl",
+      "ru": "Выбор рабочего дерева",
+      "pt": "Seletor de árvores de trabalho"
     },
     "description": {
       "en": "Choose the current branch or a new Git worktree from the composer.",
       "ko": "입력창에서 현재 브랜치나 새 Git 워크트리를 선택합니다.",
-      "zh": "在输入框中选择当前分支或新建 Git 工作树。"
+      "zh": "在输入框中选择当前分支或新建 Git 工作树。",
+      "ja": "入力欄から現在のブランチまたは新しい Git ワークツリーを選択します。",
+      "es": "Elige la rama actual o un nuevo árbol de trabajo de Git desde el cuadro de entrada.",
+      "fr": "Choisissez la branche actuelle ou un nouvel arbre de travail Git depuis la zone de saisie.",
+      "de": "Wählen Sie den aktuellen Branch oder einen neuen Git-Worktree im Eingabefeld aus.",
+      "ru": "Выберите текущую ветку или новое рабочее дерево Git в поле ввода.",
+      "pt": "Escolha a branch atual ou uma nova árvore de trabalho do Git no campo de mensagem."
     },
     "category": "ui",
     "labels": [],

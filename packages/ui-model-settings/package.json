@@ -72,12 +72,24 @@
     "title": {
       "en": "Models and instructions by task",
       "ko": "상황 별 모델 및 지침",
-      "zh": "任务模型与指令"
+      "zh": "任务模型与指令",
+      "ja": "タスク別のモデルと指示",
+      "es": "Modelos e instrucciones por tarea",
+      "fr": "Modèles et instructions par tâche",
+      "de": "Modelle und Anweisungen nach Aufgabe",
+      "ru": "Модели и инструкции по задачам",
+      "pt": "Modelos e instruções por tarefa"
     },
     "description": {
       "en": "Configure task models, reasoning effort, and instructions, including the native pwsh tool description. Includes the settings API.",
       "ko": "작업별 모델·추론 수준·지침과 pwsh 기본 도구 설명을 설정합니다. 설정 API를 함께 설치합니다.",
-      "zh": "设置各任务的模型、推理级别和指令，以及 pwsh 默认工具说明。同时安装设置 API。"
+      "zh": "设置各任务的模型、推理级别和指令，以及 pwsh 默认工具说明。同时安装设置 API。",
+      "ja": "タスク別のモデル、推論強度、指示と、組み込みの pwsh ツールの説明を設定します。設定 API も含まれます。",
+      "es": "Configura los modelos, el esfuerzo de razonamiento y las instrucciones por tarea, incluida la descripción de la herramienta nativa pwsh. Incluye la API de configuración.",
+      "fr": "Configurez les modèles, l’effort de raisonnement et les instructions par tâche, ainsi que la description de l’outil natif pwsh. Inclut l’API de configuration.",
+      "de": "Konfigurieren Sie Aufgabenmodelle, Denkaufwand und Anweisungen einschließlich der Beschreibung des nativen pwsh-Werkzeugs. Enthält die Einstellungs-API.",
+      "ru": "Настройте модели, глубину рассуждений и инструкции для задач, включая описание встроенного инструмента pwsh. Включает API настроек.",
+      "pt": "Configure modelos, esforço de raciocínio e instruções por tarefa, incluindo a descrição da ferramenta nativa pwsh. Inclui a API de configurações."
     },
     "category": "ui",
     "labels": [],

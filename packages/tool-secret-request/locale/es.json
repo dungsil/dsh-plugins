@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "title": "Entrada privada de secretos",
+    "description": "Solicita credenciales mediante un formulario privado y devuelve solo su referencia al agente."
+  },
+  "ui": {
+    "title": "Entrada privada de secretos",
+    "value": "Valor secreto",
+    "privacy": "Tu secreto no se muestra al agente.",
+    "target": "Referencia de almacenamiento de credenciales",
+    "context": "Descripción proporcionada por el agente",
+    "replace": "Al guardar, se reemplaza la credencial existente en esta referencia:",
+    "save": "Guardar credencial",
+    "saving": "Guardando…",
+    "decline": "Rechazar",
+    "error": "No se pudo confirmar el guardado. Se borró el valor. Comprueba la conexión y el almacén de credenciales antes de volver a intentarlo.",
+    "waiting": "Esperando la entrada privada…",
+    "closed": "La entrada ya no está disponible.",
+    "saved": "Credencial guardada",
+    "declined": "Solicitud rechazada",
+    "cancelled": "Solicitud cancelada",
+    "timed_out": "Solicitud caducada",
+    "unavailable": "Entrada privada no disponible"
+  }
+}

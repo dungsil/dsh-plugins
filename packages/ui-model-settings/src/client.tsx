@@ -22,11 +22,23 @@ import {
   type Route,
   type TaskSnapshot,
 } from '@dungsil/dsh-plugin-model-settings/protocol'
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 
 export const name = 'dungsil-ui-model-settings'
 export const inject = ['connection', 'locale', 'slots']
 
 const copy = {
+  ja: ja.ui,
+  es: es.ui,
+  fr: fr.ui,
+  de: de.ui,
+  ru: ru.ui,
+  pt: pt.ui,
   en: {
     nav: 'Models and instructions by task',
     taskSettings: 'Task-specific settings',
@@ -117,8 +129,14 @@ const copy = {
   },
 }
 
-const languageKey = (language: string) => (language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en')
+const languageKey = (language: string) => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'
+}
 const localizedCopy = (language: string) => copy[languageKey(language)]
+// Tasks come from other plugins, which may not yet supply every UI language.
+const taskText = (text: { en: string } & Partial<Record<keyof typeof copy, string>>, language: keyof typeof copy) =>
+  text[language] ?? text.en
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
@@ -362,7 +380,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const task = target.id
         const auxiliary = target.id === view?.auxiliary?.id
         const instructionsOnly = target.kind === 'instructions'
-        const title = target.label[language]
+        const title = taskText(target.label, language)
         const draft = drafts[task]
         const effort = effortDrafts[task]
         const route = target.selection.mode === 'model' ? target.selection.route : null
@@ -372,7 +390,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const selected = option?.route ?? null
         const efforts = option?.efforts ?? []
         const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
-        const automaticHint = target.automaticReasoningLabel[language]
+        const automaticHint = taskText(target.automaticReasoningLabel, language)
         const modelLabel =
           draft === 'auxiliary' ? text.useAuxiliary : (option?.name ?? (draft ? text.missing : text.inherit))
         const effortLabel =
@@ -405,7 +423,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                       (item) => item.owner.packageName === target.owner.packageName && item.key === target.key
                     ).length > 1 && <div className="dsh-model-settings-description">{target.owner.entryId}</div>}
                   {!instructionsOnly && (
-                    <div className="dsh-model-settings-description">{target.description[language]}</div>
+                    <div className="dsh-model-settings-description">{taskText(target.description, language)}</div>
                   )}
                 </>
               }
@@ -484,7 +502,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               >
                 <label htmlFor={`${fieldId}-instructions-input`}>{text.instructions}</label>
                 <div id={`${fieldId}-instructions-hint`} className="dsh-model-settings-description">
-                  {target.instructionsHint?.[language] ?? text.instructionsHint}
+                  {target.instructionsHint ? taskText(target.instructionsHint, language) : text.instructionsHint}
                 </div>
                 <textarea
                   id={`${fieldId}-instructions-input`}

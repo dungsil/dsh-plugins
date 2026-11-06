@@ -17,18 +17,26 @@ import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsi
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 import { primaryOperation, requestForCheckout, type Operation } from './model.js'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-forge-chip'
 export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.forgePanel', 'sidebarRight']
 
+const translations: Record<string, typeof en> = { en, ko, zh, ja, es, fr, de, ru, pt }
+
 export function apply(ctx: Context) {
   // The UI facade also brings legacy SessionStore declarations; use the 0.2.2 controller contract explicitly.
   const sessions = ctx.sessions as unknown as ISessions
   function Chip({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const { active } = useLocaleSnapshot(ctx.locale)
-    const text = active.startsWith('ko') ? ko : active.startsWith('zh') ? zh : en
+    const text = translations[active.toLowerCase().split(/[-_]/)[0]] ?? en
     const hidden = useSession((s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open')
     const unavailable = useSession(
       (s) => s.running || s.pendingSubmissions.length > 0 || s.removed || s.openState !== 'open'

@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Forge Chips",
+    "description": "Commit, push and create or view PRs from compact composer chips using Forge."
+  },
   "commit": "Commit only",
   "push": "Push",
   "pr": "Create PR",

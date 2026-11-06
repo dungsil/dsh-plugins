@@ -5,6 +5,11 @@
       name: '@dungsil/dsh-plugin-korean-ime'
     - id: dungsil-yoonmoon
       name: '@dungsil/dsh-plugin-yoonmoon'
+    - id: dungsil-ui-forge-chip
+      name: '@dungsil/dsh-plugin-ui-forge-chip'
+      config: {}
+    - id: dungsil-ui-forge-worktree
+      name: '@dungsil/dsh-plugin-ui-forge-worktree'
     - id: dungsil-sidebar-inbox
       name: '@dungsil/dsh-plugin-ui-sidebar-inbox'
     - id: dungsil-ui-model-settings

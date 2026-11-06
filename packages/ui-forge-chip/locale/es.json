@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Chips de Forge",
+    "description": "Haz commit, push y crea o consulta PR desde chips compactos en el cuadro de entrada con Forge."
+  },
+  "commit": "Solo commit",
+  "push": "Push",
+  "pr": "Crear PR",
+  "updatePr": "Actualizar PR",
+  "viewPr": "Ver PR",
+  "menu": "Más acciones de Git",
+  "panel": "Ver PR",
+  "hint": "Pedir a esta sesión que realice la acción de Git",
+  "sending": "Enviando solicitud…",
+  "error": "No se pudo enviar la solicitud. Comprueba la sesión antes de volver a intentarlo.",
+  "lookupError": "El estado de Git no está disponible. Selecciona Ver PR para comprobarlo.",
+  "checks": "Comprobaciones",
+  "none": "Sin comprobaciones",
+  "pending": "Pendiente",
+  "success": "Correcto",
+  "failure": "Fallido",
+  "unknown": "Desconocido",
+  "promptCommit": "Revisa los cambios del checkout actual y haz commit de los cambios pertinentes con un mensaje descriptivo, siguiendo las instrucciones del repositorio. No hagas push ni crees una PR. No hagas amend ni reset, no descartes cambios ni incluyas secretos. Pregunta si el alcance previsto no está claro.",
+  "promptPush": "Revisa los cambios del checkout actual, haz commit de los cambios pertinentes siguiendo las instrucciones del repositorio y haz push de la rama actual a su remoto configurado. No hagas push forzado ni crees una PR. No hagas amend ni reset, no descartes cambios ni incluyas secretos. Pregunta si el alcance previsto o el remoto no están claros.",
+  "promptPr": "Revisa los cambios del checkout actual, haz commit de los cambios pertinentes siguiendo las instrucciones del repositorio, haz push de la rama actual y crea una PR (o actualiza la PR existente para esta rama). Sigue la plantilla de PR del repositorio. No hagas push forzado, amend ni reset, no descartes cambios ni incluyas secretos. Pregunta si el alcance previsto o la rama de destino no están claros."
+}

@@ -20,14 +20,25 @@
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "dependencies": {
+    "@dungsil/dsh-plugin-korean-ime": "workspace:*",
     "@dungsil/dsh-plugin-locale-ko": "workspace:*",
+    "@dungsil/dsh-plugin-model-settings": "workspace:*",
+    "@dungsil/dsh-plugin-ui-forge-chip": "workspace:*",
+    "@dungsil/dsh-plugin-ui-forge-worktree": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-picker": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-settings": "workspace:*",
     "@dungsil/dsh-plugin-ui-setting-skills": "workspace:*",
     "@dungsil/dsh-plugin-ui-sidebar-inbox": "workspace:*",
     "@dungsil/dsh-plugin-ui-turn-rail-left": "workspace:*",
-    "@dungsil/dsh-plugin-ui-usage": "workspace:*"
+    "@dungsil/dsh-plugin-ui-usage": "workspace:*",
+    "@dungsil/dsh-plugin-yoonmoon": "workspace:*"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
   },
   "engines": {
     "dsh": "^0.2.2-rc.1",
@@ -43,12 +54,24 @@
     "title": {
       "en": "UI Preset",
       "ko": "UI 프리셋",
-      "zh": "界面预设"
+      "zh": "界面预设",
+      "ja": "UI プリセット",
+      "es": "Preajuste de interfaz",
+      "fr": "Préréglage d’interface",
+      "de": "UI-Voreinstellung",
+      "ru": "Набор плагинов интерфейса",
+      "pt": "Predefinição de interface"
     },
     "description": {
       "en": "A preset that installs UI plugins for DeepSeek Harness.",
       "ko": "DeepSeek Harness UI 플러그인을 함께 설치하는 프리셋입니다.",
-      "zh": "用于统一安装 DeepSeek Harness 界面插件的预设。"
+      "zh": "用于统一安装 DeepSeek Harness 界面插件的预设。",
+      "ja": "DeepSeek Harness の UI プラグインをまとめてインストールするプリセットです。",
+      "es": "Un preajuste que instala complementos de interfaz para DeepSeek Harness.",
+      "fr": "Un préréglage qui installe des plugins d’interface pour DeepSeek Harness.",
+      "de": "Eine Voreinstellung, die UI-Plugins für DeepSeek Harness installiert.",
+      "ru": "Набор для установки плагинов интерфейса DeepSeek Harness.",
+      "pt": "Uma predefinição que instala plugins de interface para o DeepSeek Harness."
     },
     "category": "ui",
     "labels": [],

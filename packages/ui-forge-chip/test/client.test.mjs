@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 const locales = Object.fromEntries(
   await Promise.all(
-    ['en', 'ko', 'zh'].map(async (language) => [
+    ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt'].map(async (language) => [
       language,
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8')),
     ])
@@ -252,13 +252,13 @@ async function mount(options = {}) {
 }
 
 await test('모든 로케일의 Git 작업은 현재 화면이 아닌 대상 세션의 conversation에 해당 프롬프트만 보낸다', async () => {
-  for (const language of ['en', 'ko', 'zh']) {
+  for (const language of Object.keys(locales)) {
     for (const [operation, key] of [
       ['commit', 'promptCommit'],
       ['push', 'promptPush'],
       ['pr', 'promptPr'],
     ]) {
-      const view = await mount({ language })
+      const view = await mount({ language: `${language}-REGION` })
       try {
         assert.equal(view.primary.disabled, false)
         view.menu.onSelect(operation)
@@ -325,7 +325,7 @@ await test('관련 없는 PR은 보기를 제공하거나 차이를 조회하지
   } finally {
     unrelated.unmount()
   }
-  for (const language of ['en', 'ko', 'zh']) {
+  for (const language of Object.keys(locales)) {
     const view = await mount({ language, panel: panel({ changeRequests: [request('other'), request()] }) })
     try {
       assert.equal(view.primary.children[1], locales[language].viewPr)

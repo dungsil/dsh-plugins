@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "title": "スキル設定",
+    "description": "設定画面で、共有エージェントおよび DSH のスキルディレクトリから読み込まれたスキルを確認します。"
+  },
+  "ui": {
+    "nav": "スキル",
+    "description": "この設定は DSH にのみ適用されます。",
+    "agents": "共有スキル",
+    "dsh": "DSH スキル",
+    "loading": "スキルを読み込み中…",
+    "empty": "このソースから読み込まれたスキルはありません。",
+    "search": "スキルを検索",
+    "searchPlaceholder": "名前、説明、パスで検索",
+    "noResults": "検索に一致するスキルはありません。",
+    "loadedCount": "（{total} 件読み込み済み）",
+    "filteredCount": "（{total} 件読み込み済み・{count} 件一致）",
+    "error": "スキルを読み込めませんでした。この設定項目を閉じて開き直し、再試行してください。",
+    "incomplete": "一部のスキルソースを読み込めませんでした。一覧が不完全な可能性があります。",
+    "use": "有効",
+    "disabled": "オフ",
+    "openFolder": "フォルダーを開く",
+    "openingFolder": "フォルダーを開いています…",
+    "openFolderHint": "DSH ホストのファイルマネージャーで、このスキルのフォルダーを開きます。",
+    "openFolderUnavailable": "フォルダーを開くには、DSH ホストにデスクトップ環境が必要です。",
+    "openFolderError": "スキルのフォルダーを開けませんでした。DSH ホストのファイルマネージャーを確認して再試行してください。",
+    "translate": "翻訳を表示",
+    "original": "原文を表示",
+    "retry": "再試行",
+    "translating": "翻訳中…",
+    "translateAll": "すべてのスキルを翻訳",
+    "translatingAll": "すべてのスキルを翻訳中…",
+    "translationAllError": "一部のスキルの説明を翻訳できませんでした。再試行すると、失敗した項目のみ翻訳します。",
+    "translationError": "翻訳できないため、原文を表示しています。有料サービスには Session が必要で、ここでは利用できません。",
+    "saveError": "設定を保存できませんでした。再試行する前に、この項目を閉じて開き直し、保存状態を確認してください。"
+  }
+}

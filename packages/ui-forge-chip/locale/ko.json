@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Forge 칩",
+    "description": "Forge와 연결된 입력창 칩으로 커밋·푸시·PR 생성과 조회를 실행합니다."
+  },
   "commit": "커밋만",
   "push": "푸시",
   "pr": "PR 생성",

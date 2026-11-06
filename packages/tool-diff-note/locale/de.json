@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "title": "Änderungsnotizen",
+    "description": "Erklärt wichtige Entscheidungen neben Vorher-Nachher-Schnappschüssen des Codes, ohne Quelldateien zu bearbeiten."
+  },
+  "ui": {
+    "title": "Änderungsnotiz",
+    "codeLabel": "Code",
+    "annotationLabel": "Änderungsgrund",
+    "waiting": "Änderungserklärung wird erfasst…",
+    "failed": "Die Änderungserklärung konnte nicht erfasst werden.",
+    "wrapLabel": "Zeilen umbrechen",
+    "unwrapLabel": "Zeilenumbruch deaktivieren",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "collapseAria": "Diff einklappen",
+    "expandAria": "{count} ausgeblendete Zeilen anzeigen",
+    "collapse": "Einklappen",
+    "expand": "{count} weitere Zeilen anzeigen"
+  }
+}

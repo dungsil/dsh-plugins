@@ -79,12 +79,24 @@
     "title": {
       "en": "Secret input",
       "ko": "비밀값 입력",
-      "zh": "私密凭据输入"
+      "zh": "私密凭据输入",
+      "ja": "非公開のシークレット入力",
+      "es": "Entrada privada de secretos",
+      "fr": "Saisie privée de secrets",
+      "de": "Private Eingabe geheimer Werte",
+      "ru": "Приватный ввод секретов",
+      "pt": "Entrada privada de segredos"
     },
     "description": {
       "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
       "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다.",
-      "zh": "在对话中显示凭据输入卡片，仅将输入值传递到 DSH 私密存储，绝不传递给模型。"
+      "zh": "在对话中显示凭据输入卡片，仅将输入值传递到 DSH 私密存储，绝不传递给模型。",
+      "ja": "会話内に認証情報の入力カードを表示し、値を DSH のシークレットストアに渡します。モデルには決して渡しません。",
+      "es": "Muestra una tarjeta de entrada de credenciales en la conversación y envía el valor al almacén de secretos de DSH, nunca al modelo.",
+      "fr": "Affiche une carte de saisie des identifiants dans la conversation et transmet la valeur au stockage de secrets DSH, jamais au modèle.",
+      "de": "Zeigt eine Eingabekarte für Zugangsdaten im Gespräch an und übergibt den Wert an den DSH-Geheimnisspeicher, niemals an das Modell.",
+      "ru": "Показывает карточку ввода учётных данных в беседе и передаёт значение в хранилище секретов DSH, но никогда не передаёт его модели.",
+      "pt": "Mostra um cartão de entrada de credenciais na conversa e envia o valor ao armazenamento de segredos do DSH, nunca ao modelo."
     },
     "category": "tools",
     "labels": [],

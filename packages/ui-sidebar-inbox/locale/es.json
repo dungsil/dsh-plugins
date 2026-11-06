@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Bandeja de entrada lateral",
+    "description": "Añade el orden por actividad del agente a las opciones de vista nativas. Al seleccionarlo en la lista única, las sesiones se ordenan por bandeja de entrada, en curso y archivadas; las sesiones archivadas en DSH se pliegan al final de la vista de todas las conversaciones."
+  },
+  "ui": {
+    "heading.working": "En curso",
+    "heading.archived": "Archivadas",
+    "sort.agentActivity": "Actividad del agente"
+  }
+}

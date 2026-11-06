@@ -7,10 +7,18 @@ import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 import { isDiffNote } from './protocol.js'
 
 export const name = 'dungsil-tool-diff-note'
 export const inject = ['slots', 'locale']
+
+const translations: Record<string, typeof en> = { en, ko, zh, ja, es, fr, de, ru, pt }
 
 const styles = `${annotatedDiffStyles}
 .dsh-diff-note { min-width: 0; margin: 8px 0; color: var(--dsw-alias-label-primary); }
@@ -20,7 +28,7 @@ const styles = `${annotatedDiffStyles}
 export function apply(ctx: Context) {
   function DiffNoteCard(props: ToolCallViewProps) {
     const { active } = useLocaleSnapshot(ctx.locale)
-    const text = (active.startsWith('ko') ? ko : active.startsWith('zh') ? zh : en).ui
+    const text = (translations[active.toLowerCase().split(/[-_]/)[0]] ?? en).ui
     const note =
       props.phase === 'result' && !props.block.isError && isDiffNote(props.block.meta) ? props.block.meta : undefined
     const failed = props.phase === 'result' && !note

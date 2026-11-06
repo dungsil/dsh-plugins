@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "title": "Entrada privada de segredos",
+    "description": "Solicita credenciais por um formulário privado e retorna apenas a referência delas ao agente."
+  },
+  "ui": {
+    "title": "Entrada privada de segredos",
+    "value": "Valor secreto",
+    "privacy": "Seu segredo não é mostrado ao agente.",
+    "target": "Referência de armazenamento de credenciais",
+    "context": "Descrição fornecida pelo agente",
+    "replace": "Ao salvar, a credencial existente nesta referência será substituída:",
+    "save": "Salvar credencial",
+    "saving": "Salvando…",
+    "decline": "Recusar",
+    "error": "Não foi possível confirmar o salvamento. O valor foi apagado. Verifique a conexão e o armazenamento de credenciais antes de tentar novamente.",
+    "waiting": "Aguardando entrada privada…",
+    "closed": "A entrada não está mais disponível.",
+    "saved": "Credencial salva",
+    "declined": "Solicitação recusada",
+    "cancelled": "Solicitação cancelada",
+    "timed_out": "Solicitação expirada",
+    "unavailable": "Entrada privada indisponível"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Forge-Chips",
+    "description": "Committen, pushen und PRs erstellen oder anzeigen – über kompakte Chips im Eingabefeld mit Forge."
+  },
+  "commit": "Nur committen",
+  "push": "Pushen",
+  "pr": "PR erstellen",
+  "updatePr": "PR aktualisieren",
+  "viewPr": "PR anzeigen",
+  "menu": "Weitere Git-Aktionen",
+  "panel": "PR anzeigen",
+  "hint": "Diese Sitzung bitten, die Git-Aktion auszuführen",
+  "sending": "Anfrage wird gesendet…",
+  "error": "Die Anfrage konnte nicht gesendet werden. Prüfen Sie vor einem erneuten Versuch die Sitzung.",
+  "lookupError": "Der Git-Status ist nicht verfügbar. Wählen Sie zur Prüfung PR anzeigen.",
+  "checks": "Prüfungen",
+  "none": "Keine Prüfungen",
+  "pending": "Ausstehend",
+  "success": "Bestanden",
+  "failure": "Fehlgeschlagen",
+  "unknown": "Unbekannt",
+  "promptCommit": "Prüfen Sie die Änderungen im aktuellen Checkout und committen Sie die passenden Änderungen mit einer aussagekräftigen Commit-Nachricht gemäß den Repository-Anweisungen. Pushen Sie nicht und erstellen Sie keinen PR. Führen Sie weder amend noch reset aus, verwerfen Sie keine Änderungen und nehmen Sie keine geheimen Werte auf. Fragen Sie nach, wenn der beabsichtigte Umfang unklar ist.",
+  "promptPush": "Prüfen Sie die Änderungen im aktuellen Checkout, committen Sie die passenden Änderungen gemäß den Repository-Anweisungen und pushen Sie den aktuellen Branch zum konfigurierten Remote. Führen Sie keinen Force-Push aus und erstellen Sie keinen PR. Führen Sie weder amend noch reset aus, verwerfen Sie keine Änderungen und nehmen Sie keine geheimen Werte auf. Fragen Sie nach, wenn der beabsichtigte Umfang oder das Remote unklar ist.",
+  "promptPr": "Prüfen Sie die Änderungen im aktuellen Checkout, committen Sie die passenden Änderungen gemäß den Repository-Anweisungen, pushen Sie den aktuellen Branch und erstellen Sie einen PR (oder aktualisieren Sie den bestehenden PR für diesen Branch). Verwenden Sie die PR-Vorlage des Repositorys. Führen Sie weder Force-Push noch amend noch reset aus, verwerfen Sie keine Änderungen und nehmen Sie keine geheimen Werte auf. Fragen Sie nach, wenn der beabsichtigte Umfang oder der Zielbranch unklar ist."
+}

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
+import { dictionaries } from '../src/locale.ts'
 
 const source = stripTypeScriptTypes(await readFile(new URL('../src/client.ts', import.meta.url), 'utf8'))
   .replace(/^import .*$/gm, '')
@@ -14,6 +15,7 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
   const storage = new Map(saved)
   const listeners = new Set()
   const dataListeners = new Set()
+  let language = 'en'
   let snapshot = { orderBy, groupBy, sessionOrderByAccount: {} }
   const view = {
     getSnapshot: () => snapshot,
@@ -46,8 +48,7 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
       option = value
       return { refresh() {}, dispose() {} }
     },
-    en: {},
-    ko: {},
+    dictionaries,
     NS: 'inbox',
   }
   runInNewContext(`${source}\nglobalThis.apply = apply`, context)
@@ -60,7 +61,12 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
   })
   const ctx = {
     effect: (callback) => callback(),
-    locale: { register() {}, bind: () => (key) => key, subscribe: () => () => {} },
+    locale: {
+      register() {},
+      bind: () => (key) => key,
+      getSnapshot: () => ({ active: language }),
+      subscribe: () => () => {},
+    },
     slots: {
       inject: (_name, callback) => {
         mount = callback
@@ -78,11 +84,34 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
     snapshot: () => snapshot,
     set: (patch) => view.store.set({ ...snapshot, ...patch }),
     toggle: () => option.onToggle(),
+    label: (active) => {
+      language = active
+      return option.label()
+    },
     refresh: () => {
       for (const listener of dataListeners) listener()
     },
   }
 }
+
+await test('정렬 이름은 여섯 추가 언어의 지역 식별자와 실시간 언어 변경을 지원한다', () => {
+  const app = harness()
+  app.mount()
+  for (const [language, expected] of [
+    ['ja-JP', 'エージェントの活動'],
+    ['es-MX', 'Actividad del agente'],
+    ['fr-CA', 'Activité de l’agent'],
+    ['de-DE', 'Agentenaktivität'],
+    ['ru-RU', 'Активность агента'],
+    ['pt-BR', 'Atividade do agente'],
+    ['JA_jp', 'エージェントの活動'],
+    ['ko-KR', '에이전트 활동'],
+    ['en-US', 'Agent activity'],
+  ]) {
+    assert.equal(app.label(language), expected)
+  }
+  assert.equal(app.label('zh-CN'), 'sort.agentActivity', 'existing host dictionary fallback is preserved')
+})
 
 await test('신규 설치는 기존 그룹과 관계없이 에이전트 활동을 기본 선택한다', () => {
   const app = harness()

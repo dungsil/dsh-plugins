@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "CLIProxyAPI",
+    "description": "Connectez les modèles CLIProxyAPI et gérez les comptes OAuth et le routage. Nécessite CLIProxyAPI v8."
+  }
+}

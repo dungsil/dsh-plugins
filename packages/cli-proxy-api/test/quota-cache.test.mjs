@@ -4,13 +4,20 @@ import test from 'node:test'
 import { loadQuotaSnapshot, QuotaCache, quotaKey, subscribeQuotaGeneration } from '../src/quota-cache.ts'
 import { copy, localizedCopy } from '../src/copy.ts'
 
-await test('자동 로딩과 캐시 문구에 영어, 한국어, 중국어 로케일이 모두 갖춰져 있다', () => {
+await test('자동 로딩과 캐시 문구에 지원하는 모든 로케일이 갖춰져 있다', () => {
   const keys = Object.keys(copy.en).sort()
-  for (const language of ['en', 'ko', 'zh']) {
+  for (const language of ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
     assert.deepEqual(Object.keys(copy[language]).sort(), keys)
     for (const value of Object.values(copy[language])) assert.ok(value.trim())
     assert.strictEqual(localizedCopy(`${language}-region`), copy[language])
+    assert.strictEqual(localizedCopy(`${language.toUpperCase()}_REGION`), copy[language])
+    for (const key of keys) {
+      assert.deepEqual(copy[language][key].match(/\{[^}]+\}/g), copy.en[key].match(/\{[^}]+\}/g))
+    }
     assert.ok(copy[language].accountsObservedAt)
+  }
+  for (const language of ['it-IT', '', 'constructor', '__proto__']) {
+    assert.strictEqual(localizedCopy(language), copy.en)
   }
 })
 

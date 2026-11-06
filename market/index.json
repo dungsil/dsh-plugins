@@ -3,12 +3,24 @@
   "title": {
     "en": "DUNGSIL's DSH Plugins",
     "ko": "DUNGSIL의 DSH 플러그인",
-    "zh": "DUNGSIL 的 DSH 插件"
+    "zh": "DUNGSIL 的 DSH 插件",
+    "ja": "DUNGSIL の DSH プラグイン",
+    "es": "Plugins de DSH de DUNGSIL",
+    "fr": "Plugins DSH de DUNGSIL",
+    "de": "DSH-Plugins von DUNGSIL",
+    "ru": "Плагины DSH от DUNGSIL",
+    "pt": "Plugins do DSH de DUNGSIL"
   },
   "description": {
     "en": "Korean-focused DeepSeek Harness plugins: Korean UI, writing skills, sidebar inbox, and secret input.",
     "ko": "한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다.",
-    "zh": "DUNGSIL 开发的 DeepSeek Harness 插件集，专注于韩语使用体验，包含韩语界面、写作技能、侧边栏收件箱和私密凭据输入。"
+    "zh": "DUNGSIL 开发的 DeepSeek Harness 插件集，专注于韩语使用体验，包含韩语界面、写作技能、侧边栏收件箱和私密凭据输入。",
+    "ja": "韓国語での利用を重視した DeepSeek Harness プラグイン集。韓国語 UI、文章作成スキル、サイドバーの受信トレイ、シークレット入力を提供します。",
+    "es": "Plugins de DeepSeek Harness centrados en el coreano: interfaz en coreano, habilidades de escritura, bandeja de entrada lateral e introducción de secretos.",
+    "fr": "Plugins DeepSeek Harness axés sur le coréen : interface en coréen, compétences de rédaction, boîte de réception latérale et saisie de secrets.",
+    "de": "DeepSeek-Harness-Plugins mit Schwerpunkt Koreanisch: koreanische Oberfläche, Schreib-Skills, Seitenleisten-Posteingang und Eingabe geheimer Daten.",
+    "ru": "Плагины DeepSeek Harness для работы на корейском языке: корейский интерфейс, навыки редактирования текста, входящие на боковой панели и ввод секретных данных.",
+    "pt": "Plugins do DeepSeek Harness voltados ao coreano: interface em coreano, habilidades de escrita, caixa de entrada lateral e introdução de segredos."
   },
   "metadata": {
     "categories": {
@@ -16,21 +28,39 @@
         "title": {
           "en": "Interface",
           "ko": "인터페이스",
-          "zh": "界面"
+          "zh": "界面",
+          "ja": "インターフェース",
+          "es": "Interfaz",
+          "fr": "Interface",
+          "de": "Oberfläche",
+          "ru": "Интерфейс",
+          "pt": "Interface"
         }
       },
       "skills": {
         "title": {
           "en": "Skills",
           "ko": "스킬",
-          "zh": "技能"
+          "zh": "技能",
+          "ja": "スキル",
+          "es": "Habilidades",
+          "fr": "Compétences",
+          "de": "Skills",
+          "ru": "Навыки",
+          "pt": "Habilidades"
         }
       },
       "tools": {
         "title": {
           "en": "Tools",
           "ko": "도구",
-          "zh": "工具"
+          "zh": "工具",
+          "ja": "ツール",
+          "es": "Herramientas",
+          "fr": "Outils",
+          "de": "Werkzeuge",
+          "ru": "Инструменты",
+          "pt": "Ferramentas"
         }
       }
     },
@@ -39,14 +69,26 @@
         "title": {
           "en": "Korean",
           "ko": "한국어",
-          "zh": "韩语"
+          "zh": "韩语",
+          "ja": "韓国語",
+          "es": "Coreano",
+          "fr": "Coréen",
+          "de": "Koreanisch",
+          "ru": "Корейский",
+          "pt": "Coreano"
         }
       },
       "accessibility": {
         "title": {
           "en": "Accessibility",
           "ko": "접근성",
-          "zh": "无障碍"
+          "zh": "无障碍",
+          "ja": "アクセシビリティ",
+          "es": "Accesibilidad",
+          "fr": "Accessibilité",
+          "de": "Barrierefreiheit",
+          "ru": "Специальные возможности",
+          "pt": "Acessibilidade"
         }
       }
     }
@@ -57,12 +99,24 @@
       "title": {
         "en": "Tools Preset",
         "ko": "도구 프리셋",
-        "zh": "工具预设"
+        "zh": "工具预设",
+        "ja": "ツールプリセット",
+        "es": "Preajuste de herramientas",
+        "fr": "Préréglage d’outils",
+        "de": "Werkzeug-Voreinstellung",
+        "ru": "Набор инструментов",
+        "pt": "Predefinição de ferramentas"
       },
       "description": {
-        "en": "Install Diff Notes and Secret input together.",
-        "ko": "변경 설명과 비밀값 입력 도구를 함께 설치합니다.",
-        "zh": "一起安装变更说明和私密凭据输入工具。"
+        "en": "Install Agent Browser, Diff Notes, and Secret input together.",
+        "ko": "에이전트 브라우저, 변경 설명, 비밀값 입력 도구를 함께 설치합니다.",
+        "zh": "一起安装智能体浏览器、变更说明和私密凭据输入工具。",
+        "ja": "Agent Browser、Diff Notes、Secret input をまとめてインストールします。",
+        "es": "Instala Agent Browser, Diff Notes y Secret input juntos.",
+        "fr": "Installez Agent Browser, Diff Notes et Secret input ensemble.",
+        "de": "Installiere Agent Browser, Diff Notes und Secret input zusammen.",
+        "ru": "Установите Agent Browser, Diff Notes и Secret input вместе.",
+        "pt": "Instale Agent Browser, Diff Notes e Secret input juntos."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -123,12 +177,24 @@
       "title": {
         "en": "UI Preset",
         "ko": "UI 프리셋",
-        "zh": "界面预设"
+        "zh": "界面预设",
+        "ja": "UI プリセット",
+        "es": "Preajuste de interfaz",
+        "fr": "Préréglage d’interface",
+        "de": "UI-Voreinstellung",
+        "ru": "Набор плагинов интерфейса",
+        "pt": "Predefinição de interface"
       },
       "description": {
         "en": "A preset that installs UI plugins for DeepSeek Harness.",
         "ko": "DeepSeek Harness UI 플러그인을 함께 설치하는 프리셋입니다.",
-        "zh": "用于统一安装 DeepSeek Harness 界面插件的预设。"
+        "zh": "用于统一安装 DeepSeek Harness 界面插件的预设。",
+        "ja": "DeepSeek Harness の UI プラグインをまとめてインストールするプリセットです。",
+        "es": "Un preajuste que instala complementos de interfaz para DeepSeek Harness.",
+        "fr": "Un préréglage qui installe des plugins d’interface pour DeepSeek Harness.",
+        "de": "Eine Voreinstellung, die UI-Plugins für DeepSeek Harness installiert.",
+        "ru": "Набор для установки плагинов интерфейса DeepSeek Harness.",
+        "pt": "Uma predefinição que instala plugins de interface para o DeepSeek Harness."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -199,12 +265,24 @@
       "title": {
         "en": "Korean UI",
         "ko": "한국어 UI",
-        "zh": "韩语界面"
+        "zh": "韩语界面",
+        "ja": "韓国語 UI",
+        "es": "Interfaz en coreano",
+        "fr": "Interface en coréen",
+        "de": "Koreanische Benutzeroberfläche",
+        "ru": "Корейский интерфейс",
+        "pt": "Interface em coreano"
       },
       "description": {
         "en": "Korean interface strings for DeepSeek Harness, including the plugin pages and the Korean IME and writing skills.",
         "ko": "DSH 웹 UI를 한국어로 표시하고, 플러그인 관리 페이지 번역과 한국어 IME·윤문 스킬을 함께 제공합니다.",
-        "zh": "为 DeepSeek Harness 提供韩语界面，包含插件管理页面翻译、韩语输入法和写作技能。"
+        "zh": "为 DeepSeek Harness 提供韩语界面，包含插件管理页面翻译、韩语输入法和写作技能。",
+        "ja": "DeepSeek Harness の韓国語インターフェースを提供します。プラグインページの翻訳、韓国語 IME、文章作成スキルを含みます。",
+        "es": "Interfaz en coreano para DeepSeek Harness, con traducciones de las páginas de complementos, el IME coreano y habilidades de escritura.",
+        "fr": "Interface en coréen pour DeepSeek Harness, avec les pages de plugins traduites, l’IME coréen et des compétences de rédaction.",
+        "de": "Koreanische Oberflächentexte für DeepSeek Harness, einschließlich Plugin-Seiten, koreanischer IME und Schreib-Skills.",
+        "ru": "Корейский интерфейс для DeepSeek Harness, включая страницы плагинов, корейский IME и навыки работы с текстом.",
+        "pt": "Interface em coreano para o DeepSeek Harness, incluindo as páginas de plugins, o IME coreano e habilidades de escrita."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -355,12 +433,24 @@
       "title": {
         "en": "Korean IME",
         "ko": "한국어 IME",
-        "zh": "韩语输入法"
+        "zh": "韩语输入法",
+        "ja": "韓国語 IME",
+        "es": "IME coreano",
+        "fr": "IME coréen",
+        "de": "Koreanische IME",
+        "ru": "Корейский IME",
+        "pt": "IME coreano"
       },
       "description": {
         "en": "Sends the message when Enter commits a Korean IME composition, without changing other key behavior.",
         "ko": "한글 조합을 Enter로 확정할 때 메시지를 전송하고, 다른 입력 동작은 바꾸지 않습니다.",
-        "zh": "按 Enter 确认韩语输入法组字时发送消息，不改变其他按键行为。"
+        "zh": "按 Enter 确认韩语输入法组字时发送消息，不改变其他按键行为。",
+        "ja": "Enter キーで韓国語 IME の変換を確定するとメッセージを送信し、他のキー操作は変更しません。",
+        "es": "Envía el mensaje cuando Enter confirma una composición del IME coreano, sin cambiar el comportamiento de otras teclas.",
+        "fr": "Envoie le message lorsque Enter valide une composition de l’IME coréen, sans modifier le comportement des autres touches.",
+        "de": "Sendet die Nachricht, wenn Enter eine koreanische IME-Eingabe bestätigt, ohne das Verhalten anderer Tasten zu ändern.",
+        "ru": "Отправляет сообщение, когда Enter подтверждает ввод корейского IME, не меняя поведение других клавиш.",
+        "pt": "Envia a mensagem quando Enter confirma uma composição do IME coreano, sem alterar o comportamento de outras teclas."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -431,12 +521,24 @@
       "title": {
         "en": "Yoonmoon",
         "ko": "윤문",
-        "zh": "韩语润色"
+        "zh": "韩语润色",
+        "ja": "Yoonmoon",
+        "es": "Yoonmoon",
+        "fr": "Yoonmoon",
+        "de": "Yoonmoon",
+        "ru": "Yoonmoon",
+        "pt": "Yoonmoon"
       },
       "description": {
         "en": "Six Korean writing skills for proofreading, translation cleanup, AI-style removal, and style conversion.",
         "ko": "교정·번역투 제거·AI 문체 제거·문체 변환을 다루는 한국어 글다듬기 스킬 6개를 제공합니다.",
-        "zh": "提供六项韩语写作技能，涵盖校对、翻译腔修正、AI 文风去除和文体转换。"
+        "zh": "提供六项韩语写作技能，涵盖校对、翻译腔修正、AI 文风去除和文体转换。",
+        "ja": "校正、翻訳調の修正、AI 文体の除去、文体変換のための韓国語文章作成スキルを 6 つ提供します。",
+        "es": "Seis habilidades de escritura en coreano para corregir textos, depurar traducciones, eliminar el estilo de IA y convertir estilos.",
+        "fr": "Six compétences de rédaction en coréen pour la relecture, la correction des traductions, la suppression du style IA et la conversion de style.",
+        "de": "Sechs koreanische Schreib-Skills für Korrekturlesen, Übersetzungsüberarbeitung, Entfernung von KI-Stil und Stilumwandlung.",
+        "ru": "Шесть навыков работы с корейскими текстами: корректура, исправление переводных оборотов, устранение стиля ИИ и преобразование стиля.",
+        "pt": "Seis habilidades de escrita em coreano para revisão, correção de traduções, remoção do estilo de IA e conversão de estilo."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -527,12 +629,24 @@
       "title": {
         "en": "ADHD-friendly responses",
         "ko": "ADHD 친화 응답",
-        "zh": "ADHD 友好回复"
+        "zh": "ADHD 友好回复",
+        "ja": "ADHD に配慮した回答",
+        "es": "Respuestas adaptadas al TDAH",
+        "fr": "Réponses adaptées au TDAH",
+        "de": "ADHS-freundliche Antworten",
+        "ru": "Ответы с учётом СДВГ",
+        "pt": "Respostas adaptadas ao TDAH"
       },
       "description": {
         "en": "Turns on ADHD-friendly response formatting: one action first, short steps, and no preamble.",
         "ko": "행동을 먼저 제시하고 단계를 짧게 유지하는 ADHD 친화 응답 형식을 켭니다.",
-        "zh": "启用 ADHD 友好的回复格式：优先给出行动，步骤简短，不加开场白。"
+        "zh": "启用 ADHD 友好的回复格式：优先给出行动，步骤简短，不加开场白。",
+        "ja": "ADHD に配慮した回答形式を有効にします。最初に行動を一つ示し、手順を短くし、前置きを省きます。",
+        "es": "Activa un formato de respuesta adaptado al TDAH: una acción primero, pasos breves y sin preámbulos.",
+        "fr": "Active un format de réponse adapté au TDAH : une action d’abord, des étapes courtes et aucun préambule.",
+        "de": "Aktiviert ein ADHS-freundliches Antwortformat: zuerst eine Handlung, kurze Schritte und keine Vorrede.",
+        "ru": "Включает формат ответов с учётом СДВГ: сначала одно действие, короткие шаги и никаких вступлений.",
+        "pt": "Ativa um formato de resposta adaptado ao TDAH: uma ação primeiro, passos curtos e sem preâmbulos."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -603,12 +717,24 @@
       "title": {
         "en": "Sidebar Inbox",
         "ko": "사이드바 수신함",
-        "zh": "侧边栏收件箱"
+        "zh": "侧边栏收件箱",
+        "ja": "サイドバー受信箱",
+        "es": "Bandeja de entrada lateral",
+        "fr": "Boîte de réception latérale",
+        "de": "Seitenleisten-Posteingang",
+        "ru": "Входящие на боковой панели",
+        "pt": "Caixa de entrada lateral"
       },
       "description": {
         "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
         "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다.",
-        "zh": "将侧边栏会话分为收件箱、进行中和已归档列表，不改变现有侧边栏外观。"
+        "zh": "将侧边栏会话分为收件箱、进行中和已归档列表，不改变现有侧边栏外观。",
+        "ja": "標準の表示オプションに「エージェントの活動」順を追加します。単一リストで選択すると、セッションは受信箱、作業中、アーカイブ済みの順に並びます。DSH でアーカイブしたセッションは、すべての会話の一覧の下部に折りたたまれます。",
+        "es": "Añade el orden por actividad del agente a las opciones de vista nativas. Al seleccionarlo en la lista única, las sesiones se ordenan por bandeja de entrada, en curso y archivadas; las sesiones archivadas en DSH se pliegan al final de la vista de todas las conversaciones.",
+        "fr": "Ajoute le tri par activité de l’agent aux options d’affichage natives. Lorsqu’il est sélectionné dans la liste unique, les sessions sont classées en réception, en cours et archivées ; les sessions archivées dans DSH sont repliées en bas de la vue de toutes les conversations.",
+        "de": "Ergänzt die nativen Ansichtsoptionen um die Sortierung nach Agentenaktivität. In der Einzelliste werden Sitzungen damit nach Posteingang, in Arbeit und archiviert geordnet; in DSH archivierte Sitzungen werden unten in der Ansicht aller Gespräche eingeklappt.",
+        "ru": "Добавляет сортировку по активности агента в стандартные параметры вида. При её выборе в едином списке сеансы упорядочиваются по группам «Входящие», «В работе» и «Архивные»; сеансы, архивированные в DSH, сворачиваются внизу списка всех бесед.",
+        "pt": "Adiciona a ordenação por atividade do agente às opções de visualização nativas. Quando selecionada na lista única, as sessões são ordenadas por caixa de entrada, em andamento e arquivadas; as sessões arquivadas no DSH são recolhidas no fim da visualização de todas as conversas."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -679,12 +805,24 @@
       "title": {
         "en": "Secret input",
         "ko": "비밀값 입력",
-        "zh": "私密凭据输入"
+        "zh": "私密凭据输入",
+        "ja": "非公開のシークレット入力",
+        "es": "Entrada privada de secretos",
+        "fr": "Saisie privée de secrets",
+        "de": "Private Eingabe geheimer Werte",
+        "ru": "Приватный ввод секретов",
+        "pt": "Entrada privada de segredos"
       },
       "description": {
         "en": "Shows a credential input card in the conversation and passes the value to the DSH secret store, never to the model.",
         "ko": "도구 호출 위치에 비밀값 입력 카드를 표시하고, 입력값을 DSH 비밀값 저장소로만 전달합니다.",
-        "zh": "在对话中显示凭据输入卡片，仅将输入值传递到 DSH 私密存储，绝不传递给模型。"
+        "zh": "在对话中显示凭据输入卡片，仅将输入值传递到 DSH 私密存储，绝不传递给模型。",
+        "ja": "会話内に認証情報の入力カードを表示し、値を DSH のシークレットストアに渡します。モデルには決して渡しません。",
+        "es": "Muestra una tarjeta de entrada de credenciales en la conversación y envía el valor al almacén de secretos de DSH, nunca al modelo.",
+        "fr": "Affiche une carte de saisie des identifiants dans la conversation et transmet la valeur au stockage de secrets DSH, jamais au modèle.",
+        "de": "Zeigt eine Eingabekarte für Zugangsdaten im Gespräch an und übergibt den Wert an den DSH-Geheimnisspeicher, niemals an das Modell.",
+        "ru": "Показывает карточку ввода учётных данных в беседе и передаёт значение в хранилище секретов DSH, но никогда не передаёт его модели.",
+        "pt": "Mostra um cartão de entrada de credenciais na conversa e envia o valor ao armazenamento de segredos do DSH, nunca ao modelo."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -743,14 +881,26 @@
     {
       "name": "@dungsil/dsh-plugin-ui-model-settings",
       "title": {
-        "en": "Task Models UI",
-        "ko": "상황별 모델",
-        "zh": "任务模型设置"
+        "en": "Models and instructions by task",
+        "ko": "상황 별 모델 및 지침",
+        "zh": "任务模型与指令",
+        "ja": "タスク別のモデルと指示",
+        "es": "Modelos e instrucciones por tarea",
+        "fr": "Modèles et instructions par tâche",
+        "de": "Modelle und Anweisungen nach Aufgabe",
+        "ru": "Модели и инструкции по задачам",
+        "pt": "Modelos e instruções por tarefa"
       },
       "description": {
-        "en": "Choose a session title model in settings. Includes the task model configuration API.",
-        "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다.",
-        "zh": "在设置中选择会话标题生成模型，同时安装任务模型配置 API。"
+        "en": "Configure task models, reasoning effort, and instructions, including the native pwsh tool description. Includes the settings API.",
+        "ko": "작업별 모델·추론 수준·지침과 pwsh 기본 도구 설명을 설정합니다. 설정 API를 함께 설치합니다.",
+        "zh": "设置各任务的模型、推理级别和指令，以及 pwsh 默认工具说明。同时安装设置 API。",
+        "ja": "タスク別のモデル、推論強度、指示と、組み込みの pwsh ツールの説明を設定します。設定 API も含まれます。",
+        "es": "Configura los modelos, el esfuerzo de razonamiento y las instrucciones por tarea, incluida la descripción de la herramienta nativa pwsh. Incluye la API de configuración.",
+        "fr": "Configurez les modèles, l’effort de raisonnement et les instructions par tâche, ainsi que la description de l’outil natif pwsh. Inclut l’API de configuration.",
+        "de": "Konfigurieren Sie Aufgabenmodelle, Denkaufwand und Anweisungen einschließlich der Beschreibung des nativen pwsh-Werkzeugs. Enthält die Einstellungs-API.",
+        "ru": "Настройте модели, глубину рассуждений и инструкции для задач, включая описание встроенного инструмента pwsh. Включает API настроек.",
+        "pt": "Configure modelos, esforço de raciocínio e instruções por tarefa, incluindo a descrição da ferramenta nativa pwsh. Inclui a API de configurações."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -861,12 +1011,24 @@
       "title": {
         "en": "Skills Settings",
         "ko": "스킬 설정",
-        "zh": "技能设置"
+        "zh": "技能设置",
+        "ja": "スキル設定",
+        "es": "Configuración de habilidades",
+        "fr": "Paramètres des compétences",
+        "de": "Skill-Einstellungen",
+        "ru": "Настройки навыков",
+        "pt": "Configurações de habilidades"
       },
       "description": {
         "en": "View loaded skills from your shared agent and DSH skill directories in settings.",
         "ko": "설정 화면에서 공용 에이전트 및 DSH 스킬 경로에 로드된 스킬을 확인합니다.",
-        "zh": "在设置中查看从共享代理和 DSH 技能目录加载的技能。"
+        "zh": "在设置中查看从共享代理和 DSH 技能目录加载的技能。",
+        "ja": "設定画面で、共有エージェントおよび DSH のスキルディレクトリから読み込まれたスキルを確認します。",
+        "es": "Consulta en la configuración las habilidades cargadas desde los directorios de habilidades compartidas de agentes y de DSH.",
+        "fr": "Consultez dans les paramètres les compétences chargées depuis les répertoires de compétences partagées des agents et de DSH.",
+        "de": "Zeigen Sie in den Einstellungen geladene Skills aus den gemeinsamen Agenten- und DSH-Skill-Verzeichnissen an.",
+        "ru": "Просматривайте в настройках навыки, загруженные из общих каталогов навыков агентов и каталогов DSH.",
+        "pt": "Veja nas configurações as habilidades carregadas dos diretórios de habilidades compartilhadas de agentes e do DSH."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -947,12 +1109,24 @@
       "title": {
         "en": "CLIProxyAPI",
         "ko": "CLIProxyAPI",
-        "zh": "CLIProxyAPI"
+        "zh": "CLIProxyAPI",
+        "ja": "CLIProxyAPI",
+        "es": "CLIProxyAPI",
+        "fr": "CLIProxyAPI",
+        "de": "CLIProxyAPI",
+        "ru": "CLIProxyAPI",
+        "pt": "CLIProxyAPI"
       },
       "description": {
         "en": "Connect CLIProxyAPI models and inspect account quota from the DSH sidebar. Requires CLIProxyAPI v8.",
         "ko": "CLIProxyAPI 모델을 연결하고 DSH 사이드바에서 계정별 할당량을 확인합니다. CLIProxyAPI v8이 필요합니다.",
-        "zh": "连接 CLIProxyAPI 模型，并从 DSH 侧边栏查看账户配额。需要 CLIProxyAPI v8。"
+        "zh": "连接 CLIProxyAPI 模型，并从 DSH 侧边栏查看账户配额。需要 CLIProxyAPI v8。",
+        "ja": "CLIProxyAPI モデルを接続し、DSH サイドバーでアカウントの割り当て量を確認します。CLIProxyAPI v8 が必要です。",
+        "es": "Conecta modelos de CLIProxyAPI y consulta la cuota de las cuentas desde la barra lateral de DSH. Requiere CLIProxyAPI v8.",
+        "fr": "Connectez les modèles CLIProxyAPI et consultez les quotas des comptes dans la barre latérale de DSH. Nécessite CLIProxyAPI v8.",
+        "de": "Verbinde CLIProxyAPI-Modelle und prüfe Kontingente der Konten in der DSH-Seitenleiste. Erfordert CLIProxyAPI v8.",
+        "ru": "Подключайте модели CLIProxyAPI и проверяйте квоты аккаунтов на боковой панели DSH. Требуется CLIProxyAPI v8.",
+        "pt": "Conecte modelos do CLIProxyAPI e consulte as cotas das contas na barra lateral do DSH. Requer CLIProxyAPI v8."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -1043,12 +1217,24 @@
       "title": {
         "en": "Model Picker",
         "ko": "모델 피커",
-        "zh": "模型选择器"
+        "zh": "模型选择器",
+        "ja": "モデル選択",
+        "es": "Selector de modelos",
+        "fr": "Sélecteur de modèles",
+        "de": "Modellauswahl",
+        "ru": "Выбор модели",
+        "pt": "Seletor de modelos"
       },
       "description": {
         "en": "A compact composer picker with model menus and a reasoning effort slider.",
         "ko": "입력창에서 모델 메뉴와 추론 강도 슬라이더를 사용합니다.",
-        "zh": "在输入框中使用模型菜单和推理强度滑块。"
+        "zh": "在输入框中使用模型菜单和推理强度滑块。",
+        "ja": "入力欄でモデルメニューと推論強度スライダーを使えるコンパクトな選択ツールです。",
+        "es": "Un selector compacto en el cuadro de entrada con menús de modelos y un control deslizante de esfuerzo de razonamiento.",
+        "fr": "Un sélecteur compact dans la zone de saisie avec des menus de modèles et un curseur d’effort de raisonnement.",
+        "de": "Eine kompakte Auswahl im Eingabefeld mit Modellmenüs und einem Schieberegler für den Denkaufwand.",
+        "ru": "Компактный инструмент в поле ввода с меню моделей и ползунком глубины рассуждений.",
+        "pt": "Um seletor compacto no campo de entrada com menus de modelos e um controle deslizante de esforço de raciocínio."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -1159,12 +1345,24 @@
       "title": {
         "en": "Left Turn Rail",
         "ko": "왼쪽 턴 레일",
-        "zh": "左侧轮次导航栏"
+        "zh": "左侧轮次导航栏",
+        "ja": "左側ターンナビゲーション",
+        "es": "Navegación de turnos a la izquierda",
+        "fr": "Navigation des tours à gauche",
+        "de": "Beitragsnavigation links",
+        "ru": "Навигация по ходам слева",
+        "pt": "Navegação de turnos à esquerda"
       },
       "description": {
         "en": "Move the official turn rail and its previews to the left side of Chat.",
         "ko": "공식 턴 레일을 대화 화면 왼쪽으로 옮기고 미리보기를 오른쪽으로 펼칩니다.",
-        "zh": "将官方轮次导航栏移至对话界面左侧，预览向右展开。"
+        "zh": "将官方轮次导航栏移至对话界面左侧，预览向右展开。",
+        "ja": "標準のターンナビゲーションをチャットの左側に移動します。プレビューは右側に開きます。",
+        "es": "Mueve la barra oficial de navegación de turnos a la izquierda del chat. Las vistas previas se abren a la derecha.",
+        "fr": "Déplace la barre officielle de navigation des tours à gauche du chat. Les aperçus s’ouvrent à droite.",
+        "de": "Verschiebt die offizielle Beitragsnavigation auf die linke Seite des Chats. Vorschauen öffnen sich rechts.",
+        "ru": "Перемещает стандартную панель навигации по ходам влево от чата. Предпросмотр открывается справа.",
+        "pt": "Move a barra oficial de navegação de turnos para a esquerda do chat. As prévias abrem à direita."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -1225,12 +1423,24 @@
       "title": {
         "en": "Usage Dashboard",
         "ko": "사용량 대시보드",
-        "zh": "用量仪表盘"
+        "zh": "用量仪表盘",
+        "ja": "使用量ダッシュボード",
+        "es": "Panel de uso",
+        "fr": "Tableau de bord d’utilisation",
+        "de": "Nutzungsübersicht",
+        "ru": "Панель использования",
+        "pt": "Painel de uso"
       },
       "description": {
         "en": "View recorded session tokens, daily activity, and model usage from the sidebar.",
         "ko": "사이드바에서 세션에 기록된 토큰, 일별 추이, 모델별 사용량을 확인합니다.",
-        "zh": "从侧边栏查看会话记录的令牌、每日趋势和模型用量。"
+        "zh": "从侧边栏查看会话记录的令牌、每日趋势和模型用量。",
+        "ja": "サイドバーから、セッションに記録されたトークン数、日別の推移、モデル別の使用量を確認します。",
+        "es": "Consulta desde la barra lateral los tokens registrados en las sesiones, la actividad diaria y el uso por modelo.",
+        "fr": "Consultez depuis la barre latérale les tokens enregistrés dans les sessions, l’activité quotidienne et l’utilisation par modèle.",
+        "de": "Zeigen Sie aufgezeichnete Sitzungstokens, tägliche Aktivitäten und die Modellnutzung über die Seitenleiste an.",
+        "ru": "Просматривайте записанные токены сеансов, ежедневную активность и использование моделей на боковой панели.",
+        "pt": "Veja na barra lateral os tokens registrados nas sessões, a atividade diária e o uso por modelo."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -1321,12 +1531,24 @@
       "title": {
         "en": "Diff Notes",
         "ko": "변경 설명",
-        "zh": "变更说明"
+        "zh": "变更说明",
+        "ja": "変更の説明",
+        "es": "Notas de cambios",
+        "fr": "Notes de modifications",
+        "de": "Änderungsnotizen",
+        "ru": "Пояснения к изменениям",
+        "pt": "Notas de alterações"
       },
       "description": {
         "en": "Let the agent explain important decisions beside before-and-after code snapshots without editing source files.",
         "ko": "소스 파일을 수정하지 않고, 수정 전·후 코드 스냅샷 옆에 에이전트가 중요한 판단의 이유를 남깁니다.",
-        "zh": "让智能体在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。"
+        "zh": "让智能体在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。",
+        "ja": "ソースファイルを編集せずに、変更前後のコードスナップショットの横で重要な判断を説明します。",
+        "es": "Explica decisiones importantes junto a las instantáneas del código antes y después de los cambios sin editar los archivos fuente.",
+        "fr": "Explique les décisions importantes à côté des instantanés du code avant et après les modifications, sans modifier les fichiers source.",
+        "de": "Erklärt wichtige Entscheidungen neben Vorher-Nachher-Schnappschüssen des Codes, ohne Quelldateien zu bearbeiten.",
+        "ru": "Объясняет важные решения рядом со снимками кода до и после изменений, не редактируя исходные файлы.",
+        "pt": "Explica decisões importantes ao lado de instantâneos do código antes e depois das alterações, sem editar os arquivos de origem."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",

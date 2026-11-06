@@ -108,13 +108,23 @@ await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 
   assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
 })
 
-await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 있다', async () => {
+await test('모든 지원 로케일에 같은 키와 비어 있지 않은 차이 카드 번역이 있다', async () => {
+  const languages = ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   const locales = await Promise.all(
-    ['en', 'ko', 'zh'].map(async (language) =>
+    languages.map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     )
   )
-  for (const locale of locales) {
+  for (const [index, locale] of locales.entries()) {
+    const language = languages[index]
+    assert.deepEqual(Object.keys(locale).sort(), Object.keys(locales[0]).sort())
+    assert.deepEqual(Object.keys(locale.meta).sort(), Object.keys(locales[0].meta).sort())
+    assert.ok(Object.values(locale.meta).every((value) => typeof value === 'string' && value.trim()))
+    assert.equal(manifest.market.title[language], locale.meta.title)
+    assert.ok(manifest.market.description[language]?.trim())
+    if (!['en', 'ko', 'zh'].includes(language))
+      assert.equal(manifest.market.description[language], locale.meta.description)
     assert.deepEqual(Object.keys(locale.ui).sort(), Object.keys(locales[0].ui).sort())
     assert.ok(Object.values(locale.ui).every((value) => typeof value === 'string' && value.trim()))
     assert.ok(locale.ui.expand.includes('{count}'))
@@ -162,9 +172,11 @@ await test('도구 뷰는 공통 DiffBlock에 스냅샷과 로케일을 전달�
   })
   const render = (phase, meta, isError = false) =>
     renderToStaticMarkup(React.createElement(View, { phase, block: { meta, isError } }))
-  for (const language of ['en', 'ko', 'zh']) {
-    active = language
-    const { ui } = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
+  for (const language of ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt', 'xx']) {
+    active = `${language}-REGION`
+    const { ui } = JSON.parse(
+      await readFile(new URL(`../locale/${language === 'xx' ? 'en' : language}.json`, import.meta.url), 'utf8')
+    )
     for (const [old_text, new_text] of [
       ['old\r\ncontext\r\n', 'new\r\ncontext\r\n'],
       ['', 'created\n'],

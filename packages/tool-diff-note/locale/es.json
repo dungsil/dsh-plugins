@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "title": "Notas de cambios",
+    "description": "Explica decisiones importantes junto a las instantáneas del código antes y después de los cambios sin editar los archivos fuente."
+  },
+  "ui": {
+    "title": "Nota de cambios",
+    "codeLabel": "Código",
+    "annotationLabel": "Motivo del cambio",
+    "waiting": "Registrando la explicación del cambio…",
+    "failed": "No se pudo registrar la explicación del cambio.",
+    "wrapLabel": "Ajustar líneas",
+    "unwrapLabel": "Desactivar el ajuste de líneas",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "collapseAria": "Contraer diferencias",
+    "expandAria": "Mostrar {count} líneas ocultas",
+    "collapse": "Contraer",
+    "expand": "Mostrar {count} líneas más"
+  }
+}

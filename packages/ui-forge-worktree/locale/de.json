@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "title": "Worktree-Auswahl",
+    "description": "Wählen Sie den aktuellen Branch oder einen neuen Git-Worktree im Eingabefeld aus."
+  },
+  "ui": {
+    "title": "Worktree",
+    "create": "Neuer Worktree",
+    "current": "Aktueller Branch",
+    "detached": "Losgelöster HEAD",
+    "loading": "Worktree wird geladen…",
+    "saving": "Auswahl wird gespeichert…",
+    "reserved": "Ein neuer Worktree wird erstellt, wenn Sie Ihre erste Nachricht senden.",
+    "locked": "Die Worktree-Auswahl kann nach dem Start dieser Sitzung nicht mehr geändert werden.",
+    "error": "Die Worktree-Auswahl konnte nicht bestätigt werden. Aktualisieren Sie vor einem erneuten Versuch.",
+    "refresh": "Auswahl aktualisieren",
+    "blocked": "Für diesen Checkout ist kein neuer Worktree verfügbar."
+  }
+}

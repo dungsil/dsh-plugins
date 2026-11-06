@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "API für Modelle und Anweisungen je Aufgabe",
+    "description": "Konfiguriere Aufgabenmodelle, Anweisungen und die Beschreibung des nativen pwsh-Werkzeugs über eine API nur für Eigentümer, ohne Einstellungsoberfläche."
+  }
+}
