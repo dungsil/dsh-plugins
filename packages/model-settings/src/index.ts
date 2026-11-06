@@ -107,7 +107,7 @@ export async function apply(ctx: Context) {
     if (!task || task.entry.fiber?.uid !== task.owner.fiber.uid || task.owner.fiber.state !== 2) return null
     const settings = read(task)
     const defaultInstructions = task.definition.defaultInstructions(
-      task.owner.fiber.effectiveConfig ?? task.owner.fiber.config ?? {}
+      (task.owner.fiber.effectiveConfig ?? {}) as Readonly<Record<string, unknown>>
     )
     const { key, label, description, automaticReasoningLabel, instructionsHint } = task.definition
     return {

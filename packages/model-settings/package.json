@@ -59,13 +59,13 @@
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-config-editor": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-client-connection": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-config-editor": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.2-rc.1"
   },
   "engines": {
-    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "dsh": "^0.2.2-rc.1",
     "node": ">=24.9.0"
   },
   "dsh": {
