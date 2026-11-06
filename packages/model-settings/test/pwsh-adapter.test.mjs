@@ -51,7 +51,7 @@ async function fixture(t) {
   }
 }
 
-test('네이티브 설명을 덧붙이지 않고 그대로 교체하며 원본 객체와 descriptor를 복원한다', async (t) => {
+await test('네이티브 설명을 덧붙이지 않고 그대로 교체하며 원본 객체와 descriptor를 복원한다', async (t) => {
   const f = await fixture(t)
   const tool = definition()
   const descriptor = Object.getOwnPropertyDescriptor(tool, 'description')
@@ -73,7 +73,7 @@ test('네이티브 설명을 덧붙이지 않고 그대로 교체하며 원본 �
   assert.equal(tool.description, 'second')
 })
 
-test('기존 숨김 제한과 패치 이후 제한을 우회하지 않고 조건이 거짓이면 실행하지 않는다', async (t) => {
+await test('기존 숨김 제한과 패치 이후 제한을 우회하지 않고 조건이 거짓이면 실행하지 않는다', async (t) => {
   const f = await fixture(t)
   const tool = definition()
   const native = await f.owner(tool, { options: { when: () => false } })
@@ -103,7 +103,7 @@ test('기존 숨김 제한과 패치 이후 제한을 우회하지 않고 조건
   assert.equal(await f.adapter().defaultInstructions(), null)
 })
 
-test('미래 네이티브 Jobs 등록과 해제 수명을 유지하며 같은 이름의 사용자 도구를 수정하지 않는다', async (t) => {
+await test('미래 네이티브 Jobs 등록과 해제 수명을 유지하며 같은 이름의 사용자 도구를 수정하지 않는다', async (t) => {
   const f = await fixture(t)
   await f.mount()
   f.save('saved')
@@ -124,7 +124,7 @@ test('미래 네이티브 Jobs 등록과 해제 수명을 유지하며 같은 �
   assert.equal(await f.adapter().defaultInstructions(), null)
 })
 
-test('고정된 descriptor와 외부 accessor를 수정하지 않고 다른 플러그인의 getter를 복원하지 않는다', async (t) => {
+await test('고정된 descriptor와 외부 accessor를 수정하지 않고 다른 플러그인의 getter를 복원하지 않는다', async (t) => {
   for (const kind of ['frozen', 'nonconfigurable', 'accessor']) {
     const f = await fixture(t)
     const tool = definition()
@@ -150,7 +150,7 @@ test('고정된 descriptor와 외부 accessor를 수정하지 않고 다른 플�
   assert.deepEqual(Object.getOwnPropertyDescriptor(tool, 'description'), foreignDescriptor)
 })
 
-test('콜드 기본값은 기본 프리셋을 선택하고 성공과 실패 모두 lease를 해제한다', async (t) => {
+await test('콜드 기본값은 기본 프리셋을 선택하고 성공과 실패 모두 lease를 해제한다', async (t) => {
   const f = await fixture(t)
   const { scopeOf } = await import('@deepseek-ai/dsh-scope')
   const first = createScope(f.ctx, {})
