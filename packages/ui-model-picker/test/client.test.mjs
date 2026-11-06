@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
 import * as React from 'react'
 
-async function mount(t) {
+async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' } = {}) {
   const window = new Window()
   const { document } = window
   const keys = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT']
@@ -25,8 +25,10 @@ async function mount(t) {
     })
   })
   const require = createRequire(import.meta.url)
-  let plugin, Picker
+  let plugin, Picker, command, fixedInput
+  const disposers = []
   const primitives = {
+    Tooltip: ({ label, children }) => React.createElement('span', { 'data-tooltip': label }, children),
     MenuSurface: React.forwardRef((props, ref) => React.createElement('div', { ...props, ref })),
     focusWithoutRing: (element) => element.focus(),
     useDismissOnOutsidePointer() {},
@@ -84,8 +86,29 @@ async function mount(t) {
       return new Promise((resolve) => requests.push({ selection, resolve }))
     },
   }
-  const locale = { active: 'ko' }
+  const locale = { active: language }
   plugin.apply({
+    shortcuts: {
+      runtime,
+      registerFixed: (value) => {
+        command = value
+        return () => {
+          command = undefined
+        }
+      },
+      observeFixedInput: (listener) => {
+        fixedInput = listener
+        return () => {
+          fixedInput = undefined
+        }
+      },
+      register: (value) => {
+        command = value
+        return () => {
+          command = undefined
+        }
+      },
+    },
     locale: { getSnapshot: () => locale, subscribe: () => () => {} },
     modelDirectories: { directoryFor: () => directory },
     slots: {
@@ -94,10 +117,12 @@ async function mount(t) {
         Picker = render
       },
     },
-    effect() {},
+    effect(setup, name) {
+      if (name === 'ui-model-picker: shortcut') disposers.push(setup())
+    },
   })
   await React.act(async () =>
-    root.render(React.createElement(Picker, { sessionId: 'test', useSession: (read) => read({}), locked: false }))
+    root.render(React.createElement(Picker, { sessionId: 'test', useSession: (read) => read({}), locked }))
   )
   const click = (selector) => React.act(async () => document.querySelector(selector).click())
   const slider = () => document.querySelector('input[type=range]')
@@ -123,7 +148,23 @@ async function mount(t) {
       update({ status: 'ready', ...(ok && project ? { current: selection } : {}) })
       resolve({ ok })
     })
-  return { document, slider, click, change, commit, reply, requests, update, snapshot: () => snapshot }
+  const anchor = document.querySelector('.dsh-codex-picker')
+  anchor.getClientRects = () => [anchor.getBoundingClientRect()]
+  t.after(() => disposers.forEach((dispose) => dispose()))
+  return {
+    document,
+    slider,
+    click,
+    change,
+    commit,
+    reply,
+    requests,
+    update,
+    snapshot: () => snapshot,
+    command: () => command,
+    fixedInput: (input) => fixedInput(input),
+    anchor,
+  }
 }
 
 await test('입력과 드래그 및 방향키는 초안만 변경하고 적용 버튼은 변경을 한 번만 확정한다', async (t) => {
@@ -206,6 +247,105 @@ await test('다른 모델의 추론 강도를 적용하고 늦게 선택 상태�
   await h.click('.dsh-codex-reset')
   await h.reply()
   assert.equal(h.slider(), null)
+})
+
+for (const [language, tooltip, label] of [
+  ['ko', '추론 수준 설정', '모델 피커 열기'],
+  ['en', 'Configure reasoning effort', 'Open model picker'],
+  ['zh', '设置推理级别', '打开模型选择器'],
+]) {
+  await test(`${language} 로케일에서 추론 수준 툴팁과 단축키 이름을 제공한다`, async (t) => {
+    const h = await mount(t, { language })
+    assert.equal(h.document.querySelector('[data-tooltip]').getAttribute('data-tooltip'), tooltip)
+    assert.equal(h.document.querySelector('.dsh-codex-trigger').hasAttribute('title'), false)
+    assert.equal(h.command().label(), label)
+    for (const binding of Object.values(h.command().defaults)) {
+      assert.equal(binding.code, 'KeyP')
+      assert.deepEqual([...binding.modifiers], ['alt'])
+    }
+  })
+}
+
+await test('웹 고정 단축키는 정확한 Alt P만 처리하고 모달과 터미널 및 조합 중 입력을 무시한다', async (t) => {
+  const h = await mount(t, { runtime: 'web' })
+  assert.deepEqual([...h.command().keys], ['Alt', 'P'])
+  let consumed = 0
+  const input = {
+    type: 'keydown',
+    gesture: {
+      code: 'KeyP',
+      alt: true,
+      control: false,
+      meta: false,
+      shift: false,
+      repeat: false,
+      composing: false,
+      defaultPrevented: false,
+    },
+    context: { region: 'editable', modal: null },
+    consume: () => consumed++,
+  }
+  for (const patch of [
+    { control: true },
+    { shift: true },
+    { meta: true },
+    { alt: false },
+    { composing: true },
+    { repeat: true },
+    { defaultPrevented: true },
+    { code: 'KeyQ' },
+    { secondCode: 'KeyQ' },
+  ]) {
+    h.fixedInput({ ...input, gesture: { ...input.gesture, ...patch } })
+  }
+  h.fixedInput({ ...input, context: { region: 'terminal', modal: null } })
+  h.fixedInput({ ...input, context: { region: 'page', modal: 'settings' } })
+  assert.equal(consumed, 0)
+  assert.equal(h.slider(), null)
+  await React.act(async () => h.fixedInput(input))
+  assert.equal(consumed, 1)
+  assert.ok(h.slider())
+})
+
+await test('단축키는 피커를 열고 다시 실행해도 닫지 않으며 Escape는 트리거로 포커스를 돌린다', async (t) => {
+  const h = await mount(t)
+  const invoke = () =>
+    React.act(async () => {
+      const resolution = h.command().resolve()
+      assert.equal(resolution.status, 'handled')
+      resolution.run()
+    })
+  await invoke()
+  assert.ok(h.slider())
+  assert.equal(h.document.activeElement, h.slider())
+  await invoke()
+  assert.ok(h.slider())
+  await React.act(async () =>
+    h.slider().dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  )
+  assert.equal(h.slider(), null)
+  assert.equal(h.document.activeElement, h.document.querySelector('.dsh-codex-trigger'))
+})
+
+await test('단축키는 잠금이나 변경 중에 피커를 열지 않고 숨겨진 피커를 무시한다', async (t) => {
+  const h = await mount(t, { locked: true })
+  assert.equal(h.command().resolve().status, 'blocked')
+  h.anchor.getClientRects = () => []
+  assert.equal(h.command().resolve().status, 'pass')
+  assert.equal(h.slider(), null)
+})
+
+await test('단축키는 모델 변경 중에 피커를 열지 않는다', async (t) => {
+  const h = await mount(t)
+  await React.act(async () => h.update({ status: 'selecting' }))
+  assert.equal(h.command().resolve().status, 'blocked')
+  assert.equal(h.slider(), null)
+})
+
+await test('추론 수준이 없는 모델의 툴팁은 모델 선택을 안내한다', async (t) => {
+  const h = await mount(t)
+  await React.act(async () => h.update({ groups: [{ id: 'provider', models: [{ id: 'first', name: 'first' }] }] }))
+  assert.equal(h.document.querySelector('[data-tooltip]').getAttribute('data-tooltip'), '모델 선택')
 })
 
 await test('외부 변경으로 팝업을 닫아도 팝업 밖 컨트롤의 포커스를 빼앗지 않는다', async (t) => {

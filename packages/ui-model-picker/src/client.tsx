@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelCatalogModel, ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { ShortcutBinding, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/client'
@@ -18,17 +19,19 @@ import {
   IconDataOutlineRegular,
   IconResetOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
-import { MenuSurface, focusWithoutRing, useDismissOnOutsidePointer } from '@dungsil/dsh-ui'
+import { MenuSurface, Tooltip, focusWithoutRing, useDismissOnOutsidePointer } from '@dungsil/dsh-ui'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-model-picker'
-export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.session', 'modelDirectories']
+export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.session', 'modelDirectories', 'shortcuts']
 
 const copy = {
   ko: {
     model: '모델 선택',
     effort: '추론 강도',
     choose: '추론 수준 선택',
+    configure: '추론 수준 설정',
+    openPicker: '모델 피커 열기',
     reset: '기본값으로 재설정',
     loading: '모델을 불러오는 중입니다…',
     empty: '사용할 수 있는 모델이 없습니다.',
@@ -43,6 +46,8 @@ const copy = {
     model: 'Select model',
     effort: 'Reasoning effort',
     choose: 'Select reasoning effort',
+    configure: 'Configure reasoning effort',
+    openPicker: 'Open model picker',
     reset: 'Reset to default',
     loading: 'Loading models…',
     empty: 'No models available.',
@@ -57,6 +62,8 @@ const copy = {
     model: '选择模型',
     effort: '推理强度',
     choose: '选择推理级别',
+    configure: '设置推理级别',
+    openPicker: '打开模型选择器',
     reset: '重置为默认值',
     loading: '正在加载模型…',
     empty: '没有可用的模型。',
@@ -70,6 +77,71 @@ const copy = {
 }
 
 export function apply(ctx: Context) {
+  const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
+  const pickers = new Map<HTMLDivElement, { disabled: boolean; open: () => void }>()
+  const binding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt'] }
+  ctx.effect(() => {
+    const label = () => {
+      const locale = ctx.locale.getSnapshot().active
+      return copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en'].openPicker
+    }
+    const resolve = () => {
+      const visible = [...pickers].filter(([element]) => element.isConnected && element.getClientRects().length > 0)
+      if (visible.length !== 1) return { status: 'pass' } as const
+      const [, picker] = visible[0]!
+      if (picker.disabled) return { status: 'blocked', reason: 'Model picker is locked or busy' } as const
+      return { status: 'handled', run: picker.open } as const
+    }
+    if (ctx.shortcuts.runtime === 'web') {
+      const unregister = ctx.shortcuts.registerFixed({
+        id: commandId,
+        label,
+        keys: ['Alt', 'P'],
+        bindings: [binding],
+        group: 'input',
+      })
+      const unobserve = ctx.shortcuts.observeFixedInput((input) => {
+        if (input.type !== 'keydown') return
+        const { gesture, context } = input
+        if (
+          context.modal ||
+          context.region === 'terminal' ||
+          gesture.code !== 'KeyP' ||
+          gesture.secondCode ||
+          !gesture.alt ||
+          gesture.control ||
+          gesture.meta ||
+          gesture.shift ||
+          gesture.repeat ||
+          gesture.composing ||
+          gesture.defaultPrevented
+        )
+          return
+        const action = resolve()
+        if (action.status === 'pass') return
+        input.consume()
+        if (action.status === 'handled') action.run()
+      })
+      return () => {
+        unobserve()
+        unregister()
+      }
+    }
+    return ctx.shortcuts.register({
+      id: commandId,
+      label,
+      aliases: ['model', 'reasoning', '모델', '추론', '模型'],
+      defaults: {
+        'desktop:windows': binding,
+        'desktop:macos': binding,
+        'desktop:linux': binding,
+      },
+      regions: ['page', 'editable'],
+      modals: [],
+      resolve,
+    })
+  }, 'ui-model-picker: shortcut')
+
   function Picker({
     locked,
     directory,
@@ -260,6 +332,24 @@ export function apply(ctx: Context) {
       setPanel('effort')
       void directory.load().catch(() => {})
     }
+    useLayoutEffect(() => {
+      const element = anchor.current
+      if (!element) return
+      pickers.set(element, {
+        disabled,
+        open: () => {
+          if (panel) {
+            popup.current?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus()
+          } else if (trigger.current) {
+            show(trigger.current)
+          }
+        },
+      })
+      return () => {
+        pickers.delete(element)
+      }
+    })
+
     const selectEffort = (index: number) => {
       const target = staged ?? (current ? { provider: current.provider, model: current.model } : null)
       const effort = stagedEfforts[index]
@@ -312,22 +402,24 @@ export function apply(ctx: Context) {
     return (
       <>
         <div className="dsh-codex-picker" ref={anchor} aria-busy={busy}>
-          <ComposerTrigger
-            className="dsh-codex-trigger"
-            icon={<IconDataOutlineRegular size={16} />}
-            label={model?.name ?? current?.model ?? text.model}
-            detail={effortLabel}
-            disabled={locked}
-            aria-disabled={disabled}
-            aria-label={`${efforts.length ? text.choose : text.model}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
-            title={`${model?.name ?? current?.model ?? text.model}${effortLabel ? ` ${effortLabel}` : ''}`}
-            aria-haspopup="dialog"
-            aria-expanded={panel !== null}
-            aria-controls={panel ? id : undefined}
-            onClick={(event) => {
-              if (!disabled) show(event.currentTarget)
-            }}
-          />
+          <Tooltip label={efforts.length ? text.configure : text.model} side="top" portal>
+            <ComposerTrigger
+              ref={trigger}
+              className="dsh-codex-trigger"
+              icon={<IconDataOutlineRegular size={16} />}
+              label={model?.name ?? current?.model ?? text.model}
+              detail={effortLabel}
+              disabled={locked}
+              aria-disabled={disabled}
+              aria-label={`${efforts.length ? text.choose : text.model}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
+              aria-haspopup="dialog"
+              aria-expanded={panel !== null}
+              aria-controls={panel ? id : undefined}
+              onClick={(event) => {
+                if (!disabled) show(event.currentTarget)
+              }}
+            />
+          </Tooltip>
         </div>
         {panel &&
           createPortal(
