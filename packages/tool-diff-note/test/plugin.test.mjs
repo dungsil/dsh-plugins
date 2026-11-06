@@ -80,7 +80,7 @@ await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 �
   }
 })
 
-await test('도구 뷰는 접힌 차이를 포함해 첫 번째 변경 블록 뒤에 설명을 유지한다', async () => {
+await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지막 변경 줄 뒤에 설명을 유지한다', async () => {
   const require = createRequire(import.meta.url)
   let client
   let View
@@ -129,8 +129,23 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 변경 블록 �
   const html = render('<section>\n  {children}\n</section>', '<Modal open>\n  {children}\n</Modal>')
   assert.ok(html.includes('&lt;Modal open&gt;') && html.includes('{children}'))
   assert.ok(html.indexOf('&lt;Modal open&gt;') < html.indexOf('이유를 설명합니다.'))
-  assert.ok(html.indexOf('이유를 설명합니다.') < html.indexOf('{children}'))
+  assert.ok(html.indexOf('&lt;/Modal&gt;') < html.indexOf('이유를 설명합니다.'))
   assert.doesNotMatch(html, /작성 시점 스냅샷|<h3/u)
+  // The screenshot's deletion and replacement belong to one hunk even though
+  // the unchanged original state separates their contiguous change runs.
+  const separated = render(
+    'const translated = useState()\nconst original = useState(false)\nconst pending = useState(false)\nconst failed = useState(false)\nconst retry = useState(0)\nreturn translated',
+    'const original = useState(false)\nconst { value: translated, pending, failed } = translation ?? {}\nreturn translated'
+  )
+  assert.ok(separated.indexOf('translation ?? {}') < separated.indexOf('이유를 설명합니다.'))
+  assert.ok(separated.indexOf('이유를 설명합니다.') < separated.indexOf('return translated'))
+  assert.equal((separated.match(/dsh-diff-note-bubble/gu) ?? []).length, 1)
+  // A second, distant hunk must not pull the annotation away from the first.
+  const context = Array.from({ length: 12 }, (_, i) => `context${i}`).join('\n')
+  const multiple = render(`oldFirst\n${context}\noldLast`, `newFirst\n${context}\nnewLast`)
+  assert.ok(multiple.indexOf('newFirst') < multiple.indexOf('이유를 설명합니다.'))
+  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('context0'))
+  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('newLast'))
   const folded = render(
     Array.from({ length: 30 }, (_, i) => `old${i}`).join('\n') + '\nunchangedTail',
     Array.from({ length: 30 }, (_, i) => `new${i}`).join('\n') + '\nunchangedTail'
