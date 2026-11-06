@@ -80,6 +80,7 @@ export function apply(ctx: Context) {
   const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
   const pickers = new Map<HTMLDivElement, { disabled: boolean; open: () => void }>()
   const binding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt'] }
+  const shortcutCatalog = ctx.shortcuts.runtime === 'web' ? ctx.shortcuts.fixedCatalog : ctx.shortcuts.catalog
   ctx.effect(() => {
     const label = () => {
       const locale = ctx.locale.getSnapshot().active
@@ -149,6 +150,13 @@ export function apply(ctx: Context) {
     const subscribe = useCallback((listener: () => void) => directory.store.subscribe(listener), [directory])
     const getSnapshot = useCallback(() => directory.store.getSnapshot(), [directory])
     const state = useSyncExternalStore(subscribe, getSnapshot)
+    const subscribeShortcuts = useCallback(
+      (listener: () => void) => shortcutCatalog.subscribe(listener),
+      [shortcutCatalog]
+    )
+    const shortcutKeys = useSyncExternalStore(subscribeShortcuts, () => shortcutCatalog.getSnapshot()).find(
+      (entry) => entry.id === commandId
+    )?.keys
     const { active: locale } = useLocaleSnapshot(ctx.locale)
     const text = copy[locale.startsWith('ko') ? 'ko' : locale.startsWith('zh') ? 'zh' : 'en']
     const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
@@ -402,7 +410,7 @@ export function apply(ctx: Context) {
     return (
       <>
         <div className="dsh-codex-picker" ref={anchor} aria-busy={busy}>
-          <Tooltip label={efforts.length ? text.configure : text.model} side="top" portal>
+          <Tooltip label={efforts.length ? text.configure : text.model} shortcutKeys={shortcutKeys} side="top" portal>
             <ComposerTrigger
               ref={trigger}
               className="dsh-codex-trigger"

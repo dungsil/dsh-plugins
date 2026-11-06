@@ -28,7 +28,13 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
   let plugin, Picker, command, fixedInput
   const disposers = []
   const primitives = {
-    Tooltip: ({ label, children }) => React.createElement('span', { 'data-tooltip': label }, children),
+    Tooltip: ({ label, shortcutKeys, children }) =>
+      React.createElement(
+        'span',
+        { 'data-tooltip': label },
+        children,
+        shortcutKeys?.map((key) => React.createElement('kbd', { key }, key))
+      ),
     MenuSurface: React.forwardRef((props, ref) => React.createElement('div', { ...props, ref })),
     focusWithoutRing: (element) => element.focus(),
     useDismissOnOutsidePointer() {},
@@ -87,11 +93,31 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
     },
   }
   const locale = { active: language }
+  let shortcutRows = [{ id: 'other.command', keys: ['Ctrl', 'X'] }]
+  const emptyShortcutRows = []
+  const shortcutListeners = new Set()
+  const shortcutCatalog = {
+    getSnapshot: () => shortcutRows,
+    subscribe: (listener) => {
+      shortcutListeners.add(listener)
+      return () => shortcutListeners.delete(listener)
+    },
+  }
+  const setShortcutKeys = (keys) => {
+    shortcutRows = [
+      { id: 'other.command', keys: ['Ctrl', 'X'] },
+      { id: command.id, keys },
+    ]
+    shortcutListeners.forEach((listener) => listener())
+  }
   plugin.apply({
     shortcuts: {
       runtime,
+      catalog: runtime === 'desktop' ? shortcutCatalog : { ...shortcutCatalog, getSnapshot: () => emptyShortcutRows },
+      fixedCatalog: runtime === 'web' ? shortcutCatalog : { ...shortcutCatalog, getSnapshot: () => emptyShortcutRows },
       registerFixed: (value) => {
         command = value
+        setShortcutKeys(value.keys)
         return () => {
           command = undefined
         }
@@ -104,6 +130,7 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
       },
       register: (value) => {
         command = value
+        setShortcutKeys(['Alt', 'P'])
         return () => {
           command = undefined
         }
@@ -165,6 +192,7 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
     snapshot: () => snapshot,
     command: () => command,
     fixedInput: (input) => fixedInput(input),
+    setShortcutKeys: (keys) => React.act(async () => setShortcutKeys(keys)),
     anchor,
   }
 }
@@ -303,6 +331,10 @@ for (const [language, tooltip, label] of [
   await test(`${language} 로케일에서 추론 수준 툴팁과 단축키 이름을 제공한다`, async (t) => {
     const h = await mount(t, { language })
     assert.equal(h.document.querySelector('[data-tooltip]').getAttribute('data-tooltip'), tooltip)
+    assert.deepEqual(
+      [...h.document.querySelectorAll('kbd')].map((key) => key.textContent),
+      ['Alt', 'P']
+    )
     assert.equal(h.document.querySelector('.dsh-codex-trigger').hasAttribute('title'), false)
     assert.equal(h.command().label(), label)
     for (const binding of Object.values(h.command().defaults)) {
@@ -312,9 +344,30 @@ for (const [language, tooltip, label] of [
   })
 }
 
+await test('툴팁은 현재 단축키를 표시하고 키 변경과 해제를 즉시 반영한다', async (t) => {
+  const h = await mount(t)
+  await h.setShortcutKeys(['Ctrl', 'Shift', 'M'])
+  assert.deepEqual(
+    [...h.document.querySelectorAll('kbd')].map((key) => key.textContent),
+    ['Ctrl', 'Shift', 'M']
+  )
+  await h.setShortcutKeys([])
+  assert.equal(h.document.querySelector('kbd'), null)
+  assert.equal(h.document.querySelector('[data-tooltip]').getAttribute('data-tooltip'), '추론 수준 설정')
+  await h.setShortcutKeys(['Alt', 'P'])
+  assert.deepEqual(
+    [...h.document.querySelectorAll('kbd')].map((key) => key.textContent),
+    ['Alt', 'P']
+  )
+})
+
 await test('웹 고정 단축키는 정확한 Alt P만 처리하고 모달과 터미널 및 조합 중 입력을 무시한다', async (t) => {
   const h = await mount(t, { runtime: 'web' })
   assert.deepEqual([...h.command().keys], ['Alt', 'P'])
+  assert.deepEqual(
+    [...h.document.querySelectorAll('kbd')].map((key) => key.textContent),
+    ['Alt', 'P']
+  )
   let consumed = 0
   const input = {
     type: 'keydown',
