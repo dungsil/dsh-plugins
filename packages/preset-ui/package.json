@@ -20,14 +20,25 @@
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "dependencies": {
+    "@dungsil/dsh-plugin-korean-ime": "workspace:*",
     "@dungsil/dsh-plugin-locale-ko": "workspace:*",
+    "@dungsil/dsh-plugin-model-settings": "workspace:*",
+    "@dungsil/dsh-plugin-ui-forge-chip": "workspace:*",
+    "@dungsil/dsh-plugin-ui-forge-worktree": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-picker": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-settings": "workspace:*",
     "@dungsil/dsh-plugin-ui-setting-skills": "workspace:*",
     "@dungsil/dsh-plugin-ui-sidebar-inbox": "workspace:*",
     "@dungsil/dsh-plugin-ui-turn-rail-left": "workspace:*",
-    "@dungsil/dsh-plugin-ui-usage": "workspace:*"
+    "@dungsil/dsh-plugin-ui-usage": "workspace:*",
+    "@dungsil/dsh-plugin-yoonmoon": "workspace:*"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
   },
   "engines": {
     "dsh": "^0.2.2-rc.1",
