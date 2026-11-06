@@ -29,6 +29,8 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드    |   MIT    |
 | [@dungsil/dsh-plugin-cli-proxy-api](./packages/cli-proxy-api)             | CLIProxyAPI 모델 연결과 계정별 할당량 조회 UI                       |   MIT    |
 
+공식 `@deepseek-ai/dsh-experimental-forge-bundle`의 워크트리 설정은 [@dungsil/dsh-plugin-ui-setting-vcs](./packages/ui-setting-vcs)에서 관리합니다. 디렉터리와 이름 접두사는 한 번씩만 표시합니다. 변경 사항은 자동 저장하며 모델 도구와 Forge 패널에 공통으로 적용합니다. 기존 커밋 작성자·서명, 기본 체크아웃 선택, 추적 원격 브랜치, 보관 시 삭제, 시멘틱 이름 설정은 공식 번들에서 지원하지 않아 이전하지 않습니다. 디렉터리는 저장소 아래의 상대 경로만 지원하며 기존 절대 경로나 상위 경로를 자동 변환하지 않습니다.
+
 ## 대체된 패키지
 
 다음 패키지는 공식 플러그인 혹은 그 외의 플러그인으로 대체 되었습니다.
