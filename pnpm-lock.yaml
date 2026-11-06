@@ -514,9 +514,21 @@ importers:
 
   packages/preset-ui:
     dependencies:
+      '@dungsil/dsh-plugin-korean-ime':
+        specifier: workspace:*
+        version: link:../korean-ime
       '@dungsil/dsh-plugin-locale-ko':
         specifier: workspace:*
         version: link:../locale-ko
+      '@dungsil/dsh-plugin-model-settings':
+        specifier: workspace:*
+        version: link:../model-settings
+      '@dungsil/dsh-plugin-ui-forge-chip':
+        specifier: workspace:*
+        version: link:../ui-forge-chip
+      '@dungsil/dsh-plugin-ui-forge-worktree':
+        specifier: workspace:*
+        version: link:../ui-forge-worktree
       '@dungsil/dsh-plugin-ui-model-picker':
         specifier: workspace:*
         version: link:../ui-model-picker
@@ -535,6 +547,13 @@ importers:
       '@dungsil/dsh-plugin-ui-usage':
         specifier: workspace:*
         version: link:../ui-usage
+      '@dungsil/dsh-plugin-yoonmoon':
+        specifier: workspace:*
+        version: link:../yoonmoon
+    devDependencies:
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/pstack:
     devDependencies:
