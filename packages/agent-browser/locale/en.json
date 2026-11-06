@@ -1,20 +1,9 @@
 {
-  "title": "Browser",
-  "manual": "Web page",
-  "agent": "Agent view",
-  "description": "Watch the browser controlled by agent-browser in this conversation.",
-  "idle": "No browser is open in this conversation.",
-  "hint": "Ask the agent to browse with the agent_browser tool. agent-browser is included with the plugin and uses Chrome or Chromium on the dsh host. Full access mode is required.",
-  "starting": "Connecting to the browser…",
-  "live": "Live",
-  "closed": "The browser is closed.",
-  "error": "The browser is unavailable.",
-  "unavailable": "Could not start the bundled agent-browser. Check the tool result in the conversation.",
-  "command_failed": "The browser command failed. Check the tool result in the conversation.",
-  "stream_failed": "The live screen disconnected. Ask the agent to run another browser command to reconnect.",
-  "permission": "Browser automation requires full access mode. It cannot run inside the dsh file sandbox.",
+  "unavailable": "Could not start the included agent-browser. Chrome or Chromium must be available on the dsh host.",
+  "command_failed": "The browser action failed. Try again after the current action finishes.",
+  "stream_failed": "The browser connection was lost. Reload to reconnect.",
+  "permission": "This browser requires full access mode. agent-browser is included with the plugin.",
   "connection_error": "Could not connect to dsh. Reconnecting…",
-  "screen": "Live browser screen controlled by the agent",
-  "readonly": "View only · Controlled by agent-browser",
-  "command": "Command"
+  "busy": "The agent is controlling this page. Wait for its current command to finish before interacting.",
+  "screen": "Web page shared with agent-browser"
 }

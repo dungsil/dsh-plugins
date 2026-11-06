@@ -1,20 +1,9 @@
 {
-  "title": "브라우저",
-  "manual": "웹 페이지",
-  "agent": "에이전트 화면",
-  "description": "이 대화에서 agent-browser가 제어하는 브라우저를 확인합니다.",
-  "idle": "이 대화에서 열린 브라우저가 없습니다.",
-  "hint": "에이전트에게 agent_browser 도구로 탐색하도록 요청하세요. agent-browser는 플러그인과 함께 설치되며 dsh 호스트의 Chrome 또는 Chromium을 사용합니다. 전체 접근 모드가 필요합니다.",
-  "starting": "브라우저에 연결하고 있습니다…",
-  "live": "실시간",
-  "closed": "브라우저가 닫혔습니다.",
-  "error": "브라우저를 사용할 수 없습니다.",
-  "unavailable": "함께 설치된 agent-browser를 시작하지 못했습니다. 대화에서 도구 실행 결과를 확인하세요.",
-  "command_failed": "브라우저 명령이 실패했습니다. 대화에서 도구 실행 결과를 확인하세요.",
-  "stream_failed": "실시간 화면 연결이 끊겼습니다. 에이전트에게 브라우저 명령을 다시 실행하여 연결하도록 요청하세요.",
-  "permission": "브라우저 자동화에는 전체 접근 모드가 필요합니다. dsh 파일 샌드박스 안에서는 실행할 수 없습니다.",
+  "unavailable": "함께 설치된 agent-browser를 시작하지 못했습니다. dsh 호스트에 Chrome 또는 Chromium이 있어야 합니다.",
+  "command_failed": "브라우저 동작이 실패했습니다. 현재 동작이 끝난 뒤 다시 시도하세요.",
+  "stream_failed": "브라우저 연결이 끊겼습니다. 새로고침하여 다시 연결하세요.",
+  "permission": "이 브라우저에는 전체 접근 모드가 필요합니다. agent-browser는 플러그인과 함께 설치됩니다.",
   "connection_error": "dsh에 연결하지 못했습니다. 다시 연결하고 있습니다…",
-  "screen": "에이전트가 제어하는 브라우저의 실시간 화면",
-  "readonly": "보기 전용 · agent-browser가 제어합니다",
-  "command": "명령"
+  "busy": "에이전트가 이 페이지를 제어하고 있습니다. 현재 명령이 끝난 뒤 조작하세요.",
+  "screen": "agent-browser와 함께 사용하는 웹페이지"
 }

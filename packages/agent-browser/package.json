@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-agent-browser",
   "version": "0.0.0",
-  "description": "Control agent-browser from DeepSeek Harness and watch its browser in the sidebar.",
+  "description": "Share the existing DeepSeek Harness Browser page with the included agent-browser.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
     "@deepseek-ai/dsh-agent": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
@@ -86,9 +87,9 @@
       "zh": "智能体浏览器"
     },
     "description": {
-      "en": "Control a separate browser per conversation and watch its live screen in the Browser sidebar tab. agent-browser is included; uses the host Chrome/Chromium in full access mode.",
-      "ko": "대화별 브라우저를 제어하고 사이드바의 브라우저 탭에서 실시간 화면을 확인합니다. agent-browser가 함께 설치되며 전체 접근 모드에서 호스트의 Chrome/Chromium을 사용합니다.",
-      "zh": "为每个对话控制独立的浏览器，并在浏览器侧边栏标签页查看实时画面。agent-browser 随插件安装，在完全访问模式下使用主机上的 Chrome/Chromium。"
+      "en": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser is included; uses the host Chrome/Chromium in full access mode.",
+      "ko": "기존 브라우저 탭에서 에이전트와 같은 웹페이지를 조작합니다. agent-browser가 함께 설치되며 전체 접근 모드에서 호스트의 Chrome/Chromium을 사용합니다.",
+      "zh": "在现有浏览器标签页中与智能体操作同一个网页。agent-browser 随插件安装，在完全访问模式下使用主机上的 Chrome/Chromium。"
     },
     "category": "tools",
     "labels": [],

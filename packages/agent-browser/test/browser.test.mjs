@@ -7,7 +7,8 @@ import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
 import { apply } from '../dist/index.js'
 
 async function fixture(t) {
-  let tool, route
+  let tool
+  const routes = new Map()
   const effects = [],
     listeners = new Map(),
     sessions = new Map(),
@@ -25,6 +26,13 @@ async function fixture(t) {
     }
     frame(data) {
       this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ type: 'frame', data }) }))
+    }
+    send(data) {
+      const input = JSON.parse(data)
+      const state = [...sessions.values()].find((state) => state.port === this.port)
+      // Like Chrome's key event endpoint, reject a whole paste as one key.
+      if (input.text?.length >= 4) return
+      if (input.type === 'input_keyboard' && input.text) state.text = (state.text ?? '') + input.text
     }
     close() {
       this.readyState = 3
@@ -48,12 +56,13 @@ async function fixture(t) {
     connection: {
       fetch: {
         register: (value) => {
-          route = value
+          routes.set(value.path, value)
           return () => {}
         },
       },
     },
     sandboxPolicy: { resolve: () => ({ mode }) },
+    sessionController: { resolveAgent: async (id) => ({ agent: { session: { id } } }) },
     subprocess: {
       resolveExecutable: async () => {
         throw new Error('No executable on PATH')
@@ -73,7 +82,7 @@ async function fixture(t) {
         } else if (args[0] === 'stream') {
           if (streamAvailable) data = { enabled: true, port: state.port }
           else error = 'Stream unavailable'
-        } else if (args[0] === 'get') data = { url: state.url }
+        } else if (args[0] === 'get') data = args[1] === 'text' ? { text: state.text } : { url: state.url }
         else if (args[0] === 'click') error = 'Element was not found'
         else if (args[0] === 'close') {
           sessions.delete(id)
@@ -112,15 +121,28 @@ async function fixture(t) {
     },
     execute: (sessionId, command, args = [], signal) =>
       tool.execute({ command, args }, { agent: { session: { id: sessionId } }, signal }),
-    async view(sessionId, sequence) {
-      const response = await route.fetch(
+    async control(sessionId, tabId, action, value) {
+      return routes.get('/api/dungsil-agent-browser/control').fetch(
+        new Request('http://localhost/api/dungsil-agent-browser/control', {
+          method: 'POST',
+          body: JSON.stringify({
+            type: 'client-request',
+            rpcId: 'test-control',
+            method: 'dungsil-agent-browser/control',
+            payload: { sessionId, tabId, action, value },
+          }),
+        })
+      )
+    },
+    async view(sessionId, sequence, tabId) {
+      const response = await routes.get('/api/dungsil-agent-browser/view').fetch(
         new Request('http://localhost/api/dungsil-agent-browser/view', {
           method: 'POST',
           body: JSON.stringify({
             type: 'client-request',
             rpcId: 'test',
             method: 'dungsil-agent-browser/view',
-            payload: { sessionId, sequence },
+            payload: { sessionId, sequence, tabId },
           }),
         })
       )
@@ -231,7 +253,7 @@ await test('화면 연결 실패를 이미 성공한 브라우저 명령의 실�
   assert.equal((await f.view('a')).status, 'live')
 })
 
-await test('별도 탭 없이 기존 브라우저 본문을 확장하고 해제하면 원래 본문을 복원한다', async (t) => {
+await test('별도 화면 없이 기존 브라우저 본문을 유지하고 해제하면 원래 제공자를 복원한다', async (t) => {
   const core = new SlotCore()
   const slot = 'sidebar.right.pane.tab'
   const browser = '@deepseek-ai/dsh-client-ui-sidebar-browser'
@@ -269,7 +291,8 @@ await test('별도 탭 없이 기존 브라우저 본문을 확장하고 해제�
     core.entriesOfSlot(slot).map((entry) => entry.options.key),
     [browser]
   )
-  assert.notEqual(core.entriesOfSlot(slot)[0].component, Native)
+  assert.equal(core.entriesOfSlot(slot)[0].component, Native)
+  assert.equal(typeof core.entriesOfSlot(slot)[0].inject, 'function')
   removeNative()
   await new Promise(setImmediate)
   assert.deepEqual(core.entriesOfSlot(slot), [])
@@ -282,4 +305,36 @@ await test('별도 탭 없이 기존 브라우저 본문을 확장하고 해제�
   )
   assert.equal(core.entriesOfSlot(slot)[0].component, Native)
   removeNative()
+})
+
+await test('기존 주소창과 사용자 입력이 도구와 같은 페이지를 제어하고 탭을 전환해도 각각의 페이지를 보존한다', async (t) => {
+  const f = await fixture(t)
+  const control = async (tab, action, value) => {
+    const response = await f.control('a', tab, action, value)
+    assert.equal(response.status, 200)
+    assert.equal((await response.json()).result.ok, true)
+  }
+  await f.execute('a', 'open', ['https://agent.example/'])
+  await control('one', 'activate')
+  assert.equal(f.sessions.size, 1)
+  await control('one', 'open', 'https://user.example/')
+  assert.deepEqual(JSON.parse((await f.execute('a', 'get', ['url'])).output), { url: 'https://user.example/' })
+  await control('one', 'input', { type: 'input_keyboard', eventType: 'keyDown', text: '사용자 입력😀' })
+  assert.deepEqual(JSON.parse((await f.execute('a', 'get', ['text'])).output), { text: '사용자 입력😀' })
+  await control('two', 'activate')
+  await control('two', 'open', 'https://second.example/')
+  assert.deepEqual(JSON.parse((await f.execute('a', 'get', ['url'])).output), { url: 'https://second.example/' })
+  await control('one', 'activate')
+  assert.deepEqual(JSON.parse((await f.execute('a', 'get', ['url'])).output), { url: 'https://user.example/' })
+  await control('two', 'close')
+  assert.equal(f.sessions.size, 1)
+  assert.deepEqual(JSON.parse((await f.execute('a', 'get', ['text'])).output), { text: '사용자 입력😀' })
+  assert.equal((await f.control('a', 'one', 'input', { type: 'eval', expression: 'bad' })).status, 400)
+  f.setMode('workspace-write')
+  const blocked = await f.control('a', 'one', 'input', { type: 'input_keyboard', eventType: 'keyDown', text: '차단' })
+  assert.deepEqual((await blocked.json()).result, {
+    ok: false,
+    error: { code: 'permission', message: 'permission', details: {} },
+  })
+  assert.equal(f.sessions.size, 0)
 })
