@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "상황별 모델 API",
-    "description": "설정 UI 없이 소유자 전용 API로 세션 제목 생성 모델을 관리합니다."
+    "title": "상황 별 모델 및 지침 API",
+    "description": "설정 UI 없이 소유자 전용 API로 작업별 모델과 지침, pwsh 추가 지침을 관리합니다."
   }
 }

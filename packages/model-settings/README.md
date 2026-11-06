@@ -8,6 +8,12 @@ DSH 작업 플러그인이 등록한 모델·추론 수준·지침을 관리하�
 
 기존 통합 버전에서 업데이트한 뒤에도 설정 화면을 사용하려면 UI 플러그인을 추가로 설치해야 합니다. 이미 저장한 모델 설정은 유지됩니다. 기존 `./client` export는 UI 패키지로 이동했습니다.
 
+## PowerShell 추가 지침
+
+**설정 → 상황 별 모델 및 지침 → 도구 지침 → PowerShell (pwsh)**에서 추가 지침을 저장합니다. 예를 들어 `description은 현재 사용자 요청의 언어로 작성한다`를 입력할 수 있습니다. 저장된 `pwshInstructions`는 활성 프로필의 다음 대화 요청부터 기본 도구 규칙과 함께 적용하며, 기존 호출 설명은 변경하지 않습니다. 빈 값으로 저장하면 해제합니다.
+
+이 항목은 별도 모델을 호출하거나 대화 모델을 변경하지 않으며, 보조 모델의 공통 지침도 상속하지 않습니다. 기본 도구 설명·안전 규칙을 대체하거나 실행 권한을 변경하지 않습니다. 모델이 설명을 작성하는 방식을 유도할 뿐 언어를 강제하지는 않습니다. 프롬프트 적용에는 선택적 `systemPrompt` 서비스가 필요합니다.
+
 ## 작업 플러그인의 공개 계약
 
 `@dungsil/dsh-plugin-model-settings/contract`에서 `TaskDefinition`, `TaskSettings`, `TaskRegistration` 타입을 가져옵니다. 타입 전용 참조이므로 이 기능 플러그인을 설치·활성화하지 않아도 작업 플러그인은 단독으로 동작할 수 있습니다.
@@ -28,7 +34,7 @@ ctx.inject(['dungsilModelSettings'], (child) => {
 
 등록 owner에는 원래 플러그인의 Context를 전달합니다. 작업은 프로필의 고유 entry에 속해야 하며 같은 entry·key의 중복 등록은 거부합니다. 다른 entry에서 같은 작업을 등록하는 것은 허용합니다. 중앙 API와 UI에 작업 이름을 추가할 필요는 없습니다.
 
-실제 호출 직전에 `registration.resolve(conversationRoute)`를 호출합니다. 반환값의 `route`·`reasoningEffort`를 LLM 준비에 명시적으로 전달하고, `instructions`의 작업별 변수를 직접 치환한 뒤 `additionalInstructions`를 붙입니다. 추론 수준이 `null`이면 기존 작업의 자동 정책을 유지합니다. 중앙 서비스는 참여 작업의 LLM 서비스나 프롬프트를 가로채지 않습니다. 서비스가 없으면 작업의 기존 명시적 모델 또는 대화 모델과 로컬 지침으로 동작해야 합니다.
+실제 호출 직전에 `registration.resolve(conversationRoute)`를 호출합니다. 반환값의 `route`·`reasoningEffort`를 LLM 준비에 명시적으로 전달하고, `instructions`의 작업별 변수를 직접 치환한 뒤 `additionalInstructions`를 붙입니다. 추론 수준이 `null`이면 기존 작업의 자동 정책을 유지합니다. 중앙 서비스는 참여 작업의 LLM 서비스나 프롬프트를 가로채지 않습니다. `kind: 'instructions'` 작업은 지침만 편집하며 모델 선택 저장을 거부합니다. 해당 작업의 지침 적용은 소유 플러그인이 담당합니다. 서비스가 없으면 작업의 기존 명시적 모델 또는 대화 모델과 로컬 지침으로 동작해야 합니다.
 
 설정 저장은 중앙 서비스가 `configEditor.edit`로 조정하지만 설정 형식은 해당 플러그인이 소유합니다. `write`는 최신 config에서 자기 필드만 바꾸고 나머지를 보존해야 합니다. 이미 시작한 호출은 resolve 시점의 스냅샷을 사용하고, 재등록된 작업의 이전 revision은 쓰기에 사용할 수 없습니다.
 

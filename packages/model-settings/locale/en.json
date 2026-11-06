@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Models by task API",
-    "description": "Configure session title models through an owner-only API, without a settings UI."
+    "title": "Models and instructions by task API",
+    "description": "Configure task models, instructions, and additional pwsh guidance through an owner-only API, without a settings UI."
   }
 }

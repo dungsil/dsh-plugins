@@ -1,9 +1,0 @@
-pstack for DeepSeek Harness
-
-Derived from pstack by Lauren Tan, revision 2776ddd2355d6d6c8747d3964600f28daf62f049.
-Copyright (c) 2026 Lauren Tan. MIT license; see LICENSE.
-
-DSH changes: native skill instructions and playbooks, filesystem registration,
-DSH role preferences, session-history and team coordination guidance,
-localized metadata, original stacked-layer icon, and lifecycle/resource tests.
-Agent files are DSH delegate prompt resources, not registered agent types.

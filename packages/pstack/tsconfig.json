@@ -1,5 +1,0 @@
-{
-  "extends": "@dungsil/dsh-tsconfig",
-  "compilerOptions": { "strict": true, "noEmit": true },
-  "include": ["src/**/*.ts", "tsdown.config.ts"]
-}

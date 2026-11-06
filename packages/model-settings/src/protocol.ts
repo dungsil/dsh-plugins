@@ -14,6 +14,7 @@ export type ModelSelection =
   | { mode: 'model'; route: Route; reasoningEffort: string | null }
 
 export interface TaskSnapshot {
+  kind?: 'instructions'
   id: string
   revision: string
   key: string

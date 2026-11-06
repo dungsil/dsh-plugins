@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { ModelSettingsService, TaskDefinition, TaskSettings } from './contract.js'
 import { legacyRole, legacyTarget, readLegacySettings } from './compatibility.js'
 import { channel, endpointPrefix, type ModelSelection, type Route, type TaskSnapshot } from './protocol.js'
@@ -118,7 +119,8 @@ export async function apply(ctx: Context) {
       description,
       automaticReasoningLabel,
       instructionsHint,
-      selection: settings.selection,
+      ...(task.definition.kind ? { kind: task.definition.kind } : {}),
+      selection: task.definition.kind === 'instructions' ? { mode: 'conversation' } : settings.selection,
       instructions: settings.instructions ?? defaultInstructions,
       defaultInstructions,
       revision: revision([task.generation, task.entry.options.config, settings, defaultInstructions]),
@@ -168,6 +170,65 @@ export async function apply(ctx: Context) {
     },
   }
   ctx.provide('dungsilModelSettings', service)
+  const pwshDefinition: TaskDefinition = {
+    key: 'tool:pwsh',
+    kind: 'instructions',
+    label: { en: 'PowerShell (pwsh)', ko: 'PowerShell (pwsh)', zh: 'PowerShell (pwsh)' },
+    description: {
+      en: 'Additional guidance for the conversation model when calling pwsh. Does not select a separate model.',
+      ko: '대화 모델이 pwsh를 호출할 때 따를 추가 지침입니다. 별도 모델을 선택하지 않습니다.',
+      zh: '对话模型调用 pwsh 时使用的附加指令，不选择单独的模型。',
+    },
+    automaticReasoningLabel: { en: 'Not applicable', ko: '해당 없음', zh: '不适用' },
+    instructionsHint: {
+      en: 'Added alongside the built-in tool rules from the next conversation request in this profile. For example: write description in the language of the current user request. Clear and save to remove. Existing call descriptions are unchanged.',
+      ko: '이 프로필의 다음 대화 요청부터 기본 도구 규칙과 함께 적용합니다. 예: description은 현재 사용자 요청의 언어로 작성한다. 비우고 저장하면 해제하며 기존 호출 설명은 바뀌지 않습니다.',
+      zh: '从此配置的下一次对话请求起，与内置工具规则一同生效。例如：使用当前用户请求的语言编写 description。清空并保存即可移除，已有调用说明保持不变。',
+    },
+    read: (config) => ({
+      selection: { mode: 'conversation' },
+      instructions: typeof config.pwshInstructions === 'string' ? config.pwshInstructions : null,
+    }),
+    write: (config, settings) => {
+      const next = { ...config }
+      if (settings.instructions) next.pwshInstructions = settings.instructions
+      else delete next.pwshInstructions
+      return next
+    },
+    defaultInstructions: () => '',
+  }
+  // This task lives on the settings service itself; saving remounts that service.
+  // Read it directly from the current entry, not the disposed registration map.
+  const pwshSnapshot = (): TaskSnapshot | null => {
+    const entry = settingsEntry()
+    if (!entry) return null
+    const settings = pwshDefinition.read(entry.options.config ?? {})
+    return {
+      id: JSON.stringify([entry.options.id, pwshDefinition.key]),
+      key: pwshDefinition.key,
+      kind: 'instructions',
+      owner: { entryId: entry.options.id, packageName: entry.options.name },
+      label: pwshDefinition.label,
+      description: pwshDefinition.description,
+      automaticReasoningLabel: pwshDefinition.automaticReasoningLabel,
+      instructionsHint: pwshDefinition.instructionsHint,
+      selection: { mode: 'conversation' },
+      instructions: settings.instructions ?? '',
+      defaultInstructions: '',
+      revision: revision([entry.options.id, entry.options.config?.pwshInstructions ?? null]),
+    }
+  }
+  ctx.inject(['systemPrompt'], (child) => {
+    child.systemPrompt.section({
+      name: 'dungsil:pwsh-additional-instructions',
+      order: child.systemPrompt.getSectionOrder('TOOL_PWSH') + 0.5,
+      interpolate: false,
+      text: () => {
+        const instructions = pwshSnapshot()?.instructions
+        return instructions ? `Additional instructions when calling pwsh:\n${instructions}` : ''
+      },
+    })
+  })
   const titles = createTitleAdapter(ctx, settingsEntry, auxiliary)
   const snapshots = () => [...tasks.keys()].map(snapshot).filter((task): task is TaskSnapshot => task !== null)
   const legacyTasks = () => {
@@ -189,7 +250,9 @@ export async function apply(ctx: Context) {
         ? auxiliary()
         : titles.snapshot()?.id === id
           ? titles.snapshot()
-          : snapshot(id)
+          : pwshSnapshot()?.id === id
+            ? pwshSnapshot()
+            : snapshot(id)
       : (Object.values(legacyTasks()).find((task) => task?.owner.entryId === id) ?? null)
 
   const catalog = async (signal: AbortSignal) => {
@@ -240,7 +303,8 @@ export async function apply(ctx: Context) {
         }
       }
       const title = titles.snapshot()
-      const current = [...snapshots(), ...(title ? [title] : [])]
+      const pwsh = pwshSnapshot()
+      const current = [...snapshots(), ...(title ? [title] : []), ...(pwsh ? [pwsh] : [])]
       current.sort(
         (a, b) =>
           a.owner.packageName.localeCompare(b.owner.packageName) ||
@@ -278,6 +342,7 @@ export async function apply(ctx: Context) {
     }
     const target = find(input.id, v2)
     if (!target) return failure('unavailable')
+    if (target.kind === 'instructions' && selection !== undefined) return failure('invalid')
     const isAuxiliary = target.id === auxiliary()?.id
     if (isAuxiliary && selection?.mode === 'auxiliary') return failure('invalid')
     if (selection?.mode === 'model') {
@@ -298,7 +363,8 @@ export async function apply(ctx: Context) {
         await titles.save(input.revision, selection, instructions, signal)
       } else {
         const registered = tasks.get(target.id)
-        const entry = isAuxiliary ? settingsEntry() : registered?.entry
+        const isPwsh = target.kind === 'instructions' && target.id === pwshSnapshot()?.id
+        const entry = isAuxiliary || isPwsh ? settingsEntry() : registered?.entry
         if (!entry) return failure('unavailable')
         await editor.edit(entry, (current) => {
           const latest = find(input.id as string, v2)
@@ -322,6 +388,11 @@ export async function apply(ctx: Context) {
             }
             return next
           }
+          if (isPwsh)
+            return pwshDefinition.write(current, {
+              selection: { mode: 'conversation' },
+              instructions: instructions || null,
+            })
           const settings = read(registered!, current)
           return registered!.definition.write(current, {
             selection: selection ?? settings.selection,

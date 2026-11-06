@@ -8,13 +8,14 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import Llm, { LlmAdapter } from '@deepseek-ai/dsh-llm'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as plugin from '../dist/index.js'
 
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 const conversation = { provider: 'chat', model: 'large' }
 const text = { en: 'Summary', ko: '요약', zh: '摘要' }
 
-async function fixture(t, { enabled = true, duplicate = false } = {}) {
+async function fixture(t, { enabled = true, duplicate = false, withSystemPrompt = true } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'model-registry-'))
   const dir = join(home, 'profiles', 'web')
   initProfile(dir, ['test-bundle'])
@@ -121,6 +122,7 @@ async function fixture(t, { enabled = true, duplicate = false } = {}) {
     await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
     await root.plugin(Connection)
     await root.plugin(Llm)
+    if (withSystemPrompt) await root.plugin(SystemPrompt)
     root.llm.registerAdapter(['chat', 'aux'], new Adapter())
   })
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -161,15 +163,64 @@ async function fixture(t, { enabled = true, duplicate = false } = {}) {
   }
 }
 
+await test('systemPrompt가 없는 프로필에서도 기존 모델 설정과 지침 저장을 제공한다', async (t) => {
+  const h = await fixture(t, { withSystemPrompt: false })
+  const pwsh = (await h.rpc('describe')).value.tasks.find((task) => task.key === 'tool:pwsh')
+  assert.equal((await h.rpc('instructions', { ...pwsh, instructions: '한국어로 설명한다' })).ok, true)
+  await h.generate('summary-a')
+  assert.equal(h.requests.at(-1).system, 'Summarize summary-a.')
+})
+
+await test('pwsh 추가 지침을 저장하고 기본 규칙을 보존하며 보조 모델 지침을 상속하지 않는다', async (t) => {
+  const h = await fixture(t)
+  const sections = async () => (await h.ctx.systemPrompt.assemble()).sections
+  h.ctx.systemPrompt.section({ name: 'test:built-in', order: 1, text: 'Built-in safety rules.' })
+  const getPwsh = async () => (await h.rpc('describe')).value.tasks.find((task) => task.key === 'tool:pwsh')
+  let pwsh = await getPwsh()
+  assert.equal(pwsh.kind, 'instructions')
+  assert.equal(pwsh.instructions, '')
+  assert.deepEqual(pwsh.selection, { mode: 'conversation' })
+  for (const selection of [{ mode: 'conversation' }, { mode: 'auxiliary' }, { mode: 'model', route: conversation }]) {
+    assert.equal((await h.rpc('save', { ...pwsh, selection })).error.code, 'invalid')
+  }
+  const saved = await h.rpc('instructions', {
+    ...pwsh,
+    instructions: '  description은 한국어로 작성한다 {{literal}}  ',
+  })
+  assert.equal(saved.ok, true, JSON.stringify(saved))
+  let prompt = await sections()
+  assert.equal(prompt.find((section) => section.name === 'test:built-in').text, 'Built-in safety rules.')
+  assert.equal(
+    prompt.find((section) => section.name === 'dungsil:pwsh-additional-instructions').text,
+    'Additional instructions when calling pwsh:\ndescription은 한국어로 작성한다 {{literal}}'
+  )
+  assert.equal((await h.rpc('instructions', { ...pwsh, instructions: 'stale' })).error.code, 'conflict')
+  const auxiliary = (await h.rpc('describe')).value.auxiliary
+  assert.equal((await h.rpc('instructions', { ...auxiliary, instructions: 'Shared guidance.' })).ok, true)
+  prompt = await sections()
+  assert.ok(
+    !prompt.find((section) => section.name === 'dungsil:pwsh-additional-instructions').text.includes('Shared guidance.')
+  )
+  assert.equal(h.requests.length, 0)
+  pwsh = await getPwsh()
+  assert.equal((await h.rpc('instructions', { ...pwsh, instructions: '   ' })).ok, true)
+  assert.equal((await getPwsh()).instructions, '')
+  assert.ok(
+    !(await sections()).some((section) => section.name === 'dungsil:pwsh-additional-instructions' && section.text)
+  )
+  const entry = h.ctx.configEditor.entries().find((entry) => entry.options.id === 'service')
+  assert.equal(entry.options.config.pwshInstructions, undefined)
+})
+
 await test('알려지지 않은 작업과 복수 entry를 등록하고 독립적으로 저장하며 실제 요청에 적용한다', async (t) => {
   const h = await fixture(t, { duplicate: true })
   const described = await h.rpc('describe')
   assert.equal(described.ok, true)
   assert.deepEqual(
-    described.value.tasks.map((task) => task.owner.entryId),
+    described.value.tasks.filter((task) => !task.kind).map((task) => task.owner.entryId),
     ['summary-a', 'summary-b']
   )
-  const [first, second] = described.value.tasks
+  const [first, second] = described.value.tasks.filter((task) => !task.kind)
   const saved = await h.rpc('save', {
     ...first,
     selection: {
@@ -180,7 +231,10 @@ await test('알려지지 않은 작업과 복수 entry를 등록하고 독립적
   })
   assert.equal(saved.ok, true, JSON.stringify(saved))
   assert.equal((await h.rpc('save', { ...first, selection: { mode: 'conversation' } })).error.code, 'conflict')
-  assert.equal((await h.rpc('describe')).value.tasks[1].revision, second.revision)
+  assert.equal(
+    (await h.rpc('describe')).value.tasks.find((task) => task.owner.entryId === 'summary-b').revision,
+    second.revision
+  )
   const instructions = await h.rpc('instructions', { ...saved.value, instructions: '  Only the summary.  ' })
   assert.equal(instructions.ok, true)
   await h.generate('summary-a')
@@ -259,7 +313,15 @@ await test('보조 모델과 공통 지침을 상속하되 대화 모델 선택�
   assert.equal(h.requests.at(-1).provider, 'aux')
   assert.equal(h.requests.at(-1).reasoningEffort, 'low')
   view = (await h.rpc('describe')).value
-  assert.equal((await h.rpc('save', { ...view.tasks[0], selection: { mode: 'conversation' } })).ok, true)
+  assert.equal(
+    (
+      await h.rpc('save', {
+        ...view.tasks.find((task) => task.owner.entryId === 'summary-a'),
+        selection: { mode: 'conversation' },
+      })
+    ).ok,
+    true
+  )
   await h.generate('summary-a')
   assert.equal(h.requests.at(-1).provider, 'chat')
   assert.equal(h.requests.at(-1).system, 'Summarize summary-a.')
@@ -273,16 +335,16 @@ await test('서비스를 나중에 활성화하거나 교체하면 작업을 재
   await reconcileProfilePatches(h.ctx, readProfilePatches('dsh', h.profile), 'dsh')
   await h.ctx.loader.await()
   let view = (await h.rpc('describe')).value
-  assert.equal(view.tasks.length, 2)
+  assert.equal(view.tasks.length, 3)
   const old = h.registrations.get('summary-a')
-  const stale = view.tasks[0]
+  const stale = view.tasks.find((task) => task.owner.entryId === 'summary-a')
   await service.fiber.restart()
   await h.ctx.loader.await()
   assert.throws(() => old.resolve(conversation), /no longer active/u)
   old.dispose()
   view = (await h.rpc('describe')).value
-  assert.equal(view.tasks.length, 2)
-  assert.notEqual(view.tasks[0].revision, stale.revision)
+  assert.equal(view.tasks.length, 3)
+  assert.notEqual(view.tasks.find((task) => task.id === stale.id).revision, stale.revision)
   assert.equal((await h.rpc('instructions', { ...stale, instructions: 'Stale.' })).error.code, 'conflict')
   await h.generate('summary-a')
   assert.equal(h.requests.at(-1).system, 'Summarize summary-a.')

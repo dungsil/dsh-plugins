@@ -6,9 +6,7 @@
     ".dsh-dev/**",
     ".amp/**",
     "packages/yoonmoon/skills/**",
-    "packages/i-have-adhd/skills/**",
-    "packages/pstack/skills/**",
-    "packages/pstack/agents/**"
+    "packages/i-have-adhd/skills/**"
   ],
   "semi": false,
   "singleQuote": true,
