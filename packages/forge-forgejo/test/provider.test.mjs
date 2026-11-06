@@ -50,7 +50,7 @@ function mock(answer = () => fixture(), options = {}) {
   return { provider: new Provider(run, [host], options.maxOutputBytes ?? 65536), calls }
 }
 
-test('설치 메타데이터는 세 언어로 market과 일치하고 이전 UI 키를 포함하지 않는다', async () => {
+await test('설치 메타데이터는 세 언어로 market과 일치하고 이전 UI 키를 포함하지 않는다', async () => {
   assert.ok(manifest.files.includes('locale'))
   assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
   for (const language of ['en', 'ko', 'zh']) {
@@ -61,7 +61,7 @@ test('설치 메타데이터는 세 언어로 market과 일치하고 이전 UI �
   }
 })
 
-test('플러그인은 공식 forge 서비스만 주입하고 독립 family를 등록한다', () => {
+await test('플러그인은 공식 forge 서비스만 주입하고 독립 family를 등록한다', () => {
   assert.deepEqual(plugin.inject, ['forge'])
   const config = plugin.Config({})
   assert.deepEqual(config.hosts, [host])
@@ -82,7 +82,7 @@ test('플러그인은 공식 forge 서비스만 주입하고 독립 family를 �
   assert.ok(!Object.keys(manifest.devDependencies).some((key) => /ui-vcs|react|client-ui/.test(key)))
 })
 
-test('명시된 HTTPS와 SSH 호스트만 소유하고 다른 provider와 자격증명 URL을 거부한다', () => {
+await test('명시된 HTTPS와 SSH 호스트만 소유하고 다른 provider와 자격증명 URL을 거부한다', () => {
   const { provider } = mock()
   assert.deepEqual(provider.repositoryFromRemote(`git@${host}:owner/repo.git`), ref.repository)
   assert.deepEqual(provider.repositoryFromRemote(`https://${host}/owner/repo.git`), ref.repository)
@@ -104,7 +104,7 @@ test('명시된 HTTPS와 SSH 호스트만 소유하고 다른 provider와 자격
   )
 })
 
-test('fetch는 실제 계약의 snapshot과 검사 결과를 정규화하고 짧은 페이지 다음도 읽는다', async () => {
+await test('fetch는 실제 계약의 snapshot과 검사 결과를 정규화하고 짧은 페이지 다음도 읽는다', async () => {
   const { provider, calls } = mock((endpoint) =>
     endpoint.includes('/statuses/')
       ? endpoint.includes('page=1')
@@ -126,7 +126,7 @@ test('fetch는 실제 계약의 snapshot과 검사 결과를 정규화하고 짧
   }
 })
 
-test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호한 로그인은 요청하지 않는다', async () => {
+await test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호한 로그인은 요청하지 않는다', async () => {
   const denied = mock(() => ({ message: 'denied' }), { status: 401 })
   assert.equal((await denied.provider.readiness(host, signal())).state, 'unauthenticated')
   const ambiguous = mock(undefined, {
@@ -140,7 +140,7 @@ test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호한 로
   assert.equal((await mock().provider.readiness('unconfigured.example', signal())).state, 'unavailable')
 })
 
-test('잘못된 JSON과 snapshot 및 초과 출력은 성공으로 정규화하지 않는다', async () => {
+await test('잘못된 JSON과 snapshot 및 초과 출력은 성공으로 정규화하지 않는다', async () => {
   for (const answer of [
     () => '{invalid',
     () => ({ ...fixture(), number: 8 }),
@@ -155,7 +155,7 @@ test('잘못된 JSON과 snapshot 및 초과 출력은 성공으로 정규화하�
   assert.equal(values[0].code, 'too-large')
 })
 
-test('조회는 기본 브랜치와 fork를 제외하고 페이지 상한에서 실패한다', async () => {
+await test('조회는 기본 브랜치와 fork를 제외하고 페이지 상한에서 실패한다', async () => {
   const { provider } = mock((endpoint) =>
     endpoint === 'repos/owner/repo'
       ? { default_branch: 'main' }
@@ -169,7 +169,7 @@ test('조회는 기본 브랜치와 fork를 제외하고 페이지 상한에서 
   await assert.rejects(bounded.provider.findByHead(ref.repository, 'feature', signal()), /20 pages/)
 })
 
-test('병합은 stale SHA에서 쓰지 않고 원자 SHA와 branch 유지 및 자동 병합 금지를 전송한다', async () => {
+await test('병합은 stale SHA에서 쓰지 않고 원자 SHA와 branch 유지 및 자동 병합 금지를 전송한다', async () => {
   const stale = mock()
   assert.equal((await stale.provider.merge(ref, { method: 'merge', headSha: 'b'.repeat(40) }, signal())).code, 'stale')
   assert.ok(!stale.calls.some(({ args }) => args.includes('POST')))
@@ -185,7 +185,7 @@ test('병합은 stale SHA에서 쓰지 않고 원자 SHA와 branch 유지 및 �
   assert.equal(current.provider.submitReview, undefined)
 })
 
-test('보호 규칙과 병합 가능 여부가 미확인이어도 열린 PR은 서버에 병합을 요청한다', async () => {
+await test('보호 규칙과 병합 가능 여부가 미확인이어도 열린 PR은 서버에 병합을 요청한다', async () => {
   const { provider, calls } = mock((endpoint) =>
     endpoint.endsWith('/merge') ? '' : endpoint.includes('/statuses/') ? [] : { ...fixture(), mergeable: undefined }
   )
@@ -194,7 +194,7 @@ test('보호 규칙과 병합 가능 여부가 미확인이어도 열린 PR은 �
   assert.equal(calls.filter(({ args }) => args.includes('POST')).length, 1)
 })
 
-test('닫힌 PR과 초안 및 명시적 충돌은 병합 가능으로 표시하지 않는다', async () => {
+await test('닫힌 PR과 초안 및 명시적 충돌은 병합 가능으로 표시하지 않는다', async () => {
   for (const row of [
     { state: 'closed' },
     { merged: true },
@@ -209,7 +209,7 @@ test('닫힌 PR과 초안 및 명시적 충돌은 병합 가능으로 표시하�
   }
 })
 
-test('병합 거부는 서버 메시지와 HTTP 상태를 반환하고 자동으로 재시도하지 않는다', async () => {
+await test('병합 거부는 서버 메시지와 HTTP 상태를 반환하고 자동으로 재시도하지 않는다', async () => {
   for (const [status, message, code] of [
     [403, 'Protected branch requires an approved review', 'failed'],
     [409, 'Required status checks have not passed', 'failed'],
@@ -227,7 +227,7 @@ test('병합 거부는 서버 메시지와 HTTP 상태를 반환하고 자동으
   }
 })
 
-test('손상된 오류 응답은 HTTP 상태로 표시하고 메시지의 제어 문자와 토큰을 제거한다', async () => {
+await test('손상된 오류 응답은 HTTP 상태로 표시하고 메시지의 제어 문자와 토큰을 제거한다', async () => {
   const broken = mock((endpoint) => (endpoint.endsWith('/merge') ? '<html>bad gateway</html>' : fixture()), {
     status: (endpoint) => (endpoint.endsWith('/merge') ? 502 : 200),
   })
@@ -242,7 +242,7 @@ test('손상된 오류 응답은 HTTP 상태로 표시하고 메시지의 제어
   )
 })
 
-test('diff와 파일 조회는 SHA 및 경로를 고정하고 취소되면 즉시 중단한다', async () => {
+await test('diff와 파일 조회는 SHA 및 경로를 고정하고 취소되면 즉시 중단한다', async () => {
   const { provider, calls } = mock(() => 'text')
   assert.equal(await provider.diff(ref, signal()), 'text')
   assert.equal(await provider.fileText(ref, sha, 'dir/a b.txt', signal()), 'text')
@@ -256,7 +256,7 @@ test('diff와 파일 조회는 SHA 및 경로를 고정하고 취소되면 즉�
   assert.equal(calls.length, before)
 })
 
-test('SHA는 40자 또는 64자만 허용하고 중간 길이는 읽기와 병합 전에 거부한다', async () => {
+await test('SHA는 40자 또는 64자만 허용하고 중간 길이는 읽기와 병합 전에 거부한다', async () => {
   for (const length of [41, 63]) {
     const { provider, calls } = mock()
     const invalid = 'a'.repeat(length)
@@ -268,7 +268,7 @@ test('SHA는 40자 또는 64자만 허용하고 중간 길이는 읽기와 병�
   assert.equal(await provider.fileText(ref, 'a'.repeat(64), 'file', signal()), 'text')
 })
 
-test('검사 상태는 pending과 success 및 failure를 구분하고 알 수 없는 상태는 거부한다', async () => {
+await test('검사 상태는 pending과 success 및 failure를 구분하고 알 수 없는 상태는 거부한다', async () => {
   for (const [state, rollup] of [
     ['success', 'success'],
     ['failure', 'failure'],
@@ -290,7 +290,7 @@ test('검사 상태는 pending과 success 및 failure를 구분하고 알 수 �
   assert.equal((await provider.fetchChecks(ref, signal())).code, 'unavailable')
 })
 
-test('runner는 비대화형 자격증명 격리 환경을 만들고 없는 실행 파일을 안전하게 실패한다', async () => {
+await test('runner는 비대화형 자격증명 격리 환경을 만들고 없는 실행 파일을 안전하게 실패한다', async () => {
   const previous = process.env.TEA_LOGIN
   process.env.TEA_LOGIN = 'ambient-login'
   try {
@@ -307,7 +307,7 @@ test('runner는 비대화형 자격증명 격리 환경을 만들고 없는 실�
   await assert.rejects(run(['version'], signal()), /could not start/)
 })
 
-test('공식 forge 서비스가 서버의 병합 거부 메시지를 UI 계약에 그대로 전달한다', async (t) => {
+await test('공식 forge 서비스가 서버의 병합 거부 메시지를 UI 계약에 그대로 전달한다', async (t) => {
   const ctx = new Context()
   new ForgeService(ctx, {
     activeIntervalMs: 30000,

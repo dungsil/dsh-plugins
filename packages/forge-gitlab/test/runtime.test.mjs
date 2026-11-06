@@ -51,7 +51,7 @@ function fixture(overrides = {}) {
   return { provider, repository, ref, calls }
 }
 
-test('공식 forge 서비스에 provider만 등록하고 UI나 RPC를 등록하지 않는다', () => {
+await test('공식 forge 서비스에 provider만 등록하고 UI나 RPC를 등록하지 않는다', () => {
   const providers = []
   apply({ forge: { register: (provider) => providers.push(provider) } }, Config({}))
   assert.deepEqual(inject, ['forge'])
@@ -60,7 +60,7 @@ test('공식 forge 서비스에 provider만 등록하고 UI나 RPC를 등록하�
   assert.equal(providers[0].submitReview, undefined)
 })
 
-test('중첩 GitLab 그룹과 HTTPS 포트를 보존하고 허용하지 않은 호스트와 자격 증명을 거부한다', () => {
+await test('중첩 GitLab 그룹과 HTTPS 포트를 보존하고 허용하지 않은 호스트와 자격 증명을 거부한다', () => {
   const { provider, ref } = fixture()
   assert.equal(ref.repository.owner, 'group/nested')
   assert.equal(provider.repositoryFromRemote('https://gitlab.example:8443/a/b.git').host, 'gitlab.example:8443')
@@ -81,7 +81,7 @@ test('중첩 GitLab 그룹과 HTTPS 포트를 보존하고 허용하지 않은 �
     assert.equal(provider.changeRequestFromUrl(value), undefined)
 })
 
-test('GitLab 응답을 공식 snapshot과 canonical key로 정규화한다', async () => {
+await test('GitLab 응답을 공식 snapshot과 canonical key로 정규화한다', async () => {
   const { provider, ref } = fixture()
   const results = await provider.fetch([ref], signal())
   const value = results.get(changeRequestKey(ref))
@@ -95,7 +95,7 @@ test('GitLab 응답을 공식 snapshot과 canonical key로 정규화한다', asy
   assert.equal(value.deletions, 1)
 })
 
-test('기본 브랜치와 포크의 MR을 head 조회 결과에 포함하지 않는다', async () => {
+await test('기본 브랜치와 포크의 MR을 head 조회 결과에 포함하지 않는다', async () => {
   const f = fixture()
   assert.deepEqual(await f.provider.findByHead(f.repository, 'main', signal()), [])
   assert.deepEqual(await f.provider.findByHead(f.repository, 'feature', signal()), [f.ref])
@@ -103,7 +103,7 @@ test('기본 브랜치와 포크의 MR을 head 조회 결과에 포함하지 않
   assert.deepEqual(await foreign.provider.findByHead(foreign.repository, 'feature', signal()), [])
 })
 
-test('실패한 CI와 미완료 승인 및 토론과 없는 병합 권한은 병합을 허용하지 않는다', async () => {
+await test('실패한 CI와 미완료 승인 및 토론과 없는 병합 권한은 병합을 허용하지 않는다', async () => {
   for (const config of [
     { statuses: [{ sha: commit, name: 'test', status: 'failed' }] },
     { approvals: 1 },
@@ -122,7 +122,7 @@ test('실패한 CI와 미완료 승인 및 토론과 없는 병합 권한은 병
   }
 })
 
-test('잘린 diff와 다른 head의 검사 결과를 성공 snapshot으로 처리하지 않는다', async () => {
+await test('잘린 diff와 다른 head의 검사 결과를 성공 snapshot으로 처리하지 않는다', async () => {
   for (const config of [
     { diffs: [{ diff: '', too_large: true }] },
     { statuses: [{ sha: 'b'.repeat(40), name: 'test', status: 'success' }] },
@@ -132,7 +132,7 @@ test('잘린 diff와 다른 head의 검사 결과를 성공 snapshot으로 처�
   }
 })
 
-test('오래된 head는 쓰지 않고 병합 요청에는 확인한 SHA를 원자 조건으로 보낸다', async () => {
+await test('오래된 head는 쓰지 않고 병합 요청에는 확인한 SHA를 원자 조건으로 보낸다', async () => {
   const f = fixture()
   assert.equal((await f.provider.merge(f.ref, { method: 'squash', headSha: 'b'.repeat(40) }, signal())).code, 'stale')
   assert.equal(
@@ -145,7 +145,7 @@ test('오래된 head는 쓰지 않고 병합 요청에는 확인한 SHA를 원�
   assert.deepEqual(JSON.parse(writes[0].input), { sha: commit, squash: true })
 })
 
-test('인증 실패와 손상된 JSON을 실패로 반환하고 CLI 진단 원문을 노출하지 않는다', async () => {
+await test('인증 실패와 손상된 JSON을 실패로 반환하고 CLI 진단 원문을 노출하지 않는다', async () => {
   const f = fixture({ run: async () => ({ exitCode: 1, stdout: '', stderr: 'HTTP 401 secret-token' }) })
   assert.equal((await f.provider.fetchChecks(f.ref, signal())).code, 'unauthenticated')
   const status = await f.provider.readiness('gitlab.com', signal())
@@ -155,7 +155,7 @@ test('인증 실패와 손상된 JSON을 실패로 반환하고 CLI 진단 원�
   assert.equal((await broken.provider.fetchChecks(broken.ref, signal())).code, 'unavailable')
 })
 
-test('CLI 출력 상한 오류와 응답 바이트 초과를 too-large로 반환한다', async () => {
+await test('CLI 출력 상한 오류와 응답 바이트 초과를 too-large로 반환한다', async () => {
   const limited = fixture({
     run: async () => {
       throw new RangeError('output limit')
@@ -170,7 +170,7 @@ test('CLI 출력 상한 오류와 응답 바이트 초과를 too-large로 반환
   assert.equal((await provider.fetchChecks(limited.ref, signal())).code, 'too-large')
 })
 
-test('취소한 요청과 다른 provider 참조는 외부 명령을 실행하지 않는다', async () => {
+await test('취소한 요청과 다른 provider 참조는 외부 명령을 실행하지 않는다', async () => {
   const f = fixture()
   const controller = new AbortController()
   controller.abort(new Error('cancelled'))
@@ -181,7 +181,7 @@ test('취소한 요청과 다른 provider 참조는 외부 명령을 실행하�
   assert.equal(f.calls.length, 0)
 })
 
-test('diff와 파일은 공식 읽기 계약을 따르고 경로 이탈과 잘못된 SHA를 거부한다', async () => {
+await test('diff와 파일은 공식 읽기 계약을 따르고 경로 이탈과 잘못된 SHA를 거부한다', async () => {
   const f = fixture()
   assert.match(await f.provider.diff(f.ref, signal()), /^diff --git/)
   assert.equal(await f.provider.fileText(f.ref, commit, 'src/a.ts', signal()), 'file text')
