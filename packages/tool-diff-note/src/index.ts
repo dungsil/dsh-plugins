@@ -11,13 +11,15 @@ export function apply(ctx: Context) {
     name: 'dungsil:diff-note',
     order: ctx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_SUFFIX'),
     text:
-      'After changing code, use diff_note for important, non-obvious decisions: why an approach was chosen, ' +
-      'a compatibility constraint, or an edge case. Do not annotate every edit or merely paraphrase the diff. ' +
-      'Use the conversation language for the note. Supply exact before/after fragments from changes you actually made, ' +
-      'with enough shared context to identify the change. Never invent code or include secrets. ' +
-      'Keep each fragment focused on one decision: the note appears after the last changed line in its first diff hunk. ' +
-      'These are historical, agent-supplied snapshots, not verification of the current file. ' +
-      'The tool does not read or modify files and does not replace testing or the final response.',
+      'Use diff_note only after completing the requested implementation or fixes and all feasible validation, ' +
+      'immediately before the final response. Never call it while work is in progress. ' +
+      'Explain important decisions in code you actually changed during this task: design tradeoffs, compatibility constraints, ' +
+      'or edge cases. Do not annotate every edit or merely paraphrase the diff; skip the tool when no such decision needs explanation. ' +
+      'For questions about unchanged code, use file-and-line links and code quotations instead of inventing a change. ' +
+      'Supply exact before/after fragments with enough shared context, focused on one decision per card; ' +
+      'the note appears after the last changed line in its first diff hunk. ' +
+      'These are historical snapshots, not verification of the current file. ' +
+      'Report validation limits in the final response; diff_note does not replace testing or that response.',
     interpolate: false,
   })
 
@@ -26,7 +28,8 @@ export function apply(ctx: Context) {
       name: 'diff_note',
       description:
         'Attach a short explanation of WHY a code change was made to a before/after diff card in the conversation. ' +
-        'Use after making a meaningful change, not for routine edits. Does not read, verify, or modify files. ' +
+        'Use only immediately before the final response, after requested changes and feasible validation are complete; never during work. ' +
+        'Does not read, verify, or modify files. ' +
         'Snapshots are supplied by you and retained in this tool call, not attached to live file lines. Never include secrets.',
       parameters: {
         path: {

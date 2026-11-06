@@ -30,7 +30,7 @@ export function createTitleAdapter(
     const entry = targetEntry()
     if (!entry) return null
     const owner = settingsEntry()
-    const config = (entry.fiber!.effectiveConfig ?? entry.fiber!.config) as {
+    const config = entry.fiber!.effectiveConfig as {
       provider?: string
       model?: string
       targetWords: number

@@ -143,8 +143,8 @@ await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요�
           plugin = factory((id) => {
             if (id !== '@deepseek-ai/dsh-client-ui-primitives') return require(id)
             return {
-              Button: ({ icon, variant: _variant, size: _size, ...props }) =>
-                React.createElement('button', props, icon),
+              Button: ({ icon, children, variant: _variant, size: _size, ...props }) =>
+                React.createElement('button', props, icon, children),
               Tooltip: ({ children }) => children,
               SegmentedControl: () => null,
               Switch: ({ label, checked, disabled }) =>
@@ -185,7 +185,7 @@ await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요�
                   complete: true,
                   disabled: [],
                   folderOpenAvailable: true,
-                  translationAvailable: false,
+                  translationAvailable: true,
                   skills: paths.map((path, index) => ({
                     name: index === 0 ? 'alpha' : 'beta',
                     path,
@@ -194,6 +194,9 @@ await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요�
                   })),
                 },
               }
+            }
+            if (method.endsWith('/translate')) {
+              return { ok: true, value: payload.path === paths[0] ? 'Skill description' : '번역된 설명' }
             }
             assert.equal(method, 'dungsil-ui-setting-skills/open-folder')
             return new Promise((resolve) => requests.push({ path: payload.path, resolve }))
@@ -240,4 +243,14 @@ await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요�
   await React.act(() => requests[2].resolve({ ok: true, value: {} }))
   assert.equal(buttons[1].disabled, false)
   assert.equal(buttons[1].getAttribute('aria-busy'), 'false')
+  await t.test('반환된 설명이 원문과 같으면 전환 버튼을 숨기고 다르면 표시한다', async () => {
+    await React.act(async () => {
+      for (const row of rows) row.querySelector('details').open = true
+      for (const row of rows) row.querySelector('details').dispatchEvent(new window.Event('toggle'))
+    })
+    assert.equal(rows[0].querySelector('.dsh-skills-detail p').textContent, 'Skill description')
+    assert.equal(rows[0].querySelector('.dsh-skills-detail button'), null)
+    assert.equal(rows[1].querySelector('.dsh-skills-detail p').textContent, '번역된 설명')
+    assert.ok(rows[1].querySelector('.dsh-skills-detail button'))
+  })
 })

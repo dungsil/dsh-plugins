@@ -64,7 +64,7 @@ Worktree·윤문의 지침과 상속 선택은 각 플러그인의 `modelSetting
 
 ## 동작과 호환성
 
-- DSH `0.2.1-rc.5` 이상 `0.3.0` 미만을 지원합니다. DSH의 `configEditor`, `llm`, `connection` 서비스가 필요하며 웹 설정 UI는 필요하지 않습니다.
+- DSH `0.2.2-rc.1` 이상 `0.3.0` 미만을 지원합니다. DSH의 `configEditor`, `llm`, `connection` 서비스가 필요하며 웹 설정 UI는 필요하지 않습니다. 실행 중인 설정은 Cordis `4.1.0`의 `effectiveConfig`로 읽으며 DSH `0.2.1-rc.5`는 지원하지 않습니다.
 - 활성 상태인 `@deepseek-ai/dsh-session-title-first-prompt-llm` 또는 `@deepseek-ai/dsh-session-title-all-prompts-llm`의 `provider`·`model` 설정을 편집합니다. 사용자 지정 entry ID도 지원합니다.
 - DSH의 설정 편집 API가 프로필 패치에 값을 저장하고 제목 생성기를 다시 로드합니다. 제목 생성 방식, 길이·토큰 제한, 타임아웃은 유지합니다. 변경 시 진행 중인 제목 생성은 DSH의 수명주기에 따라 취소될 수 있습니다.
 - 추론 수준은 이 플러그인의 `titleReasoning` 설정에 제목 생성기 ID와 모델을 함께 저장합니다. 제목 생성기의 LLM 호출을 준비할 때 적용하므로 지원 여부 검증, 요청 로그, 실제 요청에 동일한 수준이 반영됩니다. 대화 요청에는 적용하지 않으며, 제목 모델을 다른 곳에서 변경하면 기존 모델에 저장한 수준은 적용하지 않습니다.
