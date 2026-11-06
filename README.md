@@ -2,6 +2,8 @@
 
 개인용 DSH 플러그인 모음
 
+`ui-forge-worktree`는 `@deepseek-ai/dsh-experimental-forge-bundle`을 활성화한 환경에서 사용합니다. 새 세션의 기본 브랜치·워크트리 체크박스를 입력창 선택기로 교체합니다. 생성·진행 상태·실패 복구는 기본 기능을 사용합니다. 독립적인 생성 흐름을 가진 기존 `ui-worktree`와는 동시에 활성화하지 않습니다.
+
 pstack은 `@dungsil/dsh-plugin-pstack` 번들로 제공합니다. 설치 후 `poteto-help`로 사용법을 확인하고 `poteto-mode`로 개발 작업을 시작합니다. 58개 스킬과 플레이북·원칙을 포함하며, 모델 선호 설정은 `setup-pstack`을 사용합니다. 스킬은 DSH 도구와 세션·팀 실행 절차를 직접 사용하며 [DSH 실행 지침](./packages/pstack/DSH.md)을 따릅니다. 설치만으로 모드가 자동 적용되거나 모델 설정이 변경되지는 않습니다.
 
 이 저장소의 플러그인은 DSH Web의 Plugins → Discover(플러그인 → 탐색) 탭에서 검색하고 설치할 수 있습니다. 다음 인덱스 URL을 추가합니다.
@@ -21,6 +23,7 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-tool-secret-request](./packages/tool-secret-request) | 비밀값을 메시지 내 입력 카드에서 받고 모델에는 참조만 전달하는 도구 |   MIT    |
 | [@dungsil/dsh-plugin-model-settings](./packages/model-settings)           | 세션 제목 모델을 관리하는 소유자 전용 API                           |   MIT    |
 | [@dungsil/dsh-plugin-ui-model-settings](./packages/ui-model-settings)     | 상황별 모델 설정 UI (모델 설정 기능 플러그인을 함께 설치함)         |   MIT    |
+| [@dungsil/dsh-plugin-ui-forge-worktree](./packages/ui-forge-worktree)     | 입력창에서 현재 브랜치나 새 Git 워크트리를 선택하는 UI              |   MIT    |
 | [@dungsil/dsh-plugin-ui-model-picker](./packages/ui-model-picker)         | 입력창 모델 메뉴와 추론 강도 슬라이더                               |   MIT    |
 | [@dungsil/dsh-plugin-ui-turn-rail-left](./packages/ui-turn-rail-left)     | 공식 턴 레일을 대화 화면 왼쪽으로 옮기는 플러그인                   |   MIT    |
 | [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드    |   MIT    |
