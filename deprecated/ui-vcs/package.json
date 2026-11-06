@@ -1,12 +1,12 @@
 {
-  "name": "@dungsil/dsh-plugin-ui-worktree",
-  "version": "0.7.0",
-  "description": "Automatically name, create, and enter Git worktrees after sending a task, with setup progress in the conversation.",
+  "name": "@dungsil/dsh-plugin-ui-vcs",
+  "version": "0.4.3",
+  "description": "Git actions and PR/MR review for GitHub, GitLab, Gitea and Forgejo.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dungsil/dsh-plugins.git",
-    "directory": "packages/ui-worktree"
+    "directory": "deprecated/ui-vcs"
   },
   "files": [
     "dist",
@@ -38,12 +38,14 @@
     "@deepseek-ai/dsh-app-boot": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-chat": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.1",
     "@deepseek-ai/dsh-config-editor": "0.2.2-rc.1",
     "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
     "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
@@ -54,22 +56,22 @@
     "@deepseek-ai/dsh-session": "0.2.2-rc.1",
     "@deepseek-ai/dsh-session-persistence": "0.2.2-rc.1",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-storage": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-storage-domain": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-storage-json": "0.2.2-rc.1",
     "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
     "@deepseek-ai/dsh-subprocess-local": "0.2.2-rc.1",
     "@deepseek-ai/dsh-working-directory": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-workspace": "0.2.2-rc.1",
     "@deepseek-ai/schemastery": "3.19.0",
     "@dungsil/dsh-async": "workspace:*",
-    "@dungsil/dsh-plugin-model-settings": "workspace:*",
-    "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
-    "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-math": "3.0.0",
+    "micromark-extension-gfm": "3.0.0",
+    "micromark-extension-math": "3.1.0",
     "react": "18.3.1",
+    "react-dom": "18.3.1",
     "tsdown": "0.23.4"
   },
   "peerDependencies": {
@@ -77,11 +79,8 @@
     "@deepseek-ai/dsh-client-connection": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-config-editor": "0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1",
     "@deepseek-ai/dsh-session": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-session-persistence": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/dsh-workspace": "^0.2.1-rc.5 || ^0.2.2-rc.1",
-    "@deepseek-ai/schemastery": "~3.18.5 || ~3.19.0"
+    "@deepseek-ai/dsh-session-persistence": "^0.2.1-rc.5 || ^0.2.2-rc.1"
   },
   "engines": {
     "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
@@ -97,31 +96,12 @@
       "inject": [
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-chat",
-        "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-session",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ]
     }
   },
-  "market": {
-    "order": 8,
-    "title": {
-      "en": "Git Worktree UI",
-      "ko": "Git Worktree UI",
-      "zh": "Git 工作树界面"
-    },
-    "description": {
-      "en": "Select New worktree, then send a task to automatically name, create, and enter it. Follow setup progress in the conversation.",
-      "ko": "새 워크트리를 선택하고 작업을 전송하면 자동으로 이름을 정하고 생성·전환합니다. 대화에서 준비 상태를 확인합니다.",
-      "zh": "选择新工作树并发送任务，自动命名、创建并切换工作树，在对话中查看准备进度。"
-    },
-    "category": "ui",
-    "labels": [],
-    "keywords": [
-      "git",
-      "worktree",
-      "composer"
-    ]
-  }
+  "market": false
 }
