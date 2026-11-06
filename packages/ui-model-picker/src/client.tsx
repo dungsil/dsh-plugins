@@ -161,7 +161,7 @@ export function apply(ctx: Context) {
       const observer = new ResizeObserver(position)
       observer.observe(element)
       const scroll = (event: Event) => {
-        if (!element.contains(event.target as Node)) close()
+        if (!element.contains(event.target as Node)) position()
       }
       window.addEventListener('resize', close)
       window.addEventListener('scroll', scroll, true)
