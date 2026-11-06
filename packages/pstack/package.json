@@ -1,0 +1,82 @@
+{
+  "name": "@dungsil/dsh-plugin-pstack",
+  "version": "0.0.0",
+  "description": "pstack engineering skills and playbooks adapted for DeepSeek Harness",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/pstack"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "skills",
+    "agents",
+    "icon.svg",
+    "DSH.md",
+    "cordis.patch.yml",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill-filesystem": "0.2.2-rc.1",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill-filesystem": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 5,
+    "title": {
+      "en": "pstack",
+      "ko": "pstack",
+      "zh": "pstack"
+    },
+    "description": {
+      "en": "Engineering skills, playbooks, and principles for verified work in DSH.",
+      "ko": "검증 중심 개발을 위한 엔지니어링 스킬·플레이북·원칙을 DSH에서 사용합니다.",
+      "zh": "在 DSH 中使用以验证为核心的工程技能、工作流程和原则。"
+    },
+    "category": "skills",
+    "labels": [],
+    "keywords": [
+      "pstack",
+      "poteto",
+      "engineering",
+      "skills",
+      "verification"
+    ]
+  }
+}
