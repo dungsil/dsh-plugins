@@ -1,0 +1,93 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-forge-chip",
+  "version": "0.0.0",
+  "description": "Composer commit and PR action chips powered by the official Forge plugin.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-forge-chip"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-api-remotes": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-client-ui-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-experimental-forge-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-working-directory": "0.2.2-rc.1",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-experimental-client-ui-forge"
+      ]
+    }
+  },
+  "market": {
+    "title": {
+      "en": "Forge Chips",
+      "ko": "Forge 칩",
+      "zh": "Forge 操作按钮"
+    },
+    "description": {
+      "en": "Commit, push and create or view PRs from compact composer chips using Forge.",
+      "ko": "Forge와 연결된 입력창 칩으로 커밋·푸시·PR 생성과 조회를 실행합니다.",
+      "zh": "通过连接 Forge 的紧凑输入框按钮提交、推送、创建或查看 PR。"
+    },
+    "category": "ui",
+    "keywords": [
+      "forge",
+      "commit",
+      "pull-request",
+      "chip"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Worktree picker",
+    "description": "Choose the current branch or a new Git worktree from the composer."
+  }
+}

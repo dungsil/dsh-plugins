@@ -6,7 +6,7 @@ const valid = {
   commitMessage: 'feat(ui): 커밋 계획을 생성한다',
   title: 'feat(ui): 커밋 계획을 생성한다',
   body: '## 변경 이유\n현재 작업의 변경만 커밋한다',
-  paths: ['packages/ui-vcs/src/requests.ts'],
+  paths: ['deprecated/ui-vcs/src/requests.ts'],
 }
 
 function fixture(options = {}) {

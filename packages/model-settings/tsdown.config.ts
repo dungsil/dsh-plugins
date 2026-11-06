@@ -1,7 +1,11 @@
 import { defineConfig, nodeConfig } from '@dungsil/dsh-tsdown'
 
 export default defineConfig([
-  { ...nodeConfig, deps: { alwaysBundle: ['@dungsil/dsh-task-prompts'] } },
+  {
+    ...nodeConfig,
+    entry: ['src/index.ts', 'src/pwsh-adapter.ts'],
+    deps: { alwaysBundle: ['@dungsil/dsh-task-prompts'] },
+  },
   {
     entry: ['src/protocol.ts', 'src/contract.ts'],
     format: 'esm',

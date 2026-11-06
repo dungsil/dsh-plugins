@@ -22,8 +22,10 @@ const FLAT_ORDER = '__flat_session_order__'
  * order is what the sidebar renders while this mode is selected.
  */
 const AGENT_ACTIVITY = 'agent-activity'
-/** Remembers the native sort; its presence also marks first-use setup complete. */
+/** Native fallback used while the plugin is unavailable. */
 const PREVIOUS_SORT_KEY = 'dungsil.sidebar-inbox.sort.v1'
+/** Separate from the fallback: teardown must not overwrite the user's choice. */
+const SELECTED_SORT_KEY = 'dungsil.sidebar-inbox.selected-sort.v1'
 
 type View = Parameters<Parameters<WorkspaceBrowserProps['useStore']>[0]>[0]
 type NativeSort = Extract<View['orderBy'], 'manual' | 'updated'>
@@ -126,19 +128,42 @@ export function apply(ctx: Context) {
     if (!entry?.store || typeof entry.store === 'function')
       throw new Error('Sidebar Inbox requires the DSH 0.2.1 workspace view store')
     view = entry.store.create() as unknown as ViewInstance
-    // Default new installations to the supported flat-list mode once. Existing
-    // users already have a remembered sort, including those who opted out.
+    const current = view.getSnapshot()
+    let selectedSort: string | null = null
+    let hasPreviousSort = false
     try {
-      if (localStorage.getItem(PREVIOUS_SORT_KEY) === null && !isActive()) {
-        const current = view.getSnapshot()
-        if (current.orderBy === 'manual' || current.orderBy === 'updated') {
-          localStorage.setItem(PREVIOUS_SORT_KEY, current.orderBy)
-          view.store.set({ ...current, groupBy: 'flat', orderBy: AGENT_ACTIVITY as View['orderBy'] })
-        }
-      }
+      selectedSort = localStorage.getItem(SELECTED_SORT_KEY)
+      hasPreviousSort = localStorage.getItem(PREVIOUS_SORT_KEY) !== null
     } catch {
-      // Without persistent storage, leave the choice to the user on each load.
+      // The default still works for this mount when storage is unavailable.
     }
+    const validSelection = selectedSort === AGENT_ACTIVITY || selectedSort === 'manual' || selectedSort === 'updated'
+    // Migrate existing users without overriding a native sort they chose. A new
+    // installation starts in Agent activity, even if the host was grouped.
+    const initialSort = validSelection
+      ? selectedSort
+      : isAgentActivity(current.orderBy) || !hasPreviousSort
+        ? AGENT_ACTIVITY
+        : current.orderBy
+    if (initialSort === AGENT_ACTIVITY && !isAgentActivity(current.orderBy)) {
+      if (current.orderBy === 'manual' || current.orderBy === 'updated') writePreviousSort(current.orderBy)
+    }
+    const rememberSelection = () => {
+      const mode = String(view!.getSnapshot().orderBy)
+      if (mode === selectedSort) return
+      try {
+        localStorage.setItem(SELECTED_SORT_KEY, mode)
+        selectedSort = mode
+      } catch {
+        // Storage denial must not prevent sorting or teardown.
+      }
+    }
+    view.store.set({
+      ...current,
+      ...(initialSort === AGENT_ACTIVITY ? { groupBy: 'flat' as const } : {}),
+      orderBy: initialSort as View['orderBy'],
+    })
+    rememberSelection()
     const headings = installHeadings(
       () => placements,
       () => ({ working: translate('heading.working'), archived: translate('heading.archived') }),
@@ -159,6 +184,7 @@ export function apply(ctx: Context) {
       if (view !== undefined && isActive() && !isFlat()) {
         view.store.set({ ...view.getSnapshot(), orderBy: readPreviousSort() })
       }
+      rememberSelection()
       reconcile()
     }
     const disposers = [
@@ -179,8 +205,9 @@ export function apply(ctx: Context) {
       sortOption.dispose()
       refreshHeadings = () => {}
       refreshSortOption = () => {}
-      // Leaving the plugin releases its own sort mode; native group, sort,
-      // filter and pin/archive choices stay as the user left them.
+      // Unsubscribe before restoring a host-safe fallback, so teardown does not
+      // save that fallback as the user's selection. The next mount restores it;
+      // native group, filter and pin/archive choices stay as the user left them.
       if (isActive()) {
         const current = view!.getSnapshot()
         view!.store.set({ ...current, orderBy: readPreviousSort() })

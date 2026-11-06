@@ -1,5 +1,7 @@
 # 버전 관리
 
+> 유지보수가 종료된 패키지입니다. 소스는 `deprecated/ui-vcs`에 보관하며 활성 워크스페이스와 마켓 인덱스에서 제외합니다. 아래 내용은 보관 당시의 사용법입니다.
+
 ![PR 개요와 CI 결과 및 Git 작업 버튼의 전체 화면 비교: 좌측 라이트 모드, 우측 다크 모드](./assets/light-dark-preview.webp)
 
 DSH에서 에이전트에게 Git 작업을 요청하고, 오른쪽 사이드바에서 PR/MR의 본문·CI·변경 내용·댓글을 확인합니다. GitHub, GitLab, Gitea, Forgejo를 지원합니다.
