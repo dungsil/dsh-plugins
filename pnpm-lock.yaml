@@ -593,9 +593,6 @@ importers:
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
-      diff:
-        specifier: 9.0.0
-        version: 9.0.0
       react:
         specifier: 18.3.1
         version: 18.3.1
