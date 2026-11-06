@@ -26,6 +26,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "test": "node --test",
     "prepack": "pnpm build"
   },
   "devDependencies": {
