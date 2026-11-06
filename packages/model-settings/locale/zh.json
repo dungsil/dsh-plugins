@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "任务模型 API",
-    "description": "通过仅限所有者使用的 API 配置会话标题生成模型，不包含设置界面。"
+    "title": "任务模型与指令 API",
+    "description": "通过仅限所有者使用的 API 管理任务模型、指令和 pwsh 默认工具说明，不包含设置界面。"
   }
 }

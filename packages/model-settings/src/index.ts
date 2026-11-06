@@ -6,6 +6,7 @@ import type { ModelSettingsService, TaskDefinition, TaskSettings } from './contr
 import { legacyRole, legacyTarget, readLegacySettings } from './compatibility.js'
 import { channel, endpointPrefix, type ModelSelection, type Route, type TaskSnapshot } from './protocol.js'
 import { createTitleAdapter } from './title-adapter.js'
+import { createPwshInstructionsAdapter } from './pwsh-adapter.js'
 
 export const name = 'dungsil-model-settings'
 export const inject = ['connection', 'configEditor', 'llm']
@@ -118,7 +119,8 @@ export async function apply(ctx: Context) {
       description,
       automaticReasoningLabel,
       instructionsHint,
-      selection: settings.selection,
+      ...(task.definition.kind ? { kind: task.definition.kind } : {}),
+      selection: task.definition.kind === 'instructions' ? { mode: 'conversation' } : settings.selection,
       instructions: settings.instructions ?? defaultInstructions,
       defaultInstructions,
       revision: revision([task.generation, task.entry.options.config, settings, defaultInstructions]),
@@ -168,6 +170,62 @@ export async function apply(ctx: Context) {
     },
   }
   ctx.provide('dungsilModelSettings', service)
+  let pwshDefault: string | null = null
+  const pwshAdapter = createPwshInstructionsAdapter(ctx, () => {
+    const value = settingsEntry()?.options.config?.pwshToolDescription
+    return typeof value === 'string' && value.trim() ? value : null
+  })
+  const pwshDefinition: TaskDefinition = {
+    key: 'tool:pwsh',
+    kind: 'instructions',
+    label: { en: 'pwsh', ko: 'pwsh', zh: 'pwsh' },
+    description: {
+      en: 'Edit the native pwsh tool description.',
+      ko: '기본 pwsh 도구 설명을 수정합니다.',
+      zh: '编辑原生 pwsh 工具说明。',
+    },
+    automaticReasoningLabel: { en: 'Not applicable', ko: '해당 없음', zh: '不适用' },
+    instructionsHint: {
+      en: 'Replaces the default tool description from the next request. Clear and save to restore it. Parameter descriptions and execution permissions stay unchanged.',
+      ko: '다음 요청부터 기본 도구 설명을 대체합니다. 비우고 저장하면 기본값으로 복원합니다. 인자별 설명과 실행 권한은 유지합니다.',
+      zh: '从下次请求起替换默认工具说明。清空并保存可恢复默认值。参数说明和执行权限保持不变。',
+    },
+    read: (config) => ({
+      selection: { mode: 'conversation' },
+      instructions: typeof config.pwshToolDescription === 'string' ? config.pwshToolDescription : null,
+    }),
+    write: (config, settings) => {
+      const next = { ...config }
+      // Supplemental text from older revisions must never become a replacement.
+      delete next.pwshInstructions
+      if (settings.instructions && settings.instructions !== pwshDefault)
+        next.pwshToolDescription = settings.instructions
+      else delete next.pwshToolDescription
+      return next
+    },
+    defaultInstructions: () => pwshDefault ?? '',
+  }
+  // This task lives on the settings service itself; saving remounts that service.
+  // Read it directly from the current entry, not the disposed registration map.
+  const pwshSnapshot = (): TaskSnapshot | null => {
+    const entry = settingsEntry()
+    if (!entry || pwshDefault === null) return null
+    const settings = pwshDefinition.read(entry.options.config ?? {})
+    return {
+      id: JSON.stringify([entry.options.id, pwshDefinition.key]),
+      key: pwshDefinition.key,
+      kind: 'instructions',
+      owner: { entryId: entry.options.id, packageName: entry.options.name },
+      label: pwshDefinition.label,
+      description: pwshDefinition.description,
+      automaticReasoningLabel: pwshDefinition.automaticReasoningLabel,
+      instructionsHint: pwshDefinition.instructionsHint,
+      selection: { mode: 'conversation' },
+      instructions: settings.instructions ?? pwshDefault,
+      defaultInstructions: pwshDefault,
+      revision: revision([entry.options.id, entry.options.config?.pwshToolDescription ?? null, pwshDefault]),
+    }
+  }
   const titles = createTitleAdapter(ctx, settingsEntry, auxiliary)
   const snapshots = () => [...tasks.keys()].map(snapshot).filter((task): task is TaskSnapshot => task !== null)
   const legacyTasks = () => {
@@ -189,7 +247,9 @@ export async function apply(ctx: Context) {
         ? auxiliary()
         : titles.snapshot()?.id === id
           ? titles.snapshot()
-          : snapshot(id)
+          : pwshSnapshot()?.id === id
+            ? pwshSnapshot()
+            : snapshot(id)
       : (Object.values(legacyTasks()).find((task) => task?.owner.entryId === id) ?? null)
 
   const catalog = async (signal: AbortSignal) => {
@@ -224,6 +284,7 @@ export async function apply(ctx: Context) {
   const handle = async (method: string, payload: unknown, signal: AbortSignal) => {
     const v2 = method.startsWith('v2/')
     const endpoint = v2 ? method.slice(3) : method
+    if (v2) pwshDefault = await pwshAdapter.defaultInstructions()
     if (endpoint === 'describe') {
       const models = await catalog(signal)
       if (!v2) {
@@ -240,7 +301,8 @@ export async function apply(ctx: Context) {
         }
       }
       const title = titles.snapshot()
-      const current = [...snapshots(), ...(title ? [title] : [])]
+      const pwsh = pwshSnapshot()
+      const current = [...snapshots(), ...(title ? [title] : []), ...(pwsh ? [pwsh] : [])]
       current.sort(
         (a, b) =>
           a.owner.packageName.localeCompare(b.owner.packageName) ||
@@ -278,6 +340,7 @@ export async function apply(ctx: Context) {
     }
     const target = find(input.id, v2)
     if (!target) return failure('unavailable')
+    if (target.kind === 'instructions' && selection !== undefined) return failure('invalid')
     const isAuxiliary = target.id === auxiliary()?.id
     if (isAuxiliary && selection?.mode === 'auxiliary') return failure('invalid')
     if (selection?.mode === 'model') {
@@ -298,7 +361,8 @@ export async function apply(ctx: Context) {
         await titles.save(input.revision, selection, instructions, signal)
       } else {
         const registered = tasks.get(target.id)
-        const entry = isAuxiliary ? settingsEntry() : registered?.entry
+        const isPwsh = target.kind === 'instructions' && target.id === pwshSnapshot()?.id
+        const entry = isAuxiliary || isPwsh ? settingsEntry() : registered?.entry
         if (!entry) return failure('unavailable')
         await editor.edit(entry, (current) => {
           const latest = find(input.id as string, v2)
@@ -322,6 +386,11 @@ export async function apply(ctx: Context) {
             }
             return next
           }
+          if (isPwsh)
+            return pwshDefinition.write(current, {
+              selection: { mode: 'conversation' },
+              instructions: instructions || null,
+            })
           const settings = read(registered!, current)
           return registered!.definition.write(current, {
             selection: selection ?? settings.selection,
