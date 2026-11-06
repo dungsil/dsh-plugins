@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import { lastAssistantStreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-query'
-import { callLimit, method, type UsageTotals, type UsageView } from './protocol.js'
+import { callLimit, isValidDateRange, method, type UsageTotals, type UsageView } from './protocol.js'
 
 export const name = 'dungsil-ui-usage'
 export const inject = ['connection', 'sessionQuery']
@@ -50,12 +50,24 @@ export function apply(ctx: Context) {
           try {
             const body = clientRequestSchema.parse(await request.json())
             rpcId = body.rpcId
-            const input = body.payload as { days?: unknown; timeZone?: unknown } | null
+            const input = body.payload as {
+              days?: unknown
+              startDate?: unknown
+              endDate?: unknown
+              timeZone?: unknown
+            } | null
             if (
               body.method !== method ||
               !input ||
-              ![7, 30, 0].includes(input.days as number) ||
-              typeof input.timeZone !== 'string'
+              typeof input !== 'object' ||
+              Array.isArray(input) ||
+              typeof input.timeZone !== 'string' ||
+              ('startDate' in input || 'endDate' in input
+                ? 'days' in input ||
+                  typeof input.startDate !== 'string' ||
+                  typeof input.endDate !== 'string' ||
+                  !isValidDateRange(input.startDate, input.endDate)
+                : ![7, 30, 0].includes(input.days as number))
             ) {
               return Response.json(
                 { type: 'server-response', rpcId, result: failure('invalid') },
@@ -79,12 +91,15 @@ export function apply(ctx: Context) {
             const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60_000)])
             const updatedAt = Date.now()
             const today = formatter.format(updatedAt)
+            const end = typeof input.endDate === 'string' ? input.endDate : today
             const start =
-              input.days === 0
-                ? ''
-                : new Date(Date.parse(`${today}T00:00:00Z`) - ((input.days as number) - 1) * 86_400_000)
-                    .toISOString()
-                    .slice(0, 10)
+              typeof input.startDate === 'string'
+                ? input.startDate
+                : input.days === 0
+                  ? ''
+                  : new Date(Date.parse(`${today}T00:00:00Z`) - ((input.days as number) - 1) * 86_400_000)
+                      .toISOString()
+                      .slice(0, 10)
             const view: UsageView = {
               totals: empty(),
               models: [],
@@ -120,7 +135,7 @@ export function apply(ctx: Context) {
                       if (event.seq < observation.inheritedEventCount || event.time > updatedAt) continue
                       if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') continue
                       const day = formatter.format(event.time)
-                      if (day < start || day > today) continue
+                      if (day < start || day > end) continue
                       const usage =
                         event.type === 'assistant/message'
                           ? event.data.usage
@@ -173,7 +188,7 @@ export function apply(ctx: Context) {
               start || new Date(Date.parse(`${today}T00:00:00Z`) - 29 * 86_400_000).toISOString().slice(0, 10)
             for (
               let date = Date.parse(`${chartStart}T00:00:00Z`);
-              date <= Date.parse(`${today}T00:00:00Z`);
+              date <= Date.parse(`${end}T00:00:00Z`);
               date += 86_400_000
             ) {
               const day = new Date(date).toISOString().slice(0, 10)
