@@ -1,0 +1,9 @@
+{
+  "unavailable": "함께 설치된 agent-browser를 시작하지 못했습니다. dsh 호스트에 Chrome 또는 Chromium이 있어야 합니다.",
+  "command_failed": "브라우저 동작이 실패했습니다. 현재 동작이 끝난 뒤 다시 시도하세요.",
+  "stream_failed": "브라우저 연결이 끊겼습니다. 새로고침하여 다시 연결하세요.",
+  "permission": "이 브라우저에는 전체 접근 모드가 필요합니다. agent-browser는 플러그인과 함께 설치됩니다.",
+  "connection_error": "dsh에 연결하지 못했습니다. 다시 연결하고 있습니다…",
+  "busy": "에이전트가 이 페이지를 제어하고 있습니다. 현재 명령이 끝난 뒤 조작하세요.",
+  "screen": "agent-browser와 함께 사용하는 웹페이지"
+}

@@ -1,0 +1,9 @@
+{
+  "unavailable": "无法启动插件附带的 agent-browser。dsh 主机上需要有 Chrome 或 Chromium。",
+  "command_failed": "浏览器操作失败。请等待当前操作完成后重试。",
+  "stream_failed": "浏览器连接已断开。请刷新以重新连接。",
+  "permission": "此浏览器需要完全访问模式。agent-browser 随插件一同安装。",
+  "connection_error": "无法连接 dsh，正在重新连接…",
+  "busy": "智能体正在控制此页面。请等待当前命令完成后再操作。",
+  "screen": "与 agent-browser 共用的网页"
+}

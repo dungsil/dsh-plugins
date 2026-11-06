@@ -1,0 +1,9 @@
+{
+  "unavailable": "Could not start the included agent-browser. Chrome or Chromium must be available on the dsh host.",
+  "command_failed": "The browser action failed. Try again after the current action finishes.",
+  "stream_failed": "The browser connection was lost. Reload to reconnect.",
+  "permission": "This browser requires full access mode. agent-browser is included with the plugin.",
+  "connection_error": "Could not connect to dsh. Reconnecting…",
+  "busy": "The agent is controlling this page. Wait for its current command to finish before interacting.",
+  "screen": "Web page shared with agent-browser"
+}
