@@ -23,7 +23,10 @@
     "original": "查看原文",
     "retry": "重试",
     "translating": "正在翻译…",
-    "translationNotice": "展开技能时，会自动将描述发送至思考过程翻译设置中选择的服务。译文按该设置的目标语言缓存。",
+    "translateAll": "翻译全部技能",
+    "translatingAll": "正在翻译全部技能…",
+    "translationAllError": "部分技能描述翻译失败。重试时仅翻译失败的项目。",
+    "translationNotice": "展开技能或点击翻译全部技能时，会将描述发送至思考过程翻译设置中选择的服务。全部翻译包括共享技能和 DSH 技能。译文按该设置的目标语言缓存。",
     "translationError": "翻译失败，已显示原文。付费服务需要会话，无法在此页面使用。",
     "saveError": "无法保存设置。请关闭并重新打开此设置项，确认已保存的状态后重试。"
   }
