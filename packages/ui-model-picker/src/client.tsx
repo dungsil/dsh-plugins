@@ -489,6 +489,23 @@ export function apply(ctx: Context) {
                         onChange={(event) => {
                           if (!disabled) setDraft(Number(event.target.value))
                         }}
+                        onPointerUp={() => selectEffort(draft)}
+                        onKeyUp={(event) => {
+                          if (
+                            [
+                              'ArrowLeft',
+                              'ArrowRight',
+                              'ArrowUp',
+                              'ArrowDown',
+                              'Home',
+                              'End',
+                              'PageUp',
+                              'PageDown',
+                            ].includes(event.key)
+                          ) {
+                            selectEffort(draft)
+                          }
+                        }}
                       />
                     </div>
                   </div>
