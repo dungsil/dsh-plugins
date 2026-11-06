@@ -62,14 +62,14 @@ function fixture(forge = 'gitlab') {
   }
 }
 
-test('추가 provider는 명시된 호스트만 소유하고 GitHub URL을 가로채지 않는다', () => {
+await test('추가 provider는 명시된 호스트만 소유하고 GitHub URL을 가로채지 않는다', () => {
   const { adapter } = fixture()
   assert.equal(adapter.repositoryFromRemote('git@github.com:team/repo.git'), undefined)
   assert.equal(adapter.changeRequestFromUrl('https://gitlab.com/team/repo/-/merge_requests/7').number, 7)
   assert.equal(adapter.changeRequestFromUrl('https://token@gitlab.com/team/repo/-/merge_requests/7'), undefined)
 })
 
-test('Forgejo는 최신 상태 검사와 필수 검사를 공식 snapshot으로 제공한다', async () => {
+await test('Forgejo는 최신 상태 검사와 필수 검사를 공식 snapshot으로 제공한다', async () => {
   const { adapter, ref } = fixture('forgejo')
   const snapshot = (await adapter.fetch([ref], signal)).values().next().value
   assert.equal(snapshot.checksRollup, 'success')
@@ -77,7 +77,7 @@ test('Forgejo는 최신 상태 검사와 필수 검사를 공식 snapshot으로 
   assert.equal(snapshot.mergeReady, true)
 })
 
-test('승인이나 검사 조회 실패를 요구 사항 없음으로 표시하지 않는다', async () => {
+await test('승인이나 검사 조회 실패를 요구 사항 없음으로 표시하지 않는다', async () => {
   const { adapter, ref, fail } = fixture()
   fail()
   const result = (await adapter.fetch([ref], signal)).values().next().value
@@ -85,7 +85,7 @@ test('승인이나 검사 조회 실패를 요구 사항 없음으로 표시하�
   assert.equal(result.checksRollup, undefined)
 })
 
-test('변경된 head는 병합과 리뷰 쓰기 전에 거부한다', async () => {
+await test('변경된 head는 병합과 리뷰 쓰기 전에 거부한다', async () => {
   const { adapter, ref, calls } = fixture()
   assert.equal((await adapter.merge(ref, { method: 'merge', headSha: 'b'.repeat(40) }, signal)).code, 'stale')
   assert.equal(
@@ -104,13 +104,13 @@ test('변경된 head는 병합과 리뷰 쓰기 전에 거부한다', async () =
   )
 })
 
-test('GitLab 병합은 서버 측 SHA 가드를 포함하고 공개 Forge 쓰기 계약을 사용한다', async () => {
+await test('GitLab 병합은 서버 측 SHA 가드를 포함하고 공개 Forge 쓰기 계약을 사용한다', async () => {
   const { adapter, ref, calls } = fixture()
   assert.equal(await adapter.merge(ref, { method: 'squash', headSha: sha }, signal), undefined)
   assert.deepEqual(calls.at(-1).options, { method: 'PUT', fields: { sha, squash: 'true' } })
 })
 
-test('GitLab이 지원하지 않는 인라인 리뷰와 변경 요청은 쓰기 없이 거절한다', async () => {
+await test('GitLab이 지원하지 않는 인라인 리뷰와 변경 요청은 쓰기 없이 거절한다', async () => {
   const { adapter, ref, calls } = fixture()
   const result = await adapter.submitReview(
     ref,
@@ -124,7 +124,7 @@ test('GitLab이 지원하지 않는 인라인 리뷰와 변경 요청은 쓰기 
   )
 })
 
-test('GitLab 수동 파이프라인은 성공으로 간주하지 않고 병합을 차단한다', async () => {
+await test('GitLab 수동 파이프라인은 성공으로 간주하지 않고 병합을 차단한다', async () => {
   const { adapter, ref, rows } = fixture()
   rows.pipelineStatus = 'manual'
   const result = (await adapter.fetch([ref], signal)).values().next().value
@@ -132,7 +132,7 @@ test('GitLab 수동 파이프라인은 성공으로 간주하지 않고 병합�
   assert.equal(result.mergeReady, false)
 })
 
-test('필수 검사 목록이 누락되면 Gitea 병합 가능 상태를 만들지 않는다', async () => {
+await test('필수 검사 목록이 누락되면 Gitea 병합 가능 상태를 만들지 않는다', async () => {
   const { adapter, ref, rows } = fixture('gitea')
   rows.missingContexts = true
   const result = (await adapter.fetch([ref], signal)).values().next().value
@@ -140,7 +140,7 @@ test('필수 검사 목록이 누락되면 Gitea 병합 가능 상태를 만들�
   assert.equal(result.mergeReady, undefined)
 })
 
-test('명시한 HTTP API 포트는 호스트 식별자와 요청 URL에 일관되게 보존한다', () => {
+await test('명시한 HTTP API 포트는 호스트 식별자와 요청 URL에 일관되게 보존한다', () => {
   const adapter = provider('gitlab', ['git.example.com:8443'], async () => ({}))
   const repository = adapter.repositoryFromRemote('https://git.example.com:8443/team/repo.git')
   assert.equal(repository.host, 'git.example.com:8443')
@@ -151,7 +151,7 @@ test('명시한 HTTP API 포트는 호스트 식별자와 요청 URL에 일관�
   assert.equal(adapter.repositoryFromRemote('https://git.example.com/team/repo.git'), undefined)
 })
 
-test('tea raw diff를 읽어도 로그인 목록은 JSON으로 해석하고 선택한 API 본문만 원문으로 반환한다', async () => {
+await test('tea raw diff를 읽어도 로그인 목록은 JSON으로 해석하고 선택한 API 본문만 원문으로 반환한다', async () => {
   const calls = []
   const ctx = {
     subprocess: {

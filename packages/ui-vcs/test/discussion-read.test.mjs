@@ -4,7 +4,7 @@ import { readDiscussion } from '../src/discussion-read.ts'
 const signal = AbortSignal.timeout(10_000)
 const ref = (forge) => ({ repository: { forge, host: 'example.com', owner: 'team', name: 'repo' }, number: 3 })
 
-test('GitHub 본문과 기존 댓글 및 리뷰만 조회하고 상태나 변경 내용을 요청하지 않는다', async () => {
+await test('GitHub 본문과 기존 댓글 및 리뷰만 조회하고 상태나 변경 내용을 요청하지 않는다', async () => {
   const paths = []
   const result = await readDiscussion(
     ref('github'),
@@ -28,7 +28,7 @@ test('GitHub 본문과 기존 댓글 및 리뷰만 조회하고 상태나 변경
   )
 })
 
-test('GitLab 본문과 사용자 노트를 보존하고 시스템 노트는 제외한다', async () => {
+await test('GitLab 본문과 사용자 노트를 보존하고 시스템 노트는 제외한다', async () => {
   const result = await readDiscussion(
     ref('gitlab'),
     async (_host, path) =>
@@ -46,7 +46,7 @@ test('GitLab 본문과 사용자 노트를 보존하고 시스템 노트는 제�
   assert.deepEqual(result.entries, [{ author: 'alice', body: 'note', kind: 'comment' }])
 })
 
-test('페이지 제한이나 잘못된 요청 식별자를 완전한 대화로 표시하지 않는다', async () => {
+await test('페이지 제한이나 잘못된 요청 식별자를 완전한 대화로 표시하지 않는다', async () => {
   await assert.rejects(
     readDiscussion(ref('forgejo'), async () => ({ number: 4 }), signal),
     /invalid_identity/

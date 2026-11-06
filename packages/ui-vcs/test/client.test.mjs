@@ -525,7 +525,7 @@ await test('Git 작업 메뉴는 컴포저 위에 포털로 렌더링된 간결�
   }
 })
 
-test('모든 로케일에서 본문·대화 메뉴는 공식 상태 패널과 별도인 읽기 전용 보조 뷰를 연다', async () => {
+await test('모든 로케일에서 본문·대화 메뉴는 공식 상태 패널과 별도인 읽기 전용 보조 뷰를 연다', async () => {
   for (const language of ['en', 'ko', 'zh']) {
     const mounted = await mount('pr', language, { request: { headSha: 'head' } })
     assert.ok(mounted.menu.items.some((item) => item.id === 'discussion'))
@@ -538,7 +538,7 @@ test('모든 로케일에서 본문·대화 메뉴는 공식 상태 패널과 �
   }
 })
 
-test('보조 본문·대화 뷰는 열거나 포커스할 때 조회하지 않고 새로고침할 때만 읽는다', async () => {
+await test('보조 본문·대화 뷰는 열거나 포커스할 때 조회하지 않고 새로고침할 때만 읽는다', async () => {
   const mounted = await mount(
     async (_channel, method) => {
       assert.equal(method, 'dungsil-vcs/discussion')
