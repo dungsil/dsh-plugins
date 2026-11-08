@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Version control settings",
+    "description": "Configure worktree directories and name prefixes for the official Forge bundle."
+  }
+}
