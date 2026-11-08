@@ -6,7 +6,7 @@
   "ui": {
     "title": "Änderungsnotiz",
     "codeLabel": "Code",
-    "open": "Datei öffnen",
+    "annotationLabel": "Änderungsgrund",
     "waiting": "Änderungserklärung wird erfasst…",
     "failed": "Die Änderungserklärung konnte nicht erfasst werden.",
     "wrapLabel": "Zeilen umbrechen",

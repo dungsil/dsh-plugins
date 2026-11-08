@@ -6,7 +6,7 @@
   "ui": {
     "title": "Note de modification",
     "codeLabel": "Code",
-    "open": "Ouvrir le fichier",
+    "annotationLabel": "Raison de la modification",
     "waiting": "Enregistrement de l’explication de la modification…",
     "failed": "Impossible d’enregistrer l’explication de la modification.",
     "wrapLabel": "Activer le retour à la ligne",

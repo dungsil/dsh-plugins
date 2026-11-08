@@ -3,7 +3,7 @@
   "ui": {
     "title": "变更说明",
     "codeLabel": "代码",
-    "open": "打开文件",
+    "annotationLabel": "变更原因",
     "waiting": "正在记录变更说明…",
     "failed": "未能记录变更说明。",
     "wrapLabel": "自动换行",
