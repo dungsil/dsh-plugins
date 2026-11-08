@@ -22,13 +22,25 @@ import {
   type Route,
   type TaskSnapshot,
 } from '@dungsil/dsh-plugin-model-settings/protocol'
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 
 export const name = 'dungsil-ui-model-settings'
 export const inject = ['connection', 'locale', 'slots']
 
 const copy = {
+  ja: ja.ui,
+  es: es.ui,
+  fr: fr.ui,
+  de: de.ui,
+  ru: ru.ui,
+  pt: pt.ui,
   en: {
-    nav: 'Models by task',
+    nav: 'Models and instructions by task',
     taskSettings: 'Task-specific settings',
     model: 'Model',
     inherit: 'Use conversation model',
@@ -58,7 +70,7 @@ const copy = {
     reasoning_unavailable: 'This reasoning effort is unavailable. Choose a supported effort or Automatic.',
   },
   ko: {
-    nav: '상황별 모델',
+    nav: '상황 별 모델 및 지침',
     taskSettings: '작업별 설정',
     model: '모델',
     inherit: '대화 모델 따르기',
@@ -87,7 +99,7 @@ const copy = {
     reasoning_unavailable: '사용할 수 없는 추론 수준입니다. 지원하는 수준이나 자동을 선택하세요.',
   },
   zh: {
-    nav: '任务模型设置',
+    nav: '任务模型与指令',
     taskSettings: '各任务设置',
     model: '模型',
     inherit: '使用对话模型',
@@ -117,8 +129,14 @@ const copy = {
   },
 }
 
-const languageKey = (language: string) => (language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en')
+const languageKey = (language: string) => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'
+}
 const localizedCopy = (language: string) => copy[languageKey(language)]
+// Tasks come from other plugins, which may not yet supply every UI language.
+const taskText = (text: { en: string } & Partial<Record<keyof typeof copy, string>>, language: keyof typeof copy) =>
+  text[language] ?? text.en
 
 const styles = `${settingsStyles}
 .dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
@@ -255,7 +273,9 @@ function ModelSettings({ ctx }: { ctx: Context }) {
     ) ?? []),
   ]
 
-  const snapshots = view ? (view.auxiliary ? [view.auxiliary, ...view.tasks] : view.tasks) : []
+  const modelTasks = view?.tasks.filter((task) => task.kind !== 'instructions') ?? []
+  const instructionTasks = view?.tasks.filter((task) => task.kind === 'instructions') ?? []
+  const snapshots = [...(view?.auxiliary ? [view.auxiliary] : []), ...modelTasks, ...instructionTasks]
 
   const save = async (task: string, draft: string, effort: string, instructions?: string) => {
     const controller = lifetime.current
@@ -270,7 +290,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       !target ||
       !synchronized ||
       (instructions === undefined &&
-        ((draft === selectionKey(target) && effort === reasoningEffort(target)) ||
+        (target.kind === 'instructions' ||
+          (draft === selectionKey(target) && effort === reasoningEffort(target)) ||
           (draft === 'auxiliary' && target.id === view?.auxiliary?.id) ||
           (draft && draft !== 'auxiliary' && !selected) ||
           missingEffort)) ||
@@ -358,7 +379,8 @@ function ModelSettings({ ctx }: { ctx: Context }) {
       {snapshots.map((target, index) => {
         const task = target.id
         const auxiliary = target.id === view?.auxiliary?.id
-        const title = target.label[language]
+        const instructionsOnly = target.kind === 'instructions'
+        const title = taskText(target.label, language)
         const draft = drafts[task]
         const effort = effortDrafts[task]
         const route = target.selection.mode === 'model' ? target.selection.route : null
@@ -368,7 +390,7 @@ function ModelSettings({ ctx }: { ctx: Context }) {
         const selected = option?.route ?? null
         const efforts = option?.efforts ?? []
         const missingEffort = effort !== '' && !efforts.some((item) => item.id === effort)
-        const automaticHint = target.automaticReasoningLabel[language]
+        const automaticHint = taskText(target.automaticReasoningLabel, language)
         const modelLabel =
           draft === 'auxiliary' ? text.useAuxiliary : (option?.name ?? (draft ? text.missing : text.inherit))
         const effortLabel =
@@ -400,55 +422,61 @@ function ModelSettings({ ctx }: { ctx: Context }) {
                     view!.tasks.filter(
                       (item) => item.owner.packageName === target.owner.packageName && item.key === target.key
                     ).length > 1 && <div className="dsh-model-settings-description">{target.owner.entryId}</div>}
-                  <div className="dsh-model-settings-description">{target.description[language]}</div>
+                  {!instructionsOnly && (
+                    <div className="dsh-model-settings-description">{taskText(target.description, language)}</div>
+                  )}
                 </>
               }
             >
               <div className="dsh-model-settings-controls">
-                <SettingsPicker
-                  className="dsh-model-settings-picker"
-                  id={fieldId}
-                  aria-label={`${title} ${text.model}: ${modelTitle}`}
-                  value={modelLabel}
-                  title={modelTitle}
-                  selectedId={draft}
-                  items={[
-                    ...(auxiliary ? [] : [{ id: 'auxiliary', label: text.useAuxiliary }]),
-                    ...(missing
-                      ? [
-                          ...modelItems,
-                          {
-                            id: current,
-                            label: `${text.missing}: ${route!.provider} / ${route!.model}`,
-                            disabled: true,
-                          },
-                        ]
-                      : modelItems),
-                  ]}
-                  disabled={!!busy || !synchronized}
-                  onSelect={(value) => {
-                    void save(task, value, value === draft ? effort : '')
-                  }}
-                />
-                <SettingsPicker
-                  className="dsh-model-settings-picker"
-                  id={`${fieldId}-reasoning`}
-                  aria-label={`${title} ${text.effort}: ${effortTitle}`}
-                  value={effortLabel}
-                  title={effortTitle}
-                  selectedId={effort}
-                  items={[
-                    { id: '', label: automaticHint },
-                    ...(missingEffort
-                      ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
-                      : []),
-                    ...efforts.map((item) => ({ id: item.id, label: item.name })),
-                  ]}
-                  disabled={!!busy || !synchronized || !selected || (efforts.length === 0 && !effort)}
-                  onSelect={(value) => {
-                    void save(task, draft, value)
-                  }}
-                />
+                {!instructionsOnly && (
+                  <>
+                    <SettingsPicker
+                      className="dsh-model-settings-picker"
+                      id={fieldId}
+                      aria-label={`${title} ${text.model}: ${modelTitle}`}
+                      value={modelLabel}
+                      title={modelTitle}
+                      selectedId={draft}
+                      items={[
+                        ...(auxiliary ? [] : [{ id: 'auxiliary', label: text.useAuxiliary }]),
+                        ...(missing
+                          ? [
+                              ...modelItems,
+                              {
+                                id: current,
+                                label: `${text.missing}: ${route!.provider} / ${route!.model}`,
+                                disabled: true,
+                              },
+                            ]
+                          : modelItems),
+                      ]}
+                      disabled={!!busy || !synchronized}
+                      onSelect={(value) => {
+                        void save(task, value, value === draft ? effort : '')
+                      }}
+                    />
+                    <SettingsPicker
+                      className="dsh-model-settings-picker"
+                      id={`${fieldId}-reasoning`}
+                      aria-label={`${title} ${text.effort}: ${effortTitle}`}
+                      value={effortLabel}
+                      title={effortTitle}
+                      selectedId={effort}
+                      items={[
+                        { id: '', label: automaticHint },
+                        ...(missingEffort
+                          ? [{ id: effort, label: `${text.missingEffort}: ${effort}`, disabled: true }]
+                          : []),
+                        ...efforts.map((item) => ({ id: item.id, label: item.name })),
+                      ]}
+                      disabled={!!busy || !synchronized || !selected || (efforts.length === 0 && !effort)}
+                      onSelect={(value) => {
+                        void save(task, draft, value)
+                      }}
+                    />
+                  </>
+                )}
                 <button
                   type="button"
                   className="dsh-model-settings-expander"
@@ -474,12 +502,12 @@ function ModelSettings({ ctx }: { ctx: Context }) {
               >
                 <label htmlFor={`${fieldId}-instructions-input`}>{text.instructions}</label>
                 <div id={`${fieldId}-instructions-hint`} className="dsh-model-settings-description">
-                  {target.instructionsHint?.[language] ?? text.instructionsHint}
+                  {target.instructionsHint ? taskText(target.instructionsHint, language) : text.instructionsHint}
                 </div>
                 <textarea
                   id={`${fieldId}-instructions-input`}
                   aria-describedby={`${fieldId}-instructions-hint`}
-                  rows={10}
+                  rows={instructionsOnly ? 4 : 10}
                   value={instructionDrafts[task]}
                   disabled={!!busy || !synchronized}
                   onChange={(event) => setInstructionDrafts((current) => ({ ...current, [task]: event.target.value }))}

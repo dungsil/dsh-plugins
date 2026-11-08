@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Pastilles Forge",
+    "description": "Effectuez des commits et des push, créez ou consultez des PR depuis des pastilles compactes dans la zone de saisie avec Forge."
+  },
+  "commit": "Commit uniquement",
+  "push": "Push",
+  "pr": "Créer une PR",
+  "updatePr": "Mettre à jour la PR",
+  "viewPr": "Voir la PR",
+  "menu": "Autres actions Git",
+  "panel": "Voir la PR",
+  "hint": "Demander à cette session d’effectuer l’action Git",
+  "sending": "Envoi de la demande…",
+  "error": "Impossible d’envoyer la demande. Vérifiez la session avant de réessayer.",
+  "lookupError": "L’état Git est indisponible. Sélectionnez Voir la PR pour vérifier.",
+  "checks": "Vérifications",
+  "none": "Aucune vérification",
+  "pending": "En attente",
+  "success": "Réussies",
+  "failure": "Échouées",
+  "unknown": "Inconnu",
+  "promptCommit": "Examinez les modifications de la copie de travail actuelle et effectuez un commit des modifications pertinentes avec un message descriptif, en suivant les instructions du dépôt. Ne faites pas de push et ne créez pas de PR. Ne faites ni amend ni reset, n’abandonnez aucune modification et n’incluez aucun secret. Posez une question si le périmètre prévu n’est pas clair.",
+  "promptPush": "Examinez les modifications de la copie de travail actuelle, effectuez un commit des modifications pertinentes en suivant les instructions du dépôt et faites un push de la branche actuelle vers son dépôt distant configuré. Ne faites pas de push forcé et ne créez pas de PR. Ne faites ni amend ni reset, n’abandonnez aucune modification et n’incluez aucun secret. Posez une question si le périmètre prévu ou le dépôt distant n’est pas clair.",
+  "promptPr": "Examinez les modifications de la copie de travail actuelle, effectuez un commit des modifications pertinentes en suivant les instructions du dépôt, faites un push de la branche actuelle et créez une PR (ou mettez à jour la PR existante pour cette branche). Suivez le modèle de PR du dépôt. Ne faites ni push forcé, ni amend, ni reset, n’abandonnez aucune modification et n’incluez aucun secret. Posez une question si le périmètre prévu ou la branche cible n’est pas clair."
+}

@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-settings",
   "version": "0.8.0",
-  "description": "Task model settings UI for DeepSeek Harness, backed by the model-settings plugin.",
+  "description": "Task model and instruction settings UI for DeepSeek Harness, including the native pwsh tool description.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -70,14 +70,26 @@
   "market": {
     "order": 7.1,
     "title": {
-      "en": "Task Models UI",
-      "ko": "상황별 모델",
-      "zh": "任务模型设置"
+      "en": "Models and instructions by task",
+      "ko": "상황 별 모델 및 지침",
+      "zh": "任务模型与指令",
+      "ja": "タスク別のモデルと指示",
+      "es": "Modelos e instrucciones por tarea",
+      "fr": "Modèles et instructions par tâche",
+      "de": "Modelle und Anweisungen nach Aufgabe",
+      "ru": "Модели и инструкции по задачам",
+      "pt": "Modelos e instruções por tarefa"
     },
     "description": {
-      "en": "Choose a session title model in settings. Includes the task model configuration API.",
-      "ko": "설정 화면에서 세션 제목 생성 모델을 선택합니다. 상황별 모델 API를 함께 설치합니다.",
-      "zh": "在设置中选择会话标题生成模型，同时安装任务模型配置 API。"
+      "en": "Configure task models, reasoning effort, and instructions, including the native pwsh tool description. Includes the settings API.",
+      "ko": "작업별 모델·추론 수준·지침과 pwsh 기본 도구 설명을 설정합니다. 설정 API를 함께 설치합니다.",
+      "zh": "设置各任务的模型、推理级别和指令，以及 pwsh 默认工具说明。同时安装设置 API。",
+      "ja": "タスク別のモデル、推論強度、指示と、組み込みの pwsh ツールの説明を設定します。設定 API も含まれます。",
+      "es": "Configura los modelos, el esfuerzo de razonamiento y las instrucciones por tarea, incluida la descripción de la herramienta nativa pwsh. Incluye la API de configuración.",
+      "fr": "Configurez les modèles, l’effort de raisonnement et les instructions par tâche, ainsi que la description de l’outil natif pwsh. Inclut l’API de configuration.",
+      "de": "Konfigurieren Sie Aufgabenmodelle, Denkaufwand und Anweisungen einschließlich der Beschreibung des nativen pwsh-Werkzeugs. Enthält die Einstellungs-API.",
+      "ru": "Настройте модели, глубину рассуждений и инструкции для задач, включая описание встроенного инструмента pwsh. Включает API настроек.",
+      "pt": "Configure modelos, esforço de raciocínio e instruções por tarefa, incluindo a descrição da ferramenta nativa pwsh. Inclui a API de configurações."
     },
     "category": "ui",
     "labels": [],

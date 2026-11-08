@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "title": "Configurações de habilidades",
+    "description": "Veja nas configurações as habilidades carregadas dos diretórios de habilidades compartilhadas de agentes e do DSH."
+  },
+  "ui": {
+    "nav": "Habilidades",
+    "description": "Esta configuração se aplica apenas ao DSH.",
+    "agents": "Habilidades compartilhadas",
+    "dsh": "Habilidades do DSH",
+    "loading": "Carregando habilidades…",
+    "empty": "Nenhuma habilidade carregada desta fonte.",
+    "search": "Buscar habilidades",
+    "searchPlaceholder": "Buscar por nome, descrição ou caminho",
+    "noResults": "Nenhuma habilidade corresponde à busca.",
+    "loadedCount": "({total} carregadas)",
+    "filteredCount": "({total} carregadas · {count} correspondentes)",
+    "error": "Não foi possível carregar as habilidades. Feche e reabra esta seção de configurações para tentar novamente.",
+    "incomplete": "Não foi possível carregar algumas fontes de habilidades. A lista pode estar incompleta.",
+    "use": "Ativada",
+    "disabled": "Desativada",
+    "openFolder": "Abrir pasta",
+    "openingFolder": "Abrindo pasta…",
+    "openFolderHint": "Abre a pasta desta habilidade no gerenciador de arquivos do host DSH.",
+    "openFolderUnavailable": "A abertura de pastas requer um ambiente de área de trabalho no host DSH.",
+    "openFolderError": "Não foi possível abrir a pasta da habilidade. Verifique o gerenciador de arquivos do host DSH e tente novamente.",
+    "translate": "Ver tradução",
+    "original": "Ver original",
+    "retry": "Tentar novamente",
+    "translating": "Traduzindo…",
+    "translateAll": "Traduzir todas as habilidades",
+    "translatingAll": "Traduzindo todas as habilidades…",
+    "translationAllError": "Não foi possível traduzir algumas descrições de habilidades. Tente novamente para traduzir apenas os itens que falharam.",
+    "translationError": "Não foi possível traduzir. O original é exibido. Serviços pagos exigem uma Session e não estão disponíveis aqui.",
+    "saveError": "Não foi possível salvar a configuração. Feche e reabra esta seção para verificar o estado salvo antes de tentar novamente."
+  }
+}

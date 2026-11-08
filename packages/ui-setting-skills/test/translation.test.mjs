@@ -179,12 +179,12 @@ await test('전체 번역은 숨겨진 탭도 순차 처리하고 실패 후 재
     [...ui.doc.querySelectorAll('.dsh-skills-preview')].map((node) => node.textContent),
     ['알파 번역', '', 'Original beta']
   )
-  assert.ok(ui.doc.querySelector('.dsh-skills-translation-toolbar [role="alert"]'))
+  assert.match(ui.doc.querySelector('[role="alert"]').textContent, /일부 스킬 설명을 번역하지 못했습니다/)
   await React.act(async () => ui.button('전체 스킬 번역').click())
   assert.equal(ui.requests.length, 3)
   assert.equal(ui.requests[2].path, '/beta/SKILL.md')
   await React.act(async () => ui.requests[2].resolve({ ok: true, value: '베타 번역' }))
-  assert.equal(ui.doc.querySelector('.dsh-skills-translation-toolbar [role="alert"]'), null)
+  assert.equal(ui.doc.querySelector('[role="alert"]'), null)
   assert.equal(ui.button('전체 스킬 번역').disabled, false)
 })
 
@@ -214,7 +214,9 @@ await test('검색은 이름과 설명과 경로를 정규화해 모든 검색�
     [...ui.doc.querySelectorAll('[role="tabpanel"]:not([hidden]) strong')].map((node) => node.textContent)
   const input = ui.doc.querySelector('input[type="search"]')
   assert.ok(ui.doc.querySelector('[role="tablist"]').compareDocumentPosition(input) & 4)
-  assert.ok(input.compareDocumentPosition(ui.doc.querySelector('.dsh-skills-list-header')) & 4)
+  const header = ui.doc.querySelector('.dsh-skills-list-header')
+  assert.ok(header.compareDocumentPosition(input) & 4)
+  assert.equal(header.textContent, '스킬 (2개 로드됨)사용 여부')
   assert.equal(ui.doc.querySelector('label'), null)
   assert.equal(ui.doc.querySelector('[role="status"]'), null)
   assert.equal(ui.button('검색 지우기'), undefined)
@@ -222,18 +224,20 @@ await test('검색은 이름과 설명과 경로를 정규화해 모든 검색�
   for (const query of ['  ＡＬＰＨＡ  ', 'Original alpha', '/alpha/SKILL.md', 'alpha\tOriginal']) {
     await ui.search(query)
     assert.deepEqual(names(), ['alpha'])
-    assert.ok(ui.button('공용 스킬 1/2'))
+    assert.equal(header.textContent, '스킬 (2개 로드됨 · 1개 검색됨)사용 여부')
   }
   await ui.search('alpha missing')
   assert.deepEqual(names(), [])
+  assert.equal(header.textContent, '스킬 (2개 로드됨 · 0개 검색됨)사용 여부')
   assert.match(ui.doc.querySelector('[role="tabpanel"]:not([hidden])').textContent, /검색 조건에 맞는 스킬이 없습니다/)
   await ui.search('beta')
-  await React.act(async () => ui.button('DSH 스킬 1/1').click())
+  await React.act(async () => ui.button('DSH 스킬').click())
   assert.deepEqual(names(), ['beta'])
+  assert.equal(header.textContent, '스킬 (1개 로드됨 · 1개 검색됨)사용 여부')
   assert.equal(ui.doc.querySelector('input[type="search"]').value, 'beta')
   await ui.search('')
   assert.equal(ui.doc.querySelector('input[type="search"]').value, '')
-  await React.act(async () => ui.button('공용 스킬 2').click())
+  await React.act(async () => ui.button('공용 스킬').click())
   await ui.search('   ')
   assert.deepEqual(names(), ['alpha', 'empty'])
   assert.equal(ui.requests.length, 0)
@@ -267,4 +271,25 @@ await test('번역 서비스가 없으면 전체 번역 버튼과 자동 번역 
   assert.equal(ui.button('전체 스킬 번역'), undefined)
   await ui.toggle(0, true)
   assert.equal(ui.requests.length, 0)
+})
+
+await test('전체 번역 버튼은 탭 옆에 있고 안내 문구 없이 모든 로케일의 로드 수와 사용 여부를 표시한다', async (t) => {
+  const ui = await mount(t)
+  const toolbar = ui.button('전체 스킬 번역').parentElement
+  assert.ok(toolbar.contains(ui.doc.querySelector('[role="tablist"]')))
+  assert.doesNotMatch(ui.doc.textContent, /스킬을 펼치거나 전체 스킬 번역/)
+  for (const [language, header] of [
+    ['en', 'Skills (2 loaded)Enabled'],
+    ['zh', '技能 （已加载 2 个）是否启用'],
+    ['ko', '스킬 (2개 로드됨)사용 여부'],
+    ['ja-JP', 'スキル （2 件読み込み済み）有効'],
+    ['es-MX', 'Habilidades (2 cargadas)Habilitada'],
+    ['fr-CA', 'Compétences (2 chargées)Activée'],
+    ['de-DE', 'Skills (2 geladen)Aktiviert'],
+    ['ru-RU', 'Навыки (загружено: 2)Включён'],
+    ['pt-BR', 'Habilidades (2 carregadas)Ativada'],
+  ]) {
+    await ui.language(language)
+    assert.equal(ui.doc.querySelector('.dsh-skills-list-header').textContent, header)
+  }
 })

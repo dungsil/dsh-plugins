@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "title": "Skill-Einstellungen",
+    "description": "Zeigen Sie in den Einstellungen geladene Skills aus den gemeinsamen Agenten- und DSH-Skill-Verzeichnissen an."
+  },
+  "ui": {
+    "nav": "Skills",
+    "description": "Diese Einstellung gilt nur für DSH.",
+    "agents": "Gemeinsame Skills",
+    "dsh": "DSH-Skills",
+    "loading": "Skills werden geladen…",
+    "empty": "Keine geladenen Skills aus dieser Quelle.",
+    "search": "Skills suchen",
+    "searchPlaceholder": "Nach Name, Beschreibung oder Pfad suchen",
+    "noResults": "Keine Skills entsprechen Ihrer Suche.",
+    "loadedCount": "({total} geladen)",
+    "filteredCount": "({total} geladen · {count} Treffer)",
+    "error": "Skills konnten nicht geladen werden. Schließen und öffnen Sie diesen Einstellungsbereich erneut, um es noch einmal zu versuchen.",
+    "incomplete": "Einige Skill-Quellen konnten nicht geladen werden. Diese Liste ist möglicherweise unvollständig.",
+    "use": "Aktiviert",
+    "disabled": "Aus",
+    "openFolder": "Ordner öffnen",
+    "openingFolder": "Ordner wird geöffnet…",
+    "openFolderHint": "Öffnet den Ordner dieses Skills im Dateimanager auf dem DSH-Host.",
+    "openFolderUnavailable": "Zum Öffnen von Ordnern ist eine Desktop-Umgebung auf dem DSH-Host erforderlich.",
+    "openFolderError": "Der Skill-Ordner konnte nicht geöffnet werden. Prüfen Sie den Dateimanager auf dem DSH-Host und versuchen Sie es erneut.",
+    "translate": "Übersetzung anzeigen",
+    "original": "Original anzeigen",
+    "retry": "Erneut versuchen",
+    "translating": "Wird übersetzt…",
+    "translateAll": "Alle Skills übersetzen",
+    "translatingAll": "Alle Skills werden übersetzt…",
+    "translationAllError": "Einige Skill-Beschreibungen konnten nicht übersetzt werden. Versuchen Sie es erneut, um nur fehlgeschlagene Einträge zu übersetzen.",
+    "translationError": "Übersetzung fehlgeschlagen. Das Original wird angezeigt. Kostenpflichtige Dienste erfordern eine Session und sind hier nicht verfügbar.",
+    "saveError": "Die Einstellung konnte nicht gespeichert werden. Schließen und öffnen Sie diesen Bereich erneut, um den gespeicherten Zustand vor einem weiteren Versuch zu prüfen."
+  }
+}

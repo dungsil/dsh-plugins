@@ -2,5 +2,24 @@
   "meta": {
     "title": "Private secret input",
     "description": "Request credentials through a private form, returning only their reference to the agent."
+  },
+  "ui": {
+    "title": "Private secret input",
+    "value": "Secret value",
+    "privacy": "Your secret is not shown to the agent.",
+    "target": "Credential storage reference",
+    "context": "Agent-provided description",
+    "replace": "Saving replaces the existing credential at this reference:",
+    "save": "Save credential",
+    "saving": "Saving…",
+    "decline": "Decline",
+    "error": "Could not confirm the save. The value was cleared. Check the connection and credential store before retrying.",
+    "waiting": "Waiting for private input…",
+    "closed": "Input is no longer available.",
+    "saved": "Credential saved",
+    "declined": "Request declined",
+    "cancelled": "Request cancelled",
+    "timed_out": "Request expired",
+    "unavailable": "Private input unavailable"
   }
 }

@@ -6,69 +6,29 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { channel, endpointPrefix, maxSecretLength, type SecretRequest, type SecretStatus } from './protocol.js'
+import en from '../locale/en.json' with { type: 'json' }
+import ko from '../locale/ko.json' with { type: 'json' }
+import zh from '../locale/zh.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 
 export const name = 'dungsil-request-secret'
 export const inject = ['connection', 'locale', 'slots']
 
 const copy = {
-  en: {
-    title: 'Private secret input',
-    value: 'Secret value',
-    privacy: 'Your secret is not shown to the agent.',
-    target: 'Credential storage reference',
-    context: 'Agent-provided description',
-    replace: 'Saving replaces the existing credential at this reference:',
-    save: 'Save credential',
-    saving: 'Saving…',
-    decline: 'Decline',
-    error:
-      'Could not confirm the save. The value was cleared. Check the connection and credential store before retrying.',
-    waiting: 'Waiting for private input…',
-    closed: 'Input is no longer available.',
-    saved: 'Credential saved',
-    declined: 'Request declined',
-    cancelled: 'Request cancelled',
-    timed_out: 'Request expired',
-    unavailable: 'Private input unavailable',
-  },
-  ko: {
-    title: '비밀값 입력',
-    value: '비밀값',
-    privacy: '에이전트에게 비밀값을 보여주지 않습니다.',
-    target: '비밀값 저장 참조',
-    context: '에이전트가 제공한 설명',
-    replace: '저장하면 다음 참조의 기존 비밀값을 대체합니다:',
-    save: '비밀값 저장',
-    saving: '저장 중…',
-    decline: '거절',
-    error: '저장 여부를 확인하지 못해 입력값을 지웠습니다. 연결과 비밀값 저장소를 확인한 뒤 다시 시도하세요.',
-    waiting: '비밀값 입력을 기다리고 있습니다.',
-    closed: '입력 요청이 종료되었습니다.',
-    saved: '비밀값을 저장했습니다.',
-    declined: '요청을 거절했습니다.',
-    cancelled: '요청이 취소되었습니다.',
-    timed_out: '입력 시간이 만료되었습니다.',
-    unavailable: '비밀값 입력을 사용할 수 없습니다.',
-  },
-  zh: {
-    title: '私密凭据输入',
-    value: '凭据值',
-    privacy: '凭据值不会显示给智能体。',
-    target: '凭据存储引用',
-    context: '智能体提供的说明',
-    replace: '保存将替换以下引用的现有凭据：',
-    save: '保存凭据',
-    saving: '正在保存…',
-    decline: '拒绝',
-    error: '无法确认是否保存，输入值已清除。重试前请检查连接和凭据存储。',
-    waiting: '正在等待私密输入…',
-    closed: '输入请求已结束。',
-    saved: '凭据已保存',
-    declined: '请求已拒绝',
-    cancelled: '请求已取消',
-    timed_out: '请求已过期',
-    unavailable: '私密输入不可用',
-  },
+  en: en.ui,
+  ko: ko.ui,
+  zh: zh.ui,
+  ja: ja.ui,
+  es: es.ui,
+  fr: fr.ui,
+  de: de.ui,
+  ru: ru.ui,
+  pt: pt.ui,
 }
 
 const styles = `
@@ -239,7 +199,7 @@ export function apply(ctx: Context) {
     const subscribeLocale = useCallback((listener: () => void) => ctx.locale.subscribe(listener), [])
     const localeSnapshot = useCallback(() => ctx.locale.getSnapshot(), [])
     const locale = useSyncExternalStore(subscribeLocale, localeSnapshot)
-    const text = locale.active.startsWith('ko') ? copy.ko : locale.active.startsWith('zh') ? copy.zh : copy.en
+    const text = (copy as Record<string, Text>)[locale.active.toLowerCase().split(/[-_]/)[0]] ?? copy.en
     // A card may only answer the live request for this exact session and call.
     const request = pending.find((item) => item.sessionId === props.sessionId && item.callId === props.callId)
     let status: string | undefined = submitted && text[submitted]

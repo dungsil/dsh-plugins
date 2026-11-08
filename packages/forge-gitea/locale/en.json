@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gitea",
+    "description": "Provides Gitea pull requests to the official DSH forge registry through tea."
+  }
+}

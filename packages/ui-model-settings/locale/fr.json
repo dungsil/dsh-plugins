@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "title": "Modèles et instructions par tâche",
+    "description": "Configurez les modèles, l’effort de raisonnement et les instructions par tâche, ainsi que la description de l’outil natif pwsh. Inclut l’API de configuration."
+  },
+  "ui": {
+    "nav": "Modèles et instructions par tâche",
+    "taskSettings": "Paramètres par tâche",
+    "model": "Modèle",
+    "inherit": "Utiliser le modèle de la conversation",
+    "useAuxiliary": "Utiliser le modèle auxiliaire",
+    "auxiliaryHint": "Utilise le modèle auxiliaire et son effort de raisonnement. S’il n’est pas défini, utilise le modèle de la conversation.",
+    "instructions": "Instructions",
+    "editInstructions": "Modifier les instructions",
+    "instructionsHint": "Modifiez le prompt par défaut de cette tâche. Effacez le contenu et enregistrez pour rétablir la valeur par défaut.",
+    "save": "Enregistrer",
+    "effort": "Effort de raisonnement",
+    "automatic": "Automatique",
+    "effortHint": "Choisissez un modèle pour définir son effort de raisonnement. Automatique conserve le comportement existant.",
+    "noEfforts": "Ce modèle ne propose pas de réglage de l’effort de raisonnement.",
+    "missingEffort": "Effort enregistré (actuellement indisponible)",
+    "saving": "Enregistrement…",
+    "loading": "Chargement des modèles…",
+    "resyncing": "Vérification des paramètres enregistrés…",
+    "loadError": "Impossible de charger les paramètres. Fermez puis rouvrez cette section pour réessayer.",
+    "resyncError": "Impossible de vérifier les paramètres enregistrés. Les modifications sont désactivées. Fermez puis rouvrez cette section pour réessayer.",
+    "unavailable": "Aucune tâche n’est enregistrée. Activez un plugin qui enregistre des tâches de configuration de modèles.",
+    "catalog": "Certaines listes de modèles n’ont pas pu être chargées. Vous pouvez toujours utiliser le modèle de la conversation.",
+    "missing": "Modèle enregistré (absent du catalogue actuel)",
+    "error": "Impossible de confirmer la modification. Elle ne sera pas réessayée automatiquement.",
+    "conflict": "Les paramètres ont été modifiés ailleurs. Votre modification ne sera pas réessayée automatiquement.",
+    "model_unavailable": "Ce modèle n’est pas disponible. Choisissez un modèle disponible après la vérification des paramètres.",
+    "reasoning_unavailable": "Cet effort de raisonnement n’est pas disponible. Choisissez un effort pris en charge ou Automatique."
+  }
+}

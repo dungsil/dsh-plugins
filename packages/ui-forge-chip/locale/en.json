@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Forge Chips",
+    "description": "Commit, push and create or view PRs from compact composer chips using Forge."
+  },
+  "commit": "Commit only",
+  "push": "Push",
+  "pr": "Create PR",
+  "updatePr": "Update PR",
+  "viewPr": "View PR",
+  "menu": "More Git actions",
+  "panel": "View PR",
+  "hint": "Ask this session to perform the Git action",
+  "sending": "Sending request…",
+  "error": "Could not send the request. Check the session before retrying.",
+  "lookupError": "Git status is unavailable. Select View PR to check.",
+  "checks": "Checks",
+  "none": "No checks",
+  "pending": "Pending",
+  "success": "Passed",
+  "failure": "Failed",
+  "unknown": "Unknown",
+  "promptCommit": "Review the current checkout changes and commit the appropriate changes with a descriptive commit message, following repository instructions. Do not push or create a PR. Do not amend, reset, discard changes, or include secrets. Ask if the intended scope is unclear.",
+  "promptPush": "Review the current checkout changes, commit the appropriate changes following repository instructions, and push the current branch to its configured remote. Do not force-push or create a PR. Do not amend, reset, discard changes, or include secrets. Ask if the intended scope or remote is unclear.",
+  "promptPr": "Review the current checkout changes, commit the appropriate changes following repository instructions, push the current branch, and create a PR (or update the existing PR for this branch). Follow the repository PR template. Do not force-push, amend, reset, discard changes, or include secrets. Ask if the intended scope or target branch is unclear."
+}

@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "title": "Modelos e instrucciones por tarea",
+    "description": "Configura los modelos, el esfuerzo de razonamiento y las instrucciones por tarea, incluida la descripción de la herramienta nativa pwsh. Incluye la API de configuración."
+  },
+  "ui": {
+    "nav": "Modelos e instrucciones por tarea",
+    "taskSettings": "Configuración por tarea",
+    "model": "Modelo",
+    "inherit": "Usar modelo de la conversación",
+    "useAuxiliary": "Usar modelo auxiliar",
+    "auxiliaryHint": "Usa el modelo auxiliar y su esfuerzo de razonamiento. Si no está configurado, usa el modelo de la conversación.",
+    "instructions": "Instrucciones",
+    "editInstructions": "Editar instrucciones",
+    "instructionsHint": "Edita el mensaje predeterminado de esta tarea. Borra el contenido y guarda para restaurar el valor predeterminado.",
+    "save": "Guardar",
+    "effort": "Esfuerzo de razonamiento",
+    "automatic": "Automático",
+    "effortHint": "Elige un modelo para configurar su esfuerzo de razonamiento. Automático mantiene el comportamiento existente.",
+    "noEfforts": "Este modelo no ofrece ajustes de esfuerzo de razonamiento.",
+    "missingEffort": "Esfuerzo guardado (no disponible actualmente)",
+    "saving": "Guardando…",
+    "loading": "Cargando modelos…",
+    "resyncing": "Comprobando la configuración guardada…",
+    "loadError": "No se pudo cargar la configuración. Cierra y vuelve a abrir esta sección para intentarlo de nuevo.",
+    "resyncError": "No se pudo comprobar la configuración guardada. Los cambios están deshabilitados. Cierra y vuelve a abrir esta sección para intentarlo de nuevo.",
+    "unavailable": "No hay tareas registradas. Activa un complemento que registre tareas de configuración de modelos.",
+    "catalog": "No se pudieron cargar algunas listas de modelos. Aún puedes usar el modelo de la conversación.",
+    "missing": "Modelo guardado (no está en el catálogo actual)",
+    "error": "No se pudo confirmar el cambio. No se volverá a intentar automáticamente.",
+    "conflict": "La configuración cambió en otro lugar. No se volverá a intentar el cambio automáticamente.",
+    "model_unavailable": "Este modelo no está disponible. Elige uno disponible después de comprobar la configuración.",
+    "reasoning_unavailable": "Este esfuerzo de razonamiento no está disponible. Elige uno compatible o Automático."
+  }
+}

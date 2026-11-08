@@ -1,0 +1,79 @@
+{
+  "name": "@dungsil/dsh-plugin-forge-gitlab",
+  "version": "0.0.0",
+  "description": "GitLab provider for the DSH experimental forge registry, using glab on the host.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/forge-gitlab"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.19.0",
+    "execa": "10.0.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 11.1,
+    "title": {
+      "en": "GitLab",
+      "ko": "GitLab",
+      "zh": "GitLab"
+    },
+    "description": {
+      "en": "GitLab provider for the DSH experimental forge registry, using glab on the host.",
+      "ko": "호스트의 glab CLI로 GitLab MR을 읽고 공식 forge registry에 제공합니다. 별도 UI는 추가하지 않습니다.",
+      "zh": "通过主机上的 glab CLI 为官方 forge registry 提供 GitLab MR，不添加独立界面。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "gitlab",
+      "forge",
+      "provider",
+      "mr",
+      "glab",
+      "self-hosted"
+    ]
+  }
+}

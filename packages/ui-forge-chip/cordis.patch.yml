@@ -1,0 +1,4 @@
+- insert:
+    - id: dungsil-ui-forge-chip
+      name: '@dungsil/dsh-plugin-ui-forge-chip'
+      config: {}

@@ -5,7 +5,8 @@
   },
   "ui": {
     "title": "Diff note",
-    "open": "Open file",
+    "codeLabel": "Code",
+    "annotationLabel": "Reason for change",
     "waiting": "Recording change explanation…",
     "failed": "The change explanation could not be recorded.",
     "wrapLabel": "Wrap lines",

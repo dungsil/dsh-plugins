@@ -73,12 +73,24 @@
     "title": {
       "en": "Sidebar Inbox",
       "ko": "사이드바 수신함",
-      "zh": "侧边栏收件箱"
+      "zh": "侧边栏收件箱",
+      "ja": "サイドバー受信箱",
+      "es": "Bandeja de entrada lateral",
+      "fr": "Boîte de réception latérale",
+      "de": "Seitenleisten-Posteingang",
+      "ru": "Входящие на боковой панели",
+      "pt": "Caixa de entrada lateral"
     },
     "description": {
       "en": "Groups sidebar sessions into Inbox, Working, and Archived lists without changing the existing sidebar.",
       "ko": "기존 사이드바 모양을 유지하면서 세션 목록을 수신함·작업 중·보관됨으로 나눠 배치합니다.",
-      "zh": "将侧边栏会话分为收件箱、进行中和已归档列表，不改变现有侧边栏外观。"
+      "zh": "将侧边栏会话分为收件箱、进行中和已归档列表，不改变现有侧边栏外观。",
+      "ja": "標準の表示オプションに「エージェントの活動」順を追加します。単一リストで選択すると、セッションは受信箱、作業中、アーカイブ済みの順に並びます。DSH でアーカイブしたセッションは、すべての会話の一覧の下部に折りたたまれます。",
+      "es": "Añade el orden por actividad del agente a las opciones de vista nativas. Al seleccionarlo en la lista única, las sesiones se ordenan por bandeja de entrada, en curso y archivadas; las sesiones archivadas en DSH se pliegan al final de la vista de todas las conversaciones.",
+      "fr": "Ajoute le tri par activité de l’agent aux options d’affichage natives. Lorsqu’il est sélectionné dans la liste unique, les sessions sont classées en réception, en cours et archivées ; les sessions archivées dans DSH sont repliées en bas de la vue de toutes les conversations.",
+      "de": "Ergänzt die nativen Ansichtsoptionen um die Sortierung nach Agentenaktivität. In der Einzelliste werden Sitzungen damit nach Posteingang, in Arbeit und archiviert geordnet; in DSH archivierte Sitzungen werden unten in der Ansicht aller Gespräche eingeklappt.",
+      "ru": "Добавляет сортировку по активности агента в стандартные параметры вида. При её выборе в едином списке сеансы упорядочиваются по группам «Входящие», «В работе» и «Архивные»; сеансы, архивированные в DSH, сворачиваются внизу списка всех бесед.",
+      "pt": "Adiciona a ordenação por atividade do agente às opções de visualização nativas. Quando selecionada na lista única, as sessões são ordenadas por caixa de entrada, em andamento e arquivadas; as sessões arquivadas no DSH são recolhidas no fim da visualização de todas as conversas."
     },
     "category": "ui",
     "labels": [],

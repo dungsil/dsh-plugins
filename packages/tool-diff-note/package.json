@@ -41,7 +41,6 @@
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
-    "diff": "9.0.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tsdown": "0.23.4"
@@ -76,12 +75,24 @@
     "title": {
       "en": "Diff Notes",
       "ko": "변경 설명",
-      "zh": "变更说明"
+      "zh": "变更说明",
+      "ja": "変更の説明",
+      "es": "Notas de cambios",
+      "fr": "Notes de modifications",
+      "de": "Änderungsnotizen",
+      "ru": "Пояснения к изменениям",
+      "pt": "Notas de alterações"
     },
     "description": {
       "en": "Let the agent explain important decisions beside before-and-after code snapshots without editing source files.",
       "ko": "소스 파일을 수정하지 않고, 수정 전·후 코드 스냅샷 옆에 에이전트가 중요한 판단의 이유를 남깁니다.",
-      "zh": "让智能体在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。"
+      "zh": "让智能体在修改前后的代码快照旁说明重要决策的原因，无需修改源文件。",
+      "ja": "ソースファイルを編集せずに、変更前後のコードスナップショットの横で重要な判断を説明します。",
+      "es": "Explica decisiones importantes junto a las instantáneas del código antes y después de los cambios sin editar los archivos fuente.",
+      "fr": "Explique les décisions importantes à côté des instantanés du code avant et après les modifications, sans modifier les fichiers source.",
+      "de": "Erklärt wichtige Entscheidungen neben Vorher-Nachher-Schnappschüssen des Codes, ohne Quelldateien zu bearbeiten.",
+      "ru": "Объясняет важные решения рядом со снимками кода до и после изменений, не редактируя исходные файлы.",
+      "pt": "Explica decisões importantes ao lado de instantâneos do código antes e depois das alterações, sem editar os arquivos de origem."
     },
     "category": "tools",
     "labels": [],

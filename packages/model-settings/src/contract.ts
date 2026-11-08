@@ -9,6 +9,8 @@ export interface TaskSettings {
 }
 
 export interface TaskDefinition {
+  /** Instructions-only entries cannot select or inherit a separate model. */
+  kind?: 'instructions'
   key: string
   label: LocalizedText
   description: LocalizedText

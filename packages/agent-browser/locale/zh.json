@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "智能体浏览器",
+    "description": "在现有浏览器标签页中与智能体操作同一个网页。agent-browser 随插件安装，在完全访问模式下使用主机上的 Chrome/Chromium。"
+  },
   "unavailable": "无法启动插件附带的 agent-browser。dsh 主机上需要有 Chrome 或 Chromium。",
   "command_failed": "浏览器操作失败。请等待当前操作完成后重试。",
   "stream_failed": "浏览器连接已断开。请刷新以重新连接。",

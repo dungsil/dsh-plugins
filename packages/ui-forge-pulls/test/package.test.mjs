@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const json = async (path) => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'))
 
-void test('세 로케일은 같은 번역 키와 비어 있지 않은 문구를 제공한다', async () => {
+await test('세 로케일은 같은 번역 키와 비어 있지 않은 문구를 제공한다', async () => {
   const locales = await Promise.all(['en', 'ko', 'zh'].map((lang) => json(`../locale/${lang}.json`)))
   const flatten = (value, prefix = '') =>
     Object.entries(value).flatMap(([key, text]) =>
@@ -20,7 +20,7 @@ void test('세 로케일은 같은 번역 키와 비어 있지 않은 문구를 
   }
 })
 
-void test('사용자 표시 메타데이터는 내부 연동 이름을 노출하지 않고 PR 미리보기 제목을 사용한다', async () => {
+await test('사용자 표시 메타데이터는 내부 연동 이름을 노출하지 않고 PR 미리보기 제목을 사용한다', async () => {
   const manifest = await json('../package.json')
   const titles = { en: 'PR Preview', ko: 'PR 미리보기', zh: 'PR 预览' }
   const visible = [manifest.description, ...manifest.market.keywords]
@@ -44,7 +44,7 @@ void test('사용자 표시 메타데이터는 내부 연동 이름을 노출하
   }
 })
 
-void test('새 번들은 공식 Forge 번들을 제거하거나 같은 서비스와 탭을 재등록하지 않는다', async () => {
+await test('새 번들은 공식 Forge 번들을 제거하거나 같은 서비스와 탭을 재등록하지 않는다', async () => {
   const manifest = await json('../package.json')
   assert.equal(manifest.name, '@dungsil/dsh-plugin-ui-forge-pulls')
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')

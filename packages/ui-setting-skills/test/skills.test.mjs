@@ -493,14 +493,17 @@ await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부�
   assert.equal((await h.fetch(h.request)).status, 404)
 })
 
-await test('모든 UI 문자열에 영어, 한국어, 중국어 번역이 있다', async () => {
+await test('모든 UI 문자열에 지원하는 아홉 언어의 번역이 있고 보간 변수를 유지한다', async () => {
   const locales = await Promise.all(
-    ['en', 'ko', 'zh'].map(async (language) =>
+    ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt'].map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     )
   )
   for (const locale of locales) {
     assert.deepEqual(Object.keys(locale.ui).sort(), Object.keys(locales[0].ui).sort())
     assert.ok(Object.values(locale.ui).every((value) => typeof value === 'string' && value.trim()))
+    for (const [key, value] of Object.entries(locale.ui)) {
+      assert.deepEqual(value.match(/\{\w+\}/g)?.sort(), locales[0].ui[key].match(/\{\w+\}/g)?.sort())
+    }
   }
 })

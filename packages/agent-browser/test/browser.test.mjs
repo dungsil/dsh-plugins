@@ -307,6 +307,89 @@ await test('별도 화면 없이 기존 브라우저 본문을 유지하고 해�
   removeNative()
 })
 
+await test('공유 페이지의 접근성 문구는 지역별 로케일을 선택하고 지원하지 않는 언어는 영어로 표시한다', async () => {
+  const require = createRequire(import.meta.url)
+  const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
+  for (const language of [
+    'en',
+    'ko-KR',
+    'zh-CN',
+    'ja-JP',
+    'es-ES',
+    'fr-FR',
+    'de-DE',
+    'ru-RU',
+    'pt-BR',
+    'JA_JP',
+    'it-IT',
+  ]) {
+    let client, injection
+    const elements = []
+    const effects = []
+    const createElement = (tag) => {
+      const element = {
+        tag,
+        attributes: {},
+        append() {},
+        remove() {},
+        addEventListener() {},
+        setAttribute(key, value) {
+          this.attributes[key] = value
+        },
+      }
+      elements.push(element)
+      return element
+    }
+    runInNewContext(source, {
+      window: {
+        __ModuleLoader__: {
+          load: ({ factory }) => {
+            client = factory((id) => (id === '@deepseek-ai/dsh-client-ui-primitives' ? {} : require(id)))
+          },
+        },
+      },
+      document: { createElement, head: { append() {} }, getElementById: () => undefined },
+      clearTimeout,
+    })
+    const original = { options: { key: '@deepseek-ai/dsh-client-ui-sidebar-browser' }, component() {} }
+    client.apply({
+      get: () => ({
+        rpc: {
+          call: (_path, method) =>
+            method.endsWith('/view')
+              ? new Promise(() => {})
+              : Promise.resolve({ ok: true, value: { status: 'idle', sequence: 0 } }),
+        },
+      }),
+      locale: { getSnapshot: () => ({ active: language }) },
+      effect: (effect) => effects.push(effect()),
+      slots: {
+        inject: (_, setup) => effects.push(setup()),
+        entries: () => [original],
+        subscribe: () => () => {},
+        register: (options) => {
+          injection = options.inject
+          return () => {}
+        },
+      },
+      sidebarRight: {
+        openTabs: { subscribe: () => () => {} },
+        mounted: { getSnapshot: () => undefined },
+      },
+    })
+    const controller = injection('session', {})
+    const unmount = controller.mount({ tabId: 'tab', viewportId: 'viewport' })
+    const base = language.toLowerCase().split(/[-_]/)[0]
+    const expected = JSON.parse(
+      await readFile(new URL(`../locale/${base === 'it' ? 'en' : base}.json`, import.meta.url), 'utf8')
+    )
+    assert.equal(elements.find((element) => element.tag === 'img').alt, expected.screen)
+    assert.equal(elements.find((element) => element.tag === 'textarea').attributes['aria-label'], expected.screen)
+    unmount()
+    for (const dispose of effects.reverse()) await dispose?.()
+  }
+})
+
 await test('기존 주소창과 사용자 입력이 도구와 같은 페이지를 제어하고 탭을 전환해도 각각의 페이지를 보존한다', async (t) => {
   const f = await fixture(t)
   const control = async (tab, action, value) => {

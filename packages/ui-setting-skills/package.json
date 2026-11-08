@@ -92,12 +92,24 @@
     "title": {
       "en": "Skills Settings",
       "ko": "스킬 설정",
-      "zh": "技能设置"
+      "zh": "技能设置",
+      "ja": "スキル設定",
+      "es": "Configuración de habilidades",
+      "fr": "Paramètres des compétences",
+      "de": "Skill-Einstellungen",
+      "ru": "Настройки навыков",
+      "pt": "Configurações de habilidades"
     },
     "description": {
       "en": "View loaded skills from your shared agent and DSH skill directories in settings.",
       "ko": "설정 화면에서 공용 에이전트 및 DSH 스킬 경로에 로드된 스킬을 확인합니다.",
-      "zh": "在设置中查看从共享代理和 DSH 技能目录加载的技能。"
+      "zh": "在设置中查看从共享代理和 DSH 技能目录加载的技能。",
+      "ja": "設定画面で、共有エージェントおよび DSH のスキルディレクトリから読み込まれたスキルを確認します。",
+      "es": "Consulta en la configuración las habilidades cargadas desde los directorios de habilidades compartidas de agentes y de DSH.",
+      "fr": "Consultez dans les paramètres les compétences chargées depuis les répertoires de compétences partagées des agents et de DSH.",
+      "de": "Zeigen Sie in den Einstellungen geladene Skills aus den gemeinsamen Agenten- und DSH-Skill-Verzeichnissen an.",
+      "ru": "Просматривайте в настройках навыки, загруженные из общих каталогов навыков агентов и каталогов DSH.",
+      "pt": "Veja nas configurações as habilidades carregadas dos diretórios de habilidades compartilhadas de agentes e do DSH."
     },
     "category": "ui",
     "labels": [],

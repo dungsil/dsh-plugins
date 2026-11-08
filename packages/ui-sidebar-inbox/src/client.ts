@@ -9,7 +9,7 @@ import type { WorkspaceBrowserProps } from '@deepseek-ai/dsh-client-ui-workspace
 import { placeSessions, type Placement } from './inbox.js'
 import { installHeadings } from './headings.js'
 import { installSortOption } from './menu.js'
-import { en, ko, NS } from './locale.js'
+import { dictionaries, NS, type SidebarInboxKey } from './locale.js'
 
 export const name = 'dungsil-sidebar-inbox'
 export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
@@ -58,11 +58,17 @@ function writePreviousSort(mode: NativeSort) {
 
 /** Keep native React rows, search, menus, selection and keyboard order intact. */
 export function apply(ctx: Context) {
-  // This plugin owns its dictionaries, so the labels follow the UI language on
-  // their own: Korean needs no separate language pack to be installed.
-  ctx.effect(() => ctx.locale.register(NS, 'en', en), 'sidebar-inbox: English copy')
-  ctx.effect(() => ctx.locale.register(NS, 'ko', ko), 'sidebar-inbox: Korean copy')
-  const translate = ctx.locale.bind(NS)
+  // Ship dictionaries independently of separately installed language packs.
+  for (const [language, dictionary] of Object.entries(dictionaries)) {
+    ctx.effect(() => ctx.locale.register(NS, language, dictionary), `sidebar-inbox: ${language} copy`)
+  }
+  const bound = ctx.locale.bind(NS)
+  const translate = (key: SidebarInboxKey) => {
+    const base = ctx.locale.getSnapshot().active.toLowerCase().split(/[-_]/)[0]!
+    // A regional language can declare an English fallback rather than its primary subtag.
+    // Resolve our shipped base copy first, preserving host dictionaries for other languages.
+    return Object.hasOwn(dictionaries, base) ? dictionaries[base as keyof typeof dictionaries][key] : bound(key)
+  }
   let placements = new Map<string, Placement>()
   let view: ViewInstance | undefined
   let refreshHeadings = () => {}

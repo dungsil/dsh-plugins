@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "CLIProxyAPI",
+    "description": "CLIProxyAPI モデルを接続し、OAuth アカウントとルーティングを管理します。CLIProxyAPI v8 が必要です。"
+  }
+}

@@ -60,12 +60,24 @@
     "title": {
       "en": "ADHD-friendly responses",
       "ko": "ADHD 친화 응답",
-      "zh": "ADHD 友好回复"
+      "zh": "ADHD 友好回复",
+      "ja": "ADHD に配慮した回答",
+      "es": "Respuestas adaptadas al TDAH",
+      "fr": "Réponses adaptées au TDAH",
+      "de": "ADHS-freundliche Antworten",
+      "ru": "Ответы с учётом СДВГ",
+      "pt": "Respostas adaptadas ao TDAH"
     },
     "description": {
       "en": "Turns on ADHD-friendly response formatting: one action first, short steps, and no preamble.",
       "ko": "행동을 먼저 제시하고 단계를 짧게 유지하는 ADHD 친화 응답 형식을 켭니다.",
-      "zh": "启用 ADHD 友好的回复格式：优先给出行动，步骤简短，不加开场白。"
+      "zh": "启用 ADHD 友好的回复格式：优先给出行动，步骤简短，不加开场白。",
+      "ja": "ADHD に配慮した回答形式を有効にします。最初に行動を一つ示し、手順を短くし、前置きを省きます。",
+      "es": "Activa un formato de respuesta adaptado al TDAH: una acción primero, pasos breves y sin preámbulos.",
+      "fr": "Active un format de réponse adapté au TDAH : une action d’abord, des étapes courtes et aucun préambule.",
+      "de": "Aktiviert ein ADHS-freundliches Antwortformat: zuerst eine Handlung, kurze Schritte und keine Vorrede.",
+      "ru": "Включает формат ответов с учётом СДВГ: сначала одно действие, короткие шаги и никаких вступлений.",
+      "pt": "Ativa um formato de resposta adaptado ao TDAH: uma ação primeiro, passos curtos e sem preâmbulos."
     },
     "category": "skills",
     "labels": [

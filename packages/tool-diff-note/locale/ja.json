@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "title": "変更の説明",
+    "description": "ソースファイルを編集せずに、変更前後のコードスナップショットの横で重要な判断を説明します。"
+  },
+  "ui": {
+    "title": "変更の説明",
+    "codeLabel": "コード",
+    "annotationLabel": "変更理由",
+    "waiting": "変更の説明を記録中…",
+    "failed": "変更の説明を記録できませんでした。",
+    "wrapLabel": "行を折り返す",
+    "unwrapLabel": "行の折り返しを無効にする",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "collapseAria": "差分を折りたたむ",
+    "expandAria": "非表示の {count} 行を表示",
+    "collapse": "折りたたむ",
+    "expand": "さらに {count} 行を表示"
+  }
+}

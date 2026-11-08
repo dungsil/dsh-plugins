@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GitLab",
+    "description": "通过主机上的 glab CLI 为官方 forge registry 提供 GitLab MR，不添加独立界面。"
+  }
+}

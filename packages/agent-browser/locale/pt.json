@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "title": "Navegador do agente",
+    "description": "Interaja com a mesma página web que o agente na aba Navegador existente. Inclui o agent-browser e usa o Chrome/Chromium do host no modo de acesso completo."
+  },
+  "unavailable": "Não foi possível iniciar o agent-browser incluído. O Chrome ou o Chromium deve estar disponível no host do dsh.",
+  "command_failed": "A ação do navegador falhou. Tente novamente após a conclusão da ação atual.",
+  "stream_failed": "A conexão com o navegador foi perdida. Recarregue para reconectar.",
+  "permission": "Este navegador requer o modo de acesso completo. O agent-browser está incluído no plugin.",
+  "connection_error": "Não foi possível conectar ao dsh. Reconectando…",
+  "busy": "O agente está controlando esta página. Aguarde a conclusão do comando atual antes de interagir.",
+  "screen": "Página web compartilhada com o agent-browser"
+}

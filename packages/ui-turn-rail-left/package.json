@@ -64,12 +64,24 @@
     "title": {
       "en": "Left Turn Rail",
       "ko": "왼쪽 턴 레일",
-      "zh": "左侧轮次导航栏"
+      "zh": "左侧轮次导航栏",
+      "ja": "左側ターンナビゲーション",
+      "es": "Navegación de turnos a la izquierda",
+      "fr": "Navigation des tours à gauche",
+      "de": "Beitragsnavigation links",
+      "ru": "Навигация по ходам слева",
+      "pt": "Navegação de turnos à esquerda"
     },
     "description": {
       "en": "Move the official turn rail and its previews to the left side of Chat.",
       "ko": "공식 턴 레일을 대화 화면 왼쪽으로 옮기고 미리보기를 오른쪽으로 펼칩니다.",
-      "zh": "将官方轮次导航栏移至对话界面左侧，预览向右展开。"
+      "zh": "将官方轮次导航栏移至对话界面左侧，预览向右展开。",
+      "ja": "標準のターンナビゲーションをチャットの左側に移動します。プレビューは右側に開きます。",
+      "es": "Mueve la barra oficial de navegación de turnos a la izquierda del chat. Las vistas previas se abren a la derecha.",
+      "fr": "Déplace la barre officielle de navigation des tours à gauche du chat. Les aperçus s’ouvrent à droite.",
+      "de": "Verschiebt die offizielle Beitragsnavigation auf die linke Seite des Chats. Vorschauen öffnen sich rechts.",
+      "ru": "Перемещает стандартную панель навигации по ходам влево от чата. Предпросмотр открывается справа.",
+      "pt": "Move a barra oficial de navegação de turnos para a esquerda do chat. As prévias abrem à direita."
     },
     "category": "ui",
     "labels": [],

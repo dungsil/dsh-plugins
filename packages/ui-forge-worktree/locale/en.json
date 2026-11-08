@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "title": "Worktree picker",
+    "description": "Choose the current branch or a new Git worktree from the composer."
+  },
+  "ui": {
+    "title": "Worktree",
+    "create": "New worktree",
+    "current": "Current branch",
+    "detached": "Detached HEAD",
+    "loading": "Loading worktree…",
+    "saving": "Saving selection…",
+    "reserved": "A new worktree will be created when you send your first message.",
+    "locked": "The worktree selection cannot be changed after this session starts.",
+    "error": "Could not confirm the worktree selection. Refresh before trying again.",
+    "refresh": "Refresh selection",
+    "blocked": "A new worktree is not available for this checkout."
+  }
+}

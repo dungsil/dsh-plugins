@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "title": "Modellauswahl",
+    "description": "Eine kompakte Auswahl im Eingabefeld mit Modellmenüs und einem Schieberegler für den Denkaufwand."
+  },
+  "ui": {
+    "model": "Modell auswählen",
+    "effort": "Denkaufwand",
+    "choose": "Denkaufwand auswählen",
+    "configure": "Denkaufwand einstellen",
+    "openPicker": "Modellauswahl öffnen",
+    "reset": "Auf Standard zurücksetzen",
+    "loading": "Modelle werden geladen…",
+    "empty": "Keine Modelle verfügbar.",
+    "partial": "Einige Anbieter konnten nicht geladen werden.",
+    "missing": "Das aktuelle Modell ist nicht verfügbar.",
+    "error": "Die Auswahl konnte nicht geändert werden. Prüfen Sie die aktuelle Auswahl vor einem erneuten Versuch.",
+    "retry": "Modelle neu laden",
+    "busy": "Wird geändert…",
+    "apply": "Anwenden"
+  }
+}

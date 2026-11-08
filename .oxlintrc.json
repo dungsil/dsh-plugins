@@ -8,6 +8,12 @@
   },
   "overrides": [
     {
+      "files": ["**/test/**/*.{ts,tsx,js,mjs,cjs}", "**/*.{test,spec}.{ts,tsx,js,mjs,cjs}"],
+      "rules": {
+        "typescript/no-floating-promises": ["warn", { "ignoreVoid": false }]
+      }
+    },
+    {
       "files": ["packages/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [

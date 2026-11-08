@@ -16,23 +16,99 @@ export const AUTHOR = 'dungsil'
 /** Committed index file, relative to the repository root. */
 export const INDEX_FILE = 'market/index.json'
 /** Index-level display title. */
-export const INDEX_TITLE = { en: "DUNGSIL's DSH Plugins", ko: 'DUNGSIL의 DSH 플러그인', zh: 'DUNGSIL 的 DSH 插件' }
+export const INDEX_TITLE = {
+  en: "DUNGSIL's DSH Plugins",
+  ko: 'DUNGSIL의 DSH 플러그인',
+  zh: 'DUNGSIL 的 DSH 插件',
+  ja: 'DUNGSIL の DSH プラグイン',
+  es: 'Plugins de DSH de DUNGSIL',
+  fr: 'Plugins DSH de DUNGSIL',
+  de: 'DSH-Plugins von DUNGSIL',
+  ru: 'Плагины DSH от DUNGSIL',
+  pt: 'Plugins do DSH de DUNGSIL',
+}
 /** Index-level display description. */
 export const INDEX_DESCRIPTION = {
   en: 'Korean-focused DeepSeek Harness plugins: Korean UI, writing skills, sidebar inbox, and secret input.',
   ko: '한국어 UI, 윤문 스킬, 사이드바 수신함, 비밀값 입력 등 DUNGSIL이 만든 DeepSeek Harness 플러그인 모음입니다.',
   zh: 'DUNGSIL 开发的 DeepSeek Harness 插件集，专注于韩语使用体验，包含韩语界面、写作技能、侧边栏收件箱和私密凭据输入。',
+  ja: '韓国語での利用を重視した DeepSeek Harness プラグイン集。韓国語 UI、文章作成スキル、サイドバーの受信トレイ、シークレット入力を提供します。',
+  es: 'Plugins de DeepSeek Harness centrados en el coreano: interfaz en coreano, habilidades de escritura, bandeja de entrada lateral e introducción de secretos.',
+  fr: 'Plugins DeepSeek Harness axés sur le coréen : interface en coréen, compétences de rédaction, boîte de réception latérale et saisie de secrets.',
+  de: 'DeepSeek-Harness-Plugins mit Schwerpunkt Koreanisch: koreanische Oberfläche, Schreib-Skills, Seitenleisten-Posteingang und Eingabe geheimer Daten.',
+  ru: 'Плагины DeepSeek Harness для работы на корейском языке: корейский интерфейс, навыки редактирования текста, входящие на боковой панели и ввод секретных данных.',
+  pt: 'Plugins do DeepSeek Harness voltados ao coreano: interface em coreano, habilidades de escrita, caixa de entrada lateral e introdução de segredos.',
 }
 /** Categories a plugin's `market.category` may reference. */
 export const CATEGORIES = {
-  ui: { title: { en: 'Interface', ko: '인터페이스', zh: '界面' } },
-  skills: { title: { en: 'Skills', ko: '스킬', zh: '技能' } },
-  tools: { title: { en: 'Tools', ko: '도구', zh: '工具' } },
+  ui: {
+    title: {
+      en: 'Interface',
+      ko: '인터페이스',
+      zh: '界面',
+      ja: 'インターフェース',
+      es: 'Interfaz',
+      fr: 'Interface',
+      de: 'Oberfläche',
+      ru: 'Интерфейс',
+      pt: 'Interface',
+    },
+  },
+  skills: {
+    title: {
+      en: 'Skills',
+      ko: '스킬',
+      zh: '技能',
+      ja: 'スキル',
+      es: 'Habilidades',
+      fr: 'Compétences',
+      de: 'Skills',
+      ru: 'Навыки',
+      pt: 'Habilidades',
+    },
+  },
+  tools: {
+    title: {
+      en: 'Tools',
+      ko: '도구',
+      zh: '工具',
+      ja: 'ツール',
+      es: 'Herramientas',
+      fr: 'Outils',
+      de: 'Werkzeuge',
+      ru: 'Инструменты',
+      pt: 'Ferramentas',
+    },
+  },
 }
 /** Labels a plugin's `market.labels` may reference. */
 export const LABELS = {
-  korean: { title: { en: 'Korean', ko: '한국어', zh: '韩语' } },
-  accessibility: { title: { en: 'Accessibility', ko: '접근성', zh: '无障碍' } },
+  korean: {
+    title: {
+      en: 'Korean',
+      ko: '한국어',
+      zh: '韩语',
+      ja: '韓国語',
+      es: 'Coreano',
+      fr: 'Coréen',
+      de: 'Koreanisch',
+      ru: 'Корейский',
+      pt: 'Coreano',
+    },
+  },
+  accessibility: {
+    title: {
+      en: 'Accessibility',
+      ko: '접근성',
+      zh: '无障碍',
+      ja: 'アクセシビリティ',
+      es: 'Accesibilidad',
+      fr: 'Accessibilité',
+      de: 'Barrierefreiheit',
+      ru: 'Специальные возможности',
+      pt: 'Acessibilidade',
+    },
+  },
 }
 
 const FETCH_TIMEOUT_MS = 15_000

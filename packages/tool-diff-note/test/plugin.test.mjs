@@ -87,6 +87,7 @@ await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 
   assert.match(text, /skip the tool when no such decision needs explanation/u)
   assert.match(text, /unchanged code, use file-and-line links and code quotations instead of inventing a change/u)
   assert.match(text, /exact before\/after fragments/u)
+  assert.match(text, /immediately below the shared DSH diff block/u)
   assert.match(text, /Report validation limits in the final response/u)
   assert.match(text, /does not replace testing or that response/u)
   const schema = ctx.tools.schemas().find((tool) => tool.name === 'diff_note')
@@ -107,13 +108,23 @@ await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 
   assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
 })
 
-await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 있다', async () => {
+await test('모든 지원 로케일에 같은 키와 비어 있지 않은 차이 카드 번역이 있다', async () => {
+  const languages = ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   const locales = await Promise.all(
-    ['en', 'ko', 'zh'].map(async (language) =>
+    languages.map(async (language) =>
       JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     )
   )
-  for (const locale of locales) {
+  for (const [index, locale] of locales.entries()) {
+    const language = languages[index]
+    assert.deepEqual(Object.keys(locale).sort(), Object.keys(locales[0]).sort())
+    assert.deepEqual(Object.keys(locale.meta).sort(), Object.keys(locales[0].meta).sort())
+    assert.ok(Object.values(locale.meta).every((value) => typeof value === 'string' && value.trim()))
+    assert.equal(manifest.market.title[language], locale.meta.title)
+    assert.ok(manifest.market.description[language]?.trim())
+    if (!['en', 'ko', 'zh'].includes(language))
+      assert.equal(manifest.market.description[language], locale.meta.description)
     assert.deepEqual(Object.keys(locale.ui).sort(), Object.keys(locales[0].ui).sort())
     assert.ok(Object.values(locale.ui).every((value) => typeof value === 'string' && value.trim()))
     assert.ok(locale.ui.expand.includes('{count}'))
@@ -121,28 +132,27 @@ await test('영어, 한국어, 중국어에 모든 차이 카드 레이블이 �
   }
 })
 
-await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지막 변경 줄 뒤에 설명을 유지한다', async () => {
+await test('도구 뷰는 공통 DiffBlock에 스냅샷과 로케일을 전달하고 설명을 접기 영역 밖에 유지한다', async () => {
   const require = createRequire(import.meta.url)
   let client
   let View
+  let received
+  let active = 'ko'
   runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
     window: {
       __ModuleLoader__: {
         load({ factory }) {
           client = factory((name) => {
-            // Render the public tool view with real React; only native chrome and
-            // the live locale subscription are replaced for this static render.
             if (name === 'react') return { ...React, useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot() }
             if (name === '@deepseek-ai/dsh-client-ui-primitives')
               return new Proxy(
-                {},
                 {
-                  get: (_target, key) =>
-                    key === 'Button'
-                      ? ({ children, size: _size, variant: _variant, ...props }) =>
-                          React.createElement('button', props, children)
-                      : () => null,
-                }
+                  DiffBlock: (props) => {
+                    received = props
+                    return React.createElement('div', { 'data-shared-diff': true }, '공통 diff')
+                  },
+                },
+                { get: (target, key) => target[key] ?? (() => null) }
               )
             return require(name)
           })
@@ -151,7 +161,7 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지�
     },
   })
   client.apply({
-    locale: { getSnapshot: () => ({ active: 'ko' }) },
+    locale: { getSnapshot: () => ({ active }) },
     slots: {
       inject: (_name, register) => register(),
       register: (_selector, component) => {
@@ -160,46 +170,44 @@ await test('도구 뷰는 접힌 차이를 포함해 첫 번째 hunk의 마지�
     },
     effect() {},
   })
-  const render = (old_text, new_text) =>
-    renderToStaticMarkup(
-      React.createElement(View, {
-        phase: 'result',
-        block: { meta: { path: 'src/example.tsx', old_text, new_text, note: '이유를 설명합니다.' }, isError: false },
-      })
+  const render = (phase, meta, isError = false) =>
+    renderToStaticMarkup(React.createElement(View, { phase, block: { meta, isError } }))
+  for (const language of ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt', 'xx']) {
+    active = `${language}-REGION`
+    const { ui } = JSON.parse(
+      await readFile(new URL(`../locale/${language === 'xx' ? 'en' : language}.json`, import.meta.url), 'utf8')
     )
-  const html = render('<section>\n  {children}\n</section>', '<Modal open>\n  {children}\n</Modal>')
-  assert.ok(html.includes('&lt;Modal open&gt;') && html.includes('{children}'))
-  assert.ok(html.indexOf('&lt;Modal open&gt;') < html.indexOf('이유를 설명합니다.'))
-  assert.ok(html.indexOf('&lt;/Modal&gt;') < html.indexOf('이유를 설명합니다.'))
-  assert.doesNotMatch(html, /작성 시점 스냅샷|<h3/u)
-  // The screenshot's deletion and replacement belong to one hunk even though
-  // the unchanged original state separates their contiguous change runs.
-  const separated = render(
-    'const translated = useState()\nconst original = useState(false)\nconst pending = useState(false)\nconst failed = useState(false)\nconst retry = useState(0)\nreturn translated',
-    'const original = useState(false)\nconst { value: translated, pending, failed } = translation ?? {}\nreturn translated'
-  )
-  assert.ok(separated.indexOf('translation ?? {}') < separated.indexOf('이유를 설명합니다.'))
-  assert.ok(separated.indexOf('이유를 설명합니다.') < separated.indexOf('return translated'))
-  assert.equal((separated.match(/dsh-diff-note-bubble/gu) ?? []).length, 1)
-  // A second, distant hunk must not pull the annotation away from the first.
-  const context = Array.from({ length: 12 }, (_, i) => `context${i}`).join('\n')
-  const multiple = render(`oldFirst\n${context}\noldLast`, `newFirst\n${context}\nnewLast`)
-  assert.ok(multiple.indexOf('newFirst') < multiple.indexOf('이유를 설명합니다.'))
-  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('context0'))
-  assert.ok(multiple.indexOf('이유를 설명합니다.') < multiple.indexOf('newLast'))
-  const folded = render(
-    Array.from({ length: 30 }, (_, i) => `old${i}`).join('\n') + '\nunchangedTail',
-    Array.from({ length: 30 }, (_, i) => `new${i}`).join('\n') + '\nunchangedTail'
-  )
-  assert.ok(folded.includes('더 보기'))
-  assert.ok(!folded.includes('old15'))
-  assert.ok(folded.includes('new29') && folded.includes('unchangedTail'))
-  assert.ok(folded.indexOf('new29') < folded.indexOf('이유를 설명합니다.'))
-  assert.ok(folded.indexOf('이유를 설명합니다.') < folded.indexOf('unchangedTail'))
-  for (const [before, after] of [
-    ['', 'created\n'],
-    ['deleted\n', ''],
-    ['same', 'same\n'],
-  ])
-    assert.match(render(before, after), /이유를 설명합니다./u)
+    for (const [old_text, new_text] of [
+      ['old\r\ncontext\r\n', 'new\r\ncontext\r\n'],
+      ['', 'created\n'],
+      ['deleted\n', ''],
+      ['same', 'same\n'],
+      ['old\n'.repeat(30), 'new\n'.repeat(30)],
+    ]) {
+      received = undefined
+      const note = { path: 'src/example.tsx', old_text, new_text, note: '이유를 설명합니다.' }
+      const html = render('result', note)
+      assert.ok(received, '공통 DiffBlock을 직접 렌더링한다')
+      assert.equal(received.diffs.length, 1)
+      assert.equal(received.diffs[0].path, note.path)
+      assert.equal(received.diffs[0].oldText, old_text)
+      assert.equal(received.diffs[0].newText, new_text)
+      for (const key of ['copy', 'copied', 'wrapLabel', 'unwrapLabel', 'collapse', 'collapseAria', 'codeLabel'])
+        assert.equal(received.labels[key], ui[key])
+      assert.equal(received.labels.expand(12), ui.expand.replace('{count}', '12'))
+      assert.equal(received.labels.expandAria(12), ui.expandAria.replace('{count}', '12'))
+      assert.match(html, /data-shared-diff="true"/u)
+      assert.ok(html.indexOf('공통 diff</div>') < html.indexOf('이유를 설명합니다.'))
+      assert.equal(received.maxLines, 6)
+      assert.match(html, /<figure[^>]*dsh-annotated-diff/u)
+      assert.match(html, /<figcaption[^>]*dsh-annotated-diff-note/u)
+      assert.ok(html.includes(ui.annotationLabel))
+      assert.doesNotMatch(html, /dsh-diff-note-line|dsh-diff-note-rows|dsh-diff-note-explanation|<button/u)
+    }
+    received = undefined
+    assert.ok(render('call').includes(ui.waiting))
+    assert.ok(render('result', undefined, true).includes(ui.failed))
+    assert.ok(render('result', { path: 'invalid' }).includes(ui.failed))
+    assert.equal(received, undefined)
+  }
 })

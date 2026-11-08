@@ -15,18 +15,28 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
+import ja from '../locale/ja.json' with { type: 'json' }
+import es from '../locale/es.json' with { type: 'json' }
+import fr from '../locale/fr.json' with { type: 'json' }
+import de from '../locale/de.json' with { type: 'json' }
+import ru from '../locale/ru.json' with { type: 'json' }
+import pt from '../locale/pt.json' with { type: 'json' }
 import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
 
-const localizedCopy = (language: string) => (language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en).ui
+const copy = { en, ko, zh, ja, es, fr, de, ru, pt }
+const localizedCopy = (language: string) => {
+  const base = language.toLowerCase().split(/[-_]/)[0]!
+  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'].ui
+}
 
 const styles = `
 .dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
 .dsh-skills-settings p { margin: 4px 0; }
-.dsh-skills-settings-tabs { margin: 20px 0 12px; }
-.dsh-skills-search { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
+.dsh-skills-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 20px 0 12px; }
+.dsh-skills-search { width: 100%; box-sizing: border-box; margin: 12px 0; }
 .dsh-skills-settings .dsh-skills-muted { color: var(--dsw-alias-label-secondary); }
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
@@ -208,7 +218,9 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     }
   })
   const groupCount = (group: (typeof groups)[number]) =>
-    searchTerms.length ? `${group.skills.length}/${group.total}` : `${group.total}`
+    (searchTerms.length ? text.filteredCount : text.loadedCount)
+      .replace('{count}', String(group.skills.length))
+      .replace('{total}', String(group.total))
 
   useEffect(() => {
     const controller = new AbortController()
@@ -268,38 +280,43 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     <section className="dsh-skills-settings" aria-label={text.nav} aria-busy={!view && !error}>
       <p className="dsh-skills-muted">{text.description}</p>
       {view && !view.folderOpenAvailable && <p className="dsh-skills-muted">{text.openFolderUnavailable}</p>}
-      {view?.translationAvailable && (
-        <div className="dsh-skills-translation-toolbar">
-          <p className="dsh-skills-muted">{text.translationNotice}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={translations.bulk || !view.skills.some((skill) => skill.path && skill.description)}
-            aria-busy={translations.bulk}
-            onClick={() => void translateAll()}
-          >
-            {translations.bulk ? text.translatingAll : text.translateAll}
-          </Button>
-          {translations.bulk && <p role="status">{text.translatingAll}</p>}
-          {!translations.bulk && [...translations.entries.values()].some((entry) => entry.failed) && (
-            <p role="alert">{text.translationAllError}</p>
-          )}
-        </div>
-      )}
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
       {saveError && <p role="alert">{text.saveError}</p>}
       {view && !view.complete && <p role="alert">{text.incomplete}</p>}
       {view && (
         <>
-          <SegmentedControl
-            id={id}
-            className="dsh-skills-settings-tabs"
-            value={source}
-            options={groups.map((group) => ({ value: group.value, label: `${group.label} ${groupCount(group)}` }))}
-            onChange={setSource}
-            label={text.nav}
-          />
+          <div className="dsh-skills-toolbar">
+            <SegmentedControl
+              id={id}
+              className="dsh-skills-settings-tabs"
+              value={source}
+              options={groups.map((group) => ({ value: group.value, label: group.label }))}
+              onChange={setSource}
+              label={text.nav}
+            />
+            {view.translationAvailable && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={translations.bulk || !view.skills.some((skill) => skill.path && skill.description)}
+                aria-busy={translations.bulk}
+                onClick={() => void translateAll()}
+              >
+                {translations.bulk ? text.translatingAll : text.translateAll}
+              </Button>
+            )}
+          </div>
+          {translations.bulk && <p role="status">{text.translatingAll}</p>}
+          {!translations.bulk && [...translations.entries.values()].some((entry) => entry.failed) && (
+            <p role="alert">{text.translationAllError}</p>
+          )}
+          <div className="dsh-skills-list-header dsh-skills-muted">
+            <span>
+              {text.nav} {groupCount(groups.find((group) => group.value === source)!)}
+            </span>
+            <span>{text.use}</span>
+          </div>
           <Input
             className="dsh-skills-search"
             type="search"
@@ -324,12 +341,6 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                 </p>
               ) : (
                 <>
-                  <div className="dsh-skills-list-header dsh-skills-muted" aria-hidden="true">
-                    <span>
-                      {text.nav} {groupCount(group)}
-                    </span>
-                    <span>{text.use}</span>
-                  </div>
                   <ul>
                     {group.skills.map((skill) => (
                       <li key={skill.path ?? skill.name}>
@@ -427,11 +438,15 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
 
 export function apply(ctx: Context) {
   ctx.effect(() =>
-    installSettingsIcon(name, [en.ui.nav, ko.ui.nav, zh.ui.nav], (container) => {
-      const root = createRoot(container)
-      root.render(<IconSkillOutlineRegular size={16} />)
-      return () => root.unmount()
-    })
+    installSettingsIcon(
+      name,
+      Object.values(copy).map(({ ui }) => ui.nav),
+      (container) => {
+        const root = createRoot(container)
+        root.render(<IconSkillOutlineRegular size={16} />)
+        return () => root.unmount()
+      }
+    )
   )
   ctx.effect(() => {
     const style = document.createElement('style')

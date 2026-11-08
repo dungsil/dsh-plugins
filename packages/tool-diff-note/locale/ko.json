@@ -5,7 +5,8 @@
   },
   "ui": {
     "title": "변경 설명",
-    "open": "파일 열기",
+    "codeLabel": "코드",
+    "annotationLabel": "변경 이유",
     "waiting": "변경 설명을 기록하고 있습니다…",
     "failed": "변경 설명을 기록하지 못했습니다.",
     "wrapLabel": "자동 줄바꿈",

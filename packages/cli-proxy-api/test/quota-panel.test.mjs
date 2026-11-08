@@ -292,6 +292,12 @@ for (const [language, remaining, help] of [
   ['en', '14% remaining', 'About quota'],
   ['ko', '14% 남음', '할당량 안내'],
   ['zh', '剩余 14%', '配额说明'],
+  ['ja-JP', '残り 14%', '割り当て量について'],
+  ['es-ES', '14% restante', 'Acerca de la cuota'],
+  ['fr-FR', '14% restant', 'À propos des quotas'],
+  ['de-DE', '14% verbleibend', 'Über Kontingente'],
+  ['ru-RU', 'Осталось 14%', 'О квотах'],
+  ['pt-BR', '14% restante', 'Sobre as cotas'],
 ]) {
   await test(`${language} 로케일에서 잔여율과 라우팅 관리 동작을 제공한다`, async (t) => {
     const { container, requests } = await fixture(t, language)
