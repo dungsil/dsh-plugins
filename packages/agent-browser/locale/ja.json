@@ -1,12 +1,12 @@
 {
   "meta": {
     "title": "エージェントブラウザー",
-    "description": "既存のブラウザータブでエージェントと同じウェブページを操作します。agent-browser を同梱し、フルアクセスモードでホストの Chrome/Chromium を使用します。"
+    "description": "既存のブラウザータブでエージェントと同じウェブページを操作します。agent-browser は初回利用時に自動インストールされ（ネットワークが必要）、フルアクセスモードでホストの Chrome/Chromium を使用します。"
   },
-  "unavailable": "同梱の agent-browser を起動できませんでした。dsh ホストで Chrome または Chromium が利用可能である必要があります。",
+  "unavailable": "agent-browser をインストールまたは起動できませんでした。初回利用時はネットワーク接続が必要で、dsh ホストで Chrome または Chromium が利用可能である必要があります。",
   "command_failed": "ブラウザー操作に失敗しました。現在の操作が完了してから再試行してください。",
   "stream_failed": "ブラウザーとの接続が失われました。再読み込みして接続し直してください。",
-  "permission": "このブラウザーにはフルアクセスモードが必要です。agent-browser はプラグインに同梱されています。",
+  "permission": "このブラウザーにはフルアクセスモードが必要です。agent-browser は初回利用時にユーザーキャッシュへインストールされます。",
   "connection_error": "dsh に接続できませんでした。再接続中…",
   "busy": "エージェントがこのページを操作しています。現在のコマンドが完了するまで操作をお待ちください。",
   "screen": "agent-browser と共有しているウェブページ"

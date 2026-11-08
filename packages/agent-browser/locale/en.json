@@ -1,12 +1,12 @@
 {
   "meta": {
     "title": "Agent Browser",
-    "description": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser is included; uses the host Chrome/Chromium in full access mode."
+    "description": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser installs automatically on first use (network required); uses the host Chrome/Chromium in full access mode."
   },
-  "unavailable": "Could not start the included agent-browser. Chrome or Chromium must be available on the dsh host.",
+  "unavailable": "Could not install or start agent-browser. First use requires network access, and Chrome or Chromium must be available on the dsh host.",
   "command_failed": "The browser action failed. Try again after the current action finishes.",
   "stream_failed": "The browser connection was lost. Reload to reconnect.",
-  "permission": "This browser requires full access mode. agent-browser is included with the plugin.",
+  "permission": "This browser requires full access mode. agent-browser is installed in the user cache on first use.",
   "connection_error": "Could not connect to dsh. Reconnecting…",
   "busy": "The agent is controlling this page. Wait for its current command to finish before interacting.",
   "screen": "Web page shared with agent-browser"

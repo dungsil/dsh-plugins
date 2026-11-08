@@ -1,12 +1,12 @@
 {
   "meta": {
     "title": "Agenten-Browser",
-    "description": "Interagiere im vorhandenen Browser-Tab mit derselben Webseite wie der Agent. agent-browser ist enthalten und nutzt Chrome/Chromium des Hosts im Modus mit vollständigem Zugriff."
+    "description": "Interagiere im vorhandenen Browser-Tab mit derselben Webseite wie der Agent. agent-browser wird bei der ersten Verwendung automatisch installiert (Netzwerk erforderlich) und nutzt Chrome/Chromium des Hosts im Modus mit vollständigem Zugriff."
   },
-  "unavailable": "Der mitgelieferte agent-browser konnte nicht gestartet werden. Chrome oder Chromium muss auf dem dsh-Host verfügbar sein.",
+  "unavailable": "agent-browser konnte nicht installiert oder gestartet werden. Die erste Verwendung erfordert eine Netzwerkverbindung, und Chrome oder Chromium muss auf dem dsh-Host verfügbar sein.",
   "command_failed": "Die Browseraktion ist fehlgeschlagen. Versuche es erneut, nachdem die aktuelle Aktion abgeschlossen ist.",
   "stream_failed": "Die Verbindung zum Browser wurde unterbrochen. Lade die Seite neu, um die Verbindung wiederherzustellen.",
-  "permission": "Dieser Browser erfordert den Modus mit vollständigem Zugriff. agent-browser ist im Plugin enthalten.",
+  "permission": "Dieser Browser erfordert den Modus mit vollständigem Zugriff. agent-browser wird bei der ersten Verwendung im Benutzercache installiert.",
   "connection_error": "Verbindung zu dsh nicht möglich. Verbindung wird wiederhergestellt…",
   "busy": "Der Agent steuert diese Seite. Warte mit der Interaktion, bis der aktuelle Befehl abgeschlossen ist.",
   "screen": "Mit agent-browser geteilte Webseite"
