@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-ui-image-paths
+      name: '@dungsil/dsh-plugin-ui-image-paths'
