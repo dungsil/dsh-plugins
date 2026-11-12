@@ -53,6 +53,8 @@ function mock(answer = () => fixture(), options = {}) {
 await test('설치 메타데이터는 세 언어로 market과 일치하고 이전 UI 키를 포함하지 않는다', async () => {
   assert.ok(manifest.files.includes('locale'))
   assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-experimental-forge'], '0.2.2-rc.2')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-subprocess'], '0.2.2-rc.2')
   for (const language of ['en', 'ko', 'zh']) {
     const locale = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     assert.deepEqual(locale, {
@@ -118,6 +120,24 @@ await test('fetch는 실제 계약의 snapshot과 검사 결과를 정규화하�
   assert.equal(values[0].checksRollup, 'pending')
   assert.equal(values[0].checksTruncated, false)
   assert.equal(values[0].mergeReady, true)
+  assert.equal(values[0].checks[0].rerun, null)
+  assert.equal(values[0].canRerunChecks, false)
+  assert.deepEqual(values[0].branchUpdates, [])
+  assert.deepEqual(values[0].reviewers, [])
+  assert.equal(values[0].reviewersTruncated, true)
+  assert.equal(values[0].canRequestReviews, false)
+  assert.equal(values[0].threadsTruncated, true)
+  assert.deepEqual(values[0].closingIssues, [])
+  assert.equal(values[0].closingIssuesTruncated, true)
+  for (const method of [
+    'updateBranch',
+    'rerunChecks',
+    'requestReviews',
+    'reviewerCandidates',
+    'readReview',
+    'writeReview',
+  ])
+    assert.equal(provider[method], undefined)
   assert.ok(calls.some(({ args }) => args.at(-1).includes('page=2')))
   for (const { args } of calls.filter(({ args }) => args[0] === 'api')) {
     assert.equal(args[args.indexOf('--login') + 1], 'account')
@@ -243,8 +263,9 @@ await test('손상된 오류 응답은 HTTP 상태로 표시하고 메시지의 
 })
 
 await test('diff와 파일 조회는 SHA 및 경로를 고정하고 취소되면 즉시 중단한다', async () => {
-  const { provider, calls } = mock(() => 'text')
-  assert.equal(await provider.diff(ref, signal()), 'text')
+  const { provider, calls } = mock((endpoint) => (endpoint.endsWith('/pulls/7') ? fixture() : 'text'))
+  assert.equal(await provider.diff(ref, sha.toUpperCase(), signal()), 'text')
+  assert.equal(calls.filter(({ args }) => args.at(-1).endsWith('/pulls/7')).length, 2)
   assert.equal(await provider.fileText(ref, sha, 'dir/a b.txt', signal()), 'text')
   assert.ok(calls.some(({ args }) => args.at(-1).endsWith(`/raw/dir/a%20b.txt?ref=${sha}`)))
   assert.equal((await provider.fileText(ref, sha, '../secret', signal())).code, 'unavailable')
@@ -254,6 +275,33 @@ await test('diff와 파일 조회는 SHA 및 경로를 고정하고 취소되면
   const before = calls.length
   await assert.rejects(provider.fetch([ref], abort.signal), /cancelled/)
   assert.equal(calls.length, before)
+})
+
+await test('diff는 조회 전과 도중에 head가 바뀌면 stale을 반환하고 patch를 노출하지 않는다', async () => {
+  const stale = mock(() => ({ ...fixture(), head: { sha: 'b'.repeat(40) } }))
+  assert.equal((await stale.provider.diff(ref, sha, signal())).code, 'stale')
+  assert.ok(!stale.calls.some(({ args }) => args.at(-1).endsWith('.diff')))
+  let reads = 0
+  const moving = mock((endpoint) =>
+    endpoint.endsWith('.diff') ? 'old patch' : { ...fixture(), head: { sha: ++reads === 1 ? sha : 'b'.repeat(40) } }
+  )
+  assert.equal((await moving.provider.diff(ref, sha, signal())).code, 'stale')
+  assert.equal(reads, 2)
+})
+
+await test('diff는 명시적 base 읽기를 unsupported로 반환하고 잘못된 SHA와 취소를 명령 실행 전에 거부한다', async () => {
+  const { provider, calls } = mock()
+  assert.equal((await provider.diff(ref, sha, signal(), 'b'.repeat(40))).code, 'unsupported')
+  for (const [head, base] of [
+    ['main', undefined],
+    [sha, 'main'],
+    ['a'.repeat(41), undefined],
+  ])
+    assert.equal((await provider.diff(ref, head, signal(), base)).code, 'unavailable')
+  const controller = new AbortController()
+  controller.abort(new Error('cancelled'))
+  await assert.rejects(provider.diff(ref, sha, controller.signal), /cancelled/)
+  assert.equal(calls.length, 0)
 })
 
 await test('SHA는 40자 또는 64자만 허용하고 중간 길이는 읽기와 병합 전에 거부한다', async () => {

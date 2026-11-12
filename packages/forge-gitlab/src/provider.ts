@@ -213,6 +213,7 @@ export class GitLabProvider implements ForgeProvider {
           workflow: null,
           startedAt: status.started_at ?? null,
           completedAt: status.finished_at ?? null,
+          rerun: null,
         }
       })
       if (row.head_pipeline) {
@@ -233,6 +234,7 @@ export class GitLabProvider implements ForgeProvider {
           workflow: null,
           startedAt: null,
           completedAt: null,
+          rerun: null,
         })
       }
       let additions = 0,
@@ -290,11 +292,19 @@ export class GitLabProvider implements ForgeProvider {
           methods.length > 0 &&
           ['success', 'none'].includes(checksRollup),
         mergeMethods: methods,
+        branchUpdates: [],
         reviewDecision,
+        reviewers: [],
+        reviewersTruncated: true,
+        canRequestReviews: false,
         checks,
         checksRollup,
         checksTruncated: false,
+        canRerunChecks: false,
         unresolvedThreads,
+        threadsTruncated: false,
+        closingIssues: [],
+        closingIssuesTruncated: true,
         updatedAt: text(row.updated_at),
         closedAt: row.merged_at ?? row.closed_at ?? null,
       }
@@ -374,9 +384,25 @@ export class GitLabProvider implements ForgeProvider {
       }
     }
   }
-  async diff(ref: ChangeRequestRef, signal: AbortSignal): Promise<string | ForgeFailure> {
+  async diff(
+    ref: ChangeRequestRef,
+    headSha: string,
+    signal: AbortSignal,
+    base?: string
+  ): Promise<string | ForgeFailure> {
     try {
-      return await this.api(ref.repository, `${this.endpoint(ref)}/raw_diffs`, signal, undefined, 'GET', true)
+      const endpoint = this.endpoint(ref)
+      sha(headSha)
+      if (base !== undefined) sha(base)
+      signal.throwIfAborted()
+      // raw_diffs cannot pin a base commit; do not silently read a different comparison.
+      if (base !== undefined) return failure('unsupported')
+      const before = this.checked(ref, await this.api(ref.repository, endpoint, signal))
+      if (before.sha.toLowerCase() !== headSha.toLowerCase()) return failure('stale')
+      const patch = await this.api(ref.repository, `${endpoint}/raw_diffs`, signal, undefined, 'GET', true)
+      const after = this.checked(ref, await this.api(ref.repository, endpoint, signal))
+      if (after.sha.toLowerCase() !== headSha.toLowerCase()) return failure('stale')
+      return patch
     } catch (error) {
       if (signal.aborted) throw signal.reason
       return failure(error instanceof ApiError ? error.code : error instanceof RangeError ? 'too-large' : 'unavailable')

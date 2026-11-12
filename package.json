@@ -18,7 +18,7 @@
     "check:all": "node scripts/check.mjs --all"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-plugin-market-index": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-plugin-market-index": "0.2.2-rc.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@release-it/conventional-changelog": "12.0.2",
     "@types/node": "26.6.5",

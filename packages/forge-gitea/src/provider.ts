@@ -301,7 +301,7 @@ export class GiteaProvider implements ForgeProvider {
           throw new Failure('unavailable', 'Invalid check URL')
         url = parsed.href
       }
-      return { name: text(status.context), state, url, workflow: null, startedAt: null, completedAt: null }
+      return { name: text(status.context), state, url, workflow: null, startedAt: null, completedAt: null, rerun: null }
     })
     const draft = row.draft === true || /^\s*(?:\[WIP\]|WIP:|Draft:)/i.test(row.title)
     return {
@@ -319,7 +319,11 @@ export class GiteaProvider implements ForgeProvider {
       mergeability: row.mergeable === true ? 'mergeable' : row.mergeable === false ? 'conflicting' : 'unknown',
       mergeReady: row.state === 'open' && !row.merged && !draft && row.mergeable !== false,
       mergeMethods: ['merge', 'squash', 'rebase'],
+      branchUpdates: [],
       reviewDecision: 'none',
+      reviewers: [],
+      reviewersTruncated: true,
+      canRequestReviews: false,
       checks,
       checksRollup: !checks.length
         ? 'none'
@@ -329,7 +333,11 @@ export class GiteaProvider implements ForgeProvider {
             ? 'pending'
             : 'success',
       checksTruncated: false,
+      canRerunChecks: false,
       unresolvedThreads: 0,
+      threadsTruncated: true,
+      closingIssues: [],
+      closingIssuesTruncated: true,
       updatedAt: timestamp(row.updated_at),
       closedAt: row.closed_at == null ? null : timestamp(row.closed_at),
     }
@@ -434,9 +442,28 @@ export class GiteaProvider implements ForgeProvider {
       }
     }
   }
-  async diff(ref: ChangeRequestRef, signal: AbortSignal) {
+  async diff(ref: ChangeRequestRef, headSha: string, signal: AbortSignal, base?: string) {
     try {
-      return await this.api(ref.repository.host, `${this.target(ref)}.diff`, signal)
+      const endpoint = this.target(ref)
+      if (!commitPattern.test(headSha) || (base !== undefined && !commitPattern.test(base)))
+        throw new Failure('unavailable', 'Invalid commit')
+      signal.throwIfAborted()
+      // The pull request diff endpoint cannot pin a base commit.
+      if (base !== undefined) throw new Failure('unsupported', 'Reading a diff at a base commit is not supported')
+      const before = object(await this.json(ref.repository.host, endpoint, signal))
+      if (before.number !== ref.number || before.html_url !== this.changeRequestUrl(ref))
+        throw new Failure('unavailable', 'Invalid pull request identity')
+      const beforeSha = text(object(before.head).sha)
+      if (!commitPattern.test(beforeSha)) throw new Failure('unavailable', 'Invalid head commit')
+      if (beforeSha.toLowerCase() !== headSha.toLowerCase()) throw new Failure('stale', 'Head commit changed')
+      const patch = await this.api(ref.repository.host, `${endpoint}.diff`, signal)
+      const after = object(await this.json(ref.repository.host, endpoint, signal))
+      if (after.number !== ref.number || after.html_url !== this.changeRequestUrl(ref))
+        throw new Failure('unavailable', 'Invalid pull request identity')
+      const afterSha = text(object(after.head).sha)
+      if (!commitPattern.test(afterSha)) throw new Failure('unavailable', 'Invalid head commit')
+      if (afterSha.toLowerCase() !== headSha.toLowerCase()) throw new Failure('stale', 'Head commit changed')
+      return patch
     } catch (error) {
       return this.failure(error, signal)
     }

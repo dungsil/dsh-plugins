@@ -104,7 +104,7 @@ export function apply(ctx: Context) {
         try {
           const local = await ctx.remote.forgePanel.localDiff(sessionId, { kind: 'uncommitted' }, controller.signal)
           const remote = request
-            ? await ctx.remote.forgePanel.changeRequestDiff(sessionId, request.url, controller.signal)
+            ? await ctx.remote.forgePanel.changeRequestDiff(sessionId, request.url, null, controller.signal)
             : undefined
           if (controller.signal.aborted || current !== sequence) return
           if (!local.ok) {

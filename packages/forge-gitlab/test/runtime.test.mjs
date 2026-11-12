@@ -91,8 +91,34 @@ await test('GitLab 응답을 공식 snapshot과 canonical key로 정규화한다
   assert.equal(value.checksRollup, 'success')
   assert.equal(value.reviewDecision, 'approved')
   assert.equal(value.checks[0].state, 'success')
+  assert.equal(value.checks[0].rerun, null)
+  assert.equal(value.canRerunChecks, false)
+  assert.deepEqual(value.branchUpdates, [])
+  assert.deepEqual(value.reviewers, [])
+  assert.equal(value.reviewersTruncated, true)
+  assert.equal(value.canRequestReviews, false)
+  assert.equal(value.threadsTruncated, false)
+  assert.deepEqual(value.closingIssues, [])
+  assert.equal(value.closingIssuesTruncated, true)
+  for (const method of [
+    'updateBranch',
+    'rerunChecks',
+    'requestReviews',
+    'reviewerCandidates',
+    'readReview',
+    'writeReview',
+  ])
+    assert.equal(provider[method], undefined)
   assert.equal(value.additions, 1)
   assert.equal(value.deletions, 1)
+})
+
+await test('GitLab pipeline에도 재실행 미지원 계약을 명시한다', async () => {
+  const { provider, ref } = fixture({ row: { head_pipeline: { sha: commit, status: 'success' } } })
+  const snapshot = await provider.fetchChecks(ref, signal())
+  assert.equal(snapshot.checks.length, 2)
+  assert.ok(snapshot.checks.every((check) => check.rerun === null))
+  assert.equal(snapshot.canRerunChecks, false)
 })
 
 await test('기본 브랜치와 포크의 MR을 head 조회 결과에 포함하지 않는다', async () => {
@@ -183,10 +209,50 @@ await test('취소한 요청과 다른 provider 참조는 외부 명령을 실�
 
 await test('diff와 파일은 공식 읽기 계약을 따르고 경로 이탈과 잘못된 SHA를 거부한다', async () => {
   const f = fixture()
-  assert.match(await f.provider.diff(f.ref, signal()), /^diff --git/)
+  assert.match(await f.provider.diff(f.ref, commit.toUpperCase(), signal()), /^diff --git/)
+  assert.equal(f.calls.filter((call) => call.args[5].endsWith('/merge_requests/42')).length, 2)
   assert.equal(await f.provider.fileText(f.ref, commit, 'src/a.ts', signal()), 'file text')
   assert.match(f.provider.fileUrl(f.ref, commit, 'src/a b.ts'), /src\/a%20b.ts$/)
   assert.throws(() => f.provider.fileUrl(f.ref, commit, '../secret'))
   assert.throws(() => f.provider.fileUrl(f.ref, 'main', 'src/a.ts'))
   assert.equal((await f.provider.markReady(f.ref, signal())).code, 'failed')
+})
+
+await test('diff는 조회 전과 도중에 head가 바뀌면 stale을 반환하고 patch를 노출하지 않는다', async () => {
+  const stale = fixture({ row: { sha: 'b'.repeat(40) } })
+  assert.equal((await stale.provider.diff(stale.ref, commit, signal())).code, 'stale')
+  assert.ok(!stale.calls.some((call) => call.args[5].endsWith('/raw_diffs')))
+  let reads = 0
+  const moving = fixture({
+    run: async (args) => {
+      if (args[5].endsWith('/raw_diffs')) return { exitCode: 0, stdout: 'old patch', stderr: '' }
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          iid: 42,
+          web_url: moving.provider.changeRequestUrl(moving.ref),
+          state: 'opened',
+          sha: ++reads === 1 ? commit : 'b'.repeat(40),
+        }),
+        stderr: '',
+      }
+    },
+  })
+  assert.equal((await moving.provider.diff(moving.ref, commit, signal())).code, 'stale')
+  assert.equal(reads, 2)
+})
+
+await test('diff는 명시적 base 읽기를 unsupported로 반환하고 잘못된 SHA와 취소를 명령 실행 전에 거부한다', async () => {
+  const f = fixture()
+  assert.equal((await f.provider.diff(f.ref, commit, signal(), 'b'.repeat(40))).code, 'unsupported')
+  for (const [head, base] of [
+    ['main', undefined],
+    [commit, 'main'],
+    ['a'.repeat(41), undefined],
+  ])
+    assert.equal((await f.provider.diff(f.ref, head, signal(), base)).code, 'unavailable')
+  const controller = new AbortController()
+  controller.abort(new Error('cancelled'))
+  await assert.rejects(f.provider.diff(f.ref, commit, controller.signal), /cancelled/)
+  assert.equal(f.calls.length, 0)
 })

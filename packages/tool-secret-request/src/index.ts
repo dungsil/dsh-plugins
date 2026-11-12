@@ -162,7 +162,12 @@ export function apply(ctx: Context) {
         const result = (status: SecretStatus) => ({ status, ref: args.ref })
         if (exec.signal?.aborted || lifetime.signal.aborted) return result('cancelled')
         // Delegated agents have no independent human interaction surface.
-        if (!exec.agent || !ctx.agents.roots().includes(exec.agent) || Date.now() - lastClientSeen > 15_000)
+        if (
+          !exec.agent ||
+          ctx.agents.get(exec.agent.session.id) !== exec.agent ||
+          exec.agent.session.header.origin === 'subagent' ||
+          Date.now() - lastClientSeen > 15_000
+        )
           return result('unavailable')
         if ([...pending.values()].some((request) => request.view.ref === ref)) {
           throw new Error('Another secret request is already using this reference.')

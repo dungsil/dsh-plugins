@@ -169,9 +169,11 @@ async function mount(options = {}) {
           calls.push(['localDiff', id, spec, signal])
           return localDiff(id, spec, signal)
         },
-        changeRequestDiff(id, url, signal) {
-          calls.push(['changeRequestDiff', id, url, signal])
-          return options.changeRequestDiff?.(id, url, signal) ?? { ok: true, value: { localAhead: 0 } }
+        changeRequestDiff(id, url, commits, signal) {
+          calls.push(['changeRequestDiff', id, url, commits, signal])
+          assert.equal(commits, null)
+          assert.ok(signal instanceof AbortSignal)
+          return options.changeRequestDiff?.(id, url, commits, signal) ?? { ok: true, value: { localAhead: 0 } }
         },
       },
     },
