@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-pulls",
   "version": "0.0.0",
-  "description": "PR/MR previews, descriptions, checks and reviews for DeepSeek Harness.",
+  "description": "PR/MR descriptions, comments and reviews for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -42,7 +42,6 @@
     "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.2",
     "@deepseek-ai/dsh-client-ui-sidebar-right": "0.2.2-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.2",
-    "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.2",
     "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.2",
     "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.2",
     "@deepseek-ai/dsh-experimental-forge-session": "0.2.2-rc.2",
@@ -96,8 +95,7 @@
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-session",
-        "@deepseek-ai/dsh-client-ui-sidebar-right",
-        "@deepseek-ai/dsh-client-ui-workspace"
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },
@@ -109,9 +107,9 @@
       "zh": "PR 预览"
     },
     "description": {
-      "en": "Preview PR/MR descriptions, changes, checks and reviews.",
-      "ko": "PR/MR의 본문, 변경 내용, 검사와 리뷰를 확인합니다.",
-      "zh": "预览 PR/MR 描述、更改、检查和审查。"
+      "en": "Read PR/MR descriptions, comments and reviews.",
+      "ko": "PR/MR의 본문과 댓글·리뷰를 확인합니다.",
+      "zh": "查看 PR/MR 描述、评论和审查。"
     },
     "category": "ui",
     "labels": [],

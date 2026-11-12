@@ -17,14 +17,6 @@ const sha = 'a'.repeat(40)
 const details = {
   body: 'Description <script>text only</script>',
   headSha: sha,
-  mergeable: 'MERGEABLE',
-  reviewDecision: 'REVIEW_REQUIRED',
-  checks: [{ name: 'test', status: 'SUCCESS', url: 'https://ci.example/job/1' }],
-  files: [{ path: 'src/main.ts', additions: 1, deletions: 1 }],
-  diff: 'diff --git a/src/main.ts b/src/main.ts\n@@ -1 +1 @@\n-old\n+new',
-  diffTruncated: false,
-  forgeMergeReady: true,
-  mergeMethods: ['merge', 'squash', 'rebase'],
   comments: [{ author: 'bob', body: 'Comment', url: 'https://github.com/team/project/pull/17#issuecomment-1' }],
   reviews: [{ author: 'carol', body: 'Review', state: 'COMMENTED' }],
 }
@@ -76,17 +68,6 @@ async function fixture(
       if (new URL(forgeUrl).searchParams.get('page') > 1) return []
       if (/\/pulls\?/.test(endpoint)) return rows ? [rows] : []
       if (/\/pulls\/\d+$/.test(endpoint)) return rows
-      if (endpoint.endsWith('.diff')) return details.diff
-      if (endpoint.includes('/branches/'))
-        return {
-          name: 'release',
-          required_approvals: 1,
-          enable_status_check: true,
-          status_check_contexts: ['build'],
-          user_can_merge: true,
-        }
-      if (endpoint.includes('/statuses/'))
-        return [{ id: 7, context: 'build', status: 'success', target_url: 'https://ci.example/job/7' }]
       if (endpoint.includes('/reviews?'))
         return [
           {
@@ -102,8 +83,7 @@ async function fixture(
         ]
       if (endpoint.endsWith('/comments'))
         return [{ id: 4, user: { login: 'bob' }, body: 'Comment', html_url: `${rows.html_url}#issuecomment-4` }]
-      if (endpoint.includes('/files?')) return [{ filename: 'src/main.ts', additions: 2, deletions: 1 }]
-      return { full_name: 'team/project', allow_merge_commits: true, allow_squash_merge: true, allow_rebase: true }
+      return { full_name: 'team/project' }
     }
     if ((args[1] === 'view' && !args.includes('--repo')) || args[1] === 'list') return rows
     if (args[1] === 'view' && args[0] === 'pr')
@@ -113,30 +93,19 @@ async function fixture(
             ...rows,
             body: details.body,
             headRefOid: sha,
-            mergeable: details.mergeable,
-            reviewDecision: rows.reviewDecision ?? details.reviewDecision,
-            statusCheckRollup: [{ name: 'test', conclusion: 'SUCCESS', detailsUrl: 'https://ci.example/job/1' }],
-            changedFiles: details.files.length,
-            files: details.files,
             comments: [{ author: { login: 'bob' }, body: 'Comment', url: details.comments[0].url }],
             reviews: [{ author: { login: 'carol' }, body: 'Review', state: 'COMMENTED' }],
           }
-    if (args[1] === 'diff') return details.diff
     if (args[1] === 'view' && args[0] === 'mr')
       return {
         ...rows[0],
         description: 'GitLab body',
         sha,
-        detailed_merge_status: 'mergeable',
       }
     const endpoint = args.find((arg) => arg.startsWith('projects/')) ?? ''
     if (endpoint.endsWith('/approvals')) return { approved: true, approved_by: [{ user: { username: 'carol' } }] }
-    if (endpoint.includes('/merge_requests/') && endpoint.includes('/pipelines?'))
-      return [{ id: 7, sha, status: 'success', web_url: 'https://ci.example/pipeline/7' }]
-    if (endpoint.includes('/jobs?')) return [{ name: 'build', status: 'success', web_url: 'https://ci.example/job/7' }]
     if (endpoint.includes('/notes?')) return [{ id: 5, author: { username: 'bob' }, body: 'MR comment', system: false }]
-    if (endpoint.includes('/diffs?')) return [{ old_path: 'a.ts', new_path: 'b.ts', diff: '@@ -1 +1 @@\n-old\n+new' }]
-    return { completed: true, merged: true }
+    return { completed: true }
   }
   await writeFile(
     cli,
@@ -217,17 +186,6 @@ async function fixture(
   })
   ctx.provide('sandboxPolicy', { resolve: () => ({ mode }) })
   let bindings = []
-  let forgeStatus = {
-    headSha: sha,
-    state: 'open',
-    draft: false,
-    mergeReady: true,
-    mergeability: 'mergeable',
-    mergeMethods: ['merge', 'squash', 'rebase'],
-    checksTruncated: false,
-    checksRollup: 'success',
-    reviewDecision: 'approved',
-  }
   const parseRef = (value) => {
     const url = new URL(value)
     const match = url.pathname.match(
@@ -256,8 +214,6 @@ async function fixture(
     repositoryFromRemote: () => ({ forge: provider === 'auto' ? 'github' : provider }),
     changeRequestFromUrl: parseRef,
     changeRequestUrl: refUrl,
-    latest: () => undefined,
-    fetchChecks: async (ref) => ({ ...forgeStatus, ref, url: refUrl(ref) }),
   })
   await ctx.plugin(plugin, { provider })
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -284,9 +240,6 @@ async function fixture(
     rpc,
     bind: (url) => {
       bindings = [{ url, ref: parseRef(url), update: null }]
-    },
-    forgeStatus: (value) => {
-      forgeStatus = { ...forgeStatus, ...value }
     },
     inspections,
     activations,
@@ -332,19 +285,6 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.ok(f.calls.every((call) => call.argv[1] !== 'pr' || call.argv[2] !== 'view' || call.argv.includes('--repo')))
   })
 
-  await test('Forge가 병합 불가 또는 허용하지 않는 방식을 보고하면 CLI 병합을 실행하지 않는다', async (t) => {
-    const f = await fixture(t)
-    f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
-    for (const status of [
-      { mergeReady: false },
-      { mergeReady: true, mergeMethods: ['squash'] },
-      { headSha: 'b'.repeat(40) },
-    ]) {
-      f.forgeStatus(status)
-      assert.equal((await f.action({ action: 'merge', strategy: 'merge' })).ok, false)
-    }
-    assert.ok(!f.calls.some((call) => call.argv.some((arg) => arg.endsWith('/merge'))))
-  })
   await test('콜드 세션의 PR 조회는 Agent를 활성화하지 않고 저장된 세션만 읽는다', async (t) => {
     const f = await fixture(t)
     assert.equal((await f.summary()).ok, true)
@@ -408,7 +348,6 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.equal(result.value.request.title, github.title)
     assert.equal(result.value.request.body, 'Overview without waiting for CI or diff')
     assert.equal(result.value.request.headSha, '')
-    assert.equal(result.value.request.diff, '')
     assert.equal((await f.rpc()).value.request.detailsError, true)
     assert.equal((await f.action({ action: 'comment', body: 'Do not send' })).error.code, 'stale_request')
     f.setRows({ ...github, headRepository: { nameWithOwner: 'other/project' } })
@@ -595,17 +534,6 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
       state: 'open',
       body: 'GitLab body',
       headSha: sha,
-      mergeable: 'mergeable',
-      reviewDecision: 'APPROVED',
-      checks: [
-        { name: 'Pipeline #7', status: 'success', url: 'https://ci.example/pipeline/7' },
-        { name: 'build', status: 'success', url: 'https://ci.example/job/7' },
-      ],
-      files: [{ path: 'b.ts', additions: 1, deletions: 1 }],
-      diff: 'diff --git a/a.ts b/b.ts\n@@ -1 +1 @@\n-old\n+new',
-      diffTruncated: false,
-      forgeMergeReady: true,
-      mergeMethods: ['merge', 'squash', 'rebase'],
       comments: [
         { author: 'bob', body: 'MR comment', url: 'https://gitlab.com/team/sub/project/-/merge_requests/8#note_5' },
       ],
@@ -660,16 +588,13 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.equal((await enterprise.rpc()).value.repository, 'git.example.com/team/project')
   })
 
-  await test('GitHub 작업은 완료 여부만 반환하고, 리뷰와 병합을 최신 SHA에 고정하며, 실패를 절대 재시도하지 않는다', async (t) => {
+  await test('GitHub 작업은 완료 여부만 반환하고, 리뷰를 최신 SHA에 고정하며, 실패를 절대 재시도하지 않는다', async (t) => {
     const f = await fixture(t)
-    f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
+    f.setRows({ ...github, isDraft: false })
     for (const action of [
       { action: 'comment', body: '--admin\n$(touch /tmp/nope)' },
       { action: 'approve', body: 'Looks good' },
       { action: 'request_changes', body: 'Please fix' },
-      { action: 'merge', strategy: 'squash' },
-      { action: 'merge', strategy: 'rebase' },
-      { action: 'merge', strategy: 'merge' },
     ]) {
       const before = f.calls.length
       assert.deepEqual(await f.action(action), { ok: true, value: { completed: true } })
@@ -677,27 +602,21 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
       assert.equal(calls[0][2], 'view')
       assert.equal(calls[1][2], 'view')
       const mutation = calls.at(-1)
-      if (action.action !== 'merge') {
-        assert.ok(mutation.includes('repos/team/project/pulls/17/reviews'))
-        assert.ok(mutation.includes(`commit_id=${sha}`))
-        assert.ok(
-          mutation.includes(
-            `event=${action.action === 'approve' ? 'APPROVE' : action.action === 'comment' ? 'COMMENT' : 'REQUEST_CHANGES'}`
-          )
+      assert.ok(mutation.includes('repos/team/project/pulls/17/reviews'))
+      assert.ok(mutation.includes(`commit_id=${sha}`))
+      assert.ok(
+        mutation.includes(
+          `event=${action.action === 'approve' ? 'APPROVE' : action.action === 'comment' ? 'COMMENT' : 'REQUEST_CHANGES'}`
         )
-        assert.ok(mutation.includes(`body=${action.body}`))
-        assert.equal(mutation[mutation.indexOf('--hostname') + 1], 'github.com')
-      } else {
-        assert.ok(mutation.includes('repos/team/project/pulls/17/merge'))
-        assert.equal(mutation[mutation.indexOf('--method') + 1], 'PUT')
-        assert.ok(mutation.includes(`merge_method=${action.strategy}`))
-        assert.ok(mutation.includes(`sha=${sha}`))
-      }
+      )
+      assert.ok(mutation.includes(`body=${action.body}`))
+      assert.equal(mutation[mutation.indexOf('--hostname') + 1], 'github.com')
       for (const flag of ['--admin', '--auto', '--delete-branch', '--commit-id']) assert.ok(!mutation.includes(flag))
     }
-    f.dispatch((args, next) => (args.includes('PUT') ? new Error('denied') : next(args)))
-    assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
-    assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 4)
+    f.dispatch((args, next) => (args.includes('POST') ? new Error('denied') : next(args)))
+    assert.equal((await f.action({ action: 'comment', body: 'Denied' })).error.code, 'action_failed')
+    assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 4)
+    assert.ok(!f.calls.some((call) => call.argv.includes('PUT') || call.argv.some((arg) => arg.endsWith('/merge'))))
   })
 
   await test('오래된 SHA, URL, 변경된 소스, 없는 요청, 닫힌 요청은 변경 없이 거부한다', async (t) => {
@@ -744,32 +663,25 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.equal(f.calls.length, 0)
   })
 
-  await test('세부 정보 실패와 안전하지 않은 보조 링크는 명시적으로 드러나 작업을 막고, 큰 차이는 길이가 제한된다', async (t) => {
+  await test('세부 정보 실패와 안전하지 않은 댓글 링크는 명시적으로 드러나 작업을 막는다', async (t) => {
     const f = await fixture(t)
     for (const dispatch of [
-      (args, next) => (args[1] === 'diff' ? new Error('failed diff') : next(args)),
       (args, next) =>
-        args[1] === 'view'
-          ? {
-              ...next(args),
-              statusCheckRollup: [{ name: 'test', status: 'SUCCESS', detailsUrl: 'javascript:alert(1)' }],
-            }
+        args[1] === 'view' && args.includes('--repo')
+          ? { ...next(args), comments: [{ author: { login: 'bob' }, body: 'bad', url: 'file:///tmp/x' }] }
           : next(args),
       (args, next) =>
-        args[1] === 'view'
-          ? { ...next(args), comments: [{ author: { login: 'bob' }, body: 'bad', url: 'file:///tmp/x' }] }
+        args[1] === 'view' && args.includes('--repo')
+          ? { ...next(args), reviews: [{ author: { login: 'carol' }, body: null, state: 'COMMENTED' }] }
           : next(args),
     ]) {
       f.dispatch(dispatch)
-      assert.equal((await f.rpc()).value.request.detailsError, true)
+      const item = (await f.rpc()).value.request
+      assert.equal(item.detailsError, true)
+      assert.equal(item.body, details.body)
       assert.equal((await f.action()).error.code, 'action_failed')
     }
     assert.ok(!f.calls.some((call) => call.argv.includes('POST')))
-    f.dispatch((args, next) => (args[1] === 'diff' ? 'x'.repeat(130_000) : next(args)))
-    const item = (await f.rpc()).value.request
-    assert.equal(item.diff.length, 120_000)
-    assert.equal(item.diffTruncated, true)
-    assert.equal(item.detailsError, undefined)
   })
 
   await test('GitLab 세부 정보와 변경은 명시적 중첩 저장소와 SHA를 사용하고, 지원하지 않는 작업은 절대 쓰지 않는다', async (t) => {
@@ -788,43 +700,24 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
         target_project_id: 41,
       },
     ])
-    assert.equal((await f.rpc()).value.request.checks[1].name, 'build')
-    for (const input of [
-      { action: 'comment', body: '--help; echo unsafe' },
-      { action: 'approve' },
-      { action: 'merge', strategy: 'merge' },
-      { action: 'merge', strategy: 'squash' },
-    ]) {
+    assert.equal((await f.rpc()).value.request.comments[0].body, 'MR comment')
+    for (const input of [{ action: 'comment', body: '--help; echo unsafe' }, { action: 'approve' }]) {
       assert.deepEqual(await f.action({ ...input, requestUrl }), { ok: true, value: { completed: true } })
       const args = f.calls.at(-1).argv
       assert.equal(args[args.indexOf('--repo') + 1], 'https://gitlab.com/team/sub/project')
       assert.ok(args.includes('8'))
       if (input.action === 'comment') assert.equal(args[args.indexOf('--message') + 1], input.body)
       else assert.equal(args[args.indexOf('--sha') + 1], sha)
-      if (input.action === 'merge') {
-        assert.ok(args.includes('--auto-merge=false'))
-        assert.ok(args.includes('--yes'))
-        assert.ok(args.includes(`--squash=${input.strategy === 'squash'}`))
-      }
     }
-    f.dispatch((args, next) =>
-      args.some((arg) => arg.includes('/diffs?'))
-        ? [{ old_path: 'a.ts', new_path: 'b.ts', diff: '+'.repeat(120_001) }]
-        : next(args)
-    )
-    assert.equal((await f.rpc()).value.request.diffTruncated, true)
-    assert.equal((await f.action({ requestUrl, action: 'approve' })).error.code, 'action_failed')
-    assert.equal((await f.action({ requestUrl, action: 'merge', strategy: 'squash' })).ok, true)
-    f.dispatch(undefined)
     const writes = () => f.calls.filter((call) => ['approve', 'merge', 'note'].includes(call.argv[2])).length
     const count = writes()
-    assert.equal((await f.action({ requestUrl, action: 'merge', strategy: 'rebase' })).error.code, 'unsupported_action')
     assert.equal(
       (await f.action({ requestUrl, action: 'request_changes', body: 'Fix' })).error.code,
       'unsupported_action'
     )
     assert.equal((await f.action({ requestUrl, body: 'Review text' })).error.code, 'unsupported_action')
     assert.equal((await f.action({ requestUrl, headSha: 'b'.repeat(40) })).error.code, 'stale_request')
+    assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'invalid_payload')
     assert.equal(writes(), count)
     for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
       assert.equal(call.argv[call.argv.indexOf('--hostname') + 1], 'gitlab.com')
@@ -832,14 +725,11 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     }
     f.dispatch((args, next) => (args[1] === 'approve' ? new Error('denied') : next(args)))
     assert.equal((await f.action({ requestUrl })).error.code, 'action_failed')
-    for (const failed of ['/jobs?', '/notes?', '/approvals']) {
+    for (const failed of ['/notes?', '/approvals']) {
       f.dispatch((args, next) => (args.some((arg) => arg.includes(failed)) ? new Error('read denied') : next(args)))
       const partial = (await f.rpc()).value.request
       assert.equal(partial.detailsError, true)
       assert.equal(partial.body, 'GitLab body')
-      assert.ok(partial.diff.includes('+new'))
-      assert.deepEqual(partial.files, [{ path: 'b.ts', additions: 1, deletions: 1 }])
-      assert.equal(partial.checks[0].name, 'Pipeline #7')
       if (failed !== '/approvals') assert.equal(partial.reviews[0].author, 'carol')
       if (failed !== '/notes?') assert.equal(partial.comments[0].body, 'MR comment')
       assert.equal((await f.action({ requestUrl })).error.code, 'action_failed')
@@ -889,51 +779,16 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     }
   })
 
-  await test('승인은 잘린 차이를 거부하고, 병합은 표시용 잘림은 허용하지만 초안, 없는 차이, 차단된 상태는 거부한다', async (t) => {
+  await test('초안 PR의 승인은 거부하지만 댓글은 허용한다', async (t) => {
     const f = await fixture(t)
-    f.setRows({ ...github, isDraft: false, reviewDecision: 'APPROVED' })
-    for (const action of ['approve', 'merge']) {
-      for (const dispatch of [
-        (args, next) => (args[1] === 'view' ? { ...next(args), isDraft: true } : next(args)),
-        (args, next) => (args[1] === 'diff' ? '' : next(args)),
-      ]) {
-        f.dispatch(dispatch)
-        assert.equal((await f.action({ action })).error.code, 'action_failed')
-      }
-    }
-    for (const change of [
-      ...['FAILURE', 'PENDING', 'IN_PROGRESS', 'UNKNOWN'].map((status) => ({
-        statusCheckRollup: [{ name: 'build', status, detailsUrl: '' }],
-      })),
-      ...['CHANGES_REQUESTED', 'REVIEW_REQUIRED', 'UNKNOWN'].map((reviewDecision) => ({ reviewDecision })),
-      ...['CONFLICTING', 'UNKNOWN'].map((mergeable) => ({ mergeable })),
-    ]) {
-      f.dispatch((args, next) => (args[1] === 'view' ? { ...next(args), ...change } : next(args)))
-      assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
-    }
-    assert.ok(!f.calls.some((call) => call.argv.includes('POST') || call.argv.includes('PUT')))
-    f.dispatch((args, next) => (args[1] === 'diff' ? 'x'.repeat(120_001) : next(args)))
-    assert.equal((await f.rpc()).value.request.diffTruncated, true)
+    f.setRows({ ...github, isDraft: true })
     assert.equal((await f.action({ action: 'approve' })).error.code, 'action_failed')
-    assert.equal((await f.action({ action: 'merge' })).ok, true)
-    f.dispatch((args, next) =>
-      args[1] === 'diff'
-        ? 'x'.repeat(120_001)
-        : args[1] === 'view'
-          ? { ...next(args), statusCheckRollup: [{ name: 'build', status: 'FAILURE', detailsUrl: '' }] }
-          : next(args)
-    )
-    assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
-    for (const status of ['SUCCESS', 'passed', 'NEUTRAL', 'SKIPPED']) {
-      f.dispatch((args, next) =>
-        args[1] === 'view'
-          ? { ...next(args), statusCheckRollup: [{ name: 'build', status, detailsUrl: '' }] }
-          : next(args)
-      )
-      assert.equal((await f.action({ action: 'merge' })).ok, true)
-    }
-    f.dispatch((args, next) => (args.includes('PUT') ? { merged: false, message: 'not merged' } : next(args)))
-    assert.equal((await f.action({ action: 'merge' })).error.code, 'action_failed')
+    assert.ok(!f.calls.some((call) => call.argv.includes('POST')))
+    assert.deepEqual(await f.action({ action: 'comment', body: 'Early feedback' }), {
+      ok: true,
+      value: { completed: true },
+    })
+    assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 1)
   })
 
   await test('모든 CLI 명령을 격리하고 동시 세션 작업을 재시도 없이 거부한다', async (t) => {
@@ -987,141 +842,6 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.equal(item.comments.at(-1).body, 'last comment')
     f.dispatch((args, next) => (args.some((arg) => arg.includes('/notes?')) ? { error: 'not an array' } : next(args)))
     assert.equal((await f.rpc()).value.request.detailsError, true)
-  })
-
-  await test('GitLab은 가장 최신 head 파이프라인을 사용하고, 작업이 없어도 그 상태를 유지하며, 필수 승인 0개를 허용한다', async (t) => {
-    const f = await fixture(t, 'git@gitlab.com:team/project.git')
-    const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
-    f.setRows([
-      {
-        iid: 8,
-        title: 'MR',
-        web_url: requestUrl,
-        source_branch: 'feat/sidebar',
-        target_branch: 'main',
-        state: 'opened',
-        source_project_id: 41,
-        target_project_id: 41,
-      },
-    ])
-    let status = 'success'
-    let required = 0
-    f.dispatch((args, next) => {
-      if (args.some((arg) => arg.includes('/merge_requests/') && arg.includes('/pipelines?')))
-        return [
-          { id: 6, sha, status: 'failed', web_url: 'https://ci.example/pipeline/6' },
-          { id: 99, sha: 'b'.repeat(40), status: 'failed', web_url: 'https://ci.example/pipeline/99' },
-          { id: 7, sha, status, web_url: 'https://ci.example/pipeline/7' },
-        ]
-      if (args.some((arg) => arg.includes('/jobs?'))) return []
-      if (args.some((arg) => arg.endsWith('/approvals')))
-        return { approved: false, approvals_required: required, approvals_left: required, approved_by: [] }
-      return next(args)
-    })
-    const item = (await f.rpc()).value.request
-    assert.equal(item.detailsError, undefined)
-    assert.equal(item.reviewDecision, '')
-    assert.deepEqual(item.checks, [{ name: 'Pipeline #7', status: 'success', url: 'https://ci.example/pipeline/7' }])
-    assert.equal((await f.action({ requestUrl, action: 'merge' })).ok, true)
-    assert.ok(!f.calls.some((call) => call.argv.some((arg) => /\/pipelines\/(6|99)\/jobs/.test(arg))))
-    const writes = () => f.calls.filter((call) => call.argv[2] === 'merge').length
-    const count = writes()
-    for (status of ['failed', 'pending', 'running', 'unknown']) {
-      const blocked = (await f.rpc()).value.request
-      assert.equal(blocked.detailsError, undefined)
-      assert.equal(blocked.checks[0].status, status)
-      assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
-    }
-    status = 'success'
-    required = 1
-    assert.equal((await f.rpc()).value.request.reviewDecision, 'REVIEW_REQUIRED')
-    assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
-    assert.equal(writes(), count)
-  })
-
-  await test('GitLab 병합 결과 CI는 현재 head 파이프라인 커밋의 부모를 검증하고 이전 병합 결과는 절대 신뢰하지 않는다', async (t) => {
-    const f = await fixture(t, 'git@gitlab.com:team/project.git')
-    const requestUrl = 'https://gitlab.com/team/project/-/merge_requests/8'
-    const mergeSha = 'c'.repeat(40)
-    const pipeline = {
-      id: 10,
-      project_id: 41,
-      sha: mergeSha,
-      ref: 'refs/merge-requests/8/merge',
-      status: 'failed',
-      web_url: 'https://ci.example/pipeline/10',
-    }
-    const mr = {
-      iid: 8,
-      title: 'MR',
-      web_url: requestUrl,
-      source_branch: 'feat/sidebar',
-      target_branch: 'main',
-      state: 'opened',
-      source_project_id: 41,
-      target_project_id: 41,
-      head_pipeline: pipeline,
-    }
-    f.setRows([mr])
-    let parents = ['b'.repeat(40), sha]
-    let commitFailure = false
-    f.dispatch((args, next) => {
-      if (args.some((arg) => arg.includes('/repository/commits/')))
-        return commitFailure ? new Error('commit unavailable') : { id: mergeSha, parent_ids: parents }
-      if (args.some((arg) => arg.includes('/merge_requests/') && arg.includes('/pipelines?')))
-        return [
-          { ...pipeline, id: 9, status: 'success' },
-          { id: 7, sha, status: 'success', web_url: 'https://ci.example/pipeline/7' },
-        ]
-      if (args.some((arg) => arg.includes('/pipelines/10/jobs?')))
-        return [{ name: 'integration', status: pipeline.status, web_url: 'https://ci.example/job/10' }]
-      return next(args)
-    })
-    const item = (await f.rpc()).value.request
-    assert.equal(item.detailsError, undefined)
-    assert.deepEqual(item.checks, [
-      { name: 'Pipeline #10', status: 'failed', url: 'https://ci.example/pipeline/10' },
-      { name: 'integration', status: 'failed', url: 'https://ci.example/job/10' },
-    ])
-    assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
-    const commitCall = f.calls.find((call) => call.argv.some((arg) => arg.includes('/repository/commits/'))).argv
-    assert.ok(commitCall.includes(`projects/team%2Fproject/repository/commits/${mergeSha}`))
-    assert.equal(commitCall[commitCall.indexOf('--hostname') + 1], 'gitlab.com')
-    assert.ok(!f.calls.some((call) => call.argv.some((arg) => /\/pipelines\/(7|9)\/jobs/.test(arg))))
-
-    pipeline.status = 'success'
-    assert.equal((await f.action({ requestUrl, action: 'merge' })).ok, true)
-    const jobs = () => f.calls.filter((call) => call.argv.some((arg) => arg.includes('/jobs?'))).length
-    const count = jobs()
-    parents = ['d'.repeat(40), 'e'.repeat(40)]
-    const stale = (await f.rpc()).value.request
-    assert.equal(stale.detailsError, true)
-    assert.deepEqual(stale.checks, [])
-    assert.ok(stale.diff.includes('+new'))
-    assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'action_failed')
-    assert.equal(jobs(), count)
-
-    parents = ['b'.repeat(40), sha]
-    pipeline.project_id = 42
-    assert.equal((await f.rpc()).value.request.detailsError, true)
-    assert.equal(jobs(), count)
-    pipeline.project_id = 41
-    commitFailure = true
-    assert.equal((await f.rpc()).value.request.detailsError, true)
-    assert.equal(jobs(), count)
-
-    // Without this snapshot's merged-result head pipeline, historical /merge
-    // pipelines cannot be selected just because they were returned by the MR API.
-    mr.head_pipeline = null
-    f.dispatch((args, next) =>
-      args.some((arg) => arg.includes('/merge_requests/') && arg.includes('/pipelines?'))
-        ? [{ ...pipeline, id: 9, status: 'success' }]
-        : next(args)
-    )
-    const unrelated = (await f.rpc()).value.request
-    assert.equal(unrelated.detailsError, true)
-    assert.deepEqual(unrelated.checks, [])
-    assert.equal(jobs(), count)
   })
 
   const forge = {
@@ -1180,13 +900,10 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     }
   })
 
-  await test('Gitea와 Forgejo는 같은 사이드바 세부 정보를 불러오고 댓글, 리뷰, SHA 조건부 병합을 지원한다', async (t) => {
+  await test('Gitea와 Forgejo는 같은 사이드바 세부 정보를 불러오고 댓글과 SHA에 고정한 리뷰를 지원한다', async (t) => {
     for (const provider of ['gitea', 'forgejo']) {
       const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', provider)
       f.setRows(forge)
-      f.dispatch((args, next) =>
-        args.at(-1).includes('/files?') && args.at(-1).endsWith('page=2') ? null : next(args)
-      )
       const result = await f.rpc()
       assert.equal(result.ok, true)
       assert.equal(result.value.provider, provider)
@@ -1194,12 +911,7 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
       assert.equal(item.detailsError, undefined)
       assert.equal(item.url, forge.html_url)
       assert.equal(item.headSha, sha)
-      assert.equal(item.mergeable, 'MERGEABLE')
-      assert.equal(item.reviewDecision, 'APPROVED')
       assert.equal(item.body, forge.body)
-      assert.deepEqual(item.files, [{ path: 'src/main.ts', additions: 2, deletions: 1 }])
-      assert.deepEqual(item.checks, [{ name: 'build', status: 'success', url: 'https://ci.example/job/7' }])
-      assert.equal(item.diff, details.diff)
       assert.equal(item.comments[0].body, 'Comment')
       assert.equal(item.reviews[0].author, 'carol')
       f.confine()
@@ -1207,7 +919,6 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
         { action: 'comment', body: '@private-file; $(echo unsafe)\ntrue' },
         { action: 'approve', body: 'Reviewed' },
         { action: 'request_changes', body: 'Please fix this' },
-        ...['merge', 'squash', 'rebase'].map((strategy) => ({ action: 'merge', strategy })),
       ]) {
         assert.deepEqual(await f.action({ requestUrl: forge.html_url, ...input }), {
           ok: true,
@@ -1216,23 +927,15 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
         const args = f.calls.at(-1).argv
         assert.equal(args[args.indexOf('--login') + 1], 'work')
         assert.ok(args.includes('POST'))
-        if (input.body) assert.ok(args.includes(`body=${input.body}`))
-        if (input.action === 'merge') {
-          assert.ok(args.includes(`head_commit_id=${sha}`))
-          assert.ok(args.includes(`Do=${input.strategy}`))
-          for (const field of [
-            'force_merge=false',
-            'delete_branch_after_merge=false',
-            'merge_when_checks_succeed=false',
-          ])
-            assert.ok(args.includes(field))
-        } else if (input.action !== 'comment') {
+        assert.ok(args.includes(`body=${input.body}`))
+        if (input.action !== 'comment') {
           assert.ok(args.includes(`commit_id=${sha}`))
           assert.ok(args.includes(`event=${input.action === 'approve' ? 'APPROVED' : 'REQUEST_CHANGES'}`))
         }
       }
       for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
         assert.match(call.argv.at(-1), /^https:\/\/forge\.example:3443\/git\/api\/v1\/repos\/team\/project(?:\/|$)/)
+        assert.ok(!/\/(?:merge|statuses|branches|files)\b|\.diff$/.test(call.argv.at(-1)))
         for (const key of ['GITEA_INSTANCE_URL', 'GITEA_TOKEN', 'GH_TOKEN', 'TEA_LOGIN'])
           assert.equal(call.env[key], undefined)
       }
@@ -1263,56 +966,38 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
       if (args.includes('POST')) f.httpStatus(409)
       return next(args)
     })
-    assert.equal((await f.action({ requestUrl: forge.html_url, action: 'merge' })).error.code, 'action_failed')
+    assert.equal(
+      (await f.action({ requestUrl: forge.html_url, action: 'comment', body: 'Conflict' })).error.code,
+      'action_failed'
+    )
     assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 1)
     const publicForge = await fixture(t, 'git@codeberg.org:team/project.git', 'auto', 'https://codeberg.org')
     publicForge.setRows({ ...forge, html_url: 'https://codeberg.org/team/project/pulls/23' })
-    assert.equal((await publicForge.rpc()).value.provider, 'forgejo')
-    publicForge.dispatch((args, next) =>
-      args.some((arg) => arg.includes('/branches/'))
-        ? { ...next(args), enable_status_check: false, status_check_contexts: null }
-        : next(args)
-    )
-    assert.equal((await publicForge.rpc()).value.request.detailsError, undefined)
+    const publicView = (await publicForge.rpc()).value
+    assert.equal(publicView.provider, 'forgejo')
+    assert.equal(publicView.request.detailsError, undefined)
   })
 
-  await test('forge 검사, 필수 리뷰, 없는 세부 정보, 권한, 오래된 head는 우회 없이 변경을 막는다', async (t) => {
+  await test('forge 리뷰는 오래된 head, 초안 승인, 실패한 세부 정보를 우회 없이 막는다', async (t) => {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'gitea')
     f.setRows(forge)
     const mutations = () => f.calls.filter((call) => call.argv.includes('POST')).length
-    for (const override of [
-      (args, next) =>
-        args.some((arg) => arg.includes('/statuses/') && arg.endsWith('page=1'))
-          ? [{ id: 7, context: 'build', status: 'pending', target_url: '' }]
-          : next(args),
-      (args, next) => (args.some((arg) => arg.includes('/statuses/')) ? [] : next(args)),
-      (args, next) => (args.some((arg) => arg.includes('/reviews?')) ? [] : next(args)),
-      (args, next) =>
-        args.some((arg) => arg.includes('/reviews?') && arg.endsWith('page=1'))
-          ? [...next(args), { ...next(args)[0], id: 99, dismissed: true }]
-          : next(args),
-      (args, next) =>
-        args.some((arg) => arg.includes('/branches/')) ? { ...next(args), user_can_merge: false } : next(args),
-      (args, next) => (args.at(-1).endsWith('.diff') ? new Error('diff unavailable') : next(args)),
-    ]) {
-      f.dispatch(override)
-      assert.equal((await f.action({ requestUrl: forge.html_url, action: 'merge' })).error.code, 'action_failed')
-    }
-    assert.equal(mutations(), 0)
-    f.dispatch(undefined)
     assert.equal((await f.action({ requestUrl: forge.html_url, headSha: 'b'.repeat(40) })).error.code, 'stale_request')
+    f.dispatch((args, next) => (args.some((arg) => arg.includes('/reviews?')) ? new Error('read denied') : next(args)))
+    assert.equal((await f.rpc()).value.request.detailsError, true)
+    assert.equal((await f.action({ requestUrl: forge.html_url })).error.code, 'action_failed')
+    f.dispatch(undefined)
     f.setRows({ ...forge, draft: true })
     assert.equal((await f.action({ requestUrl: forge.html_url })).error.code, 'action_failed')
+    assert.equal(mutations(), 0)
     f.setRows({ ...forge, head: { ...forge.head, repo: { full_name: 'someone/project' } } })
     assert.equal((await f.rpc()).value.request, null)
     f.setRows(forge)
-    f.dispatch((args, next) => (args.at(-1).endsWith('.diff') ? 'x'.repeat(120_001) : next(args)))
-    assert.equal((await f.action({ requestUrl: forge.html_url })).error.code, 'action_failed')
-    assert.equal((await f.action({ requestUrl: forge.html_url, action: 'merge' })).ok, true)
+    assert.equal((await f.action({ requestUrl: forge.html_url })).ok, true)
     assert.equal(mutations(), 1)
   })
 
-  await test('forge 페이지네이션은 제한된 이후 페이지와 최신 CI 재실행을 포함하고, 포크 부모에서 PR을 찾는다', async (t) => {
+  await test('forge 페이지네이션은 이후 리뷰 페이지를 포함하고, 포크 부모에서 PR을 찾는다', async (t) => {
     const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'forgejo')
     const parentRequest = {
       ...forge,
@@ -1327,26 +1012,9 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
       if (endpoint.includes('/reviews?')) {
         const page = new URL(endpoint).searchParams.get('page')
         return page === '1'
-          ? [
-              {
-                id: 2,
-                user: { login: 'carol' },
-                body: 'Older rejection',
-                state: 'REQUEST_CHANGES',
-                commit_id: sha,
-                official: true,
-              },
-            ]
+          ? [{ id: 2, user: { login: 'carol' }, body: 'Older rejection', state: 'REQUEST_CHANGES' }]
           : page === '2'
-            ? [{ id: 3, user: { login: 'carol' }, body: 'Approved', state: 'APPROVED', commit_id: sha, official: true }]
-            : []
-      }
-      if (endpoint.includes('/statuses/')) {
-        const page = new URL(endpoint).searchParams.get('page')
-        return page === '1'
-          ? [{ id: 9, context: 'build', status: 'success', target_url: '' }]
-          : page === '2'
-            ? [{ id: 8, context: 'build', status: 'failure', target_url: '' }]
+            ? [{ id: 3, user: { login: 'carol' }, body: 'Approved', state: 'APPROVED' }]
             : []
       }
       return next(args)
@@ -1354,15 +1022,19 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     const result = (await f.rpc()).value.request
     assert.equal(result.detailsError, undefined)
     assert.equal(result.url, parentRequest.html_url)
-    assert.equal(result.reviewDecision, 'APPROVED')
-    assert.deepEqual(result.checks, [{ name: 'build', status: 'success', url: '' }])
-    assert.equal(result.reviews.length, 2)
+    assert.deepEqual(
+      result.reviews.map((review) => review.body),
+      ['Older rejection', 'Approved']
+    )
     const linked = await f.lookup(parentRequest.html_url)
     assert.equal(linked.ok, true)
     assert.equal(linked.value.request.url, parentRequest.html_url)
     assert.equal(linked.value.request.detailsError, undefined)
-    assert.equal((await f.action({ requestUrl: parentRequest.html_url, action: 'merge' })).ok, true)
-    assert.ok(f.calls.at(-1).argv.at(-1).includes('/api/v1/repos/upstream/project/pulls/23/merge'))
+    assert.deepEqual(
+      await f.action({ requestUrl: parentRequest.html_url, action: 'comment', body: 'Upstream comment' }),
+      { ok: true, value: { completed: true } }
+    )
+    assert.ok(f.calls.at(-1).argv.at(-1).includes('/api/v1/repos/upstream/project/issues/23/comments'))
   })
 
   await test('자체 관리 GitLab은 읽기와 쓰기에 설정된 provider, HTTPS 포트, 중첩 네임스페이스를 사용한다', async (t) => {
