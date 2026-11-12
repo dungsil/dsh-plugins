@@ -79,7 +79,7 @@ await test('번들은 활성화되었고 독립적으로 로드할 수 있으며
 })
 
 await test('설치는 rc.5부터 DSH 0.2 업데이트를 허용하며 다음 마이너 버전은 선택하지 않는다', () => {
-  for (const version of ['0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2', '0.2.99']) {
+  for (const version of ['0.2.1-rc.5', '0.2.1-rc.6', '0.2.1', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.99']) {
     assert.equal(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true }), true, version)
   }
   for (const version of [

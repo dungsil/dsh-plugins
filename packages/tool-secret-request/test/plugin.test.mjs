@@ -31,8 +31,9 @@ async function setup(t, provider) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(NativeToolExecutor)
-  const agent = { session: { id: 'secret-test-session' } }
-  ctx.provide('agents', { roots: () => [agent] })
+  const agent = { session: { id: 'secret-test-session', header: { parentSession: 'fork-source', isSeeded: true } } }
+  const child = { session: { id: 'child', header: { origin: 'subagent' } } }
+  ctx.provide('agents', { get: (id) => [agent, child].find((entry) => entry.session.id === id) })
   const fork = ctx.plugin(plugin)
   await fork
   const handler = ctx.connection.createSharedFetchHandler('/api')
@@ -75,7 +76,7 @@ async function setup(t, provider) {
     }
     assert.fail('No private input request appeared')
   }
-  return { ctx, fork, rpc, run, next, path }
+  return { ctx, fork, rpc, run, next, path, child }
 }
 
 await test('도구 런타임을 통해 입력을 비공개로 정확히 저장하고 참조와 상태만 반환한다', async (t) => {
@@ -126,6 +127,7 @@ await test('권한 없는 응답, 형식이 잘못된 응답, 늦은 응답을 �
   }
   await h.rpc('pending')
   assert.equal((await h.run(args, undefined, { session: { id: 'child' } })).value.status, 'unavailable')
+  assert.equal((await h.run(args, undefined, h.child)).value.status, 'unavailable')
   assert.equal((await h.run({ ...args, ref: '../invalid' })).isError, true)
   assert.equal((await h.run({ ...args, timeout_ms: 999 })).isError, true)
   const abort = new AbortController()
