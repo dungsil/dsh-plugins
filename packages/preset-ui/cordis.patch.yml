@@ -10,6 +10,8 @@
       config: {}
     - id: dungsil-ui-forge-worktree
       name: '@dungsil/dsh-plugin-ui-forge-worktree'
+    - id: dungsil-ui-image-paths
+      name: '@dungsil/dsh-plugin-ui-image-paths'
     - id: dungsil-sidebar-inbox
       name: '@dungsil/dsh-plugin-ui-sidebar-inbox'
     - id: dungsil-ui-model-settings

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Image Paths",
+    "description": "Display relative Markdown images using each message's recorded working directory."
+  }
+}
