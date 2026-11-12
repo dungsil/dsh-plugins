@@ -2,7 +2,7 @@ import { clientConfig, defineConfig, nodeConfig } from '@dungsil/dsh-tsdown'
 import manifest from './package.json' with { type: 'json' }
 
 export default defineConfig([
-  nodeConfig,
+  { ...nodeConfig, entry: ['src/index.ts', 'src/install.ts'] },
   clientConfig(manifest.name, {
     entry: ['src/client.tsx'],
     deps: {

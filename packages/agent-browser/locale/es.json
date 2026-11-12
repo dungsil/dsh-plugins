@@ -1,12 +1,12 @@
 {
   "meta": {
     "title": "Navegador del agente",
-    "description": "Interactúa con la misma página web que el agente desde la pestaña Navegador existente. Incluye agent-browser y usa Chrome/Chromium del host en modo de acceso completo."
+    "description": "Interactúa con la misma página web que el agente desde la pestaña Navegador existente. agent-browser se instala automáticamente en el primer uso (requiere red) y usa Chrome/Chromium del host en modo de acceso completo."
   },
-  "unavailable": "No se pudo iniciar el agent-browser incluido. Chrome o Chromium debe estar disponible en el host de dsh.",
+  "unavailable": "No se pudo instalar ni iniciar agent-browser. El primer uso requiere conexión de red y Chrome o Chromium debe estar disponible en el host de dsh.",
   "command_failed": "La acción del navegador falló. Vuelve a intentarlo cuando termine la acción actual.",
   "stream_failed": "Se perdió la conexión con el navegador. Recarga para reconectar.",
-  "permission": "Este navegador requiere el modo de acceso completo. agent-browser viene incluido con el complemento.",
+  "permission": "Este navegador requiere el modo de acceso completo. agent-browser se instala en la caché del usuario en el primer uso.",
   "connection_error": "No se pudo conectar a dsh. Reconectando…",
   "busy": "El agente está controlando esta página. Espera a que termine su comando actual antes de interactuar.",
   "screen": "Página web compartida con agent-browser"

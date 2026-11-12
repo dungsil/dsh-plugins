@@ -13,7 +13,6 @@ overrides:
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
-  agent-browser: false
   koffi: false
   node-pty: false
   protobufjs: false

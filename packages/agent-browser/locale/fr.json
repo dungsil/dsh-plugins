@@ -1,12 +1,12 @@
 {
   "meta": {
     "title": "Navigateur de l’agent",
-    "description": "Interagissez avec la même page web que l’agent dans l’onglet Navigateur existant. Inclut agent-browser et utilise Chrome/Chromium de l’hôte en mode d’accès complet."
+    "description": "Interagissez avec la même page web que l’agent dans l’onglet Navigateur existant. agent-browser s’installe automatiquement lors de la première utilisation (connexion réseau requise) et utilise Chrome/Chromium de l’hôte en mode d’accès complet."
   },
-  "unavailable": "Impossible de démarrer agent-browser, inclus dans le plugin. Chrome ou Chromium doit être disponible sur l’hôte dsh.",
+  "unavailable": "Impossible d’installer ou de démarrer agent-browser. La première utilisation nécessite une connexion réseau, et Chrome ou Chromium doit être disponible sur l’hôte dsh.",
   "command_failed": "L’action du navigateur a échoué. Réessayez une fois l’action en cours terminée.",
   "stream_failed": "La connexion au navigateur a été perdue. Rechargez pour vous reconnecter.",
-  "permission": "Ce navigateur nécessite le mode d’accès complet. agent-browser est inclus dans le plugin.",
+  "permission": "Ce navigateur nécessite le mode d’accès complet. agent-browser est installé dans le cache utilisateur lors de la première utilisation.",
   "connection_error": "Impossible de se connecter à dsh. Reconnexion…",
   "busy": "L’agent contrôle cette page. Attendez la fin de sa commande en cours avant d’interagir.",
   "screen": "Page web partagée avec agent-browser"

@@ -33,6 +33,7 @@
     "@dungsil/dsh-plugin-ui-model-picker": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-settings": "workspace:*",
     "@dungsil/dsh-plugin-ui-setting-skills": "workspace:*",
+    "@dungsil/dsh-plugin-ui-setting-vcs": "workspace:*",
     "@dungsil/dsh-plugin-ui-sidebar-inbox": "workspace:*",
     "@dungsil/dsh-plugin-ui-turn-rail-left": "workspace:*",
     "@dungsil/dsh-plugin-ui-usage": "workspace:*",

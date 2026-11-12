@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
-import { apply } from '../dist/index.js'
+import { setupBrowser } from '../dist/index.js'
 
-async function fixture(t) {
+async function fixture(t, install = async () => '/user-cache/agent-browser') {
+  let installations = 0
   let tool
   const routes = new Map()
   const effects = [],
@@ -44,71 +45,81 @@ async function fixture(t) {
   t.after(() => {
     globalThis.WebSocket = originalWebSocket
   })
-  await apply({
-    effect: (effect) => effects.push(effect()),
-    on: (event, handler) => listeners.set(event, handler),
-    logger: { warn: () => {} },
-    tools: {
-      register: (value) => {
-        tool = value
-      },
-    },
-    connection: {
-      fetch: {
+  await setupBrowser(
+    {
+      effect: (effect) => effects.push(effect()),
+      on: (event, handler) => listeners.set(event, handler),
+      logger: { warn: () => {} },
+      tools: {
         register: (value) => {
-          routes.set(value.path, value)
-          return () => {}
+          tool = value
+        },
+      },
+      connection: {
+        fetch: {
+          register: (value) => {
+            routes.set(value.path, value)
+            return () => {}
+          },
+        },
+      },
+      sandboxPolicy: { resolve: () => ({ mode }) },
+      sessionController: { resolveAgent: async (id) => ({ agent: { session: { id } } }) },
+      subprocess: {
+        resolveExecutable: async () => {
+          throw new Error('No executable on PATH')
+        },
+        spawn(spec) {
+          assert.equal(spec.argv[0], '/user-cache/agent-browser')
+          const id = spec.argv[spec.argv.indexOf('--session') + 1]
+          const args = spec.argv.slice(spec.argv.indexOf('--json') + 1)
+          let state = sessions.get(id)
+          if (!state) {
+            state = { port: 10000 + sessions.size, url: 'about:blank' }
+            sessions.set(id, state)
+          }
+          let data, error
+          if (args[0] === 'open') {
+            state.url = args[1]
+            data = { url: state.url }
+          } else if (args[0] === 'stream') {
+            if (streamAvailable) data = { enabled: true, port: state.port }
+            else error = 'Stream unavailable'
+          } else if (args[0] === 'get') data = args[1] === 'text' ? { text: state.text } : { url: state.url }
+          else if (args[0] === 'click') error = 'Element was not found'
+          else if (args[0] === 'close') {
+            sessions.delete(id)
+            data = { closed: true }
+          } else data = { snapshot: 'button Submit [ref=e1]' }
+          const done =
+            args[0] === 'wait'
+              ? new Promise((_, reject) =>
+                  spec.signal.addEventListener('abort', () => reject(spec.signal.reason), { once: true })
+                )
+              : Promise.resolve({ exitCode: error ? 1 : 0 })
+          return {
+            done,
+            terminate() {},
+            waitForExit: async () => {},
+            collected: {
+              stdout: { readFrom: () => ({ text: JSON.stringify({ success: !error, data, error }), lossy: false }) },
+            },
+          }
         },
       },
     },
-    sandboxPolicy: { resolve: () => ({ mode }) },
-    sessionController: { resolveAgent: async (id) => ({ agent: { session: { id } } }) },
-    subprocess: {
-      resolveExecutable: async () => {
-        throw new Error('No executable on PATH')
-      },
-      spawn(spec) {
-        const id = spec.argv[spec.argv.indexOf('--session') + 1]
-        const args = spec.argv.slice(spec.argv.indexOf('--json') + 1)
-        let state = sessions.get(id)
-        if (!state) {
-          state = { port: 10000 + sessions.size, url: 'about:blank' }
-          sessions.set(id, state)
-        }
-        let data, error
-        if (args[0] === 'open') {
-          state.url = args[1]
-          data = { url: state.url }
-        } else if (args[0] === 'stream') {
-          if (streamAvailable) data = { enabled: true, port: state.port }
-          else error = 'Stream unavailable'
-        } else if (args[0] === 'get') data = args[1] === 'text' ? { text: state.text } : { url: state.url }
-        else if (args[0] === 'click') error = 'Element was not found'
-        else if (args[0] === 'close') {
-          sessions.delete(id)
-          data = { closed: true }
-        } else data = { snapshot: 'button Submit [ref=e1]' }
-        const done =
-          args[0] === 'wait'
-            ? new Promise((_, reject) =>
-                spec.signal.addEventListener('abort', () => reject(spec.signal.reason), { once: true })
-              )
-            : Promise.resolve({ exitCode: error ? 1 : 0 })
-        return {
-          done,
-          terminate() {},
-          waitForExit: async () => {},
-          collected: {
-            stdout: { readFrom: () => ({ text: JSON.stringify({ success: !error, data, error }), lossy: false }) },
-          },
-        }
-      },
-    },
-  })
+    async (signal) => {
+      installations++
+      return install(signal)
+    }
+  )
   t.after(async () => {
     for (const dispose of effects.reverse()) await dispose?.()
   })
   return {
+    get installations() {
+      return installations
+    },
     tool,
     sessions,
     sockets,
@@ -152,6 +163,89 @@ async function fixture(t) {
     },
   }
 }
+
+await test('자동 설치 안내와 오류 문구는 모든 로케일에서 같은 키를 제공한다', async () => {
+  const directory = new URL('../locale/', import.meta.url)
+  const files = (await readdir(directory)).filter((file) => file.endsWith('.json')).sort()
+  assert.deepEqual(files, [
+    'de.json',
+    'en.json',
+    'es.json',
+    'fr.json',
+    'ja.json',
+    'ko.json',
+    'pt.json',
+    'ru.json',
+    'zh.json',
+  ])
+  const locales = Object.fromEntries(
+    await Promise.all(
+      files.map(async (file) => [
+        file.slice(0, -'.json'.length),
+        JSON.parse(await readFile(new URL(file, directory), 'utf8')),
+      ])
+    )
+  )
+  for (const locale of Object.values(locales)) {
+    assert.deepEqual(Object.keys(locale).sort(), Object.keys(locales.en).sort())
+    assert.deepEqual(Object.keys(locale.meta).sort(), ['description', 'title'])
+    assert.ok(locale.permission.includes('agent-browser'))
+    assert.ok(locale.unavailable.includes('agent-browser'))
+    assert.ok(locale.meta.description.includes('agent-browser'))
+  }
+  assert.match(locales.en.permission, /first use/)
+  assert.match(locales.ko.permission, /처음 사용할 때/)
+  assert.match(locales.zh.permission, /首次使用/)
+  const { market } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  const languages = files.map((file) => file.slice(0, -'.json'.length))
+  assert.deepEqual(Object.keys(market.title).sort(), languages)
+  assert.deepEqual(Object.keys(market.description).sort(), languages)
+  for (const [language, locale] of Object.entries(locales)) {
+    assert.equal(market.title[language], locale.meta.title)
+    assert.equal(market.description[language], locale.meta.description)
+  }
+})
+
+await test('첫 실행 전에만 설치하고 권한이 부족하거나 종료만 요청하면 설치하지 않는다', async (t) => {
+  const f = await fixture(t)
+  assert.equal(f.installations, 0)
+  await f.execute('a', 'close')
+  f.setMode('workspace-write')
+  await assert.rejects(f.execute('a', 'open', ['about:blank']), /danger-full-access/)
+  assert.equal(f.installations, 0)
+  f.setMode('danger-full-access')
+  await f.execute('a', 'open', ['about:blank'])
+  await f.execute('b', 'open', ['about:blank'])
+  assert.equal(f.installations, 1)
+})
+
+await test('설치에 실패하면 브라우저를 실행하지 않고 다음 호출에서 다시 설치한다', async (t) => {
+  let attempts = 0
+  const f = await fixture(t, async () => {
+    if (++attempts === 1) throw new Error('Download failed')
+    return '/user-cache/agent-browser'
+  })
+  await assert.rejects(f.execute('a', 'open', ['about:blank']), /Download failed/)
+  assert.equal(f.sessions.size, 0)
+  await f.execute('a', 'open', ['about:blank'])
+  assert.equal(f.installations, 2)
+})
+
+await test('설치 도중 권한이 축소되면 완료되어도 브라우저를 실행하지 않는다', async (t) => {
+  let finish
+  const f = await fixture(
+    t,
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  const pending = f.execute('a', 'open', ['about:blank'])
+  f.setMode('read-only')
+  finish('/user-cache/agent-browser')
+  await assert.rejects(pending, /danger-full-access/)
+  assert.equal(f.sessions.size, 0)
+})
 
 await test('전역 설치 없이 대화별 브라우저와 화면을 분리하고 변경된 프레임만 전달한다', async (t) => {
   const f = await fixture(t)

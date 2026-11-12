@@ -20,6 +20,8 @@
       name: '@dungsil/dsh-plugin-model-settings'
     - id: dungsil-ui-setting-skills
       name: '@dungsil/dsh-plugin-ui-setting-skills'
+    - id: dungsil-ui-setting-vcs
+      name: '@dungsil/dsh-plugin-ui-setting-vcs'
     - id: dungsil-ui-usage
       name: '@dungsil/dsh-plugin-ui-usage'
     - id: dungsil-ui-model-picker
