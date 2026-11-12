@@ -64,6 +64,32 @@ export function releaseOptions({ dryRun = false, dependenciesUpdated = false } =
   }
 }
 
+function isPublished(name, version) {
+  try {
+    const output = execFileSync('npm', ['view', `${name}@${version}`, 'version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    return output.trim() === version
+  } catch (error) {
+    // npm reports both a missing package and a missing version as E404.
+    if (/\bE404\b/.test(String(error.stderr))) return false
+    throw error
+  }
+}
+
+// A failed run can publish some packages before it stops without pushing their
+// release commit and tags. Skipping existing versions lets a rerun finish them.
+function publishOnce(pkg, version) {
+  if (isPublished(pkg.name, version)) {
+    console.log(`${pkg.name}@${version} is already on npm; skipping publication.`)
+    return
+  }
+  const prerelease = semver.prerelease(version)?.[0]
+  const tag = typeof prerelease === 'string' ? prerelease : 'latest'
+  execFileSync('pnpm', ['publish', '--tag', tag, '--no-git-checks'], { cwd: pkg.path, stdio: 'inherit' })
+}
+
 export async function releaseWorkspace({ dryRun = false, packageName, version, ...options } = {}) {
   if (version && (!packageName || semver.valid(version) !== version)) {
     throw new Error('An exact version requires a package name and a valid semantic version')
@@ -135,11 +161,13 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
       process.chdir(pkg.path)
       const settings = releaseOptions({ dryRun, dependenciesUpdated })
       const exactVersion = pkg.name === packageName ? version : undefined
+      const npmOptions = { ...settings.npm, ...options.npm, ...(exactVersion ? { allowSameVersion: true } : {}) }
       const result = await release({
         ...settings,
         ...(exactVersion ? { increment: exactVersion } : {}),
         ...options,
-        npm: { ...settings.npm, ...options.npm, ...(exactVersion ? { allowSameVersion: true } : {}) },
+        // release-it cannot skip a version that is already on npm, so publish after it bumps and packs.
+        npm: { ...npmOptions, publish: false },
         git: {
           ...settings.git,
           commit: false,
@@ -149,7 +177,10 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
         },
         github: { ...settings.github, ...options.github, release: false },
       })
-      if (result.version) releases.push({ pkg, settings, result })
+      if (result.version) {
+        if (npmOptions.publish) publishOnce(pkg, result.version)
+        releases.push({ pkg, settings, result })
+      }
     }
     if (!dryRun && releases.length > 0) {
       process.chdir(root)
