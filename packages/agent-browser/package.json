@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-agent-browser",
   "version": "0.0.0",
-  "description": "Share the existing DeepSeek Harness Browser page with the included agent-browser.",
+  "description": "Share the existing DeepSeek Harness Browser page with agent-browser, installed automatically on first use.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "agent-browser": "0.38.1"
+    "tar": "7.5.22"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
@@ -93,15 +93,15 @@
       "pt": "Navegador do agente"
     },
     "description": {
-      "en": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser is included; uses the host Chrome/Chromium in full access mode.",
-      "ko": "기존 브라우저 탭에서 에이전트와 같은 웹페이지를 조작합니다. agent-browser가 함께 설치되며 전체 접근 모드에서 호스트의 Chrome/Chromium을 사용합니다.",
-      "zh": "在现有浏览器标签页中与智能体操作同一个网页。agent-browser 随插件安装，在完全访问模式下使用主机上的 Chrome/Chromium。",
-      "ja": "既存のブラウザータブでエージェントと同じウェブページを操作します。agent-browser を同梱し、フルアクセスモードでホストの Chrome/Chromium を使用します。",
-      "es": "Interactúa con la misma página web que el agente desde la pestaña Navegador existente. Incluye agent-browser y usa Chrome/Chromium del host en modo de acceso completo.",
-      "fr": "Interagissez avec la même page web que l’agent dans l’onglet Navigateur existant. Inclut agent-browser et utilise Chrome/Chromium de l’hôte en mode d’accès complet.",
-      "de": "Interagiere im vorhandenen Browser-Tab mit derselben Webseite wie der Agent. agent-browser ist enthalten und nutzt Chrome/Chromium des Hosts im Modus mit vollständigem Zugriff.",
-      "ru": "Работайте с той же веб-страницей, что и агент, в существующей вкладке браузера. agent-browser входит в комплект и использует Chrome/Chromium хоста в режиме полного доступа.",
-      "pt": "Interaja com a mesma página web que o agente na aba Navegador existente. Inclui o agent-browser e usa o Chrome/Chromium do host no modo de acesso completo."
+      "en": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser installs automatically on first use (network required); uses the host Chrome/Chromium in full access mode.",
+      "ko": "기존 브라우저 탭에서 에이전트와 같은 웹페이지를 조작합니다. agent-browser는 처음 사용할 때 자동 설치되며(네트워크 필요), 전체 접근 모드에서 호스트의 Chrome/Chromium을 사용합니다.",
+      "zh": "在现有浏览器标签页中与智能体操作同一个网页。agent-browser 在首次使用时自动安装（需要网络），并在完全访问模式下使用主机上的 Chrome/Chromium。",
+      "ja": "既存のブラウザータブでエージェントと同じウェブページを操作します。agent-browser は初回利用時に自動インストールされ（ネットワークが必要）、フルアクセスモードでホストの Chrome/Chromium を使用します。",
+      "es": "Interactúa con la misma página web que el agente desde la pestaña Navegador existente. agent-browser se instala automáticamente en el primer uso (requiere red) y usa Chrome/Chromium del host en modo de acceso completo.",
+      "fr": "Interagissez avec la même page web que l’agent dans l’onglet Navigateur existant. agent-browser s’installe automatiquement lors de la première utilisation (connexion réseau requise) et utilise Chrome/Chromium de l’hôte en mode d’accès complet.",
+      "de": "Interagiere im vorhandenen Browser-Tab mit derselben Webseite wie der Agent. agent-browser wird bei der ersten Verwendung automatisch installiert (Netzwerk erforderlich) und nutzt Chrome/Chromium des Hosts im Modus mit vollständigem Zugriff.",
+      "ru": "Работайте с той же веб-страницей, что и агент, в существующей вкладке браузера. agent-browser устанавливается автоматически при первом использовании (требуется сеть) и использует Chrome/Chromium хоста в режиме полного доступа.",
+      "pt": "Interaja com a mesma página web que o agente na aba Navegador existente. O agent-browser é instalado automaticamente no primeiro uso (requer rede) e usa o Chrome/Chromium do host no modo de acesso completo."
     },
     "category": "tools",
     "labels": [],
