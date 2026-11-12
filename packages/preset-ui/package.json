@@ -28,6 +28,7 @@
     "@dungsil/dsh-plugin-locale-ko": "workspace:*",
     "@dungsil/dsh-plugin-model-settings": "workspace:*",
     "@dungsil/dsh-plugin-ui-forge-chip": "workspace:*",
+    "@dungsil/dsh-plugin-ui-forge-pulls": "workspace:*",
     "@dungsil/dsh-plugin-ui-forge-worktree": "workspace:*",
     "@dungsil/dsh-plugin-ui-image-paths": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-picker": "workspace:*",

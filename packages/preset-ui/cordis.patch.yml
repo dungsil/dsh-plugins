@@ -8,6 +8,8 @@
     - id: dungsil-ui-forge-chip
       name: '@dungsil/dsh-plugin-ui-forge-chip'
       config: {}
+    - id: dungsil-ui-forge-pulls
+      name: '@dungsil/dsh-plugin-ui-forge-pulls'
     - id: dungsil-ui-forge-worktree
       name: '@dungsil/dsh-plugin-ui-forge-worktree'
     - id: dungsil-ui-image-paths
