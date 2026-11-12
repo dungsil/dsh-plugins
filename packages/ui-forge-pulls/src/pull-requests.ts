@@ -75,9 +75,7 @@ function actionInput(value: unknown): RequestAction {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_payload')
   const input = value as RequestAction
   if (
-    Object.keys(input).some(
-      (key) => !['sessionId', 'requestUrl', 'headSha', 'action', 'body', 'strategy'].includes(key)
-    ) ||
+    Object.keys(input).some((key) => !['sessionId', 'requestUrl', 'headSha', 'action', 'body'].includes(key)) ||
     typeof input.sessionId !== 'string' ||
     !input.sessionId ||
     input.sessionId.length > 256 ||
@@ -86,15 +84,12 @@ function actionInput(value: unknown): RequestAction {
     !safeUrl(input.requestUrl) ||
     typeof input.headSha !== 'string' ||
     !/^[a-fA-F0-9]{40,64}$/.test(input.headSha) ||
-    !['comment', 'approve', 'request_changes', 'merge'].includes(input.action) ||
+    !['comment', 'approve', 'request_changes'].includes(input.action) ||
     (input.body !== undefined &&
       (typeof input.body !== 'string' ||
         new TextEncoder().encode(input.body).length > 60_000 ||
         input.body.includes('\0'))) ||
-    (['comment', 'request_changes'].includes(input.action) && !input.body?.trim()) ||
-    (input.strategy !== undefined &&
-      (input.action !== 'merge' || !['merge', 'squash', 'rebase'].includes(input.strategy))) ||
-    (input.action === 'merge' && input.body !== undefined)
+    (['comment', 'request_changes'].includes(input.action) && !input.body?.trim())
   )
     throw new Error('invalid_payload')
   return input
@@ -204,7 +199,6 @@ export function apply(ctx: Context, config: Config) {
       ? bindings.find((entry) => entry.ref && ctx.forge.changeRequestUrl(entry.ref) === canonical)
       : bindings.find((entry) => entry.ref)
     const ref = binding?.ref
-    const statusRef = ref ?? explicitRef
     if (ref) requested = lookupUrl(ctx.forge.changeRequestUrl(ref))
     const branch = ref && !action ? '' : await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1])
     const tracked = branch ? await git(['config', '--get', `branch.${branch}.remote`], [0, 1]) : ''
@@ -432,12 +426,6 @@ export function apply(ctx: Context, config: Config) {
         state,
         body: '',
         headSha: '',
-        mergeable: '',
-        reviewDecision: '',
-        checks: [],
-        files: [],
-        diff: '',
-        diffTruncated: false,
         comments: [],
         reviews: [],
       }
@@ -483,43 +471,10 @@ export function apply(ctx: Context, config: Config) {
       )
         return view
       if (ref) view.branch = item.source
-      const applyForgeStatus = async () => {
-        const currentRef = statusRef ?? ctx.forge.changeRequestFromUrl(item.url)
-        const update = currentRef ? (ctx.forge.latest(currentRef) ?? binding?.update) : undefined
-        const status =
-          (!summary || action) && currentRef
-            ? await ctx.forge.fetchChecks(currentRef, signal)
-            : update && 'snapshot' in update
-              ? update.snapshot
-              : undefined
-        item.forgeMergeReady = false
-        item.mergeMethods = []
-        if (!status || !('headSha' in status)) return
-        const sameUrl =
-          provider === 'github' ? status.url.toLowerCase() === item.url.toLowerCase() : status.url === item.url
-        if (!sameUrl || status.ref.number !== item.number) throw new Error('invalid_response')
-        if (item.headSha && item.headSha !== status.headSha) {
-          if (action) throw new Error('stale_request')
-          item.detailsError = true
-          return
-        }
-        if (status.state !== 'open') item.state = status.state
-        item.draft = item.draft || status.draft
-        item.forgeMergeReady =
-          status.mergeReady &&
-          status.mergeability === 'mergeable' &&
-          status.state === 'open' &&
-          !status.draft &&
-          !status.checksTruncated &&
-          !['pending', 'failure'].includes(status.checksRollup) &&
-          !['changes-requested', 'review-required'].includes(status.reviewDecision)
-        item.mergeMethods = [...status.mergeMethods]
-      }
-      // Render the overview before fetching CI, discussions, files and the diff.
+      // Render the description before fetching discussions and the head commit.
       // Summary snapshots never authorize mutations; actions always reload full details.
       if (summary && !action) {
         item.body = string((provider === 'gitlab' ? row.description : row.body) ?? '')
-        await applyForgeStatus()
         return { ...view, request: item }
       }
       // Resolve detail and mutation targets explicitly, including upstream fork PRs.
@@ -585,25 +540,6 @@ export function apply(ctx: Context, config: Config) {
           await section(() => {
             item.body = string(detail.body ?? '')
           })
-          let protection: any
-          await section(async () => {
-            protection = JSON.parse(
-              await forgeApi(`repos/${forgeRepository}/branches/${encodeURIComponent(item.target)}`)
-            )
-            // Go APIs serialize an unset context list as null, including when checks are disabled.
-            protection.status_check_contexts ??= []
-            if (
-              protection.name !== item.target ||
-              typeof protection.user_can_merge !== 'boolean' ||
-              typeof protection.enable_status_check !== 'boolean' ||
-              !Number.isSafeInteger(protection.required_approvals) ||
-              protection.required_approvals < 0 ||
-              !Array.isArray(protection.status_check_contexts) ||
-              !protection.status_check_contexts.every((context: unknown) => typeof context === 'string')
-            )
-              throw new Error()
-            item.mergeable = detail.mergeable === true && protection.user_can_merge ? 'MERGEABLE' : 'BLOCKED'
-          })
           await section(async () => {
             const reviews = await forgePages(`${forgeEndpoint}/reviews`)
             item.reviews = reviews.map((review) => ({
@@ -611,46 +547,6 @@ export function apply(ctx: Context, config: Config) {
               body: string(review.body),
               state: string(review.state),
             }))
-            const votes = new Map<string, any>()
-            for (const review of reviews) {
-              if (!Number.isSafeInteger(review.id) || review.id <= 0) throw new Error()
-              if (!['APPROVED', 'REQUEST_CHANGES'].includes(review.state)) continue
-              const author = string(review.user?.login)
-              if (!votes.has(author) || votes.get(author).id < review.id) votes.set(author, review)
-            }
-            const activeVotes = [...votes.values()].filter((review) => !review.dismissed && !review.stale)
-            const approvals = activeVotes.filter(
-              (review) =>
-                review.state === 'APPROVED' &&
-                review.commit_id === item.headSha &&
-                review.official &&
-                review.user.login !== item.author
-            ).length
-            item.reviewDecision = activeVotes.some((review) => review.state === 'REQUEST_CHANGES')
-              ? 'CHANGES_REQUESTED'
-              : approvals < protection.required_approvals
-                ? 'REVIEW_REQUIRED'
-                : protection.required_approvals
-                  ? 'APPROVED'
-                  : ''
-          })
-          await section(async () => {
-            const statuses = await forgePages(`repos/${forgeRepository}/statuses/${item.headSha}?sort=highestindex`)
-            const latest = new Map<string, any>()
-            for (const status of statuses) {
-              if (!Number.isSafeInteger(status.id) || status.id <= 0) throw new Error()
-              const context = string(status.context)
-              if (!latest.has(context) || latest.get(context).id < status.id) latest.set(context, status)
-            }
-            item.checks = [...latest.values()].map((status) => ({
-              name: string(status.context),
-              status: string(status.status),
-              url: safeUrl(status.target_url ?? ''),
-            }))
-            if (protection.enable_status_check) {
-              for (const name of protection.status_check_contexts)
-                if (!latest.has(name)) item.checks.push({ name, status: 'pending', url: '' })
-            }
           })
           await section(async () => {
             const comments = JSON.parse(await forgeApi(`repos/${forgeRepository}/issues/${number}/comments`))
@@ -659,18 +555,6 @@ export function apply(ctx: Context, config: Config) {
               body: string(comment.body),
               url: safeUrl(comment.html_url),
             }))
-          })
-          await section(async () => {
-            const files = await forgePages(`${forgeEndpoint}/files`)
-            item.files = files.map((file) => ({
-              path: string(file.filename),
-              additions: file.additions,
-              deletions: file.deletions,
-            }))
-            if (detail.changed_files !== item.files.length) throw new Error()
-          })
-          await section(async () => {
-            item.diff = await forgeApi(`${forgeEndpoint}.diff`, [], false)
           })
         } else if (provider === 'github') {
           const detail = JSON.parse(
@@ -681,7 +565,7 @@ export function apply(ctx: Context, config: Config) {
               '--repo',
               targetRepo,
               '--json',
-              'number,url,state,isDraft,headRefName,headRepository,body,headRefOid,mergeable,reviewDecision,statusCheckRollup,changedFiles,files,comments,reviews',
+              'number,url,state,isDraft,headRefName,headRepository,body,headRefOid,comments,reviews',
             ])
           )
           if (
@@ -701,30 +585,6 @@ export function apply(ctx: Context, config: Config) {
             item.body = string(detail.body)
           })
           await section(() => {
-            item.mergeable = string(detail.mergeable)
-          })
-          await section(() => {
-            item.reviewDecision = string(detail.reviewDecision)
-          })
-          await section(() => {
-            item.checks = (detail.statusCheckRollup === null ? [] : detail.statusCheckRollup).map(
-              (check: Record<string, unknown>) => ({
-                name: string(check.name ?? check.context),
-                status: string(check.conclusion || check.status || check.state),
-                url: safeUrl(check.detailsUrl ?? check.targetUrl ?? ''),
-              })
-            )
-            if (item.checks.length >= 100) throw new Error()
-          })
-          await section(() => {
-            item.files = detail.files.map((file: { path: unknown; additions: number; deletions: number }) => ({
-              path: string(file.path),
-              additions: file.additions,
-              deletions: file.deletions,
-            }))
-            if (detail.changedFiles !== item.files.length) throw new Error()
-          })
-          await section(() => {
             item.comments = detail.comments.map((comment: Record<string, any>) => ({
               author: string(comment.author?.login ?? ''),
               body: string(comment.body),
@@ -739,15 +599,6 @@ export function apply(ctx: Context, config: Config) {
               state: string(review.state),
             }))
             if (item.reviews.length >= 100) throw new Error()
-          })
-          await section(async () => {
-            item.diff = await run(
-              'gh',
-              ['pr', 'diff', item.url, '--repo', targetRepo, '--color', 'never'],
-              'command_failed',
-              [0],
-              false
-            )
           })
         } else {
           const detail = JSON.parse(await run('glab', ['mr', 'view', number, '--repo', targetRepo, '--output', 'json']))
@@ -767,72 +618,14 @@ export function apply(ctx: Context, config: Config) {
           await section(() => {
             item.body = string(detail.description ?? '')
           })
-          await section(() => {
-            item.mergeable = string(detail.detailed_merge_status ?? detail.merge_status)
-          })
           await section(async () => {
             const approvals = JSON.parse(await api('/approvals'))
-            if (typeof approvals.approved !== 'boolean') throw new Error()
-            item.reviewDecision = approvals.approved
-              ? 'APPROVED'
-              : approvals.approvals_required === 0 && approvals.approvals_left === 0
-                ? ''
-                : 'REVIEW_REQUIRED'
+            if (!Array.isArray(approvals.approved_by)) throw new Error()
             item.reviews = approvals.approved_by.map((entry: Record<string, any>) => ({
               author: string(entry.user?.username),
               body: '',
               state: 'APPROVED',
             }))
-          })
-          await section(async () => {
-            let pipeline
-            if (
-              detail.head_pipeline?.ref === `refs/merge-requests/${number}/merge` &&
-              detail.head_pipeline.sha !== item.headSha
-            ) {
-              // Merged-result pipelines run a synthetic merge commit, not the
-              // source SHA. Trust only this MR snapshot's head pipeline and
-              // verify its commit contains the current source head as a parent.
-              pipeline = detail.head_pipeline
-              if (pipeline.project_id !== row.target_project_id || !/^[a-fA-F0-9]{40,64}$/.test(string(pipeline.sha)))
-                throw new Error()
-              const commit = JSON.parse(
-                await run('glab', [
-                  'api',
-                  '--hostname',
-                  host,
-                  `projects/${encodeURIComponent(repository)}/repository/commits/${pipeline.sha}`,
-                ])
-              )
-              if (
-                commit.id !== pipeline.sha ||
-                !Array.isArray(commit.parent_ids) ||
-                !commit.parent_ids.includes(item.headSha)
-              )
-                throw new Error()
-            } else {
-              // Older failed runs must not override a successful source rerun.
-              const pipelines = await pages(`${endpoint}/pipelines`)
-              const matching = pipelines.filter((entry) => entry.sha === item.headSha)
-              if (matching.some((entry) => !Number.isSafeInteger(entry.id) || entry.id <= 0)) throw new Error()
-              pipeline = matching.sort((a, b) => b.id - a.id)[0]
-              if (!pipeline && pipelines.length) throw new Error()
-            }
-            if (!pipeline) return
-            if (!Number.isSafeInteger(pipeline.id) || pipeline.id <= 0) throw new Error()
-            item.checks.push({
-              name: `Pipeline #${pipeline.id}`,
-              status: string(pipeline.status),
-              url: safeUrl(pipeline.web_url ?? ''),
-            })
-            const jobs = await pages(`projects/${encodeURIComponent(repository)}/pipelines/${pipeline.id}/jobs`)
-            item.checks.push(
-              ...jobs.map((job) => ({
-                name: string(job.name),
-                status: string(job.status),
-                url: safeUrl(job.web_url),
-              }))
-            )
           })
           await section(async () => {
             const notes = await pages(`${endpoint}/notes?sort=asc`)
@@ -847,35 +640,10 @@ export function apply(ctx: Context, config: Config) {
                 }
               })
           })
-          await section(async () => {
-            const diffs = await pages(`${endpoint}/diffs`)
-            item.files = diffs.map((file) => {
-              if (file.too_large || file.collapsed || typeof file.diff !== 'string') throw new Error()
-              const lines = file.diff.split('\n')
-              return {
-                path: string(file.new_path),
-                additions: lines.filter((line: string) => line.startsWith('+')).length,
-                deletions: lines.filter((line: string) => line.startsWith('-')).length,
-              }
-            })
-            item.diff = diffs
-              .map((file) => `diff --git a/${string(file.old_path)} b/${string(file.new_path)}\n${file.diff}`)
-              .join('\n')
-          })
         }
-        if (
-          !/^[a-fA-F0-9]{40,64}$/.test(item.headSha) ||
-          item.files.some(
-            (file) =>
-              !Number.isSafeInteger(file.additions) ||
-              file.additions < 0 ||
-              !Number.isSafeInteger(file.deletions) ||
-              file.deletions < 0
-          )
-        )
-          throw new Error()
-        // Diff endpoints follow a moving MR/PR head. Never show an old SHA next to
-        // a newer diff or authorize a review of that inconsistent snapshot.
+        if (!/^[a-fA-F0-9]{40,64}$/.test(item.headSha)) throw new Error()
+        // Detail reads follow a moving MR/PR head. Never authorize a review
+        // against a head commit that changed while the discussion was read.
         const latest = JSON.parse(
           await (forge
             ? forgeApi(forgeEndpoint)
@@ -894,136 +662,59 @@ export function apply(ctx: Context, config: Config) {
       } catch {
         item.detailsError = true
       }
-      if (action && (item.url !== action.requestUrl || item.headSha !== action.headSha))
-        throw new Error('stale_request')
-      await applyForgeStatus()
-      item.diffTruncated = item.diff.length > 120_000
-      item.diff = item.diff.slice(0, 120_000)
       if (action) {
         if (item.url !== action.requestUrl || item.headSha !== action.headSha) throw new Error('stale_request')
         if (item.detailsError || item.state !== 'open') throw new Error('action_failed')
-        if (['approve', 'merge'].includes(action.action) && (item.draft || !item.diff.trim()))
-          throw new Error('action_failed')
-        if (action.action === 'approve' && item.diffTruncated) throw new Error('action_failed')
-        if (
-          action.action === 'merge' &&
-          (!item.forgeMergeReady ||
-            !item.mergeMethods?.includes(action.strategy ?? 'merge') ||
-            item.checks.some(
-              (check) => !['success', 'passed', 'neutral', 'skipped'].includes(check.status.toLowerCase())
-            ) ||
-            !['', 'APPROVED'].includes(item.reviewDecision) ||
-            !(provider !== 'gitlab'
-              ? item.mergeable === 'MERGEABLE'
-              : ['mergeable', 'can_be_merged'].includes(item.mergeable)))
-        )
-          throw new Error('action_failed')
+        if (action.action === 'approve' && item.draft) throw new Error('action_failed')
         if ((await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1])) !== branch)
           throw new Error('stale_request')
         if (forge) {
-          if (action.action === 'merge') {
-            const repo = JSON.parse(await forgeApi(`repos/${forgeRepository}`))
-            const strategy = action.strategy ?? 'merge'
-            if (
-              !(strategy === 'merge'
-                ? repo.allow_merge_commits
-                : strategy === 'squash'
-                  ? repo.allow_squash_merge
-                  : repo.allow_rebase)
-            )
-              throw new Error('unsupported_action')
-            await forgeApi(`${forgeEndpoint}/merge`, [
-              '--method',
-              'POST',
-              '-f',
-              `Do=${strategy}`,
-              '-f',
-              `head_commit_id=${action.headSha}`,
-              '-F',
-              'force_merge=false',
-              '-F',
-              'merge_when_checks_succeed=false',
-              '-F',
-              'delete_branch_after_merge=false',
-            ])
-          } else {
-            const fields = ['--method', 'POST', '-f', `body=${action.body ?? ''}`]
-            if (action.action !== 'comment')
-              fields.push(
-                '-f',
-                `commit_id=${action.headSha}`,
-                '-f',
-                `event=${action.action === 'approve' ? 'APPROVED' : 'REQUEST_CHANGES'}`
-              )
-            const response = JSON.parse(
-              await forgeApi(
-                action.action === 'comment'
-                  ? `repos/${forgeRepository}/issues/${number}/comments`
-                  : `${forgeEndpoint}/reviews`,
-                fields
-              )
-            )
-            if (
-              !Number.isSafeInteger(response.id) ||
-              response.id <= 0 ||
-              (action.action !== 'comment' &&
-                (response.commit_id !== action.headSha || response.stale || response.dismissed))
-            )
-              throw new Error('action_failed')
-          }
-        } else if (provider === 'github') {
-          if (action.action !== 'merge') {
-            const base = [
-              'api',
-              '--hostname',
-              host,
-              `repos/${link.pathname.split('/').slice(1, 3).join('/')}/pulls/${number}/reviews`,
-              '--method',
-              'POST',
-              '-f',
-              `event=${action.action === 'approve' ? 'APPROVE' : action.action === 'comment' ? 'COMMENT' : 'REQUEST_CHANGES'}`,
+          const fields = ['--method', 'POST', '-f', `body=${action.body ?? ''}`]
+          if (action.action !== 'comment')
+            fields.push(
               '-f',
               `commit_id=${action.headSha}`,
-            ]
-            if (action.body !== undefined) base.push('-f', `body=${action.body}`)
-            await run('gh', base, 'action_failed')
-          } else {
-            // REST merge is immediate and SHA-conditional: unlike `gh pr merge`,
-            // it cannot silently enqueue/enable auto-merge for a merge queue.
-            const result = JSON.parse(
-              await run(
-                'gh',
-                [
-                  'api',
-                  '--hostname',
-                  host,
-                  `repos/${link.pathname.split('/').slice(1, 3).join('/')}/pulls/${number}/merge`,
-                  '--method',
-                  'PUT',
-                  '-f',
-                  `sha=${action.headSha}`,
-                  '-f',
-                  `merge_method=${action.strategy ?? 'merge'}`,
-                ],
-                'action_failed'
-              )
+              '-f',
+              `event=${action.action === 'approve' ? 'APPROVED' : 'REQUEST_CHANGES'}`
             )
-            if (result.merged !== true) throw new Error('action_failed')
-          }
+          const response = JSON.parse(
+            await forgeApi(
+              action.action === 'comment'
+                ? `repos/${forgeRepository}/issues/${number}/comments`
+                : `${forgeEndpoint}/reviews`,
+              fields
+            )
+          )
+          if (
+            !Number.isSafeInteger(response.id) ||
+            response.id <= 0 ||
+            (action.action !== 'comment' &&
+              (response.commit_id !== action.headSha || response.stale || response.dismissed))
+          )
+            throw new Error('action_failed')
+        } else if (provider === 'github') {
+          const base = [
+            'api',
+            '--hostname',
+            host,
+            `repos/${link.pathname.split('/').slice(1, 3).join('/')}/pulls/${number}/reviews`,
+            '--method',
+            'POST',
+            '-f',
+            `event=${action.action === 'approve' ? 'APPROVE' : action.action === 'comment' ? 'COMMENT' : 'REQUEST_CHANGES'}`,
+            '-f',
+            `commit_id=${action.headSha}`,
+          ]
+          if (action.body !== undefined) base.push('-f', `body=${action.body}`)
+          await run('gh', base, 'action_failed')
         } else {
           // GitLab approvals do not accept a review body. Never silently discard
           // text or perform an unrequested second mutation to post it as a note.
-          if (
-            action.action === 'request_changes' ||
-            (action.action === 'merge' && action.strategy === 'rebase') ||
-            (action.action === 'approve' && action.body?.trim())
-          )
+          if (action.action === 'request_changes' || (action.action === 'approve' && action.body?.trim()))
             throw new Error('unsupported_action')
           const base = ['mr', action.action === 'comment' ? 'note' : action.action, number, '--repo', targetRepo]
           if (action.action === 'comment') base.push('--message', action.body!)
           else base.push('--sha', action.headSha)
-          if (action.action === 'merge')
-            base.push('--auto-merge=false', '--yes', `--squash=${action.strategy === 'squash'}`)
           await run('glab', base, 'action_failed')
         }
         return { completed: true }

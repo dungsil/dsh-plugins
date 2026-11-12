@@ -12,9 +12,8 @@ export interface RequestAction {
   sessionId: string
   requestUrl: string
   headSha: string
-  action: 'comment' | 'approve' | 'request_changes' | 'merge'
+  action: 'comment' | 'approve' | 'request_changes'
   body?: string
-  strategy?: 'merge' | 'squash' | 'rebase'
 }
 
 export interface RequestItem {
@@ -28,14 +27,6 @@ export interface RequestItem {
   state: 'open' | 'closed' | 'merged'
   body: string
   headSha: string
-  mergeable: string
-  forgeMergeReady?: boolean
-  mergeMethods?: Array<'merge' | 'squash' | 'rebase'>
-  reviewDecision: string
-  checks: Array<{ name: string; status: string; url: string }>
-  files: Array<{ path: string; additions: number; deletions: number }>
-  diff: string
-  diffTruncated: boolean
   comments: Array<{ author: string; body: string; url: string }>
   reviews: Array<{ author: string; body: string; state: string }>
   detailsError?: boolean

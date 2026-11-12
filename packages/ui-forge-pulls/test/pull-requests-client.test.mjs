@@ -13,14 +13,7 @@ function mount(language = 'en') {
     cleanups = []
   const opens = []
   const listeners = new Map()
-  const visibilityListeners = new Map()
-  const intervals = new Set()
   const page = {
-    visibilityState: 'visible',
-    addEventListener: (name, listener) => visibilityListeners.set(name, listener),
-    removeEventListener: (name, listener) => {
-      if (visibilityListeners.get(name) === listener) visibilityListeners.delete(name)
-    },
     createElement: () => ({
       style: {},
       remove() {
@@ -28,8 +21,6 @@ function mount(language = 'en') {
       },
     }),
   }
-  const session = { running: false, cwd: '/repo' }
-  const hosts = []
   let cursor = 0,
     plugin,
     mounted = 'session',
@@ -85,11 +76,6 @@ function mount(language = 'en') {
       removeEventListener: (name, listener) => {
         if (listeners.get(name) === listener) listeners.delete(name)
       },
-      setInterval: (callback) => {
-        intervals.add(callback)
-        return callback
-      },
-      clearInterval: (callback) => intervals.delete(callback),
       __ModuleLoader__: {
         load({ factory }) {
           plugin = factory((id) => {
@@ -108,7 +94,6 @@ function mount(language = 'en') {
   })
   const ctx = {
     get: () => ({
-      list: { getSnapshot: () => ({ byId: { session, other: session } }), subscribe: () => () => {} },
       rpc: {
         call: (_channel, method, payload, signal) =>
           new Promise((resolve, reject) => {
@@ -132,9 +117,11 @@ function mount(language = 'en') {
   }
   assert.deepEqual(Object.keys(plugin).sort(), ['apply', 'inject', 'name'])
   assert.equal(plugin.name, 'dungsil-forge-pulls')
-  assert.ok(plugin.inject.includes('sessions'))
+  assert.ok(!plugin.inject.includes('sessions'))
   plugin.apply(ctx)
   assert.equal(registrations.has('conversation.input.dock:dungsil-forge-pulls'), false)
+  // The official Forge panel owns Session list request glyphs.
+  assert.equal(registrations.has('sidebar.workspaces.session.row.action:dungsil-forge-pulls-status'), false)
   const tab = {
     visible: true,
     signal: new AbortController().signal,
@@ -172,21 +159,6 @@ function mount(language = 'en') {
     }
     for (const effect of effects.splice(0)) effect()
   }
-  const renderBadge = (sessionId = 'session') => {
-    cursor = 0
-    const tree = registrations.get('sidebar.workspaces.session.row.action:dungsil-forge-pulls-status')({
-      sessionId,
-    })
-    tree.props.children[0].props.ref.current = {
-      closest: () => ({
-        getAttribute: () => `session:${sessionId}`,
-        lastElementChild: {},
-        insertBefore: (host) => hosts.push(host),
-      }),
-    }
-    for (const effect of effects.splice(0)) effect()
-    return tree.props.children[1] || null
-  }
   const click = (href) => {
     const target = new Element()
     target.href = href
@@ -209,19 +181,7 @@ function mount(language = 'en') {
     render,
     dispose,
     renderLinks,
-    renderBadge,
-    session,
-    hosts,
-    intervals,
-    visibilityListeners,
     focus: () => listeners.get('focus')?.(),
-    setVisibility: (value) => {
-      page.visibilityState = value
-      visibilityListeners.get('visibilitychange')?.()
-    },
-    setLanguage: (value) => {
-      language = value
-    },
     click,
     opens,
     setMounted: (value) => {
@@ -243,236 +203,10 @@ const request = (number) => ({
     target: 'main',
     state: 'open',
     headSha: 'a'.repeat(40),
-    mergeable: 'MERGEABLE',
-    reviewDecision: '',
     body: '',
-    diff: '',
-    checks: [],
-    files: [],
     comments: [],
     reviews: [],
   },
-})
-
-await test('세션 배지는 모든 로케일에서 MR 상태를 구분하고, 없거나 실패한 연결은 숨긴다', async () => {
-  const fixture = mount()
-  const icons = new Set()
-  try {
-    assert.equal(fixture.renderBadge(), null)
-    for (const [state, draft, labels] of [
-      ['open', false, ['Open', '열림', '开放']],
-      ['open', true, ['Draft', '초안', '草稿']],
-      ['merged', true, ['Merged', '병합됨', '已合并']],
-      ['closed', true, ['Closed', '닫힘', '已关闭']],
-    ]) {
-      const view = request(17)
-      view.provider = 'gitlab'
-      Object.assign(view.request, { state, draft })
-      fixture.calls.at(-1).resolve({ ok: true, value: view })
-      await settle()
-      for (const [index, language] of ['en', 'ko', 'zh'].entries()) {
-        fixture.setLanguage(language)
-        const badge = fixture.renderBadge()
-        assert.equal(badge.props.role, 'img')
-        assert.equal(badge.props['data-state'], state === 'open' && draft ? 'draft' : state)
-        assert.ok(badge.props['aria-label'].includes(`!17: ${labels[index]}`), badge.props['aria-label'])
-        const svg = badge.props.dangerouslySetInnerHTML.__html
-        assert.match(svg, /^<svg /)
-        icons.add(svg)
-      }
-      fixture.focus()
-    }
-    assert.equal(icons.size, 4)
-    fixture.calls.at(-1).resolve({ ok: true, value: { ...request(17), request: null } })
-    await settle()
-    assert.equal(fixture.renderBadge(), null)
-    fixture.focus()
-    fixture.calls.at(-1).resolve({ ok: false, error: { code: 'cli_missing' } })
-    await settle()
-    assert.equal(fixture.renderBadge(), null)
-  } finally {
-    fixture.dispose()
-  }
-  assert.equal(fixture.intervals.size, 0)
-  assert.ok(fixture.hosts.every((host) => host.removed))
-})
-
-await test('현재 화면의 세션만 조회하고 다른 세션이나 전역 화면으로 이동하면 이전 조회를 취소한다', async () => {
-  const fixture = mount()
-  try {
-    fixture.renderBadge('other')
-    fixture.focus()
-    assert.equal(fixture.calls.length, 0)
-    assert.equal(fixture.intervals.size, 0)
-    fixture.renderBadge()
-    assert.equal(fixture.calls.length, 1)
-    const previous = fixture.calls[0]
-    fixture.setMounted('other')
-    assert.equal(fixture.renderBadge(), null)
-    assert.equal(previous.signal.aborted, true)
-    assert.equal(fixture.intervals.size, 0)
-    fixture.focus()
-    assert.equal(fixture.calls.length, 1)
-    previous.resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.equal(fixture.renderBadge(), null)
-    fixture.renderBadge('other')
-    assert.equal(fixture.calls.length, 2)
-    assert.equal(fixture.calls[1].payload.sessionId, 'other')
-    fixture.setMounted(undefined)
-    fixture.renderBadge('other')
-    assert.equal(fixture.calls[1].signal.aborted, true)
-    assert.equal(fixture.intervals.size, 0)
-  } finally {
-    fixture.dispose()
-  }
-})
-
-await test('세션 배지는 실행 중 기존 상태를 유지하고 조회를 멈추며 실행 종료와 디렉터리 변경 후 새로 고친다', async () => {
-  const fixture = mount()
-  try {
-    fixture.renderBadge()
-    fixture.calls[0].resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    fixture.session.running = true
-    fixture.renderBadge()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    assert.equal(fixture.intervals.size, 0)
-    fixture.focus()
-    fixture.setVisibility('hidden')
-    fixture.setVisibility('visible')
-    assert.equal(fixture.calls.length, 1)
-    fixture.session.running = false
-    fixture.renderBadge()
-    assert.equal(fixture.calls.length, 2)
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    const old = fixture.calls.at(-1)
-    fixture.session.cwd = '/different-repo'
-    fixture.renderBadge()
-    assert.equal(old.signal.aborted, true)
-    fixture.calls.at(-1).resolve({ ok: true, value: request(43) })
-    old.resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#43'))
-    for (const refresh of fixture.intervals) refresh()
-    const periodic = fixture.calls.at(-1)
-    fixture.setMounted('other')
-    fixture.renderBadge('other')
-    assert.equal(periodic.signal.aborted, true)
-    periodic.resolve({ ok: true, value: request(44) })
-    fixture.calls.at(-1).resolve({ ok: true, value: { ...request(45), request: null } })
-    await settle()
-    assert.equal(fixture.renderBadge('other'), null)
-    assert.ok(fixture.calls.every((call) => call.payload.summary === true && !call.payload.requestUrl))
-  } finally {
-    fixture.dispose()
-  }
-})
-
-await test('세션 배지는 조회 중 focus와 주기 갱신이 몰려도 요청을 중단하거나 중복하지 않는다', async () => {
-  const fixture = mount()
-  try {
-    fixture.renderBadge()
-    const first = fixture.calls[0]
-    for (let index = 0; index < 5; index++) {
-      fixture.focus()
-      for (const refresh of fixture.intervals) refresh()
-    }
-    assert.equal(fixture.calls.length, 1)
-    assert.equal(first.signal.aborted, false)
-    first.resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    assert.equal(fixture.calls.length, 1)
-    fixture.focus()
-    const second = fixture.calls[1]
-    fixture.focus()
-    for (const refresh of fixture.intervals) refresh()
-    assert.equal(fixture.calls.length, 2)
-    assert.equal(second.signal.aborted, false)
-    second.reject(new Error('unavailable'))
-    await settle()
-    assert.equal(fixture.renderBadge(), null)
-    for (const refresh of fixture.intervals) refresh()
-    assert.equal(fixture.calls.length, 3)
-  } finally {
-    fixture.dispose()
-  }
-  assert.equal(fixture.calls.at(-1).signal.aborted, true)
-  assert.equal(fixture.intervals.size, 0)
-  assert.equal(fixture.visibilityListeners.size, 0)
-})
-
-await test('세션 배지는 숨겨진 탭의 초기 조회와 자동 갱신을 미루고 다시 보일 때만 새로 고친다', async () => {
-  const fixture = mount()
-  try {
-    fixture.setVisibility('hidden')
-    fixture.renderBadge()
-    fixture.focus()
-    for (const refresh of fixture.intervals) refresh()
-    assert.equal(fixture.calls.length, 0)
-    fixture.setVisibility('visible')
-    const first = fixture.calls[0]
-    fixture.focus()
-    for (const refresh of fixture.intervals) refresh()
-    assert.equal(fixture.calls.length, 1)
-    fixture.setVisibility('hidden')
-    assert.equal(first.signal.aborted, false)
-    first.resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    fixture.focus()
-    for (const refresh of fixture.intervals) refresh()
-    assert.equal(fixture.calls.length, 1)
-    fixture.setVisibility('visible')
-    assert.equal(fixture.calls.length, 2)
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-  } finally {
-    fixture.dispose()
-  }
-  assert.equal(fixture.visibilityListeners.size, 0)
-})
-
-await test('세션 배지는 실행 중 처음 마운트되면 조회하지 않고 실행 시작이나 마운트 해제 뒤 도착한 이전 응답을 버린다', async () => {
-  const fixture = mount()
-  try {
-    fixture.session.running = true
-    fixture.renderBadge()
-    fixture.focus()
-    assert.equal(fixture.calls.length, 0)
-    assert.equal(fixture.intervals.size, 0)
-    fixture.session.running = false
-    fixture.renderBadge()
-    const first = fixture.calls[0]
-    const refresh = [...fixture.intervals][0]
-    fixture.session.running = true
-    fixture.renderBadge()
-    assert.equal(first.signal.aborted, true)
-    first.resolve({ ok: true, value: request(41) })
-    await settle()
-    assert.equal(fixture.renderBadge(), null)
-    refresh()
-    fixture.focus()
-    assert.equal(fixture.calls.length, 1)
-    fixture.session.running = false
-    fixture.renderBadge()
-    fixture.calls[1].resolve({ ok: true, value: request(42) })
-    await settle()
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-    fixture.focus()
-    const last = fixture.calls.at(-1)
-    const staleRefresh = [...fixture.intervals][0]
-    fixture.dispose()
-    assert.equal(last.signal.aborted, true)
-    last.resolve({ ok: true, value: request(43) })
-    await settle()
-    staleRefresh()
-    assert.equal(fixture.calls.length, 3)
-    assert.ok(fixture.renderBadge().props['aria-label'].includes('#42'))
-  } finally {
-    fixture.dispose()
-  }
 })
 
 function texts(node) {
@@ -548,35 +282,6 @@ await test('사이드바 탐색은 클릭한 PR을 가져오고, 다른 링크�
   }
 })
 
-await test('CI 탐색은 첫 로드에서 검사를 열고, 이미 마운트된 PR 패널에서 다시 연다', async () => {
-  const fixture = mount()
-  const find = (node, predicate) => {
-    if (Array.isArray(node)) return node.flatMap((child) => find(child, predicate))
-    if (!node?.props) return []
-    return [...(predicate(node.props) ? [node.props] : []), ...find(node.props.children, predicate)]
-  }
-  try {
-    fixture.tab.navigation = { revision: 1, params: { section: 'checks' } }
-    fixture.render()
-    fixture.calls[0].resolve({ ok: true, value: request(42) })
-    await settle()
-    fixture.calls[1].resolve({ ok: true, value: request(42) })
-    await settle()
-    let tree = fixture.render()
-    assert.equal(find(tree, (props) => props.className === 'dsh-forge-pulls-ci-results').length, 1)
-    find(tree, (props) => props.className === 'dsh-forge-pulls-ci-trigger')[0].onClick()
-    tree = fixture.render()
-    assert.equal(find(tree, (props) => props.className === 'dsh-forge-pulls-ci-results').length, 0)
-    fixture.tab.navigation = { revision: 2, params: { section: 'checks' } }
-    fixture.render()
-    tree = fixture.render()
-    assert.equal(find(tree, (props) => props.className === 'dsh-forge-pulls-ci-results').length, 1)
-    assert.equal(find(tree, (props) => props.className === 'dsh-forge-pulls-ci-trigger')[0]['aria-expanded'], true)
-  } finally {
-    fixture.dispose()
-  }
-})
-
 await test('지원하지 않는 링크 요청은 로케일에 맞는 피드백을 보여 주고 원래 외부 링크를 유지한다', async () => {
   for (const [language, expected] of [
     ['en', 'outside'],
@@ -611,37 +316,6 @@ function findByClass(node, className) {
   return [...(node.props.className === className ? [node.props] : []), ...findByClass(node.props.children, className)]
 }
 
-await test('Forge가 squash를 허용하지 않으면 허용된 병합 방식을 선택하고 해당 방식만 제출한다', async () => {
-  const fixture = mount()
-  try {
-    const view = request(42)
-    Object.assign(view.request, { diff: '+change', mergeMethods: ['merge'], forgeMergeReady: true })
-    fixture.render()
-    fixture.calls[0].resolve({ ok: true, value: view })
-    await settle()
-    fixture.calls[1].resolve({ ok: true, value: view })
-    await settle()
-    const menu = findByClass(fixture.render(), 'dsh-forge-pulls-merge-menu')[0]
-    assert.deepEqual(
-      Array.from(menu.items, (item) => item.id),
-      ['merge']
-    )
-    assert.equal(menu.selectedId, 'merge')
-    assert.equal(menu.anchor.props.children[0].props.disabled, false)
-    const before = fixture.calls.length
-    menu.anchor.props.children[0].props.onClick()
-    assert.equal(fixture.calls.length, before + 1)
-    assert.equal(findByClass(fixture.render(), 'dsh-forge-pulls-confirm').length, 0)
-    assert.equal(fixture.calls.at(-1).payload.action, 'merge')
-    assert.equal(fixture.calls.at(-1).payload.strategy, 'merge')
-    assert.equal(fixture.calls.at(-1).payload.headSha, view.request.headSha)
-    fixture.calls.at(-1).resolve({ ok: true })
-    await settle()
-  } finally {
-    fixture.dispose()
-  }
-})
-
 function findByType(node, type) {
   if (Array.isArray(node)) return node.flatMap((child) => findByType(child, type))
   if (!node?.props) return []
@@ -650,7 +324,7 @@ function findByType(node, type) {
 
 async function openReview(fixture, fields = {}) {
   const view = request(42)
-  Object.assign(view.request, { diff: '+change', ...fields })
+  Object.assign(view.request, fields)
   fixture.render()
   fixture.calls[0].resolve({ ok: true, value: view })
   await settle()
@@ -736,10 +410,10 @@ await test('리뷰 제출 중 연속 제출을 차단하고 실패 응답이나 
   }
 })
 
-await test('잘린 diff의 승인은 선택 항목과 제출 버튼에서 차단하고 폼을 직접 제출해도 전송하지 않는다', async () => {
+await test('초안 PR의 승인은 선택 항목과 제출 버튼에서 차단하고 폼을 직접 제출해도 전송하지 않는다', async () => {
   const fixture = mount()
   try {
-    await openReview(fixture, { diffTruncated: true })
+    await openReview(fixture, { draft: true })
     const picker = findByClass(fixture.render(), 'dsh-forge-pulls-picker')[0]
     assert.equal(picker.items.find((item) => item.id === 'approve').disabled, true)
     picker.onChange('approve')
@@ -773,22 +447,24 @@ await test('빈 댓글과 공백뿐인 댓글은 제출 버튼에서 차단하�
   }
 })
 
-await test('Forge가 병합을 차단하거나 허용된 병합 방식이 없으면 병합 버튼을 비활성화한다', async () => {
-  for (const fields of [{ forgeMergeReady: false }, { mergeMethods: [] }]) {
-    const fixture = mount()
-    try {
-      const view = request(42)
-      Object.assign(view.request, { diff: '+change', ...fields })
-      fixture.render()
-      fixture.calls[0].resolve({ ok: true, value: view })
-      await settle()
-      fixture.calls[1].resolve({ ok: true, value: view })
-      await settle()
-      const menu = findByClass(fixture.render(), 'dsh-forge-pulls-merge-menu')[0]
-      assert.equal(menu.anchor.props.children[0].props.disabled, true)
-      assert.equal(menu.anchor.props.children[1].props.disabled, true)
-    } finally {
-      fixture.dispose()
-    }
+await test('개요와 댓글·리뷰 탭만 제공하고 CI, 변경 내용, 병합 UI는 표시하지 않는다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture)
+    const tree = fixture.render()
+    const tabs = findByClass(tree, 'dsh-forge-pulls-tabs')[0].children.props.items
+    assert.deepEqual(
+      Array.from(tabs, (item) => item.value),
+      ['overview', 'conversation']
+    )
+    for (const className of [
+      'dsh-forge-pulls-ci-trigger',
+      'dsh-forge-pulls-merge-footer',
+      'dsh-forge-pulls-merge-menu',
+    ])
+      assert.equal(findByClass(tree, className).length, 0, className)
+    assert.ok(!fixture.calls.some((call) => call.payload.action === 'merge'))
+  } finally {
+    fixture.dispose()
   }
 })
