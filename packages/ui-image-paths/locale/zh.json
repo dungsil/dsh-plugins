@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "图片路径优化",
+    "description": "根据每条消息记录的工作目录显示相对路径 Markdown 图片。"
+  }
+}
