@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-korean-ime
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-korean-ime%400.4.1...%40dungsil%2Fdsh-plugin-korean-ime%400.5.0) (2026-11-12)
+
+### Features
+
+- **i18n:** 플러그인에 6개 언어 지원을 추가한다 ([#204](https://github.com/dungsil/dsh-plugins/issues/204)) ([02a89f6](https://github.com/dungsil/dsh-plugins/commit/02a89f604db192a44ebd69a6547ede3025a2adf8))
+
 ## [0.4.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-korean-ime%400.4.0...%40dungsil%2Fdsh-plugin-korean-ime%400.4.1) (2026-11-05)
 
 ### Bug Fixes

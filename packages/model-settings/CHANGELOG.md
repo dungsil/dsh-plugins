@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.8.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.7.0...%40dungsil%2Fdsh-plugin-model-settings%400.8.0) (2026-11-12)
+
+### Features
+
+- **i18n:** 플러그인에 6개 언어 지원을 추가한다 ([#204](https://github.com/dungsil/dsh-plugins/issues/204)) ([02a89f6](https://github.com/dungsil/dsh-plugins/commit/02a89f604db192a44ebd69a6547ede3025a2adf8))
+- **model-settings:** 작업별 기본 지침 편집을 제공한다 ([#191](https://github.com/dungsil/dsh-plugins/issues/191)) ([8bbac07](https://github.com/dungsil/dsh-plugins/commit/8bbac072007930ba3fa2ce58278cfe93cb3a8004))
+
+### Bug Fixes
+
+- **compat:** dsh v0.2.2-rc.2 API와 의존성에 맞춰 갱신한다 ([#210](https://github.com/dungsil/dsh-plugins/issues/210)) ([b40eda5](https://github.com/dungsil/dsh-plugins/commit/b40eda51bb0475498130c8696d845eef5525eeb0))
+
 ## [0.7.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.6.1...%40dungsil%2Fdsh-plugin-model-settings%400.7.0) (2026-11-06)
 
 ### ⚠ BREAKING CHANGES

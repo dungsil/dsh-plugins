@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-forge-forgejo",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Forgejo provider for the official DSH forge registry through tea",
   "license": "MIT",
   "repository": {
