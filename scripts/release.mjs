@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { relative } from 'node:path'
 import { parseArgs } from 'node:util'
 import conventionalCommits from 'conventional-changelog-conventionalcommits'
@@ -90,12 +90,62 @@ function publishOnce(pkg, version) {
   execFileSync('pnpm', ['publish', '--tag', tag, '--no-git-checks'], { cwd: pkg.path, stdio: 'inherit' })
 }
 
-export async function releaseWorkspace({ dryRun = false, packageName, version, ...options } = {}) {
+function recoverTaggedRelease(pkg, dryRun) {
+  const prefix = `${pkg.name}@`
+  const versions = execFileSync('git', ['tag', '--merged', 'HEAD', '--list', `${prefix}*`], {
+    cwd: pkg.path,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    .map((tag) => tag.slice(prefix.length))
+    .filter((version) => semver.valid(version) && semver.gt(version, pkg.version))
+    .sort(semver.rcompare)
+  if (versions.length === 0) return
+
+  const manifestPath = `${pkg.path}/package.json`
+  const changelogPath = `${pkg.path}/CHANGELOG.md`
+  const previous = existsSync(changelogPath) ? readFileSync(changelogPath, 'utf8') : `# ${pkg.name}\n`
+  const recorded = new Set([...previous.matchAll(/^## \[?([^\]\s]+)/gm)].map((match) => match[1]))
+  const notes = []
+  for (const version of versions) {
+    if (!isPublished(pkg.name, version)) throw new Error(`Cannot recover unpublished version ${pkg.name}@${version}`)
+    const release = JSON.parse(
+      execFileSync('gh', ['release', 'view', `${prefix}${version}`, '--json', 'body,isDraft'], {
+        cwd: pkg.path,
+        encoding: 'utf8',
+      })
+    )
+    if (release.isDraft || !release.body.trim())
+      throw new Error(`Missing published release notes for ${prefix}${version}`)
+    if (!recorded.has(version)) notes.push(release.body.trim())
+  }
+  console.log(`${dryRun ? 'Would recover' : 'Recovering'} ${pkg.name}: ${pkg.version} → ${versions[0]}`)
+  if (!dryRun) {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.version = versions[0]
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    if (notes.length > 0) {
+      const header = `# ${pkg.name}`
+      const history = previous.startsWith(header) ? previous.slice(header.length).trimStart() : previous.trimStart()
+      writeFileSync(changelogPath, `${header}\n\n${notes.join('\n\n')}\n\n${history}`.trimEnd() + '\n')
+    }
+  }
+  pkg.version = versions[0]
+  return { pkg, result: { version: versions[0] }, recovered: true }
+}
+
+export async function releaseWorkspace({ dryRun = false, recoverOnly = false, packageName, version, ...options } = {}) {
   if (version && (!packageName || semver.valid(version) !== version)) {
     throw new Error('An exact version requires a package name and a valid semantic version')
   }
+  if (recoverOnly && version) throw new Error('Recovery cannot specify a new version')
   const root = process.cwd()
   const git = (args, options = {}) => execFileSync('git', args, { cwd: root, encoding: 'utf8', ...options })
+  if (!dryRun) {
+    if (git(['branch', '--show-current']).trim() !== 'main') throw new Error('Releases require the main branch')
+    if (git(['status', '--porcelain']).trim()) throw new Error('Releases require a clean working directory')
+  }
   const releaseHead = dryRun ? undefined : git(['rev-parse', 'HEAD']).trim()
   // Unlike `pnpm list`, recursive exec honors dependency order. Serial output
   // keeps that order intact before release-it bumps and packs each package.
@@ -128,6 +178,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
     throw new Error(`Unknown public package: ${packageName}`)
   }
   const releases = []
+  let releaseError
   try {
     // Publish dependencies first, but defer workspace Git and GitHub releases
     // until the published manifests and changelogs are ready for one commit.
@@ -139,6 +190,10 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
           break
         }
       }
+      const recovered = recoverTaggedRelease(pkg, dryRun)
+      if (recovered) releases.push(recovered)
+      // Commit recovery before considering another release of the same package.
+      if (recovered || recoverOnly) continue
       const presetTag = `${pkg.name}@${pkg.version}`
       const dependenciesUpdated =
         pkg.name.startsWith('@dungsil/dsh-preset-') &&
@@ -162,26 +217,46 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
       const settings = releaseOptions({ dryRun, dependenciesUpdated })
       const exactVersion = pkg.name === packageName ? version : undefined
       const npmOptions = { ...settings.npm, ...options.npm, ...(exactVersion ? { allowSameVersion: true } : {}) }
-      const result = await release({
-        ...settings,
-        ...(exactVersion ? { increment: exactVersion } : {}),
-        ...options,
-        // release-it cannot skip a version that is already on npm, so publish after it bumps and packs.
-        npm: { ...npmOptions, publish: false },
-        git: {
-          ...settings.git,
-          commit: false,
-          tag: false,
-          push: false,
-          requireCleanWorkingDir: releases.length === 0,
-        },
-        github: { ...settings.github, ...options.github, release: false },
-      })
-      if (result.version) {
-        if (npmOptions.publish) publishOnce(pkg, result.version)
-        releases.push({ pkg, settings, result })
+      const originalFiles = ['package.json', 'CHANGELOG.md'].map((file) => ({
+        path: `${pkg.path}/${file}`,
+        content: existsSync(file) ? readFileSync(file) : undefined,
+      }))
+      try {
+        const result = await release({
+          ...settings,
+          ...(exactVersion ? { increment: exactVersion } : {}),
+          ...options,
+          // release-it cannot skip a version that is already on npm, so publish after it bumps and packs.
+          npm: { ...npmOptions, publish: false },
+          git: {
+            ...settings.git,
+            commit: false,
+            tag: false,
+            push: false,
+            requireCleanWorkingDir: releases.length === 0,
+          },
+          github: { ...settings.github, ...options.github, release: false },
+        })
+        if (result.version) {
+          if (npmOptions.publish) publishOnce(pkg, result.version)
+          releases.push({ pkg, settings, result })
+        }
+      } catch (error) {
+        if (!dryRun) {
+          // release-it stages files even when its commit step is disabled.
+          git(['reset', '--', ...originalFiles.map((file) => file.path)])
+          for (const file of originalFiles) {
+            if (file.content === undefined) rmSync(file.path, { force: true })
+            else writeFileSync(file.path, file.content)
+          }
+        }
+        throw error
       }
     }
+  } catch (error) {
+    releaseError = error
+  }
+  try {
     if (!dryRun && releases.length > 0) {
       process.chdir(root)
       // Index failures must not prevent finalizing packages already published to npm.
@@ -204,7 +279,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
           : `chore(release): ${releases.length}개 패키지를 릴리즈한다 [skip ci]`
       // Formatting already ran once for the entire release, so do not repeat it in lint-staged.
       git(['commit', '-m', message], { env: { ...process.env, SKIP_SIMPLE_GIT_HOOKS: '1' } })
-      for (const { pkg, result } of releases) {
+      for (const { pkg, result } of releases.filter(({ recovered }) => !recovered)) {
         git(['tag', '--annotate', '--message', `Release ${result.version}`, `${pkg.name}@${result.version}`])
       }
       // Merge instead of rebasing: tags must keep identifying the source that was published.
@@ -224,7 +299,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
       }
 
       // Publish immutable GitHub releases only after all tags reach the remote.
-      for (const { pkg, settings, result } of releases) {
+      for (const { pkg, settings, result } of releases.filter(({ recovered }) => !recovered)) {
         process.chdir(pkg.path)
         await release({
           ...settings,
@@ -241,6 +316,7 @@ export async function releaseWorkspace({ dryRun = false, packageName, version, .
   } finally {
     process.chdir(root)
   }
+  if (releaseError) throw releaseError
   return dryRun ? [] : releases.map(({ pkg }) => pkg.name)
 }
 
@@ -248,12 +324,14 @@ if (import.meta.main) {
   const { values } = parseArgs({
     options: {
       'dry-run': { type: 'boolean', default: false },
+      'recover-only': { type: 'boolean', default: false },
       package: { type: 'string' },
       version: { type: 'string' },
     },
   })
   await releaseWorkspace({
     dryRun: values['dry-run'],
+    recoverOnly: values['recover-only'],
     packageName: values.package,
     version: values.version,
   })

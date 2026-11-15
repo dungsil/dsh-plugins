@@ -11,6 +11,10 @@ on:
         description: '정확한 배포 버전 (package 지정 시에만 사용)'
         type: string
         required: false
+      recover-only:
+        description: 'npm 재배포 없이 기존 태그의 버전과 변경 이력만 복구'
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -64,8 +68,14 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
       # release-it attaches tarballs to drafts before publishing immutable releases.
-      - run: pnpm release --package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION"
+      - run: |
+          args=(--package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION")
+          if [ "$RELEASE_RECOVER_ONLY" = true ]; then
+            args+=(--recover-only)
+          fi
+          pnpm release "${args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_PACKAGE: ${{ inputs.package }}
           RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_RECOVER_ONLY: ${{ inputs.recover-only }}
