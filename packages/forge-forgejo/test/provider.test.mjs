@@ -53,8 +53,8 @@ function mock(answer = () => fixture(), options = {}) {
 await test('설치 메타데이터는 세 언어로 market과 일치하고 이전 UI 키를 포함하지 않는다', async () => {
   assert.ok(manifest.files.includes('locale'))
   assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
-  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-experimental-forge'], '0.2.2-rc.2')
-  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-subprocess'], '0.2.2-rc.2')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-experimental-forge'], '0.2.2-rc.3')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-subprocess'], '0.2.2-rc.3')
   for (const language of ['en', 'ko', 'zh']) {
     const locale = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     assert.deepEqual(locale, {

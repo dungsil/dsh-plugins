@@ -2,6 +2,7 @@
   "name": "@dungsil/dsh-plugin-locale-ko",
   "version": "0.8.0",
   "description": "Korean UI language pack for DeepSeek Harness.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dungsil/dsh-plugins.git",
@@ -35,7 +36,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "semver": "7.8.5",
