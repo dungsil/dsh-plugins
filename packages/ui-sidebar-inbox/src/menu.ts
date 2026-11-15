@@ -20,7 +20,7 @@ export interface SortOption {
   isActive(): boolean
   /** Whether the row can be used in the current native view (disabled otherwise). */
   isEnabled(): boolean
-  /** Activate or leave the plugin's sort mode. */
+  /** Select the plugin's sort mode. */
   onToggle(): void
 }
 

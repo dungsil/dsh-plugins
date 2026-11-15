@@ -13,6 +13,8 @@ const selectedKey = 'dungsil.sidebar-inbox.selected-sort.v1'
 
 function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denied = false } = {}) {
   const storage = new Map(saved)
+  let viewWrites = 0
+  let storageWrites = 0
   const listeners = new Set()
   const dataListeners = new Set()
   let language = 'en'
@@ -25,6 +27,7 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
     },
     store: {
       set(value) {
+        viewWrites++
         snapshot = value
         for (const listener of listeners) listener()
       },
@@ -38,6 +41,7 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
         return storage.get(key) ?? null
       },
       setItem(key, value) {
+        storageWrites++
         if (denied) throw new Error('denied')
         storage.set(key, value)
       },
@@ -82,6 +86,9 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
     storage,
     mount: () => mount(),
     snapshot: () => snapshot,
+    writes: () => [viewWrites, storageWrites],
+    active: () => option.isActive(),
+    enabled: () => option.isEnabled(),
     set: (patch) => view.store.set({ ...snapshot, ...patch }),
     toggle: () => option.onToggle(),
     label: (active) => {
@@ -156,14 +163,47 @@ for (const mode of ['manual', 'updated']) {
   })
 }
 
-await test('에이전트 활동을 다시 누르면 이전 기본 정렬을 선택하고 재마운트에도 유지한다', () => {
+await test('선택된 에이전트 활동을 다시 눌러도 저장하지 않고 선택을 유지한다', () => {
   const app = harness()
   const dispose = app.mount()
+  const writes = app.writes()
   app.toggle()
-  assert.equal(app.snapshot().orderBy, 'updated')
+  assert.deepEqual(app.writes(), writes)
+  assert.equal(app.active(), true)
+  assert.equal(app.snapshot().orderBy, 'agent-activity')
+  assert.equal(app.storage.get(selectedKey), 'agent-activity')
   dispose()
   app.mount()
+  assert.equal(app.snapshot().orderBy, 'agent-activity')
+})
+
+await test('기본 정렬에서 에이전트 활동을 선택하면 이전 정렬을 기억하고 해제 시 복원한다', () => {
+  const app = harness({ saved: [[selectedKey, 'manual']], orderBy: 'manual', groupBy: 'flat' })
+  const dispose = app.mount()
+  app.toggle()
+  assert.equal(app.active(), true)
+  assert.equal(app.storage.get(previousKey), 'manual')
+  dispose()
+  assert.equal(app.snapshot().orderBy, 'manual')
+})
+
+await test('그룹 목록에서 비활성화된 에이전트 활동은 선택해도 저장하지 않는다', () => {
+  const app = harness({ saved: [[selectedKey, 'updated']] })
+  app.mount()
+  assert.equal(app.enabled(), false)
+  const writes = app.writes()
+  app.toggle()
+  assert.deepEqual(app.writes(), writes)
   assert.equal(app.snapshot().orderBy, 'updated')
+})
+
+await test('수동 드래그로 manual을 선택하면 활동 정렬이 해제되고 선택을 기억한다', () => {
+  const app = harness()
+  app.mount()
+  app.set({ orderBy: 'manual', sessionOrderByAccount: { __flat_session_order__: ['dragged'] } })
+  assert.equal(app.active(), false)
+  assert.equal(app.storage.get(selectedKey), 'manual')
+  assert.deepEqual(app.snapshot().sessionOrderByAccount.__flat_session_order__, ['dragged'])
 })
 
 await test('그룹 보기를 바꾸면 기본 정렬로 전환하고 재마운트에서 강제로 되돌리지 않는다', () => {
@@ -202,5 +242,16 @@ await test('저장소 접근이 거부되어도 기본 선택과 정리 코드�
   const app = harness({ denied: true })
   const dispose = app.mount()
   assert.equal(app.snapshot().orderBy, 'agent-activity')
+  const writes = app.writes()
+  app.toggle()
+  assert.deepEqual(app.writes(), writes)
   assert.doesNotThrow(dispose)
+  assert.equal(app.snapshot().orderBy, 'updated')
+})
+
+await test('저장소 접근이 거부되어도 그룹 이탈 시 이전 기본 정렬로 복원한다', () => {
+  const app = harness({ denied: true })
+  app.mount()
+  app.set({ groupBy: 'workspace' })
+  assert.equal(app.snapshot().orderBy, 'updated')
 })
