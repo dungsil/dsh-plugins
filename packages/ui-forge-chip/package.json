@@ -26,7 +26,8 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
