@@ -131,6 +131,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.2",
           "publishTimestamp": 1793949232,
           "source": {
@@ -208,6 +218,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.2.0",
           "publishTimestamp": 1793949232,
@@ -296,6 +316,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.9.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.8.0",
           "publishTimestamp": 1793949232,
@@ -465,6 +495,26 @@
       },
       "versions": [
         {
+          "version": "0.5.1",
+          "publishTimestamp": 1794709137,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2 || ^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1794484262,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.4.1",
           "publishTimestamp": 1793903271,
           "source": {
@@ -552,6 +602,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.7.0",
+          "publishTimestamp": 1794709097,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.6.1",
           "publishTimestamp": 1793903271,
@@ -661,6 +721,26 @@
       },
       "versions": [
         {
+          "version": "0.5.1",
+          "publishTimestamp": 1794709216,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1794484175,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.4.1",
           "publishTimestamp": 1793903271,
           "source": {
@@ -713,6 +793,54 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-pstack",
+      "title": {
+        "en": "pstack",
+        "ko": "pstack",
+        "zh": "pstack",
+        "ja": "pstack",
+        "es": "pstack",
+        "fr": "pstack",
+        "de": "pstack",
+        "ru": "pstack",
+        "pt": "pstack"
+      },
+      "description": {
+        "en": "Engineering skills, playbooks, and principles for verified work in DSH.",
+        "ko": "검증 중심 개발을 위한 엔지니어링 스킬·플레이북·원칙을 DSH에서 사용합니다.",
+        "zh": "在 DSH 中使用以验证为核心的工程技能、工作流程和原则。",
+        "ja": "DSH で検証に基づく作業を行うためのエンジニアリングスキル、実践手順、原則です。",
+        "es": "Habilidades de ingeniería, guías prácticas y principios para trabajar con verificación en DSH.",
+        "fr": "Compétences d’ingénierie, guides pratiques et principes pour un travail vérifié dans DSH.",
+        "de": "Engineering-Skills, Praxisleitfäden und Prinzipien für verifizierte Arbeit in DSH.",
+        "ru": "Инженерные навыки, практические руководства и принципы для работы с проверкой результатов в DSH.",
+        "pt": "Habilidades de engenharia, guias práticos e princípios para um trabalho verificado no DSH."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/pstack"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "skills",
+        "keywords": ["pstack", "poteto", "engineering", "skills", "verification"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794709184,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-sidebar-inbox",
       "title": {
         "en": "Sidebar Inbox",
@@ -748,6 +876,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.2.3",
           "publishTimestamp": 1793903271,
@@ -837,6 +975,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1794709131,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.2",
           "publishTimestamp": 1793903271,
           "source": {
@@ -914,6 +1062,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.9.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.8.0",
           "publishTimestamp": 1793949232,
@@ -1043,6 +1201,16 @@
       },
       "versions": [
         {
+          "version": "0.5.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.4.0",
           "publishTimestamp": 1793949232,
           "source": {
@@ -1105,6 +1273,42 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-setting-vcs",
+      "title": {
+        "en": "VCS settings",
+        "ko": "버전 관리 설정",
+        "zh": "版本控制设置"
+      },
+      "description": {
+        "en": "Configure worktree directories and naming prefixes in settings.",
+        "ko": "설정에서 worktree 경로와 이름 접두사를 변경합니다.",
+        "zh": "在设置中配置 worktree 目录和名称前缀。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-setting-vcs"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["git", "worktree", "vcs", "settings", "ui"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-cli-proxy-api",
       "title": {
         "en": "CLIProxyAPI",
@@ -1140,6 +1344,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1794722657,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1793949232,
@@ -1213,6 +1427,54 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-forge-worktree",
+      "title": {
+        "en": "Worktree picker",
+        "ko": "워크트리 선택기",
+        "zh": "工作树选择器",
+        "ja": "ワークツリー選択",
+        "es": "Selector de árboles de trabajo",
+        "fr": "Sélecteur d’arbres de travail",
+        "de": "Worktree-Auswahl",
+        "ru": "Выбор рабочего дерева",
+        "pt": "Seletor de árvores de trabalho"
+      },
+      "description": {
+        "en": "Choose the current branch or a new Git worktree from the composer.",
+        "ko": "입력창에서 현재 브랜치나 새 Git 워크트리를 선택합니다.",
+        "zh": "在输入框中选择当前分支或新建 Git 工作树。",
+        "ja": "入力欄から現在のブランチまたは新しい Git ワークツリーを選択します。",
+        "es": "Elige la rama actual o un nuevo árbol de trabajo de Git desde el cuadro de entrada.",
+        "fr": "Choisissez la branche actuelle ou un nouvel arbre de travail Git depuis la zone de saisie.",
+        "de": "Wählen Sie den aktuellen Branch oder einen neuen Git-Worktree im Eingabefeld aus.",
+        "ru": "Выберите текущую ветку или новое рабочее дерево Git в поле ввода.",
+        "pt": "Escolha a branch atual ou uma nova árvore de trabalho do Git no campo de mensagem."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-forge-worktree"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["git", "worktree", "composer"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-model-picker",
       "title": {
         "en": "Model Picker",
@@ -1248,6 +1510,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1793949232,
@@ -1377,6 +1649,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1794709088,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.2",
           "publishTimestamp": 1793903271,
           "source": {
@@ -1419,6 +1701,202 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-forge-gitlab",
+      "title": {
+        "en": "GitLab",
+        "ko": "GitLab",
+        "zh": "GitLab"
+      },
+      "description": {
+        "en": "GitLab provider for the DSH experimental forge registry, using glab on the host.",
+        "ko": "호스트의 glab CLI로 GitLab MR을 읽고 공식 forge registry에 제공합니다. 별도 UI는 추가하지 않습니다.",
+        "zh": "通过主机上的 glab CLI 为官方 forge registry 提供 GitLab MR，不添加独立界面。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/forge-gitlab"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["gitlab", "forge", "provider", "mr", "glab", "self-hosted"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1794709113,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794484163,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-forge-gitea",
+      "title": {
+        "en": "Gitea",
+        "ko": "Gitea",
+        "zh": "Gitea"
+      },
+      "description": {
+        "en": "Provides Gitea pull requests to the official DSH forge registry through tea.",
+        "ko": "tea로 공식 DSH forge 레지스트리에 Gitea PR provider를 등록합니다.",
+        "zh": "通过 tea 为官方 DSH forge 注册表提供 Gitea PR。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/forge-gitea"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["forge", "gitea", "pull-request", "tea"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1794709025,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794484155,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-forge-forgejo",
+      "title": {
+        "en": "Forgejo",
+        "ko": "Forgejo",
+        "zh": "Forgejo"
+      },
+      "description": {
+        "en": "Provides Forgejo pull requests to the official DSH forge registry through tea.",
+        "ko": "tea로 공식 DSH forge 레지스트리에 Forgejo PR provider를 등록합니다.",
+        "zh": "通过 tea 为官方 DSH forge 注册表提供 Forgejo PR。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/forge-forgejo"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["forge", "forgejo", "pull-request", "tea"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1794709036,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794484169,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-agent-browser",
+      "title": {
+        "en": "Agent Browser",
+        "ko": "에이전트 브라우저",
+        "zh": "智能体浏览器",
+        "ja": "エージェントブラウザー",
+        "es": "Navegador del agente",
+        "fr": "Navigateur de l’agent",
+        "de": "Agenten-Browser",
+        "ru": "Браузер агента",
+        "pt": "Navegador do agente"
+      },
+      "description": {
+        "en": "Use the existing Browser tab to interact with the same web page as the agent. agent-browser installs automatically on first use (network required); uses the host Chrome/Chromium in full access mode.",
+        "ko": "기존 브라우저 탭에서 에이전트와 같은 웹페이지를 조작합니다. agent-browser는 처음 사용할 때 자동 설치되며(네트워크 필요), 전체 접근 모드에서 호스트의 Chrome/Chromium을 사용합니다.",
+        "zh": "在现有浏览器标签页中与智能体操作同一个网页。agent-browser 在首次使用时自动安装（需要网络），并在完全访问模式下使用主机上的 Chrome/Chromium。",
+        "ja": "既存のブラウザータブでエージェントと同じウェブページを操作します。agent-browser は初回利用時に自動インストールされ（ネットワークが必要）、フルアクセスモードでホストの Chrome/Chromium を使用します。",
+        "es": "Interactúa con la misma página web que el agente desde la pestaña Navegador existente. agent-browser se instala automáticamente en el primer uso (requiere red) y usa Chrome/Chromium del host en modo de acceso completo.",
+        "fr": "Interagissez avec la même page web que l’agent dans l’onglet Navigateur existant. agent-browser s’installe automatiquement lors de la première utilisation (connexion réseau requise) et utilise Chrome/Chromium de l’hôte en mode d’accès complet.",
+        "de": "Interagiere im vorhandenen Browser-Tab mit derselben Webseite wie der Agent. agent-browser wird bei der ersten Verwendung automatisch installiert (Netzwerk erforderlich) und nutzt Chrome/Chromium des Hosts im Modus mit vollständigem Zugriff.",
+        "ru": "Работайте с той же веб-страницей, что и агент, в существующей вкладке браузера. agent-browser устанавливается автоматически при первом использовании (требуется сеть) и использует Chrome/Chromium хоста в режиме полного доступа.",
+        "pt": "Interaja com a mesma página web que o agente na aba Navegador existente. O agent-browser é instalado automaticamente no primeiro uso (requer rede) e usa o Chrome/Chromium do host no modo de acesso completo."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/agent-browser"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["agent-browser", "browser", "automation", "sidebar"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794722738,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.0.0",
+          "publishTimestamp": 1794720843,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-usage",
       "title": {
         "en": "Usage Dashboard",
@@ -1454,6 +1932,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.4.0",
           "publishTimestamp": 1793949232,
@@ -1563,6 +2051,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1794722725,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.2",
           "publishTimestamp": 1793949232,
           "source": {
@@ -1600,6 +2098,126 @@
           },
           "engines": {
             "dsh": "^0.2.1-rc.5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-forge-pulls",
+      "title": {
+        "en": "PR Preview",
+        "ko": "PR 미리보기",
+        "zh": "PR 预览"
+      },
+      "description": {
+        "en": "Read PR/MR descriptions, comments and reviews.",
+        "ko": "PR/MR의 본문과 댓글·리뷰를 확인합니다.",
+        "zh": "查看 PR/MR 描述、评论和审查。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-forge-pulls"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["pull-request", "preview"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-image-paths",
+      "title": {
+        "en": "Image Paths",
+        "ko": "이미지 경로 개선",
+        "zh": "图片路径优化"
+      },
+      "description": {
+        "en": "Display relative Markdown images using the working directory recorded for each message.",
+        "ko": "메시지별로 기록된 작업 디렉터리를 기준으로 상대경로 마크다운 이미지를 표시합니다.",
+        "zh": "根据每条消息记录的工作目录显示相对路径 Markdown 图片。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-image-paths"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["image", "markdown", "worktree", "path"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1794723961,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-forge-chip",
+      "title": {
+        "en": "Forge Chips",
+        "ko": "Forge 칩",
+        "zh": "Forge 操作按钮",
+        "ja": "Forge チップ",
+        "es": "Chips de Forge",
+        "fr": "Pastilles Forge",
+        "de": "Forge-Chips",
+        "ru": "Кнопки Forge",
+        "pt": "Chips do Forge"
+      },
+      "description": {
+        "en": "Commit, push and create or view PRs from compact composer chips using Forge.",
+        "ko": "Forge와 연결된 입력창 칩으로 커밋·푸시·PR 생성과 조회를 실행합니다.",
+        "zh": "通过连接 Forge 的紧凑输入框按钮提交、推送、创建或查看 PR。",
+        "ja": "Forge と連携した入力欄のコンパクトなチップから、コミット、プッシュ、PR の作成や表示を行います。",
+        "es": "Haz commit, push y crea o consulta PR desde chips compactos en el cuadro de entrada con Forge.",
+        "fr": "Effectuez des commits et des push, créez ou consultez des PR depuis des pastilles compactes dans la zone de saisie avec Forge.",
+        "de": "Committen, pushen und PRs erstellen oder anzeigen – über kompakte Chips im Eingabefeld mit Forge.",
+        "ru": "Делайте коммиты, отправляйте изменения, создавайте и просматривайте PR с помощью компактных кнопок Forge в поле ввода.",
+        "pt": "Faça commit, push e crie ou veja PRs em chips compactos no campo de mensagem com o Forge."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-forge-chip"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["forge", "commit", "pull-request", "chip"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794723770,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.2"
           }
         }
       ]

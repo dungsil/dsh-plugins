@@ -1,5 +1,17 @@
 # @dungsil/dsh-plugin-ui-setting-skills
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.4.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.5.0) (2026-11-15)
+
+### Features
+
+- **i18n:** 플러그인에 6개 언어 지원을 추가한다 ([#204](https://github.com/dungsil/dsh-plugins/issues/204)) ([02a89f6](https://github.com/dungsil/dsh-plugins/commit/02a89f604db192a44ebd69a6547ede3025a2adf8))
+
+### Bug Fixes
+
+- **compat:** dsh v0.2.2-rc.2 API와 의존성에 맞춰 갱신한다 ([#210](https://github.com/dungsil/dsh-plugins/issues/210)) ([b40eda5](https://github.com/dungsil/dsh-plugins/commit/b40eda51bb0475498130c8696d845eef5525eeb0))
+- **compat:** 패키지 라이선스를 추가하고 DSH rc3로 갱신한다 ([#214](https://github.com/dungsil/dsh-plugins/issues/214)) ([3dc8480](https://github.com/dungsil/dsh-plugins/commit/3dc84808a152c14723d3b988e60144e751c69e02))
+- **skills:** 설정 화면 배치와 사용 여부 문구를 개선한다 ([#198](https://github.com/dungsil/dsh-plugins/issues/198)) ([e34836a](https://github.com/dungsil/dsh-plugins/commit/e34836aa24d370ccedf20de50b1c598128cf5959))
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.3.2...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.4.0) (2026-11-06)
 
 ### Features

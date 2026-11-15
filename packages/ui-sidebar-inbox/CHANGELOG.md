@@ -1,5 +1,19 @@
 # @dungsil/dsh-plugin-ui-sidebar-inbox
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.3...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.3.0) (2026-11-15)
+
+### Features
+
+- **i18n:** 플러그인에 6개 언어 지원을 추가한다 ([#204](https://github.com/dungsil/dsh-plugins/issues/204)) ([02a89f6](https://github.com/dungsil/dsh-plugins/commit/02a89f604db192a44ebd69a6547ede3025a2adf8))
+
+### Bug Fixes
+
+- **compat:** dsh v0.2.2-rc.2 API와 의존성에 맞춰 갱신한다 ([#210](https://github.com/dungsil/dsh-plugins/issues/210)) ([b40eda5](https://github.com/dungsil/dsh-plugins/commit/b40eda51bb0475498130c8696d845eef5525eeb0))
+- **compat:** 패키지 라이선스를 추가하고 DSH rc3로 갱신한다 ([#214](https://github.com/dungsil/dsh-plugins/issues/214)) ([3dc8480](https://github.com/dungsil/dsh-plugins/commit/3dc84808a152c14723d3b988e60144e751c69e02))
+- **sidebar-inbox:** 업데이트 후 정렬 선택을 유지한다 ([#192](https://github.com/dungsil/dsh-plugins/issues/192)) ([4ccf525](https://github.com/dungsil/dsh-plugins/commit/4ccf52599acc6d84c4d1d698bff2a6aa001cc9c8))
+- **tooling:** 커밋 훅과 CI의 lint 검사 범위를 통일한다 ([#197](https://github.com/dungsil/dsh-plugins/issues/197)) ([b80b3ab](https://github.com/dungsil/dsh-plugins/commit/b80b3abbcfce85aa23ca69b56defcfcbac74ff6f))
+- **tooling:** 테스트의 await 누락을 커밋 전에 자동 수정한다 ([#203](https://github.com/dungsil/dsh-plugins/issues/203)) ([13bdf36](https://github.com/dungsil/dsh-plugins/commit/13bdf36df6780acaf430a00e0ec971e6b4d8ea03))
+
 ## [0.2.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.2...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.3) (2026-11-05)
 
 ### Bug Fixes
