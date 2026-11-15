@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-korean-ime
 
+## [0.5.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-korean-ime%400.5.0...%40dungsil%2Fdsh-plugin-korean-ime%400.5.1) (2026-11-15)
+
+### Bug Fixes
+
+- **compat:** 패키지 라이선스를 추가하고 DSH rc3로 갱신한다 ([#214](https://github.com/dungsil/dsh-plugins/issues/214)) ([3dc8480](https://github.com/dungsil/dsh-plugins/commit/3dc84808a152c14723d3b988e60144e751c69e02))
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-korean-ime%400.4.1...%40dungsil%2Fdsh-plugin-korean-ime%400.5.0) (2026-11-12)
 
 ### Features

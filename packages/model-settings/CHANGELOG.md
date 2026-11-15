@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.8.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.8.0...%40dungsil%2Fdsh-plugin-model-settings%400.8.1) (2026-11-15)
+
+### Bug Fixes
+
+- **compat:** 패키지 라이선스를 추가하고 DSH rc3로 갱신한다 ([#214](https://github.com/dungsil/dsh-plugins/issues/214)) ([3dc8480](https://github.com/dungsil/dsh-plugins/commit/3dc84808a152c14723d3b988e60144e751c69e02))
+
 ## [0.8.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.7.0...%40dungsil%2Fdsh-plugin-model-settings%400.8.0) (2026-11-12)
 
 ### Features

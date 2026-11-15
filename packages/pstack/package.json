@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-pstack",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "pstack engineering skills and playbooks adapted for DeepSeek Harness",
   "license": "MIT",
   "repository": {

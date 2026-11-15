@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-chip",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Composer commit and PR action chips powered by the official Forge plugin.",
   "license": "MIT",
   "repository": {
