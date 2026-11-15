@@ -8,13 +8,13 @@ Organiza a lista de sessões da barra lateral do DSH **por estado**, como o T3 C
 
 ## Pré-visualização
 
-**Claro · inglês**: à esquerda, Archived recolhido; à direita, expandido.
+**Claro**: à esquerda, Arquivadas recolhido; à direita, expandido.
 
-<img src="./assets/sidebar-preview.webp" alt="Sidebar Inbox no tema claro: sessões fixadas e da caixa de entrada no topo e a lista Working embaixo, comparando Archived recolhido à esquerda e expandido à direita" width="720" />
+<img src="./assets/sidebar-preview-pt-light.webp" alt="Sidebar Inbox no tema claro com a interface em português: sessões fixadas e da caixa de entrada no topo e a lista Em andamento embaixo, comparando Arquivadas recolhido à esquerda e expandido à direita" width="720" />
 
-**Escuro · coreano**: as mesmas sessões de exemplo, comparando 보관됨 (Archived) recolhido e expandido.
+**Escuro**: as mesmas sessões de exemplo, comparando Arquivadas recolhido e expandido.
 
-<img src="./assets/sidebar-preview-dark.webp" alt="Sidebar Inbox no tema escuro com a interface em coreano: sessões fixadas e da caixa de entrada no topo e a lista 작업 중 (Working) embaixo, comparando 보관됨 (Archived) recolhido à esquerda e expandido à direita" width="720" />
+<img src="./assets/sidebar-preview-pt-dark.webp" alt="Sidebar Inbox no tema escuro com a interface em português: sessões fixadas e da caixa de entrada no topo e a lista Em andamento embaixo, comparando Arquivadas recolhido à esquerda e expandido à direita" width="720" />
 
 ## Uso
 

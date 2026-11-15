@@ -8,13 +8,13 @@ DSH 사이드바의 세션 목록을 T3 Code Nightly처럼 **상태별**로 정�
 
 ## 미리보기
 
-**라이트 · 영어**: 왼쪽은 Archived를 접은 상태, 오른쪽은 펼친 상태입니다.
+**라이트**: 왼쪽은 보관됨을 접은 상태, 오른쪽은 펼친 상태입니다.
 
-<img src="./assets/sidebar-preview.webp" alt="라이트 테마의 Sidebar Inbox: 상단의 고정·수신함 세션과 하단 Working 목록, 왼쪽 Archived 접힘과 오른쪽 펼침 비교" width="720" />
+<img src="./assets/sidebar-preview-ko-light.webp" alt="라이트 테마의 한국어 Sidebar Inbox: 상단의 고정·수신함 세션과 하단 작업 중 목록, 왼쪽 보관됨 접힘과 오른쪽 펼침 비교" width="720" />
 
-**다크 · 한국어**: 같은 예시 세션에서 보관됨을 접은 상태와 펼친 상태를 비교합니다.
+**다크**: 같은 예시 세션에서 보관됨을 접은 상태와 펼친 상태를 비교합니다.
 
-<img src="./assets/sidebar-preview-dark.webp" alt="다크 테마의 한국어 Sidebar Inbox: 상단의 고정·수신함 세션과 하단 작업 중 목록, 왼쪽 보관됨 접힘과 오른쪽 펼침 비교" width="720" />
+<img src="./assets/sidebar-preview-ko-dark.webp" alt="다크 테마의 한국어 Sidebar Inbox: 상단의 고정·수신함 세션과 하단 작업 중 목록, 왼쪽 보관됨 접힘과 오른쪽 펼침 비교" width="720" />
 
 ## 사용법
 
