@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: ['main']
     paths:
@@ -65,7 +66,7 @@ jobs:
           node-version: 26.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - run: pnpm ${{ github.event_name == 'workflow_dispatch' && 'check:all' || 'check' }}
         env:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

@@ -41,6 +41,10 @@ jobs:
           run_id=$(gh run list --workflow ci.yml --branch main --event push \
             --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -z "$run_id" ]; then
+            run_id=$(gh run list --workflow ci.yml --branch main --event workflow_dispatch \
+              --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          fi
+          if [ -z "$run_id" ]; then
             echo "::error::No main CI run found for $sha"
             exit 1
           fi
