@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
@@ -20,7 +20,7 @@ const url = `http://localhost/api/${method}`
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 
 async function fixture(t, withRegistry = false) {
-  const home = await mkdtemp(join(tmpdir(), 'dsh-skills-test-'))
+  const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-skills-test-')))
   const dsh = join(home, 'dsh')
   const agents = join(home, 'agents')
   const previousEnv = Object.fromEntries(
@@ -330,6 +330,29 @@ await test('스킬을 변경하지 않고 승인된 기본 설정을 사용해 �
   assert.equal(await translate({ path, language: 'ko' }), 404)
 })
 
+await test('번역은 클라이언트 텍스트가 아닌 재발견한 표시 설명을 사용한다', async (t) => {
+  const h = await fixture(t)
+  const path = await h.skill(h.agents, 'display-skill', 'Raw routing description')
+  const dir = join(dirname(path), 'agents')
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'openai.yaml'), 'interface:\n  short_description: Visible description\n')
+  const calls = []
+  h.ctx.provide('cotTranslation', {
+    limits: async () => ({ preferences: { provider: 'google', targetLanguage: 'ko' } }),
+    translate: async (request) => {
+      calls.push(request)
+      return '표시 설명'
+    },
+  })
+  const response = await h.fetch({
+    ...h.request,
+    method: 'dungsil-ui-setting-skills/translate',
+    payload: { path, language: 'ko', text: 'Untrusted' },
+  })
+  assert.equal((await response.json()).result.value, '표시 설명')
+  assert.equal(calls[0].text, 'Visible description')
+})
+
 await test('원문과 실제 대상 언어가 같으면 공급자 요청 없이 원문을 반환한다', async (t) => {
   const h = await fixture(t)
   let targetLanguage = 'auto'
@@ -491,6 +514,55 @@ await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부�
   }
   await h.fiber.dispose()
   assert.equal((await h.fetch(h.request)).status, 404)
+})
+
+await test('사용자 스킬 전문은 비활성화되어도 소유자만 재발견하여 읽고 임의 경로는 거부한다', async (t) => {
+  const h = await fixture(t, true)
+  const path = await h.skill(h.agents, 'planning-work', 'Plan')
+  const project = await h.skill(join(h.home, '.agents'), 'project-only', 'Project')
+  const request = (payload) => ({ ...h.request, method: 'dungsil-ui-setting-skills/source', payload })
+  const source = async (path) => (await (await h.fetch(request({ path }))).json()).result
+  const saved = await h.fetch({
+    ...h.request,
+    method: 'dungsil-ui-setting-skills/save',
+    payload: { name: 'planning-work', disabled: true },
+  })
+  assert.deepEqual((await saved.json()).result, { ok: true, value: { disabled: ['not-installed', 'planning-work'] } })
+  assert.deepEqual(await source(path), { ok: true, value: 'Private body' })
+  assert.equal((await source(project)).ok, false)
+  assert.equal((await source(join(h.home, 'package.json'))).ok, false)
+  for (const payload of [null, {}, { path: 42 }]) assert.equal((await h.fetch(request(payload))).status, 400)
+  for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
+    assert.equal((await h.fetch(request({ path }), { principal, interactions: 'deny' })).status, 403)
+  }
+  await rm(path)
+  assert.equal((await source(path)).ok, false)
+  await h.fiber.dispose()
+  assert.equal((await h.fetch(request({ path }))).status, 404)
+})
+
+await test('선택 메타데이터가 없거나 손상되어도 스킬 목록은 유지되고 유효한 표시 값만 사용한다', async (t) => {
+  const h = await fixture(t)
+  const path = await h.skill(h.agents, 'planning-work', 'Original description')
+  const dir = join(h.agents, 'skills', 'planning-work', 'agents')
+  const file = join(dir, 'openai.yaml')
+  await mkdir(dir)
+  const skill = async () => (await h.rpc()).value.skills.find((entry) => entry.path === path)
+  assert.equal((await skill()).display, undefined)
+  await writeFile(file, 'interface:\n  display_name: " Display name "\n  short_description: " Short description "\n')
+  assert.deepEqual((await skill()).display, { name: 'Display name', description: 'Short description' })
+  assert.equal((await skill()).name, 'planning-work')
+  assert.equal((await skill()).description, 'Original description')
+  for (const content of [
+    'interface: [',
+    'interface: []',
+    'interface:\n  display_name: 123\n  short_description: " "',
+    'interface:\n  display_name: "\\u200b"',
+    `interface:\n  display_name: ${'x'.repeat(65_536)}`,
+  ]) {
+    await writeFile(file, content)
+    assert.equal((await skill()).display, undefined)
+  }
 })
 
 await test('모든 UI 문자열에 지원하는 아홉 언어의 번역이 있고 보간 변수를 유지한다', async () => {

@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
 import * as React from 'react'
 
-async function mount(t, available = true) {
+async function mount(t, available = true, display, disabled = []) {
   const window = new Window()
   const previous = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map((key) => [
     key,
@@ -40,6 +40,14 @@ async function mount(t, available = true) {
               Button: ({ icon, children, variant: _variant, size: _size, ...props }) =>
                 React.createElement('button', props, icon, children),
               Tooltip: ({ children }) => children,
+              Modal: ({ children, title, closeLabel, onClose }) =>
+                React.createElement(
+                  'div',
+                  { role: 'dialog' },
+                  title,
+                  React.createElement('button', { onClick: onClose }, closeLabel),
+                  children
+                ),
               Input: React.forwardRef(({ onChange, ...props }, ref) =>
                 React.createElement('input', { ...props, ref, onInput: onChange })
               ),
@@ -74,6 +82,7 @@ async function mount(t, available = true) {
     },
   })
   const requests = []
+  const sources = []
   let snapshot = { active: 'ko' }
   const listeners = new Set()
   const skills = ['alpha', 'beta', 'empty'].map((name, index) => ({
@@ -81,6 +90,7 @@ async function mount(t, available = true) {
     path: `/${name}/SKILL.md`,
     description: index === 2 ? '' : `Original ${name}`,
     source: index === 1 ? 'user-dsh' : 'user-agents',
+    ...(index === 0 && display ? { display } : {}),
   }))
   const connection = {
     rpc: {
@@ -90,12 +100,13 @@ async function mount(t, available = true) {
             ok: true,
             value: {
               complete: true,
-              disabled: [],
+              disabled,
               folderOpenAvailable: false,
               translationAvailable: available,
               skills,
             },
           }
+        if (method.endsWith('/source')) return new Promise((resolve) => sources.push({ ...payload, signal, resolve }))
         assert.equal(method, 'dungsil-ui-setting-skills/translate')
         return new Promise((resolve) => requests.push({ ...payload, signal, resolve }))
       },
@@ -121,6 +132,7 @@ async function mount(t, available = true) {
   return {
     doc,
     requests,
+    sources,
     async search(value) {
       await React.act(async () => {
         const input = doc.querySelector('input[type="search"]')
@@ -145,6 +157,44 @@ async function mount(t, available = true) {
     },
   }
 }
+
+await test('비활성 스킬도 표시 메타데이터와 호출 이름 검색을 유지하고 전문 오류를 재시도하고 닫는다', async (t) => {
+  const ui = await mount(t, false, { name: 'Friendly name', description: 'Short description' }, ['alpha'])
+  assert.equal(ui.doc.querySelector('strong').textContent, 'Friendly name')
+  assert.match(ui.doc.querySelector('summary').textContent, /꺼짐/)
+  assert.equal(ui.doc.querySelector('.dsh-skills-preview').textContent, 'Short description')
+  for (const query of ['Friendly', 'Short', 'alpha', 'Original alpha']) {
+    await ui.search(query)
+    assert.equal(ui.doc.querySelectorAll('li').length, 1)
+  }
+  assert.equal(ui.doc.querySelector('summary').getAttribute('aria-label'), null)
+  assert.match(ui.doc.querySelector('summary').textContent, /alpha/)
+  await ui.toggle(0, true)
+  await React.act(async () => ui.button('스킬 전문 보기').click())
+  assert.equal(ui.sources[0].path, '/alpha/SKILL.md')
+  assert.match(ui.doc.querySelector('[role="status"]').textContent, /불러오는 중/)
+  await React.act(async () => ui.sources[0].resolve({ ok: false }))
+  assert.match(ui.doc.querySelector('[role="alert"]').textContent, /불러오지 못했습니다/)
+  await React.act(async () => ui.button('다시 시도').click())
+  await React.act(async () => ui.sources[1].resolve({ ok: true, value: '<literal source>' }))
+  assert.equal(ui.doc.querySelector('pre').textContent, '<literal source>')
+  assert.equal(ui.doc.querySelector('pre').tabIndex, 0)
+  await React.act(async () => ui.button('닫기').click())
+  assert.equal(ui.doc.querySelector('[role="dialog"]'), null)
+  assert.equal(ui.sources[1].signal.aborted, true)
+})
+
+await test('표시 설명의 번역을 미리보기와 상세에 보여주고 원문 전환을 지원한다', async (t) => {
+  const ui = await mount(t, true, { name: 'Friendly name', description: 'Short description' })
+  await ui.toggle(0, true)
+  assert.equal(ui.requests[0].path, '/alpha/SKILL.md')
+  await React.act(async () => ui.requests[0].resolve({ ok: true, value: '짧은 설명' }))
+  const row = ui.doc.querySelector('li')
+  assert.equal(row.querySelector('.dsh-skills-preview').textContent, '짧은 설명')
+  assert.equal(row.querySelector('.dsh-skills-detail p').textContent, '짧은 설명')
+  await React.act(async () => ui.button('원문 보기').click())
+  assert.equal(row.querySelector('.dsh-skills-detail p').textContent, 'Short description')
+})
 
 await test('개별 번역은 접힌 미리보기에 유지되고 원문 보기는 상세 설명만 변경한다', async (t) => {
   const ui = await mount(t)

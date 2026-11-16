@@ -32,6 +32,11 @@
     "translatingAll": "Translating all skills…",
     "translationAllError": "Some skill descriptions could not be translated. Try again to translate only the failed items.",
     "translationError": "Could not translate. The original is shown. Paid services require a Session and are unavailable here.",
-    "saveError": "Could not save the setting. Close and reopen this section to check the saved state before trying again."
+    "saveError": "Could not save the setting. Close and reopen this section to check the saved state before trying again.",
+    "viewSource": "View skill source",
+    "sourceTitle": "Skill source: {name}",
+    "sourceLoading": "Loading skill source…",
+    "sourceError": "Could not load skill source.",
+    "close": "Close"
   }
 }

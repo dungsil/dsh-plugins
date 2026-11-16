@@ -32,6 +32,11 @@
     "translatingAll": "Traduction de toutes les compétences…",
     "translationAllError": "Certaines descriptions de compétences n’ont pas pu être traduites. Réessayez pour traduire uniquement les éléments ayant échoué.",
     "translationError": "Traduction impossible. L’original est affiché. Les services payants nécessitent une Session et ne sont pas disponibles ici.",
-    "saveError": "Impossible d’enregistrer le paramètre. Fermez puis rouvrez cette section pour vérifier l’état enregistré avant de réessayer."
+    "saveError": "Impossible d’enregistrer le paramètre. Fermez puis rouvrez cette section pour vérifier l’état enregistré avant de réessayer.",
+    "viewSource": "Voir le contenu de la compétence",
+    "sourceTitle": "Contenu de la compétence : {name}",
+    "sourceLoading": "Chargement du contenu de la compétence…",
+    "sourceError": "Impossible de charger le contenu de la compétence.",
+    "close": "Fermer"
   }
 }

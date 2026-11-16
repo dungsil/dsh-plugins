@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile, stat } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
+import { parse } from 'yaml'
 import type { Context } from '@deepseek-ai/cordis'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
@@ -11,12 +12,42 @@ import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-comma
 import { SkillRegistry } from '@deepseek-ai/dsh-skill'
 import { FileSystemSkillProvider } from '@deepseek-ai/dsh-skill-filesystem'
 import z from '@deepseek-ai/schemastery'
-import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
+import {
+  channel,
+  method,
+  openFolderMethod,
+  saveMethod,
+  sourceMethod,
+  translateMethod,
+  type SkillsView,
+} from './protocol.js'
 import { matchesTargetLanguage } from './language.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'configEditor']
 export const Config = z.object({ disabled: z.array(z.string()).default([]) })
+
+async function readDisplay(path: string | undefined, signal: AbortSignal) {
+  if (!path || basename(path) !== 'SKILL.md') return undefined
+  try {
+    const metadataPath = join(dirname(path), 'agents', 'openai.yaml')
+    const info = await stat(metadataPath)
+    if (!info.isFile() || info.size > 64 * 1024) return undefined
+    const value: unknown = parse(await readFile(metadataPath, { encoding: 'utf8', signal }))
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+    const surface: unknown = Reflect.get(value, 'interface')
+    if (!surface || typeof surface !== 'object' || Array.isArray(surface)) return undefined
+    const text = (key: string) => {
+      const field: unknown = Reflect.get(surface, key)
+      return typeof field === 'string' && /[\p{L}\p{N}\p{P}\p{S}]/u.test(field) ? field.trim() : undefined
+    }
+    const name = text('display_name')
+    const description = text('short_description')
+    return name || description ? { ...(name && { name }), ...(description && { description }) } : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
   const editor = ctx.configEditor
@@ -61,7 +92,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
     'ui-setting-skills: dispose discovery'
   )
   // Exact Connection routes are owner-only, unlike shared session RPC handlers.
-  for (const endpoint of [method, saveMethod, translateMethod, openFolderMethod])
+  for (const endpoint of [method, saveMethod, translateMethod, openFolderMethod, sourceMethod])
     ctx.effect(
       () =>
         ctx.connection.fetch.register({
@@ -76,6 +107,33 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
               return new Response('Invalid request', { status: 400 })
             }
             if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
+            if (endpoint === sourceMethod) {
+              const payload = body.data.payload as { path?: unknown }
+              if (!payload || typeof payload.path !== 'string') return new Response('Invalid request', { status: 400 })
+              let result
+              try {
+                const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(15_000)])
+                const observation = await provider.list({ signal })
+                const candidates = 'candidates' in observation ? observation.candidates : observation
+                const skill = candidates.find(
+                  (item) => item.path === payload.path && ['user-agents', 'user-dsh'].includes(item.source)
+                )
+                if (!skill) throw new Error('Unknown user skill')
+                const definition = await provider.get(skill, { signal })
+                if (!definition) throw new Error('Skill unavailable')
+                signal.throwIfAborted()
+                result = { ok: true as const, value: definition.content }
+              } catch {
+                result = {
+                  ok: false as const,
+                  error: { code: 'source_failed', message: 'Could not load skill source.', details: {} },
+                }
+              }
+              return Response.json(
+                { type: 'server-response', rpcId: body.data.rpcId, result },
+                { headers: { 'Cache-Control': 'no-store' } }
+              )
+            }
             if (endpoint === openFolderMethod) {
               const payload = body.data.payload as { path?: unknown }
               if (!payload || typeof payload.path !== 'string') return new Response('Invalid request', { status: 400 })
@@ -121,13 +179,14 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                 const { preferences } = await translator.limits(signal)
                 const targetLanguage =
                   preferences.targetLanguage === 'auto' ? payload.language : preferences.targetLanguage
+                const description = (await readDisplay(skill.path, signal))?.description ?? skill.description
                 const key = createHash('sha256')
-                  .update(JSON.stringify([preferences.provider, targetLanguage, skill.description]))
+                  .update(JSON.stringify([preferences.provider, targetLanguage, description]))
                   .digest('hex')
                 const cachePath = join(cacheDir, `${key}.json`)
                 // Resolve this before the cache so older same-language translations cannot replace the original.
-                let value: string | undefined = matchesTargetLanguage(skill.description, targetLanguage)
-                  ? skill.description
+                let value: string | undefined = matchesTargetLanguage(description, targetLanguage)
+                  ? description
                   : undefined
                 if (value === undefined) {
                   try {
@@ -140,7 +199,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                 signal.throwIfAborted()
                 if (value === undefined) {
                   value = await translator.translate(
-                    { text: skill.description, provider: preferences.provider, targetLanguage },
+                    { text: description, provider: preferences.provider, targetLanguage },
                     signal
                   )
                   signal.throwIfAborted()
@@ -181,17 +240,17 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                 ) {
                   throw new Error('Unknown user skill')
                 }
+                const skillName = payload.name
+                let savedDisabled: string[] = []
                 await editor.edit(target, (current) => {
                   const names = (current.disabled as string[] | undefined) ?? []
-                  return {
-                    ...current,
-                    disabled: payload.disabled
-                      ? [...new Set([...names, payload.name])]
-                      : names.filter((name) => name !== payload.name),
-                  }
+                  savedDisabled = payload.disabled
+                    ? [...new Set([...names, skillName])]
+                    : names.filter((name) => name !== skillName)
+                  return { ...current, disabled: savedDisabled }
                 })
                 ctx.emit('skills/change')
-                result = { ok: true as const, value: { disabled: disabled() } }
+                result = { ok: true as const, value: { disabled: savedDisabled } }
               } catch {
                 result = {
                   ok: false as const,
@@ -215,17 +274,23 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                 folderOpenAvailable: canOpenNativePath(),
                 disabled: disabled(),
                 complete: 'candidates' in observation ? observation.complete : true,
-                skills: skills.flatMap((skill) =>
-                  skill.source === 'user-agents' || skill.source === 'user-dsh'
-                    ? [
-                        {
-                          name: skill.name,
-                          description: skill.description,
-                          source: skill.source === 'user-agents' ? 'user-agents' : 'user-dsh',
-                          path: skill.path,
-                        },
-                      ]
-                    : []
+                skills: await Promise.all(
+                  skills.flatMap((skill) =>
+                    skill.source === 'user-agents' || skill.source === 'user-dsh'
+                      ? [
+                          (async () => {
+                            const display = await readDisplay(skill.path, signal)
+                            return {
+                              name: skill.name,
+                              description: skill.description,
+                              source: skill.source === 'user-agents' ? ('user-agents' as const) : ('user-dsh' as const),
+                              path: skill.path,
+                              ...(display && { display }),
+                            }
+                          })(),
+                        ]
+                      : []
+                  )
                 ),
               }
               result = { ok: true as const, value }

@@ -252,8 +252,13 @@ await test('폴더 열기는 클릭한 스킬만 잠그고 다른 스킬의 요�
       for (const row of rows) row.querySelector('details').dispatchEvent(new window.Event('toggle'))
     })
     assert.equal(rows[0].querySelector('.dsh-skills-detail p').textContent, 'Skill description')
-    assert.equal(rows[0].querySelector('.dsh-skills-detail button'), null)
+    assert.equal(
+      [...rows[0].querySelectorAll('.dsh-skills-detail button')].some((button) => button.textContent === '원문 보기'),
+      false
+    )
     assert.equal(rows[1].querySelector('.dsh-skills-detail p').textContent, '번역된 설명')
-    assert.ok(rows[1].querySelector('.dsh-skills-detail button'))
+    assert.ok(
+      [...rows[1].querySelectorAll('.dsh-skills-detail button')].some((button) => button.textContent === '원문 보기')
+    )
   })
 })
