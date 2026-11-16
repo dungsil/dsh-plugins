@@ -10,6 +10,14 @@ import { placeSessions, type Placement } from './inbox.js'
 import { installHeadings } from './headings.js'
 import { installSortOption } from './menu.js'
 import { dictionaries, NS, type SidebarInboxKey } from './locale.js'
+import { createWorktreeActivity, WORKTREE_INJECT } from './worktree-activity.js'
+import { createSnoozeState } from './snooze-state.js'
+import { SNOOZE_KEY } from './snooze.js'
+import { createAgentChoice, createAgentWake } from './agent-wake.js'
+import { createScheduleLink } from './schedule-link.js'
+import { connectSchedule, SCHEDULE_INJECT } from './schedule-remote.js'
+import { AUTOMATION_VISIBLE_KEY, createAutomationVisibility } from './automation-visibility.js'
+import { installSnoozeMenu } from './snooze-menu.js'
 
 export const name = 'dungsil-sidebar-inbox'
 export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
@@ -77,14 +85,69 @@ export function apply(ctx: Context) {
   const isActive = () => view !== undefined && isAgentActivity(view.getSnapshot().orderBy)
   /** The agent-activity order only fits the hierarchy-free single list. */
   const isFlat = () => view !== undefined && view.getSnapshot().groupBy === 'flat'
+  const pending = { reconcile: (): void => undefined }
+  const worktree = createWorktreeActivity(() => pending.reconcile())
+  ctx.inject(WORKTREE_INJECT, (child) => worktree.attach(child))
+  ctx.effect(() => () => worktree.dispose(), 'sidebar-inbox: worktree activity')
+  const scheduleLink = createScheduleLink()
+  ctx.inject(SCHEDULE_INJECT, (child) => connectSchedule(child, scheduleLink))
+  const agentWake = createAgentWake({
+    schedule: () => scheduleLink.getSnapshot(),
+    busy: (id) => {
+      const list = ctx.sessions.list.getSnapshot()
+      const key = list.ids.find((candidate) => candidate === id)
+      return (
+        key !== undefined &&
+        (ctx.uiSession.sessionStatus.getSnapshot().get(key)?.running ?? list.byId[key]?.running ?? false)
+      )
+    },
+  })
+  const state = createSnoozeState({
+    now: Date.now,
+    storage: { read: () => localStorage.getItem(SNOOZE_KEY), write: (raw) => localStorage.setItem(SNOOZE_KEY, raw) },
+    schedule: (callback, delay) => {
+      const timer = setTimeout(callback, delay)
+      return () => clearTimeout(timer)
+    },
+    onChange: () => pending.reconcile(),
+    judgeAgent: agentWake.judge,
+  })
+  ctx.effect(() => () => state.dispose(), 'sidebar-inbox: snooze state')
+  const placementListeners = new Set<() => void>()
+  const automationVisibility = createAutomationVisibility({
+    storage: {
+      read: () => localStorage.getItem(AUTOMATION_VISIBLE_KEY),
+      write: (raw) => localStorage.setItem(AUTOMATION_VISIBLE_KEY, raw),
+    },
+    snooze: state,
+    automation: scheduleLink,
+    placement: {
+      isSnoozed: (id) => placements.get(id)?.section === 'Snoozed',
+      subscribe: (listener) => {
+        placementListeners.add(listener)
+        return () => {
+          placementListeners.delete(listener)
+        }
+      },
+    },
+    onChange: () => pending.reconcile(),
+  })
+  const chooseAgent = createAgentChoice({ state, hasPlan: agentWake.hasPlan, request: scheduleLink.request })
+
   const reconcile = () => {
+    state.prune()
     const list = ctx.sessions.list.getSnapshot()
     const workspace = ctx.workspaces.list.getSnapshot()
+    const statuses = ctx.uiSession.sessionStatus.getSnapshot()
+    worktree.reconcile(list, statuses)
     const result = placeSessions(
       list,
-      ctx.uiSession.sessionStatus.getSnapshot(),
+      statuses,
       workspace.pinnedSessionIds,
-      workspace.archivedSessionIds
+      workspace.archivedSessionIds,
+      worktree.active,
+      new Set(state.getSnapshot().keys()),
+      automationVisibility.getAutomationIds()
     )
     const changed =
       placements.size !== result.placements.size ||
@@ -92,7 +155,10 @@ export function apply(ctx: Context) {
         const previous = placements.get(id)
         return previous?.section !== value.section || previous.blank !== value.blank
       })
-    if (changed) placements = result.placements
+    if (changed) {
+      placements = result.placements
+      for (const listener of placementListeners) listener()
+    }
     // Only the selected plugin mode writes an order, and only for the flat list;
     // native group, sort and filter choices are otherwise left exactly as the
     // user set them.
@@ -109,6 +175,34 @@ export function apply(ctx: Context) {
     refreshHeadings()
     refreshSortOption()
   }
+
+  pending.reconcile = reconcile
+  ctx.effect(() => scheduleLink.subscribe(reconcile), 'sidebar-inbox: schedule updates')
+  ctx.inject(['contextMenus'], (child) => {
+    const contextMenus = (child as unknown as { contextMenus: Parameters<typeof installSnoozeMenu>[0]['contextMenus'] })
+      .contextMenus
+    return installSnoozeMenu({
+      contextMenus,
+      sessions: ctx.sessions,
+      workspaces: ctx.workspaces,
+      state: automationVisibility.menuState,
+      locale: ctx.locale,
+      agent: {
+        available: () => {
+          const snapshot = scheduleLink.getSnapshot()
+          return snapshot.available && snapshot.settled
+        },
+        subscribe: scheduleLink.subscribe,
+        choose: (id) => {
+          automationVisibility.keepVisible(id)
+          chooseAgent(id)
+        },
+      },
+      isActive,
+      isFlat,
+      translate,
+    })
+  })
 
   const toggleSort = () => {
     if (view === undefined || !isFlat()) return
@@ -175,6 +269,7 @@ export function apply(ctx: Context) {
       () => ({
         working: translate('heading.working'),
         archived: translate('heading.archived'),
+        snoozed: translate('heading.snoozed'),
         language: ctx.locale.getSnapshot().active,
       }),
       () => (view?.getSnapshot().archivedFilter ?? 'default') === 'show',

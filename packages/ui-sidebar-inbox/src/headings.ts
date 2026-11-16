@@ -9,6 +9,7 @@ import { countFooterSections, type FooterSection } from './footer-counts.js'
 export interface HeadingLabels {
   working: string
   archived: string
+  snoozed: string
   language: string
 }
 
@@ -36,7 +37,7 @@ export function installHeadings(
   const panes = new Map<HTMLElement, { root: ShadowRoot; footer: HTMLElement; stopScrolling: () => void }>()
   const archiveAnimations = new Map<HTMLElement, () => void>()
   /** Each footer opens independently; a reload resets to these defaults. */
-  const open: Record<FooterSection, boolean> = { Working: true, Archived: false }
+  const open: Record<FooterSection, boolean> = { Working: true, Archived: false, Snoozed: false }
   const style = document.createElement('style')
   style.textContent = `
     [data-dsh-inbox-tree] {
@@ -251,7 +252,7 @@ export function installHeadings(
           if (!section || !wrapper || wrapper.parentElement !== tree) continue
           // Archived rows share the footer only in the mixed view.
           // The archived-only view keeps all rows in the main list.
-          if (section !== 'Working' && !(section === 'Archived' && foldable)) continue
+          if (section !== 'Working' && section !== 'Snoozed' && !(section === 'Archived' && foldable)) continue
           footerSections.push(section)
           trees.add(tree)
           tree.dataset.dshInboxTree = ''
@@ -313,7 +314,7 @@ export function installHeadings(
           button.onclick = (event) => {
             event.stopPropagation()
             const current = heading.dataset.dshInboxSection
-            if (current !== 'Working' && current !== 'Archived') return
+            if (current !== 'Working' && current !== 'Archived' && current !== 'Snoozed') return
             const tree = wrapper.parentElement!
             const footer = panes.get(tree)?.footer
             const from = footer?.getBoundingClientRect().height ?? 0
@@ -329,7 +330,8 @@ export function installHeadings(
         }
         // Only write changed copy: an unconditional textContent write emits a
         // childList mutation that would re-trigger this refresh forever.
-        const text = section === 'Archived' ? labels().archived : labels().working
+        const text =
+          section === 'Archived' ? labels().archived : section === 'Snoozed' ? labels().snoozed : labels().working
         const label = button.children[1]!
         if (label.textContent !== text) label.textContent = text
         const count = countsByTree.get(wrapper.parentElement!)![section]

@@ -6,6 +6,14 @@
   "ui": {
     "heading.working": "Em andamento",
     "heading.archived": "Arquivadas",
-    "sort.agentActivity": "Atividade do agente"
+    "sort.agentActivity": "Atividade do agente",
+    "heading.snoozed": "Ocultadas temporariamente",
+    "snooze.30m": "30 minutos",
+    "snooze.1h": "1 hora",
+    "snooze.3h": "3 horas",
+    "snooze.tomorrow": "Até amanhã de manhã",
+    "snooze.action": "Ocultar temporariamente",
+    "snooze.agent": "Deixar o agente decidir",
+    "snooze.wake": "Mostrar novamente"
   }
 }

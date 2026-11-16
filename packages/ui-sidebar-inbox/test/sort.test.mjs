@@ -4,6 +4,11 @@ import { stripTypeScriptTypes } from 'node:module'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { dictionaries } from '../src/locale.ts'
+import { createScheduleLink } from '../src/schedule-link.ts'
+import { createSnoozeState } from '../src/snooze-state.ts'
+import { createAgentWake, createAgentChoice } from '../src/agent-wake.ts'
+import { createAutomationVisibility, AUTOMATION_VISIBLE_KEY } from '../src/automation-visibility.ts'
+import { SNOOZE_KEY } from '../src/snooze.ts'
 
 const source = stripTypeScriptTypes(await readFile(new URL('../src/client.ts', import.meta.url), 'utf8'))
   .replace(/^import .*$/gm, '')
@@ -49,6 +54,16 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
       return { refresh() {}, dispose() {} }
     },
     dictionaries,
+    createWorktreeActivity: () => ({ active: new Set(), attach: () => () => {}, dispose() {}, reconcile() {} }),
+    WORKTREE_INJECT: [],
+    SCHEDULE_INJECT: [],
+    createScheduleLink,
+    createSnoozeState,
+    createAgentWake,
+    createAgentChoice,
+    createAutomationVisibility,
+    SNOOZE_KEY,
+    AUTOMATION_VISIBLE_KEY,
     NS: 'inbox',
   }
   runInNewContext(`${source}\nglobalThis.apply = apply`, context)
@@ -61,6 +76,7 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
   })
   const ctx = {
     effect: (callback) => callback(),
+    inject: () => {},
     locale: {
       register() {},
       bind: () => (key) => key,
@@ -110,7 +126,7 @@ await test('정렬 이름은 여섯 추가 언어의 지역 식별자와 실시�
   ]) {
     assert.equal(app.label(language), expected)
   }
-  assert.equal(app.label('zh-CN'), 'sort.agentActivity', 'existing host dictionary fallback is preserved')
+  assert.equal(app.label('zh-CN'), '智能体活动')
 })
 
 await test('신규 설치는 기존 그룹과 관계없이 에이전트 활동을 기본 선택한다', () => {

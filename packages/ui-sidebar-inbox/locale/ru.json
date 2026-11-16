@@ -6,6 +6,14 @@
   "ui": {
     "heading.working": "В работе",
     "heading.archived": "Архивные",
-    "sort.agentActivity": "Активность агента"
+    "sort.agentActivity": "Активность агента",
+    "heading.snoozed": "Временно скрытые",
+    "snooze.30m": "30 минут",
+    "snooze.1h": "1 час",
+    "snooze.3h": "3 часа",
+    "snooze.tomorrow": "До завтрашнего утра",
+    "snooze.action": "Скрыть временно",
+    "snooze.agent": "Пусть решит агент",
+    "snooze.wake": "Показать снова"
   }
 }

@@ -6,6 +6,14 @@
   "ui": {
     "heading.working": "作業中",
     "heading.archived": "アーカイブ済み",
-    "sort.agentActivity": "エージェントの活動"
+    "sort.agentActivity": "エージェントの活動",
+    "heading.snoozed": "一時的に非表示",
+    "snooze.30m": "30分間",
+    "snooze.1h": "1時間",
+    "snooze.3h": "3時間",
+    "snooze.tomorrow": "明日の朝まで",
+    "snooze.action": "一時的に非表示",
+    "snooze.agent": "エージェントに任せる",
+    "snooze.wake": "表示に戻す"
   }
 }
