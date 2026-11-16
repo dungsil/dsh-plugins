@@ -5,6 +5,6 @@ export default defineConfig([
   nodeConfig,
   clientConfig(manifest.name, {
     entry: ['src/client.ts'],
-    deps: { neverBundle: ['react'] },
+    deps: { alwaysBundle: ['@dungsil/dsh-ui'] },
   }),
 ])

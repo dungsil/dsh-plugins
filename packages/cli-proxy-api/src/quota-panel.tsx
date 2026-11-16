@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button, Input } from '@dungsil/dsh-ui'
 import { IconRefreshOutlineRegular, IconSearchOutlineRegular, ProviderIcon } from '@dungsil/dsh-ui/icons'
-import type { localizedCopy } from './copy.js'
 import type { QuotaAccount, QuotaResult } from './protocol.js'
+import type { copy } from './copy.js'
 import { quotaKey } from './quota-cache.js'
 
 type QuotaWindow = QuotaResult['windows'][number]
@@ -69,7 +69,7 @@ export function QuotaPanel({
   quotas: Record<string, QuotaResult | null | undefined>
   fetchedAt?: number
   language: string
-  text: ReturnType<typeof localizedCopy>
+  text: (typeof copy)[keyof typeof copy]
   busy: boolean
   canLoad: boolean
   managementDisabled: boolean

@@ -99,5 +99,3 @@ export const copy = {
       '请输入有效的相对目录（最多 4096 个字符）。前缀可留空，或以 ASCII 字母、数字、下划线开头，后接这些字符或连字符（最多 100 个字符）。',
   },
 }
-export const localized = (language: string) =>
-  copy[language.startsWith('ko') ? 'ko' : language.startsWith('zh') ? 'zh' : 'en']

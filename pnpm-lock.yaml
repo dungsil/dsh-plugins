@@ -768,6 +768,9 @@ importers:
       '@dungsil/dsh-tsdown':
         specifier: workspace:*
         version: link:../../tools/tsdown
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
@@ -1448,12 +1451,9 @@ importers:
       '@dungsil/dsh-tsdown':
         specifier: workspace:*
         version: link:../../tools/tsdown
-      '@types/react':
-        specifier: 18.3.31
-        version: 18.3.31
-      react:
-        specifier: 18.3.1
-        version: 18.3.1
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
       tsdown:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)

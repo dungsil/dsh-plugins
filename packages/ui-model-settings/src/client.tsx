@@ -13,7 +13,7 @@ import {
   type MenuEntry,
 } from '@dungsil/dsh-ui'
 import { IconChevronDownOutlineRegular, modelSettingsIconSvg } from '@dungsil/dsh-ui/icons'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, localizedLanguage, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
   endpointPrefix,
@@ -129,11 +129,6 @@ const copy = {
   },
 }
 
-const languageKey = (language: string) => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'
-}
-const localizedCopy = (language: string) => copy[languageKey(language)]
 // Tasks come from other plugins, which may not yet supply every UI language.
 const taskText = (text: { en: string } & Partial<Record<keyof typeof copy, string>>, language: keyof typeof copy) =>
   text[language] ?? text.en
@@ -179,8 +174,8 @@ type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailabl
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useLocaleSnapshot(ctx.locale)
-  const language = languageKey(locale.active)
-  const text = localizedCopy(locale.active)
+  const language = localizedLanguage(copy, locale.active)
+  const text = localizedCopy(copy, locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsViewV2>()
@@ -552,7 +547,7 @@ export function apply(ctx: Context) {
         name: 'settings.section',
         id: name,
         order: 15,
-        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
+        label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).nav,
         inject: () => ({ ctx }),
       },
       ModelSettings

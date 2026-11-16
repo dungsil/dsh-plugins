@@ -157,8 +157,3 @@ export const copy = {
     accounting: '输入不含缓存读取和写入，推理令牌已包含在输出中。如提供方报告总令牌数，则使用该值。',
   },
 }
-
-export const localizedCopy = (language: string) => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en']
-}

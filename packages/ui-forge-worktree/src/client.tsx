@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, MenuItemButton } from '@dungsil/dsh-ui'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import { IconBranchOutlineRegular, IconCheckOutlineRegular, IconPlusOutlineRegular } from '@dungsil/dsh-ui/icons'
 import { copy } from './copy.js'
@@ -255,8 +255,7 @@ export function apply(ctx: Context) {
   })
   function Picker({ sessionId, useSession, useInput, useProjection }: Props) {
     const { active } = useLocaleSnapshot(ctx.locale)
-    const text =
-      (copy as Record<string, (typeof copy)[keyof typeof copy]>)[active.toLowerCase().split(/[-_]/)[0]] ?? copy.en
+    const text = localizedCopy(copy, active)
     const [controller] = useState(() => new SelectionController(remote, sessionId))
     const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
     const unavailable = useSession(

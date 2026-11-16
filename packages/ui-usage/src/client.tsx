@@ -7,8 +7,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { Button, ButtonPicker, Input, PluginPage, pageStyles, StateDot } from '@dungsil/dsh-ui'
 import { IconGaugeOutlineRegular, IconRefreshOutlineRegular } from '@dungsil/dsh-ui/icons'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
-import { localizedCopy } from './copy.js'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { copy } from './copy.js'
 import { channel, isValidDateRange, method, type UsageView } from './protocol.js'
 
 export const name = 'dungsil-ui-usage'
@@ -76,7 +76,7 @@ const styles = `${pageStyles}
 
 function Usage({ ctx }: { ctx: Context }) {
   const locale = useLocaleSnapshot(ctx.locale)
-  const text = localizedCopy(locale.active)
+  const text = localizedCopy(copy, locale.active)
   const number = new Intl.NumberFormat(locale.active)
   const tokens = new Intl.NumberFormat(locale.active, { notation: 'compact', maximumFractionDigits: 1 })
   const connection = ctx.get('connection') as unknown as ConnectionHandle
@@ -399,7 +399,7 @@ export function apply(ctx: Context) {
         name: 'sidebar.panellist',
         id: name,
         order: 1,
-        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
+        label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).nav,
       },
       ({ size }) => <IconGaugeOutlineRegular size={size} />
     )

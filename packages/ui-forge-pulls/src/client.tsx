@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ComponentProps } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, ButtonPicker, MarkdownText, SegmentedTabs, Tag } from '@dungsil/dsh-ui'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
@@ -80,17 +81,8 @@ export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const views = new Map<string, RequestView>()
   ctx.effect(() => () => views.clear())
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-forge-pulls: pull request styles')
-  const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
-  const text = () => {
-    const language = ctx.locale.getSnapshot().active
-    return language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
-  }
+  ctx.effect(() => installStyles(styles), 'ui-forge-pulls: pull request styles')
+  const copyFor = (language: string) => localizedCopy({ en, ko, zh }, language)
 
   function Links({ sessionId }: PropsRuntime<'conversation.input.dock'>) {
     const anchor = useRef<HTMLSpanElement>(null)
@@ -107,8 +99,8 @@ export function apply(ctx: Context) {
   }
 
   function Requests({ sessionId, useTabInfo, useSession }: PropsRuntime<'sidebar.right.pane.tab'>) {
-    useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
-    const copy = text()
+    const { active: language } = useLocaleSnapshot(ctx.locale)
+    const copy = copyFor(language)
     const { tab } = useTabInfo()
     const params = tab.navigation.params as { requestUrl?: unknown } | undefined
     const requestUrl = typeof params?.requestUrl === 'string' ? pullRequestUrl(params.requestUrl) : undefined
@@ -600,13 +592,13 @@ export function apply(ctx: Context) {
     ctx.sidebarRightTabs.register({
       id: name,
       kind: name,
-      title: () => text().title,
+      title: () => copyFor(ctx.locale.getSnapshot().active).title,
       guide: [
         {
           id: 'requests',
           order: 30,
-          title: () => text().title,
-          description: () => text().description,
+          title: () => copyFor(ctx.locale.getSnapshot().active).title,
+          description: () => copyFor(ctx.locale.getSnapshot().active).description,
           icon: IconBranchOutlineRegular,
         },
       ],
@@ -619,8 +611,8 @@ export function apply(ctx: Context) {
     ctx.slots.register({ name: 'sidebar.right.pane.tab', key: name }, Requests)
   )
   function Title() {
-    useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
-    return <span>{text().title}</span>
+    const { active } = useLocaleSnapshot(ctx.locale)
+    return <span>{copyFor(active).title}</span>
   }
   ctx.slots.inject('sidebar.right.pane.tab.title', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: name }, Title)

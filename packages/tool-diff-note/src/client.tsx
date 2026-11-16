@@ -3,7 +3,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { AnnotatedDiffBlock, annotatedDiffStyles } from '@dungsil/dsh-ui'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
@@ -28,7 +28,7 @@ const styles = `${annotatedDiffStyles}
 export function apply(ctx: Context) {
   function DiffNoteCard(props: ToolCallViewProps) {
     const { active } = useLocaleSnapshot(ctx.locale)
-    const text = (translations[active.toLowerCase().split(/[-_]/)[0]] ?? en).ui
+    const text = localizedCopy(translations, active).ui
     const note =
       props.phase === 'result' && !props.block.isError && isDiffNote(props.block.meta) ? props.block.meta : undefined
     const failed = props.phase === 'result' && !note
