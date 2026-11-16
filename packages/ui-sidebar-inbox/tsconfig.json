@@ -4,6 +4,7 @@
     "lib": ["ES2025", "ESNext.Collection", "ESNext.Temporal", "DOM"],
     "strict": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "noEmit": true
   },
   "include": ["src/**/*.ts", "tsdown.config.ts"]
