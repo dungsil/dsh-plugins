@@ -35,7 +35,8 @@
     "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
     "@deepseek-ai/dsh-native-command": "0.2.2-rc.3",
     "franc-min": "6.2.0",
-    "iso-639-3": "3.0.1"
+    "iso-639-3": "3.0.1",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",

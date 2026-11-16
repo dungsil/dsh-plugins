@@ -1185,6 +1185,9 @@ importers:
       iso-639-3:
         specifier: 3.0.1
         version: 3.0.1
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.1.0

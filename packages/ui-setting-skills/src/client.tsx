@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, Input, installSettingsIcon, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
+import { Button, Input, installSettingsIcon, Modal, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
 import {
   IconChevronRightOutlineRegular,
   IconFolderOpenOutlineRegular,
@@ -21,7 +21,15 @@ import fr from '../locale/fr.json' with { type: 'json' }
 import de from '../locale/de.json' with { type: 'json' }
 import ru from '../locale/ru.json' with { type: 'json' }
 import pt from '../locale/pt.json' with { type: 'json' }
-import { channel, method, openFolderMethod, saveMethod, translateMethod, type SkillsView } from './protocol.js'
+import {
+  channel,
+  method,
+  openFolderMethod,
+  saveMethod,
+  sourceMethod,
+  translateMethod,
+  type SkillsView,
+} from './protocol.js'
 
 export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
@@ -40,7 +48,7 @@ const styles = `
 .dsh-skills-settings .dsh-skills-muted { color: var(--dsw-alias-label-secondary); }
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
 .dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
-.dsh-skills-settings [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
+.dsh-skills-settings [role=alert], .dsh-skills-source-error { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-skills-settings li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 .dsh-skills-settings details { min-width: 0; }
 .dsh-skills-settings summary { display: flex; align-items: center; gap: 12px; padding: 16px 0; list-style: none; cursor: pointer; border-radius: var(--dsw-radius-md); }
@@ -59,11 +67,13 @@ const styles = `
 .dsh-skills-folder { width: 28px; padding: 0; }
 .dsh-skills-open-error { grid-column: 1 / -1; padding: 0 0 16px 28px; }
 .dsh-skills-list-header { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
+.dsh-skills-source-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow: auto; }
 `
 
 type Skill = SkillsView['skills'][number]
 type Translation = { value?: string; pending?: boolean; failed?: boolean }
-const translationKey = (skill: Skill, language: string) => JSON.stringify([language, skill.path, skill.description])
+const description = (skill: Skill) => skill.display?.description ?? skill.description
+const translationKey = (skill: Skill, language: string) => JSON.stringify([language, skill.path, description(skill)])
 
 function SkillDescription({
   skill,
@@ -83,17 +93,18 @@ function SkillDescription({
   const text = localizedCopy(language)
   const [original, setOriginal] = useState(false)
   const { value: translated, pending, failed } = translation ?? {}
+  const originalDescription = description(skill)
   useEffect(() => {
     if (expanded && available) void translate(skill)
   }, [expanded, available, skill, translate])
 
   return (
     <>
-      <p>{original || translated === undefined ? skill.description : translated}</p>
-      {available && skill.path && skill.description && (
+      <p>{original || translated === undefined ? originalDescription : translated}</p>
+      {available && skill.path && originalDescription && (
         <>
           {pending && <p role="status">{text.translating}</p>}
-          {translated !== undefined && translated !== skill.description && (
+          {translated !== undefined && translated !== originalDescription && (
             <Button variant="ghost" size="sm" onClick={() => setOriginal((value) => !value)}>
               {original ? text.translate : text.original}
             </Button>
@@ -112,6 +123,69 @@ function SkillDescription({
   )
 }
 
+function SkillSource({
+  skill,
+  language,
+  connection,
+  close,
+}: {
+  skill: Skill
+  language: string
+  connection: ConnectionHandle
+  close: () => void
+}) {
+  const text = localizedCopy(language)
+  const [attempt, setAttempt] = useState(0)
+  const [state, setState] = useState<{ status: 'loading' | 'error' } | { status: 'ready'; content: string }>({
+    status: 'loading',
+  })
+  useEffect(() => {
+    const controller = new AbortController()
+    setState({ status: 'loading' })
+    void connection.rpc
+      .call(channel, sourceMethod, { path: skill.path }, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return
+        if (!result.ok || typeof result.value !== 'string') throw new Error('Could not load source')
+        setState({ status: 'ready', content: result.value })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setState({ status: 'error' })
+      })
+    return () => controller.abort()
+  }, [connection, skill.path, attempt])
+  return (
+    <Modal
+      open
+      onClose={close}
+      closeLabel={text.close}
+      title={text.sourceTitle.replace('{name}', skill.display?.name ?? skill.name)}
+    >
+      {state.status === 'loading' && <p role="status">{text.sourceLoading}</p>}
+      {state.status === 'error' && (
+        <>
+          <p role="alert" className="dsh-skills-source-error">
+            {text.sourceError}
+          </p>
+          <Button variant="outline" onClick={() => setAttempt((value) => value + 1)}>
+            {text.retry}
+          </Button>
+        </>
+      )}
+      {state.status === 'ready' && (
+        <pre
+          role="region"
+          className="dsh-skills-source-body"
+          tabIndex={0}
+          aria-label={text.sourceTitle.replace('{name}', skill.display?.name ?? skill.name)}
+        >
+          {state.content}
+        </pre>
+      )}
+    </Modal>
+  )
+}
+
 function SkillsSettings({ ctx }: { ctx: Context }) {
   const locale = useSyncExternalStore(
     (listener) => ctx.locale.subscribe(listener),
@@ -121,6 +195,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<SkillsView>()
+  const [sourceSkill, setSourceSkill] = useState<Skill>()
   const [error, setError] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -151,7 +226,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   }, [translations])
   const translate = useCallback(
     (skill: Skill): Promise<void> => {
-      if (!skill.path || !skill.description) return Promise.resolve()
+      if (!skill.path || !description(skill)) return Promise.resolve()
       const key = translationKey(skill, locale.active)
       const existing = translations.requests.get(key)
       if (existing) return existing
@@ -210,6 +285,8 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
         const fields = [
           skill.name,
           skill.description,
+          skill.display?.name ?? '',
+          skill.display?.description ?? '',
           skill.path ?? '',
           translations.entries.get(translationKey(skill, locale.active))?.value ?? '',
         ].map(normalizeSearch)
@@ -279,6 +356,14 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   return (
     <section className="dsh-skills-settings" aria-label={text.nav} aria-busy={!view && !error}>
       <p className="dsh-skills-muted">{text.description}</p>
+      {sourceSkill && (
+        <SkillSource
+          skill={sourceSkill}
+          language={locale.active}
+          connection={connection}
+          close={() => setSourceSkill(undefined)}
+        />
+      )}
       {view && !view.folderOpenAvailable && <p className="dsh-skills-muted">{text.openFolderUnavailable}</p>}
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
@@ -351,22 +436,28 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
                             setExpanded((current) => ({ ...current, [skill.path ?? skill.name]: open }))
                           }}
                         >
-                          <summary aria-label={skill.name}>
+                          <summary>
                             <IconChevronRightOutlineRegular size={16} aria-hidden="true" />
                             <span className="dsh-skills-summary-text">
                               <span className="dsh-skills-title">
-                                <strong>{skill.name}</strong>
+                                <strong>{skill.display?.name ?? skill.name}</strong>
+                                {skill.display?.name && skill.display.name !== skill.name && <code>{skill.name}</code>}
                                 {view.disabled.includes(skill.name) && (
                                   <span className="dsh-skills-muted">{text.disabled}</span>
                                 )}
                               </span>
                               <span className="dsh-skills-preview dsh-skills-muted" aria-hidden="true">
                                 {translations.entries.get(translationKey(skill, locale.active))?.value ??
-                                  skill.description}
+                                  description(skill)}
                               </span>
                             </span>
                           </summary>
                           <div className="dsh-skills-detail">
+                            {skill.path && (
+                              <Button variant="outline" size="sm" onClick={() => setSourceSkill(skill)}>
+                                {text.viewSource}
+                              </Button>
+                            )}
                             <SkillDescription
                               key={translationKey(skill, locale.active)}
                               skill={skill}
