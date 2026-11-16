@@ -1171,7 +1171,7 @@ importers:
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
       '@deepseek-ai/dsh-client-ui-primitives':
-        specifier: ^0.2.1-rc.5 || ^0.2.2-rc.1
+        specifier: ^0.2.2-rc.3
         version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
       '@deepseek-ai/dsh-home-paths':
         specifier: 0.2.2-rc.3
