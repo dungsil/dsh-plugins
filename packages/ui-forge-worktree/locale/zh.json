@@ -7,16 +7,17 @@
     "title": "工作树",
     "create": "新建工作树",
     "current": "当前分支",
+    "origin": "原始检出",
+    "attached": "此会话在所选工作树中开始。",
     "detached": "分离的 HEAD",
     "loading": "正在加载工作树…",
     "saving": "正在保存选择…",
     "reserved": "发送第一条消息时将创建新工作树。",
     "locked": "会话开始后无法更改工作树选择。",
-    "error": "无法确认工作树选择。请刷新后重试。",
-    "refresh": "刷新选择",
-    "previous": "上一页工作树",
-    "more": "更多工作树",
-    "listError": "无法加载现有工作树",
-    "blocked": "此检出目录无法使用新工作树。"
+    "error": "无法确认工作树选择。请重新加载页面后重试。",
+    "blocked": "此检出目录无法使用新工作树。",
+    "more": "加载更多",
+    "worktreesLoading": "正在加载现有工作树…",
+    "worktreesUnavailable": "无法加载现有工作树。"
   }
 }

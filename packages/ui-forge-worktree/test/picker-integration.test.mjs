@@ -93,8 +93,10 @@ async function mount(t, { snapshot = {}, touched = false } = {}) {
                   IconBranchOutlineRegular: () => React.createElement('svg'),
                   IconPlusOutlineRegular: () => React.createElement('svg'),
                   IconCheckOutlineRegular: () => React.createElement('svg'),
+                  IconWarningTriangleOutlineRegular: () => React.createElement('svg'),
                   Menu: ({ anchor, open, children }) => React.createElement('div', null, anchor, open && children),
                   MenuItemButton: ({ children, onClick }) => React.createElement('button', { onClick }, children),
+                  Tooltip: ({ children }) => React.createElement('span', null, children),
                 }
               : require(id)
           )

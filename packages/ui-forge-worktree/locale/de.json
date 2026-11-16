@@ -7,16 +7,17 @@
     "title": "Worktree",
     "create": "Neuer Worktree",
     "current": "Aktueller Branch",
+    "origin": "Ursprünglicher Checkout",
+    "attached": "Diese Sitzung beginnt im ausgewählten Worktree.",
     "detached": "Losgelöster HEAD",
     "loading": "Worktree wird geladen…",
     "saving": "Auswahl wird gespeichert…",
     "reserved": "Ein neuer Worktree wird erstellt, wenn Sie Ihre erste Nachricht senden.",
     "locked": "Die Worktree-Auswahl kann nach dem Start dieser Sitzung nicht mehr geändert werden.",
-    "error": "Die Worktree-Auswahl konnte nicht bestätigt werden. Aktualisieren Sie vor einem erneuten Versuch.",
-    "refresh": "Auswahl aktualisieren",
-    "previous": "Vorherige Worktrees",
-    "more": "Weitere Worktrees",
-    "listError": "Bestehende Worktrees konnten nicht geladen werden",
-    "blocked": "Für diesen Checkout ist kein neuer Worktree verfügbar."
+    "error": "Die Worktree-Auswahl konnte nicht bestätigt werden. Laden Sie die Seite neu, bevor Sie es erneut versuchen.",
+    "blocked": "Für diesen Checkout ist kein neuer Worktree verfügbar.",
+    "more": "Mehr laden",
+    "worktreesLoading": "Vorhandene Worktrees werden geladen…",
+    "worktreesUnavailable": "Vorhandene Worktrees konnten nicht geladen werden."
   }
 }

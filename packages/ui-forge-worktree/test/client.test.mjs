@@ -58,7 +58,16 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
             if (id === 'react') return react
             if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' }
             if (id === '@deepseek-ai/dsh-client-ui-primitives')
-              return { Menu: 'Menu', MenuItemButton: 'MenuItemButton' }
+              return {
+                Menu: 'Menu',
+                MenuItemButton: 'MenuItemButton',
+                Tooltip: 'Tooltip',
+                IconChevronDownOutlineRegular: 'Chevron',
+                IconBranchOutlineRegular: 'Branch',
+                IconPlusOutlineRegular: 'Plus',
+                IconCheckOutlineRegular: 'Check',
+                IconWarningTriangleOutlineRegular: 'Warning',
+              }
             throw Error(`Unexpected dependency: ${id}`)
           })
         },
@@ -409,11 +418,16 @@ for (const [language, label, current] of [
     })
     const tree = wrapped.type(wrapped.props)
     const menu = tree.props.children[0]
+    const [info, origin, create] = menu.props.children
     assert.equal(menu.props.anchor.props.label, label)
     assert.equal(menu.props.anchor.props.disabled, false)
-    assert.equal(menu.props.children[0].props.current, true)
-    assert.equal(menu.props.children[1].props.current, false)
-    assert.equal(menu.props.children[1].props.children.props.children[1].props.children, current)
+    // 목록을 읽기 전에는 안내 행만 비활성으로 보여 주고 체크아웃·생성 행은 유지한다.
+    assert.equal(info.props.disabled, true)
+    assert.equal(origin.props.current, false)
+    assert.equal(origin.props.children.props.children[1].props.children, current)
+    assert.equal(create.props.current, true)
+    assert.equal(create.props.separatorBefore, true)
+    assert.equal(create.props.children.props.children[0].props.children, label)
     for (const cleanup of h.cleanups) cleanup()
   })
 }
@@ -423,9 +437,15 @@ await test('모든 지원 로케일의 문구를 번들에 포함하고 다른 �
     'New worktree',
     '새 워크트리',
     '新建工作树',
-    'Refresh selection',
-    '선택 새로고침',
-    '刷新选择',
+    'Load more',
+    '더 불러오기',
+    '加载更多',
+    'Original checkout',
+    '원래 체크아웃',
+    '原始检出',
+    'Loading existing worktrees…',
+    '기존 워크트리를 불러오는 중…',
+    '正在加载现有工作树…',
     '新しいワークツリー',
     'Nuevo árbol de trabajo',
     'Nouvel arbre de travail',
