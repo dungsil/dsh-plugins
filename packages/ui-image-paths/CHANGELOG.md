@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-image-paths
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-image-paths%400.2.0...%40dungsil%2Fdsh-plugin-ui-image-paths%400.2.1) (2026-11-16)
+
+### Bug Fixes
+
+- **image-paths:** node가 없는 소유자로 renderSlot이 호출되면 cwd 보정을 건너뛴다 ([#237](https://github.com/dungsil/dsh-plugins/issues/237)) ([50b7fab](https://github.com/dungsil/dsh-plugins/commit/50b7fab3203be2773525c3503ef8a6d7c6b2eeba))
+
 ## 0.2.0 (2026-11-15)
 
 ### Features

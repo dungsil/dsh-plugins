@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-setting-vcs
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-vcs%400.2.0...%40dungsil%2Fdsh-plugin-ui-setting-vcs%400.3.0) (2026-11-16)
+
+### ⚠ BREAKING CHANGES
+
+- **worktree:** 새 세션의 기본 체크아웃을 설정한다 ([#225](https://github.com/dungsil/dsh-plugins/issues/225))
+
+### Features
+
+- **vcs:** 보관 시 워크트리 제거 설정을 제공한다 ([#221](https://github.com/dungsil/dsh-plugins/issues/221)) ([2c18dc2](https://github.com/dungsil/dsh-plugins/commit/2c18dc20141a01e1e43af6f351e65fb113a9c6bd))
+- **worktree:** 새 세션의 기본 체크아웃을 설정한다 ([#225](https://github.com/dungsil/dsh-plugins/issues/225)) ([f5bc9cd](https://github.com/dungsil/dsh-plugins/commit/f5bc9cdeecc7703f10ae57012321f183f69eba56))
+
 ## 0.2.0 (2026-11-15)
 
 ### Features

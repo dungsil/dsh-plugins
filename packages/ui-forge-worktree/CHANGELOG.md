@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-ui-forge-worktree
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-worktree%400.1.0...%40dungsil%2Fdsh-plugin-ui-forge-worktree%400.2.0) (2026-11-16)
+
+### ⚠ BREAKING CHANGES
+
+- **worktree:** 새 세션의 기본 체크아웃을 설정한다 ([#225](https://github.com/dungsil/dsh-plugins/issues/225))
+
+### Features
+
+- **worktree:** 새 세션의 기본 체크아웃을 설정한다 ([#225](https://github.com/dungsil/dsh-plugins/issues/225)) ([f5bc9cd](https://github.com/dungsil/dsh-plugins/commit/f5bc9cdeecc7703f10ae57012321f183f69eba56))
+
 ## 0.1.0 (2026-11-15)
 
 ### Features

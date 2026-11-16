@@ -1,5 +1,20 @@
 # @dungsil/dsh-plugin-ui-setting-skills
 
+## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.5.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.0) (2026-11-16)
+
+### ⚠ BREAKING CHANGES
+
+- **skills:** 작업 공간과 프리셋의 유효 스킬 카탈로그를 제공한다 ([#229](https://github.com/dungsil/dsh-plugins/issues/229))
+
+### Features
+
+- **skills:** 스킬 전문과 표시 메타데이터를 제공한다 ([#220](https://github.com/dungsil/dsh-plugins/issues/220)) ([88001e0](https://github.com/dungsil/dsh-plugins/commit/88001e059163a44904191593dae6c2e0488983f3))
+- **skills:** 작업 공간과 프리셋의 유효 스킬 카탈로그를 제공한다 ([#229](https://github.com/dungsil/dsh-plugins/issues/229)) ([d92cbf5](https://github.com/dungsil/dsh-plugins/commit/d92cbf5c229c17e577602322de41c4c218e769ff))
+
+### Bug Fixes
+
+- **setting-skills:** 스킬 비활성화 필터를 사용자 소스로 한정한다 ([#238](https://github.com/dungsil/dsh-plugins/issues/238)) ([1a047ee](https://github.com/dungsil/dsh-plugins/commit/1a047ee341c31d2a1e5d0f3e716bd3243866f319))
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.4.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.5.0) (2026-11-15)
 
 ### Features
