@@ -29,7 +29,10 @@ const fixture = () => ({
 const success = (value) => ({ ok: true, value })
 const plain = (value) => JSON.parse(JSON.stringify(value))
 
-async function renderSettings(t, { language = 'ko', rpc = async () => success(fixture()) } = {}) {
+async function renderSettings(
+  t,
+  { language = 'ko', rpc = async () => success(fixture()), preferenceRpc = async () => ({ ok: false }) } = {}
+) {
   const window = new Window()
   const previous = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map((key) => [
     key,
@@ -91,6 +94,17 @@ async function renderSettings(t, { language = 'ko', rpc = async () => success(fi
             if (id !== '@deepseek-ai/dsh-client-ui-primitives') return require(id)
             // Keep the bundled SettingsRow and locale hook; mock browser-only primitives.
             return {
+              Menu: ({ anchor, open, items, onSelect }) =>
+                React.createElement(
+                  'div',
+                  null,
+                  anchor,
+                  open &&
+                    items.map((item) =>
+                      React.createElement('button', { key: item.id, onClick: () => onSelect(item.id) }, item.label)
+                    )
+                ),
+              IconChevronDownOutlineRegular: () => React.createElement('svg'),
               Button: ({ children, variant: _variant, size: _size, ...props }) =>
                 React.createElement('button', props, children),
               Switch: ({ checked, label, onChange, disabled }) =>
@@ -118,6 +132,7 @@ async function renderSettings(t, { language = 'ko', rpc = async () => success(fi
     rpc: {
       call: (api, method, payload, signal) => {
         assert.equal(api, channel)
+        if (method.startsWith('dungsil-worktree-preference/')) return preferenceRpc(method, payload, signal)
         assert.ok(signal instanceof AbortSignal)
         assert.equal(signal.aborted, false)
         calls.push({ method, payload: plain(payload), signal })
@@ -550,4 +565,39 @@ await test('디바운스 대기 중 언마운트하면 저장 RPC를 보내지 �
   await ui.unmount()
   await ui.advance(3000)
   assert.equal(ui.saves().length, 0)
+})
+
+await test('기본 체크아웃을 변경하면 picker 설정을 바로 저장하고 확인된 값만 표시한다', async (t) => {
+  const calls = []
+  const ui = await renderSettings(t, {
+    preferenceRpc: async (method, payload) => {
+      calls.push({ method, payload: plain(payload) })
+      return success({ defaultCheckout: method.endsWith('/read') ? 'current' : payload.defaultCheckout })
+    },
+  })
+  const picker = ui.container.querySelector('.dsh-plugin-settings-selector')
+  assert.ok(picker.textContent.includes('현재 체크아웃'))
+  await React.act(async () => picker.click())
+  const option = [...ui.container.querySelectorAll('button')].find((button) => button.textContent === '새 워크트리')
+  await React.act(async () => option.click())
+  assert.ok(picker.textContent.includes('새 워크트리'))
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ['dungsil-worktree-preference/read', 'dungsil-worktree-preference/save']
+  )
+  assert.deepEqual(calls[1].payload, { defaultCheckout: 'worktree' })
+})
+
+await test('기본 체크아웃 저장에 실패하면 이전 값을 유지하고 오류를 표시한다', async (t) => {
+  const ui = await renderSettings(t, {
+    preferenceRpc: async (method) =>
+      method.endsWith('/read') ? success({ defaultCheckout: 'current' }) : { ok: false },
+  })
+  const picker = ui.container.querySelector('.dsh-plugin-settings-selector')
+  await React.act(async () => picker.click())
+  await React.act(async () =>
+    [...ui.container.querySelectorAll('button')].find((button) => button.textContent === '새 워크트리').click()
+  )
+  assert.ok(picker.textContent.includes('현재 체크아웃'))
+  assert.ok(ui.container.querySelector('[role=alert]').textContent.includes('저장하지 못했습니다'))
 })

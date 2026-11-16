@@ -7,6 +7,7 @@ import { Button, Input, SettingsRow, Switch, settingsStyles } from '@dungsil/dsh
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, readMethod, saveMethod, validSettings, type SettingsView } from './protocol.js'
 import { localized } from './copy.js'
+import { DefaultCheckoutRow } from './default-checkout.js'
 
 export const inject = ['connection', 'locale', 'slots']
 type Patch = { directory?: string; prefix?: string; cleanupOnArchive?: boolean }
@@ -143,6 +144,7 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
   return (
     <section className="dsh-setting-vcs" aria-label={text.nav} aria-busy={loading || saving}>
       <p>{text.scope}</p>
+      <DefaultCheckoutRow connection={connection} text={text} />
       {loading && <p role="status">{text.loading}</p>}
       {!loading && view?.entries.length === 0 && <p>{text.empty}</p>}
       {!loading && !!view?.entries.length && (

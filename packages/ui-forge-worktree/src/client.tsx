@@ -12,9 +12,11 @@ import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import { IconBranchOutlineRegular, IconCheckOutlineRegular, IconPlusOutlineRegular } from '@dungsil/dsh-ui/icons'
 import { copy } from './copy.js'
 import { styles } from './styles.js'
+import { createDefaultCheckout, readMethod, type Checkout } from './default-checkout.js'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 
 export const name = 'dungsil-ui-forge-worktree'
-export const inject = ['slots', 'locale', 'remote', 'remote.forgePanel']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.forgePanel']
 type Props = PropsRuntime<'conversation.input.left'>
 // The Remote is mounted by Forge; this adapter neither mounts nor replaces it.
 export interface Panel {
@@ -178,11 +180,13 @@ export class SelectionController {
 export function apply(ctx: Context) {
   const remote = (ctx as unknown as { remote: { forgePanel: ForgeRemote } }).remote.forgePanel
   const controllers = new Set<SelectionController>()
+  const defaults = createDefaultCheckout()
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
   ctx.effect(() => () => {
     for (const controller of controllers) controller.dispose()
     controllers.clear()
   })
-  function Picker({ sessionId, useSession, useInput }: Props) {
+  function Picker({ sessionId, useSession, useInput, useProjection }: Props) {
     const { active } = useLocaleSnapshot(ctx.locale)
     const text =
       (copy as Record<string, (typeof copy)[keyof typeof copy]>)[active.toLowerCase().split(/[-_]/)[0]] ?? copy.en
@@ -192,6 +196,21 @@ export function apply(ctx: Context) {
       (s) => s.running || s.removed || s.openState !== 'open' || s.pendingSubmissions.length > 0
     )
     const inputBusy = useInput((input) => input.phase !== 'plain')
+    const blank = useSession((s) => s.blank && !s.promptAttempted)
+    const touched = useProjection('dungsilCheckoutTouched')
+    const [preferred, setPreferred] = useState<Checkout | null>(null)
+    useEffect(() => {
+      const abort = new AbortController()
+      void connection.rpc
+        .call('/api', readMethod, {}, abort.signal)
+        .then((result) => {
+          if (abort.signal.aborted || !result.ok) return
+          const value = (result.value as { defaultCheckout?: unknown } | null)?.defaultCheckout
+          if (value === 'current' || value === 'worktree') setPreferred(value)
+        })
+        .catch(() => {})
+      return () => abort.abort()
+    }, [])
     const [open, setOpen] = useState(false)
     const status = useId()
     const available = useRef(false)
@@ -226,7 +245,19 @@ export function apply(ctx: Context) {
     useEffect(() => {
       if (disabled) setOpen(false)
     }, [disabled])
+    useEffect(() => {
+      if (touched === undefined) return
+      defaults.apply(
+        sessionId,
+        preferred,
+        state.panel,
+        !disabled && !open,
+        blank && !touched,
+        () => void controller.choose('new')
+      )
+    }, [sessionId, preferred, state.panel, disabled, open, blank, touched, controller])
     const choose = (choice: 'new' | 'current') => {
+      defaults.mark(sessionId)
       setOpen(false)
       if (available.current) void controller.choose(choice)
     }
@@ -252,11 +283,15 @@ export function apply(ctx: Context) {
               aria-describedby={status}
               title={worktree && !worktree.editable ? text.locked : `${text.title}: ${label}`}
               onClick={() => {
-                if (available.current) setOpen((value) => !value)
+                if (available.current) {
+                  defaults.mark(sessionId)
+                  setOpen((value) => !value)
+                }
               }}
               onKeyDown={(event) => {
                 if (available.current && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
                   event.preventDefault()
+                  defaults.mark(sessionId)
                   setOpen(true)
                 }
               }}
