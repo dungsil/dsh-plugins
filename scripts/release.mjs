@@ -238,6 +238,16 @@ export async function releaseWorkspace({ dryRun = false, recoverOnly = false, pa
           github: { ...settings.github, ...options.github, release: false },
         })
         if (result.version) {
+          // pnpm writes each workspace dependency's manifest version into the published package.
+          // A dependency this run did not release must already be on npm, or installs fail.
+          const unpublished = packages
+            .filter((dependency) => Object.hasOwn(pkg.dependencies ?? {}, dependency.name))
+            .filter((dependency) => !releases.some(({ pkg }) => pkg.name === dependency.name))
+            .filter((dependency) => !isPublished(dependency.name, dependency.version))
+            .map((dependency) => `${dependency.name}@${dependency.version}`)
+          if (unpublished.length > 0) {
+            throw new Error(`Cannot release ${pkg.name} with unpublished dependencies: ${unpublished.join(', ')}`)
+          }
           if (npmOptions.publish) publishOnce(pkg, result.version)
           releases.push({ pkg, settings, result })
         }
