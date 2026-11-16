@@ -73,6 +73,8 @@ export function apply(ctx: Context) {
   let view: ViewInstance | undefined
   let refreshHeadings = () => {}
   let refreshSortOption = () => {}
+  // Retain the replaced native sort even when localStorage is unavailable.
+  let previousSort: NativeSort = 'manual'
 
   const isActive = () => view !== undefined && isAgentActivity(view.getSnapshot().orderBy)
   /** The agent-activity order only fits the hierarchy-free single list. */
@@ -111,13 +113,12 @@ export function apply(ctx: Context) {
   }
 
   const toggleSort = () => {
-    if (view === undefined || !isFlat()) return
+    if (view === undefined || !isFlat() || isActive()) return
     const current = view.getSnapshot()
-    if (isAgentActivity(current.orderBy)) {
-      view.store.set({ ...current, orderBy: readPreviousSort() })
-      return
+    if (current.orderBy === 'manual' || current.orderBy === 'updated') {
+      previousSort = current.orderBy
+      writePreviousSort(previousSort)
     }
-    if (current.orderBy === 'manual' || current.orderBy === 'updated') writePreviousSort(current.orderBy)
     // The native store persists this value; native projections read it as manual.
     view.store.set({ ...current, orderBy: AGENT_ACTIVITY as View['orderBy'] })
   }
@@ -135,6 +136,7 @@ export function apply(ctx: Context) {
       throw new Error('Sidebar Inbox requires the DSH 0.2.1 workspace view store')
     view = entry.store.create() as unknown as ViewInstance
     const current = view.getSnapshot()
+    previousSort = current.orderBy === 'manual' || current.orderBy === 'updated' ? current.orderBy : readPreviousSort()
     let selectedSort: string | null = null
     let hasPreviousSort = false
     try {
@@ -188,7 +190,7 @@ export function apply(ctx: Context) {
       // Switching the native group by away from the single list releases the
       // plugin mode: the state order has no meaning inside Workspace groups.
       if (view !== undefined && isActive() && !isFlat()) {
-        view.store.set({ ...view.getSnapshot(), orderBy: readPreviousSort() })
+        view.store.set({ ...view.getSnapshot(), orderBy: previousSort })
       }
       rememberSelection()
       reconcile()
@@ -216,7 +218,7 @@ export function apply(ctx: Context) {
       // native group, filter and pin/archive choices stay as the user left them.
       if (isActive()) {
         const current = view!.getSnapshot()
-        view!.store.set({ ...current, orderBy: readPreviousSort() })
+        view!.store.set({ ...current, orderBy: previousSort })
       }
       view = undefined
     }
