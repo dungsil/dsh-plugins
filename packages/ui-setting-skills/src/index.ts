@@ -91,6 +91,113 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
     },
     'ui-setting-skills: dispose discovery'
   )
+  // All paths and preset identities originate in host registries; the browser sends only IDs.
+  type Scope = NonNullable<Parameters<SkillRegistry['snapshot']>[0]>['scope']
+  type Presets = {
+    defaultId: string
+    list(): Promise<{ id: string; name?: string; broken?: string }[]>
+    acquireScope(id: string): Promise<{ key: Scope } & AsyncDisposable>
+  }
+  type Workspace = { id: string; title: string; path: string; status(): Promise<'ok' | 'missing-dir'> }
+  const service = <T>(name: string): T | undefined =>
+    (ctx.get as (name: string) => unknown).call(ctx, name) as T | undefined
+  const waitForSignal = async <T>(pending: Promise<T>, signal: AbortSignal): Promise<T> => {
+    return await new Promise<T>((resolve, reject) => {
+      const abort = () => reject(signal.reason)
+      signal.addEventListener('abort', abort, { once: true })
+      pending
+        .then(resolve, reject)
+        .finally(() => signal.removeEventListener('abort', abort))
+        .catch(() => {})
+      if (signal.aborted) abort()
+    })
+  }
+  const resolveContext = async (
+    selection: { workspaceId?: unknown; presetId?: unknown },
+    signal: AbortSignal,
+    report?: (context: NonNullable<SkillsView['contexts']>) => void
+  ) => {
+    const workspaceRegistry = service<{ list(): Workspace[] }>('workspaceRegistry')
+    if (!workspaceRegistry) throw new Error('Workspace registry unavailable')
+    const workspaceEntities = workspaceRegistry.list()
+    const workspaces = workspaceEntities.map((workspace) => ({
+      id: workspace.id,
+      title: workspace.title,
+      path: workspace.path,
+    }))
+    const presets = service<Presets>('agentPresets')
+    const rows = presets ? await waitForSignal(presets.list(), signal) : []
+    const defaultDirectory = service<{ defaultDirectory: string }>('workingDirectory')?.defaultDirectory
+    const workspaceId = selection.workspaceId === undefined ? (workspaces[0]?.id ?? '') : selection.workspaceId
+    const presetId = selection.presetId === undefined ? (presets?.defaultId ?? '') : selection.presetId
+    if (typeof workspaceId !== 'string' || typeof presetId !== 'string') throw new Error('Invalid catalog context')
+    const workspace = workspaces.find((item) => item.id === workspaceId)
+    // The empty workspace is valid only when there are no registered workspaces.
+    const cwd = workspace?.path ?? (workspaceId === '' && workspaces.length === 0 ? defaultDirectory : undefined)
+    report?.({ workspaces, presets: rows, workspaceId, presetId, cwd: cwd ?? '' })
+    if (!cwd || (presetId && !rows.some((item) => item.id === presetId))) throw new Error('Catalog context unavailable')
+    const entity = workspaceEntities.find((item) => item.id === workspaceId)
+    if (
+      entity
+        ? (await waitForSignal(entity.status(), signal)) !== 'ok'
+        : !(await waitForSignal(stat(cwd), signal)).isDirectory()
+    )
+      throw new Error('Catalog workspace unavailable')
+    if (presets && !presetId) throw new Error('Catalog preset unavailable')
+    if (!presets && presetId) throw new Error('Catalog preset unavailable')
+    return {
+      workspaces,
+      presets: rows,
+      workspaceId,
+      presetId,
+      cwd,
+      registry: service<SkillRegistry>('skills'),
+      presetRegistry: presets,
+    }
+  }
+  const scopedRead = async <T>(
+    context: Awaited<ReturnType<typeof resolveContext>>,
+    signal: AbortSignal,
+    read: (registry: SkillRegistry, options: { cwd: string; scope: Scope; signal: AbortSignal }) => Promise<T>
+  ) => {
+    if (!context.registry || !context.presetRegistry) throw new Error('Catalog services unavailable')
+    signal.throwIfAborted()
+    const lease = await new Promise<Awaited<ReturnType<Presets['acquireScope']>>>((resolve, reject) => {
+      let settled = false
+      const abort = () => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', abort)
+        reject(signal.reason)
+      }
+      signal.addEventListener('abort', abort, { once: true })
+      Promise.resolve()
+        .then(() => context.presetRegistry!.acquireScope(context.presetId))
+        .then(
+          (acquired) => {
+            if (settled) {
+              void Promise.resolve()
+                .then(() => acquired[Symbol.asyncDispose]())
+                .catch(() => {})
+              return
+            }
+            settled = true
+            signal.removeEventListener('abort', abort)
+            resolve(acquired)
+          },
+          (error: unknown) => {
+            if (settled) return
+            settled = true
+            signal.removeEventListener('abort', abort)
+            reject(error)
+          }
+        )
+      if (signal.aborted) abort()
+    })
+    await using ownedLease = lease
+    signal.throwIfAborted()
+    return await read(context.registry, { cwd: context.cwd, scope: ownedLease.key, signal })
+  }
   // Exact Connection routes are owner-only, unlike shared session RPC handlers.
   for (const endpoint of [method, saveMethod, translateMethod, openFolderMethod, sourceMethod])
     ctx.effect(
@@ -108,21 +215,60 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
             }
             if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
             if (endpoint === sourceMethod) {
-              const payload = body.data.payload as { path?: unknown }
-              if (!payload || typeof payload.path !== 'string') return new Response('Invalid request', { status: 400 })
+              const payload = body.data.payload as {
+                path?: unknown
+                catalog?: {
+                  name?: unknown
+                  provider?: unknown
+                  source?: unknown
+                  path?: unknown
+                  workspaceId?: unknown
+                  presetId?: unknown
+                }
+              }
+              if (!payload || (!payload.catalog && typeof payload.path !== 'string'))
+                return new Response('Invalid request', { status: 400 })
               let result
               try {
                 const signal = AbortSignal.any([request.signal, lifetime.signal, AbortSignal.timeout(15_000)])
-                const observation = await provider.list({ signal })
-                const candidates = 'candidates' in observation ? observation.candidates : observation
-                const skill = candidates.find(
-                  (item) => item.path === payload.path && ['user-agents', 'user-dsh'].includes(item.source)
-                )
-                if (!skill) throw new Error('Unknown user skill')
-                const definition = await provider.get(skill, { signal })
-                if (!definition) throw new Error('Skill unavailable')
-                signal.throwIfAborted()
-                result = { ok: true as const, value: definition.content }
+                if (payload.catalog) {
+                  const selected = payload.catalog
+                  if (
+                    typeof selected.name !== 'string' ||
+                    typeof selected.provider !== 'string' ||
+                    typeof selected.source !== 'string' ||
+                    typeof selected.workspaceId !== 'string' ||
+                    typeof selected.presetId !== 'string' ||
+                    (selected.path !== undefined && typeof selected.path !== 'string')
+                  )
+                    throw new Error('Invalid catalog selection')
+                  const context = await resolveContext(selected, signal)
+                  const content = await scopedRead(context, signal, async (registry, options) => {
+                    const snapshot = await registry.snapshot(options)
+                    const matches = (skill: { name: string; provider: string; source: string; path?: string }) =>
+                      skill.name === selected.name &&
+                      skill.provider === selected.provider &&
+                      skill.source === selected.source &&
+                      skill.path === selected.path
+                    if (!snapshot.complete || !snapshot.skills.some(matches)) throw new Error('Stale catalog selection')
+                    const definition = await registry.get(selected.name as string, options)
+                    if (!definition || !matches(definition)) throw new Error('Stale catalog selection')
+                    signal.throwIfAborted()
+                    return definition.content
+                  })
+                  result = { ok: true as const, value: content }
+                } else {
+                  const observation = await provider.list({ signal })
+                  const candidates = 'candidates' in observation ? observation.candidates : observation
+                  const skill = candidates.find(
+                    (item) => item.path === payload.path && ['user-agents', 'user-dsh'].includes(item.source)
+                  )
+                  if (!skill) throw new Error('Unknown user skill')
+                  const definition = await provider.get(skill, { signal })
+                  if (!definition) throw new Error('Skill unavailable')
+                  signal.throwIfAborted()
+                  result = { ok: true as const, value: definition.content }
+                }
               } catch {
                 result = {
                   ok: false as const,
@@ -292,6 +438,38 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                       : []
                   )
                 ),
+              }
+              const selection = (body.data.payload ?? {}) as { workspaceId?: unknown; presetId?: unknown }
+              if (service('workingDirectory')) {
+                try {
+                  const context = await resolveContext(selection, signal, (contexts) => {
+                    value.contexts = contexts
+                  })
+                  try {
+                    const snapshot = await scopedRead(context, signal, (registry, options) =>
+                      registry.snapshot(options)
+                    )
+                    value.catalog = {
+                      complete: snapshot.complete,
+                      skills: snapshot.skills.map((skill) => ({
+                        name: skill.name,
+                        description: skill.description,
+                        source: skill.source,
+                        provider: skill.provider,
+                        ...(skill.path && { path: skill.path }),
+                      })),
+                    }
+                  } catch {
+                    request.signal.throwIfAborted()
+                    lifetime.signal.throwIfAborted()
+                    value.catalog = { complete: false, skills: [] }
+                  }
+                } catch {
+                  request.signal.throwIfAborted()
+                  lifetime.signal.throwIfAborted()
+                  value.catalogError = true
+                  if (value.contexts) value.catalog = { complete: false, skills: [] }
+                }
               }
               result = { ok: true as const, value }
             } catch {

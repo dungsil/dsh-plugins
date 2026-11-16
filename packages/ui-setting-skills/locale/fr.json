@@ -37,6 +37,13 @@
     "sourceTitle": "Contenu de la compétence : {name}",
     "sourceLoading": "Chargement du contenu de la compétence…",
     "sourceError": "Impossible de charger le contenu de la compétence.",
-    "close": "Fermer"
+    "close": "Fermer",
+    "catalog": "Catalogue effectif",
+    "catalogHint": "Les compétences visibles dans ce contexte sont en lecture seule. Les noms désactivés sont omis.",
+    "workspace": "Espace de travail",
+    "defaultDirectory": "Répertoire par défaut",
+    "preset": "Préréglage",
+    "noPreset": "Sans préréglage",
+    "readOnly": "Lecture seule"
   }
 }

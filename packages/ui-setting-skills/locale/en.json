@@ -37,6 +37,13 @@
     "sourceTitle": "Skill source: {name}",
     "sourceLoading": "Loading skill source…",
     "sourceError": "Could not load skill source.",
-    "close": "Close"
+    "close": "Close",
+    "catalog": "Effective catalog",
+    "catalogHint": "Skills visible in this context are read-only here. Disabled names are omitted.",
+    "workspace": "Workspace",
+    "defaultDirectory": "Default directory",
+    "preset": "Preset",
+    "noPreset": "No preset",
+    "readOnly": "Read-only"
   }
 }
