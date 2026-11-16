@@ -12,7 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Menu, Pill } from '@dungsil/dsh-ui'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { IconBranchOutlineRegular, IconChevronDownOutlineRegular } from '@dungsil/dsh-ui/icons'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
@@ -36,7 +36,7 @@ export function apply(ctx: Context) {
   const sessions = ctx.sessions as unknown as ISessions
   function Chip({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const { active } = useLocaleSnapshot(ctx.locale)
-    const text = translations[active.toLowerCase().split(/[-_]/)[0]] ?? en
+    const text = localizedCopy(translations, active)
     const hidden = useSession((s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open')
     const unavailable = useSession(
       (s) => s.running || s.pendingSubmissions.length > 0 || s.removed || s.openState !== 'open'

@@ -10,7 +10,7 @@ import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   IconChevronLeftOutlineRegular,
@@ -88,11 +88,6 @@ const copy = {
   },
 }
 
-const localizedCopy = (language: string) => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en']
-}
-
 export function apply(ctx: Context) {
   const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
   const pickers = new Map<HTMLDivElement, { disabled: boolean; open: () => void }>()
@@ -101,7 +96,7 @@ export function apply(ctx: Context) {
   ctx.effect(() => {
     const label = () => {
       const locale = ctx.locale.getSnapshot().active
-      return localizedCopy(locale).openPicker
+      return localizedCopy(copy, locale).openPicker
     }
     const resolve = () => {
       const visible = [...pickers].filter(([element]) => element.isConnected && element.getClientRects().length > 0)
@@ -175,7 +170,7 @@ export function apply(ctx: Context) {
       (entry) => entry.id === commandId
     )?.keys
     const { active: locale } = useLocaleSnapshot(ctx.locale)
-    const text = localizedCopy(locale)
+    const text = localizedCopy(copy, locale)
     const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
     // A model chosen from the list while its reasoning effort is still unset.
     // It is staged only inside the popover; the selection changes when the

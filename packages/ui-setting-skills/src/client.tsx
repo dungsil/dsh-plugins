@@ -19,6 +19,7 @@ import {
   IconLoadingOutlineRegular,
   IconSkillOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
+import { localizedCopy } from '@dungsil/dsh-ui/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import en from '../locale/en.json' with { type: 'json' }
@@ -44,10 +45,6 @@ export const name = 'dungsil-ui-setting-skills'
 export const inject = ['connection', 'locale', 'slots']
 
 const copy = { en, ko, zh, ja, es, fr, de, ru, pt }
-const localizedCopy = (language: string) => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'].ui
-}
 
 const styles = `
 .dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
@@ -107,7 +104,7 @@ function SkillDescription({
   translation?: Translation
   translate: (skill: Skill) => Promise<void>
 }) {
-  const text = localizedCopy(language)
+  const text = localizedCopy(copy, language).ui
   const [original, setOriginal] = useState(false)
   const { value: translated, pending, failed } = translation ?? {}
   const originalDescription = description(skill)
@@ -153,7 +150,7 @@ function SkillSource({
   close: () => void
   catalog?: { name: string; source: string; provider: string; path?: string; workspaceId: string; presetId: string }
 }) {
-  const text = localizedCopy(language)
+  const text = localizedCopy(copy, language).ui
   const [attempt, setAttempt] = useState(0)
   const [state, setState] = useState<{ status: 'loading' | 'error' } | { status: 'ready'; content: string }>({
     status: 'loading',
@@ -210,7 +207,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     (listener) => ctx.locale.subscribe(listener),
     () => ctx.locale.getSnapshot()
   )
-  const text = localizedCopy(locale.active)
+  const text = localizedCopy(copy, locale.active).ui
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<SkillsView>()
@@ -701,7 +698,7 @@ export function apply(ctx: Context) {
         name: 'settings.section',
         id: name,
         order: 16,
-        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
+        label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).ui.nav,
         inject: () => ({ ctx }),
       },
       SkillsSettings

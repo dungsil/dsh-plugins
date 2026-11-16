@@ -4,9 +4,9 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { Button, Input, SettingsRow, Switch, settingsStyles } from '@dungsil/dsh-ui'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, readMethod, saveMethod, validSettings, type SettingsView } from './protocol.js'
-import { localized } from './copy.js'
+import { copy } from './copy.js'
 import { DefaultCheckoutRow } from './default-checkout.js'
 
 export const inject = ['connection', 'locale', 'slots']
@@ -18,7 +18,8 @@ const validPatch = (patch: Patch) =>
 const common = <T,>(values: T[]) => (values.every((value) => value === values[0]) ? values[0] : undefined)
 
 export function VcsSettings({ ctx }: { ctx: Context }) {
-  const text = localized(useLocaleSnapshot(ctx.locale).active)
+  const { active } = useLocaleSnapshot(ctx.locale)
+  const text = localizedCopy(copy, active)
   const id = useId()
   const [view, setView] = useState<SettingsView>()
   const [draft, setDraft] = useState<Patch>({})
@@ -241,7 +242,7 @@ export function apply(ctx: Context) {
         name: 'settings.section',
         id: 'dungsil-ui-setting-vcs',
         order: 18,
-        label: () => localized(ctx.locale.getSnapshot().active).nav,
+        label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).nav,
         inject: () => ({ ctx }),
       },
       VcsSettings

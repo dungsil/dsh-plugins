@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
+import { localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, endpointPrefix, maxSecretLength, type SecretRequest, type SecretStatus } from './protocol.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
@@ -196,10 +197,8 @@ export function apply(ctx: Context) {
   function SecretCard(props: ToolCallViewProps) {
     const pending = useSyncExternalStore(subscribe, snapshot)
     const [submitted, setSubmitted] = useState<SecretStatus>()
-    const subscribeLocale = useCallback((listener: () => void) => ctx.locale.subscribe(listener), [])
-    const localeSnapshot = useCallback(() => ctx.locale.getSnapshot(), [])
-    const locale = useSyncExternalStore(subscribeLocale, localeSnapshot)
-    const text = (copy as Record<string, Text>)[locale.active.toLowerCase().split(/[-_]/)[0]] ?? copy.en
+    const locale = useLocaleSnapshot(ctx.locale)
+    const text = localizedCopy(copy, locale.active)
     // A card may only answer the live request for this exact session and call.
     const request = pending.find((item) => item.sessionId === props.sessionId && item.callId === props.callId)
     let status: string | undefined = submitted && text[submitted]

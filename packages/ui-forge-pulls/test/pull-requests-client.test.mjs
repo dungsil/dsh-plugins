@@ -51,6 +51,7 @@ function mount(language = 'en') {
       return react.useState({ current: initial })[0]
     },
     useMemo: (compute) => compute(),
+    useCallback: (compute) => compute,
     useId: () => 'requests',
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useEffect(effect, deps) {

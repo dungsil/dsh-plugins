@@ -237,8 +237,3 @@ export const copy = {
     disabled: '已禁用',
   },
 }
-
-export const localizedCopy = (language: string): typeof copy.en => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return Object.hasOwn(copy, base) ? copy[base as keyof typeof copy] : copy.en
-}

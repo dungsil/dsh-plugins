@@ -15,10 +15,10 @@ import {
   SettingsRow,
   settingsStyles,
 } from '@dungsil/dsh-ui'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { cliProxyIconSvg } from '@dungsil/dsh-ui/icons'
 import { channel, endpointPrefix, type ConnectionView, type QuotaAccount, type QuotaResult } from './protocol.js'
-import { localizedCopy } from './copy.js'
+import { copy } from './copy.js'
 import { QuotaPanel, quotaStyles } from './quota-panel.js'
 import { loadQuotaSnapshot, QuotaCache, quotaKey, subscribeQuotaGeneration, type QuotaSnapshot } from './quota-cache.js'
 
@@ -58,7 +58,7 @@ type Notice = 'error' | 'success'
 
 function ProxyPage({ ctx, cache, settings = false }: { ctx: Context; cache: QuotaCache; settings?: boolean }) {
   const locale = useLocaleSnapshot(ctx.locale)
-  const text = localizedCopy(locale.active)
+  const text = localizedCopy(copy, locale.active)
   const id = useId()
   const [connectionVersion, setConnectionVersion] = useState(0)
   const connection = ctx.get('connection') as unknown as ConnectionHandle
