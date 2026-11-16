@@ -185,3 +185,81 @@ await test('flow에서 메시지별 이미지 경로를 보정하고 원래 렌�
   disposeFlow()
   disposeRoot()
 })
+
+await test('node가 없는 소유자로 flow의 renderSlot을 호출해도 렌더가 깨지지 않고 cwd 보정을 적용하지 않는다', async () => {
+  const core = new SlotCore()
+  const delegateContext = React.createContext({})
+  const primitives = {
+    MarkdownDelegateProvider: ({ children, ...value }) =>
+      React.createElement(delegateContext.Provider, { value }, children),
+    useMarkdownDelegate: () => React.useContext(delegateContext),
+  }
+  let plugin, disposePlugin
+  const require = createRequire(import.meta.url)
+  runInNewContext(await readFile(new URL('../dist/client.js', import.meta.url), 'utf8'), {
+    window: {
+      __ModuleLoader__: {
+        load: ({ factory }) => {
+          plugin = factory((id) => (id === '@deepseek-ai/dsh-client-ui-primitives' ? primitives : require(id)))
+        },
+      },
+    },
+  })
+  const disposeRoot = core.register(
+    { name: 'root', children: { 'conversation.chat.flow': { kind: 'single', scope: 'session' } } },
+    () => null
+  )
+  const flowWithoutNode = ({ renderSlot }) => renderSlot('conversation.chat.node', {}, {})
+  const disposeFlow = core.register(
+    {
+      name: 'conversation.chat.flow',
+      children: { 'conversation.chat.node': { kind: 'keyed', scope: 'session' } },
+    },
+    flowWithoutNode
+  )
+  const nativeNode = () => {
+    const delegate = React.useContext(delegateContext)
+    return React.createElement('img', { src: delegate.fileImages.resolve('same.png') })
+  }
+  const disposeNode = core.register({ name: 'conversation.chat.node', key: 'assistant-step' }, nativeNode)
+  const delegate = {
+    getTriggerProps: (target) => target,
+    fileImages: {
+      resolve: (path) => (path.startsWith('/') || path.includes(':') ? path : `/project/${path}`),
+      resourceAddress: (path) => `resource:${path}`,
+    },
+  }
+  const render = () =>
+    renderToStaticMarkup(
+      React.createElement(
+        delegateContext.Provider,
+        { value: delegate },
+        React.createElement(core.entriesOfSlot('conversation.chat.flow')[0].component, {
+          entries: [],
+          useProjection: () => [
+            { seq: -1, cwd: '/project' },
+            { seq: 10, cwd: '/worktree-a' },
+          ],
+          renderSlot: (_slot, owner) => React.createElement(nativeNode, owner),
+        })
+      )
+    )
+  plugin.apply({
+    slots: {
+      inject: (_slot, setup) => {
+        disposePlugin = setup()
+      },
+      entries: (slot) => core.entries(slot),
+      subscribe: (slot, fn) => core.subscribe(slot, fn),
+      register: (options, component) => core.register(options, component),
+    },
+  })
+  await new Promise((resolve) => queueMicrotask(resolve))
+  // cwd 보정은 node가 있는 소유자에만 적용되고, 없는 소유자에서는 원래 경로를 유지한다.
+  assert.match(render(), /src="\/project\/same\.png"/)
+  disposePlugin()
+  assert.equal(core.entriesOfSlot('conversation.chat.flow')[0].component, flowWithoutNode)
+  disposeNode()
+  disposeFlow()
+  disposeRoot()
+})
