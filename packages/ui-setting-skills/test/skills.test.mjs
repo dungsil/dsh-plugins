@@ -489,6 +489,42 @@ await test('스킬 파일을 변경하지 않고 재로드 후에도 DSH 전용 
   assert.ok(await isolated.get('skills').get('planning-work'))
 })
 
+await test('비활성화한 사용자 스킬과 같은 이름의 다른 소스 스킬은 카탈로그 조회에서 유지한다', async (t) => {
+  const h = await fixture(t, true)
+  await h.skill(h.agents, 'planning-work', 'User entry')
+  const stopRuntime = h.skills.register({
+    name: 'planning-work',
+    description: 'Catalog entry',
+    content: 'Catalog body',
+    source: 'runtime',
+  })
+  t.after(stopRuntime)
+  const save = async (name, disabled) =>
+    (
+      await (
+        await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/save', payload: { name, disabled } })
+      ).json()
+    ).result
+  assert.equal((await save('planning-work', true)).ok, true)
+  // 런타임 소스는 사용자 소스가 아니므로 같은 이름이어도 숨기지 않는다.
+  const catalog = await h.skills.snapshot()
+  assert.deepEqual(
+    catalog.skills.map((skill) => skill.name),
+    ['planning-work']
+  )
+  assert.equal(catalog.skills[0].source, 'runtime')
+  assert.equal((await h.skills.get('planning-work'))?.source, 'runtime')
+  // 사용자 소스 스킬은 계속 숨긴다.
+  await h.skill(h.agents, 'reviewing-code', 'Second user entry')
+  assert.equal((await save('reviewing-code', true)).ok, true)
+  assert.deepEqual(
+    (await h.skills.snapshot()).skills.map((skill) => skill.name),
+    ['planning-work']
+  )
+  assert.equal(await h.skills.get('reviewing-code'), undefined)
+  assert.deepEqual((await h.rpc()).value.disabled, ['not-installed', 'planning-work', 'reviewing-code'])
+})
+
 await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부하고 언로드 시 라우트를 제거한다', async (t) => {
   const h = await fixture(t)
   for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {

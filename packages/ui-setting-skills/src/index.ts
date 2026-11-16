@@ -49,6 +49,9 @@ async function readDisplay(path: string | undefined, signal: AbortSignal) {
   }
 }
 
+/** Only sources the settings page manages can be disabled; same-name catalog entries stay visible. */
+const isUserSource = (source: string) => source === 'user-agents' || source === 'user-dsh'
+
 export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
   const editor = ctx.configEditor
   const cacheDir = dshCachePath('dungsil-ui-setting-skills', 'translations-v1')
@@ -66,12 +69,15 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
     const originalGet = prototype.get
     const snapshot: SkillRegistry['snapshot'] = async function (this: SkillRegistry, options) {
       const result = await originalSnapshot.call(this, options)
-      return { ...result, skills: result.skills.filter((skill) => !disabled().includes(skill.name)) }
+      const off = disabled()
+      return {
+        ...result,
+        skills: result.skills.filter((skill) => !(off.includes(skill.name) && isUserSource(skill.source))),
+      }
     }
     const get: SkillRegistry['get'] = async function (this: SkillRegistry, name, options) {
-      if (disabled().includes(name)) return undefined
       const result = await originalGet.call(this, name, options)
-      return disabled().includes(name) ? undefined : result
+      return result !== undefined && isUserSource(result.source) && disabled().includes(name) ? undefined : result
     }
     prototype.snapshot = snapshot
     prototype.get = get
@@ -379,11 +385,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                 if (!target) throw new Error('Settings entry unavailable')
                 const observation = await provider.list({ signal: request.signal })
                 const candidates = 'candidates' in observation ? observation.candidates : observation
-                if (
-                  !candidates.some(
-                    (skill) => skill.name === payload.name && ['user-agents', 'user-dsh'].includes(skill.source)
-                  )
-                ) {
+                if (!candidates.some((skill) => skill.name === payload.name && isUserSource(skill.source))) {
                   throw new Error('Unknown user skill')
                 }
                 const skillName = payload.name
