@@ -233,6 +233,12 @@ export function apply(ctx: Context) {
     view = entry.store.create() as unknown as ViewInstance
     const current = view.getSnapshot()
     previousSort = current.orderBy === 'manual' || current.orderBy === 'updated' ? current.orderBy : readPreviousSort()
+    // The plugin mode only fits the flat list, so mounting it replaces the user's
+    // grouping; teardown must put the original grouping back unless the user has
+    // since chosen a grouping of their own.
+    const initialGroupBy = current.groupBy
+    let pluginGrouped = false
+    let seenGroupBy: View['groupBy'] | undefined
     let selectedSort: string | null = null
     let hasPreviousSort = false
     try {
@@ -267,6 +273,8 @@ export function apply(ctx: Context) {
       ...(initialSort === AGENT_ACTIVITY ? { groupBy: 'flat' as const } : {}),
       orderBy: initialSort as View['orderBy'],
     })
+    pluginGrouped = view.getSnapshot().groupBy === 'flat' && initialGroupBy !== 'flat'
+    seenGroupBy = view.getSnapshot().groupBy
     rememberSelection()
     const headings = installHeadings(
       () => placements,
@@ -293,6 +301,14 @@ export function apply(ctx: Context) {
       if (view !== undefined && isActive() && !isFlat()) {
         view.store.set({ ...view.getSnapshot(), orderBy: previousSort })
       }
+      // Any later grouping change belongs to the user (the plugin only forces
+      // flat once at mount), so teardown must keep whatever they chose, even a
+      // return to flat.
+      if (view !== undefined) {
+        const groupBy = view.getSnapshot().groupBy
+        if (seenGroupBy !== undefined && groupBy !== seenGroupBy) pluginGrouped = false
+        seenGroupBy = groupBy
+      }
       rememberSelection()
       reconcile()
     }
@@ -316,10 +332,15 @@ export function apply(ctx: Context) {
       refreshSortOption = () => {}
       // Unsubscribe before restoring a host-safe fallback, so teardown does not
       // save that fallback as the user's selection. The next mount restores it;
-      // native group, filter and pin/archive choices stay as the user left them.
+      // native filter and pin/archive choices stay as the user left them.
       if (isActive()) {
         const current = view!.getSnapshot()
         view!.store.set({ ...current, orderBy: previousSort })
+      }
+      // Give back the grouping the plugin replaced, but only while the flat list
+      // is still the one the plugin chose; a later user choice stands.
+      if (view !== undefined && pluginGrouped && view.getSnapshot().groupBy !== initialGroupBy) {
+        view.store.set({ ...view.getSnapshot(), groupBy: initialGroupBy })
       }
       view = undefined
     }
