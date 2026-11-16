@@ -52,7 +52,9 @@ async function fixture(
   let rows = github,
     exitCode = 0,
     missing = false,
-    httpStatus = 200
+    httpStatus = 200,
+    fileCount = 1,
+    stallChanges = false
   const calls = []
   let dispatch
   const defaultDispatch = (args) => {
@@ -68,6 +70,8 @@ async function fixture(
       if (new URL(forgeUrl).searchParams.get('page') > 1) return []
       if (/\/pulls\?/.test(endpoint)) return rows ? [rows] : []
       if (/\/pulls\/\d+$/.test(endpoint)) return rows
+      if (endpoint.includes('/files?')) return endpoint.includes('page=1') ? [{ filename: 'src/example.ts' }] : []
+      if (endpoint.endsWith('.diff')) return 'diff --git a/src/example.ts b/src/example.ts\n+hello\n'
       if (endpoint.includes('/reviews?'))
         return [
           {
@@ -85,6 +89,7 @@ async function fixture(
         return [{ id: 4, user: { login: 'bob' }, body: 'Comment', html_url: `${rows.html_url}#issuecomment-4` }]
       return { full_name: 'team/project' }
     }
+    if (args[0] === 'pr' && args[1] === 'diff') return 'diff --git a/src/example.ts b/src/example.ts\n+hello\n'
     if ((args[1] === 'view' && !args.includes('--repo')) || args[1] === 'list') return rows
     if (args[1] === 'view' && args[0] === 'pr')
       return rows === null
@@ -93,6 +98,8 @@ async function fixture(
             ...rows,
             body: details.body,
             headRefOid: sha,
+            changedFiles: 1,
+            files: [{ path: 'src/example.ts' }],
             comments: [{ author: { login: 'bob' }, body: 'Comment', url: details.comments[0].url }],
             reviews: [{ author: { login: 'carol' }, body: 'Review', state: 'COMMENTED' }],
           }
@@ -103,6 +110,11 @@ async function fixture(
         sha,
       }
     const endpoint = args.find((arg) => arg.startsWith('projects/')) ?? ''
+    if (endpoint.endsWith('/changes'))
+      return {
+        overflow: false,
+        changes: [{ old_path: 'src/example.ts', new_path: 'src/example.ts', diff: '@@ -1 +1 @@\n+hello' }],
+      }
     if (endpoint.endsWith('/approvals')) return { approved: true, approved_by: [{ user: { username: 'carol' } }] }
     if (endpoint.includes('/notes?')) return [{ id: 5, author: { username: 'bob' }, body: 'MR comment', system: false }]
     return { completed: true }
@@ -124,6 +136,8 @@ async function fixture(
     if (['gh', 'glab', 'tea'].includes(spec.argv[0])) {
       calls.push(spec)
       const args = spec.argv.slice(1)
+      if (stallChanges && args[0] === 'pr' && args[1] === 'diff')
+        return spawn({ ...spec, argv: [process.execPath, '-e', 'setInterval(() => {}, 1000)'] })
       const value = dispatch ? dispatch(args, defaultDispatch) : defaultDispatch(args)
       const output = join(dir, `response-${calls.length}.json`)
       writeFileSync(output, value instanceof Error ? '' : typeof value === 'string' ? value : JSON.stringify(value))
@@ -137,7 +151,7 @@ async function fixture(
           value instanceof Error
             ? value.message
             : spec.argv[0] === 'tea' && args[0] === 'api'
-              ? `HTTP/1.1 ${httpStatus} Test\n`
+              ? `HTTP/1.1 ${httpStatus} Test\n${args.some((arg) => arg.includes('/files?')) && fileCount !== null ? `X-Total-Count: ${fileCount}\n` : ''}`
               : '',
         ],
       })
@@ -264,6 +278,12 @@ async function fixture(
     },
     httpStatus: (value) => {
       httpStatus = value
+    },
+    fileCount: (value) => {
+      fileCount = value
+    },
+    stallChanges: () => {
+      stallChanges = true
     },
     git,
     setRows: (value) => {
@@ -512,6 +532,11 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
           draft: true,
           state: 'open',
           ...details,
+          changes: {
+            complete: true,
+            files: [{ path: 'src/example.ts' }],
+            diff: 'diff --git a/src/example.ts b/src/example.ts\n+hello\n',
+          },
         },
       },
     })
@@ -527,6 +552,31 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.equal((await f.rpc()).error.code, 'command_failed')
     f.missing()
     assert.equal((await f.rpc()).error.code, 'cli_missing')
+  })
+
+  await test('변경 읽기가 하위 기한을 초과해도 개요와 댓글은 보존하고 승인을 막는다', async (t) => {
+    const f = await fixture(t)
+    f.stallChanges()
+    const result = await f.rpc()
+    assert.equal(result.ok, true)
+    assert.equal(result.value.request.body, details.body)
+    assert.equal(result.value.request.comments[0].body, 'Comment')
+    assert.equal(result.value.request.changes.complete, false)
+    assert.equal(result.value.request.detailsError, undefined)
+    assert.equal((await f.action()).error.code, 'action_failed')
+  })
+
+  await test('변경 내용을 읽지 못하면 승인을 막고 댓글과 변경 요청은 허용한다', async (t) => {
+    const f = await fixture(t)
+    f.setRows({ ...github, isDraft: false })
+    f.dispatch((args, next) => (args[0] === 'pr' && args[1] === 'diff' ? new Error('unavailable') : next(args)))
+    const item = (await f.rpc()).value.request
+    assert.equal(item.changes.complete, false)
+    assert.equal(item.detailsError, undefined)
+    assert.equal((await f.action({ action: 'approve' })).error.code, 'action_failed')
+    for (const action of ['comment', 'request_changes']) {
+      assert.deepEqual(await f.action({ action, body: 'Feedback' }), { ok: true, value: { completed: true } })
+    }
   })
 
   await test('GitHub은 PR이 없는 브랜치와 인증·전송 오류를 구분한다', async (t) => {
@@ -738,6 +788,11 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
         { author: 'bob', body: 'MR comment', url: 'https://gitlab.com/team/sub/project/-/merge_requests/8#note_5' },
       ],
       reviews: [{ author: 'carol', body: '', state: 'APPROVED' }],
+      changes: {
+        complete: true,
+        files: [{ path: 'src/example.ts' }],
+        diff: 'diff --git a/src/example.ts b/src/example.ts\n@@ -1 +1 @@\n+hello',
+      },
     })
     f.setRows([])
     assert.equal((await f.rpc()).value.request, null)
@@ -970,7 +1025,7 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
         ])
       let views = 0
       f.dispatch((args, next) => {
-        if (args[1] !== 'view') return next(args)
+        if (args[1] !== 'view' || args.includes('changedFiles,files')) return next(args)
         views++
         return { ...next(args), ...(views % 2 === 0 ? { headRefOid: 'b'.repeat(40), sha: 'b'.repeat(40) } : {}) }
       })
@@ -1101,6 +1156,24 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     }
   })
 
+  await test('Forge는 선택적 변경 파일 수 대신 페이지 총계를 검증하고 상한에서 중단한다', async (t) => {
+    const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', 'forgejo')
+    const withoutCount = { ...forge }
+    delete withoutCount.changed_files
+    f.setRows(withoutCount)
+    assert.equal((await f.rpc()).value.request.changes.complete, true)
+    f.fileCount(2)
+    assert.equal((await f.rpc()).value.request.changes.complete, false)
+    f.fileCount(null)
+    assert.equal((await f.rpc()).value.request.changes.complete, false)
+    f.fileCount(150)
+    const before = f.calls.length
+    const request = (await f.rpc()).value.request
+    assert.equal(request.changes.complete, false)
+    assert.equal(request.comments[0].body, 'Comment')
+    assert.ok(f.calls.slice(before).filter((call) => call.argv.some((arg) => arg.includes('/files?'))).length <= 3)
+  })
+
   await test('Gitea와 Forgejo는 같은 사이드바 세부 정보를 불러오고 댓글과 SHA에 고정한 리뷰를 지원한다', async (t) => {
     for (const provider of ['gitea', 'forgejo']) {
       const f = await fixture(t, 'https://forge.example:3443/git/team/project.git', provider)
@@ -1142,7 +1215,7 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
       assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, writesBeforeMerge)
       for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
         assert.match(call.argv.at(-1), /^https:\/\/forge\.example:3443\/git\/api\/v1\/repos\/team\/project(?:\/|$)/)
-        assert.ok(!/\/(?:merge|statuses|branches|files)\b|\.diff$/.test(call.argv.at(-1)))
+        assert.ok(!/\/(?:merge|statuses|branches)\b/.test(call.argv.at(-1)))
         for (const key of ['GITEA_INSTANCE_URL', 'GITEA_TOKEN', 'GH_TOKEN', 'TEA_LOGIN'])
           assert.equal(call.env[key], undefined)
       }

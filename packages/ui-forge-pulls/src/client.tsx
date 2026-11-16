@@ -117,7 +117,7 @@ export function apply(ctx: Context) {
     const [view, setView] = useState<RequestView | undefined>(() => views.get(cacheKey))
     const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
-    const [page, setPage] = useState<'overview' | 'conversation'>('overview')
+    const [page, setPage] = useState<'overview' | 'conversation' | 'changes'>('overview')
     const [body, setBody] = useState('')
     const [reviewAction, setReviewAction] = useState<ReviewAction>('comment')
     const [strategy, setStrategy] = useState<MergeMethod>('merge')
@@ -221,7 +221,7 @@ export function apply(ctx: Context) {
       if (
         (action !== 'approve' && !body.trim()) ||
         (view?.provider === 'gitlab' && action === 'approve' && !!body.trim()) ||
-        (action === 'approve' && item.draft)
+        (action === 'approve' && (item.draft || !item.changes?.complete))
       )
         return
       const payload: RequestAction = {
@@ -437,12 +437,23 @@ export function apply(ctx: Context) {
                         id: `${tabsId}-conversation`,
                         panelId: `${tabsId}-conversation-panel`,
                       },
+                      {
+                        value: 'changes',
+                        label: copy.changes,
+                        id: `${tabsId}-changes`,
+                        panelId: `${tabsId}-changes-panel`,
+                      },
                     ]}
                   />
                 </div>
                 {item.detailsError && (
                   <p className="dsh-forge-pulls-warning" role="alert">
                     {copy.details_error}
+                  </p>
+                )}
+                {!loading && !item.changes?.complete && (
+                  <p className="dsh-forge-pulls-warning" role="alert">
+                    {copy.changes_incomplete}
                   </p>
                 )}
                 <div
@@ -459,6 +470,30 @@ export function apply(ctx: Context) {
                         <Description key={item.body} text={item.body || copy.no_body} labels={labels} />
                       </section>
                     </>
+                  )}
+                  {page === 'changes' && (
+                    <section className="dsh-forge-pulls-section" aria-label={copy.changes}>
+                      <h3>
+                        {copy.changes} {loading && <Loading label={copy.loading} />}
+                      </h3>
+                      {!loading && !item.detailsError && item.changes?.complete && (
+                        <>
+                          {!item.changes.files.length && <p>{copy.no_changes}</p>}
+                          <ul>
+                            {item.changes.files.map((file, index) => (
+                              <li key={index}>
+                                <code>{file.path}</code>
+                              </li>
+                            ))}
+                          </ul>
+                          {item.changes.diff && (
+                            <pre className="dsh-forge-pulls-diff">
+                              <code>{item.changes.diff}</code>
+                            </pre>
+                          )}
+                        </>
+                      )}
+                    </section>
                   )}
                   {page === 'conversation' && (
                     <section className="dsh-forge-pulls-section" aria-label={copy.conversation}>
@@ -513,7 +548,7 @@ export function apply(ctx: Context) {
                             onChange={setReviewAction}
                             items={[
                               { id: 'comment', label: copy.comment },
-                              { id: 'approve', label: copy.approve, disabled: item.draft },
+                              { id: 'approve', label: copy.approve, disabled: item.draft || !item.changes?.complete },
                               ...(view.provider !== 'gitlab'
                                 ? [{ id: 'request_changes' as const, label: copy.request_changes }]
                                 : []),
@@ -527,7 +562,7 @@ export function apply(ctx: Context) {
                               !canReview ||
                               (reviewAction !== 'approve' && !body.trim()) ||
                               (view.provider === 'gitlab' && reviewAction === 'approve' && !!body.trim()) ||
-                              (reviewAction === 'approve' && item.draft)
+                              (reviewAction === 'approve' && (item.draft || !item.changes?.complete))
                             }
                           >
                             {pending ? copy.pending : copy.submit}

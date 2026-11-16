@@ -207,6 +207,7 @@ const request = (number) => ({
     body: '',
     comments: [],
     reviews: [],
+    changes: { complete: true, files: [{ path: 'a.ts' }], diff: '+hello' },
   },
 })
 
@@ -430,6 +431,24 @@ await test('초안 PR의 승인은 선택 항목과 제출 버튼에서 차단�
   }
 })
 
+await test('불완전한 변경 내용은 승인만 차단하고 댓글과 변경 요청은 허용한다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture, { changes: { complete: false, files: [], diff: '' } })
+    const picker = findByClass(fixture.render(), 'dsh-forge-pulls-picker')[0]
+    assert.equal(picker.items.find((item) => item.id === 'approve').disabled, true)
+    assert.notEqual(picker.items.find((item) => item.id === 'comment').disabled, true)
+    assert.notEqual(picker.items.find((item) => item.id === 'request_changes').disabled, true)
+    picker.onChange('approve')
+    const before = fixture.calls.length
+    submitReview(fixture.render())
+    assert.equal(fixture.calls.length, before)
+    assert.match(texts(fixture.render()), /could not be fully loaded/)
+  } finally {
+    fixture.dispose()
+  }
+})
+
 await test('빈 댓글과 공백뿐인 댓글은 제출 버튼에서 차단하고 폼을 직접 제출해도 전송하지 않는다', async () => {
   const fixture = mount()
   try {
@@ -511,7 +530,7 @@ await test('병합 방법이 없으면 설명을 표시하고 직접 클릭해�
   }
 })
 
-await test('개요와 댓글·리뷰 탭만 제공하고 CI와 변경 내용 탭은 표시하지 않는다', async () => {
+await test('개요와 댓글·리뷰 및 변경 내용 탭을 제공하고 CI는 표시하지 않으며 열기만으로 병합을 요청하지 않는다', async () => {
   const fixture = mount()
   try {
     await openReview(fixture)
@@ -519,7 +538,7 @@ await test('개요와 댓글·리뷰 탭만 제공하고 CI와 변경 내용 탭
     const tabs = findByClass(tree, 'dsh-forge-pulls-tabs')[0].children.props.items
     assert.deepEqual(
       Array.from(tabs, (item) => item.value),
-      ['overview', 'conversation']
+      ['overview', 'conversation', 'changes']
     )
     assert.equal(findByClass(tree, 'dsh-forge-pulls-ci-trigger').length, 0)
     assert.ok(!fixture.calls.some((call) => call.payload.action === 'merge'))
