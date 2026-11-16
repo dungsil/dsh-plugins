@@ -4,6 +4,7 @@ import { IconChevronDownOutlineRegular, IconChevronRightOutlineRegular } from '@
 import type { Placement } from './inbox.js'
 import { countParts } from '@dungsil/dsh-ui/count'
 import { countFooterSections, type FooterSection } from './footer-counts.js'
+import { footerLimit, observeFooterAncestors } from './footer-sizing.js'
 
 /** Section copy resolved at render time so a language switch relabels live DOM. */
 export interface HeadingLabels {
@@ -166,7 +167,7 @@ export function installHeadings(
   }
   const sizeFooters = () => {
     for (const [tree, { footer }] of panes) {
-      footer.style.maxBlockSize = `${tree.clientHeight / 2}px`
+      footer.style.maxBlockSize = `${footerLimit(tree, window.innerHeight)}px`
     }
   }
   const animateArchive = (tree: HTMLElement, from: number) => {
@@ -184,7 +185,7 @@ export function installHeadings(
         (Number.parseFloat(margins.marginTop) || 0) +
         (Number.parseFloat(margins.marginBottom) || 0)
     }
-    const target = Math.min(naturalHeight, tree.clientHeight / 2)
+    const target = Math.min(naturalHeight, footerLimit(tree, window.innerHeight))
     if (Math.abs(target - from) < 0.5) return
     const duration = open.Archived ? 480 : 260
     footer.style.transition = 'none'
@@ -207,6 +208,7 @@ export function installHeadings(
     archiveAnimations.set(tree, finish)
   }
   const resize = new ResizeObserver(sizeFooters)
+  window.addEventListener('resize', sizeFooters)
   let scheduled = false
   let disposed = false
   const refresh = () => {
@@ -269,7 +271,7 @@ export function installHeadings(
         if (trees.has(tree)) {
           countsByTree.set(tree, countFooterSections(footerSections))
           installPane(tree)
-          resize.observe(tree)
+          observeFooterAncestors(resize, tree)
         }
       }
       for (const tree of panes.keys()) {
@@ -378,6 +380,7 @@ export function installHeadings(
       disposed = true
       observer.disconnect()
       resize.disconnect()
+      window.removeEventListener('resize', sizeFooters)
       for (const root of icons.values()) root.unmount()
       icons.clear()
       for (const heading of headings.values()) heading.remove()
