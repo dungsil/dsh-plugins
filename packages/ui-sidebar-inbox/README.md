@@ -4,6 +4,8 @@
 
 `@dungsil/dsh-plugin-ui-sidebar-inbox`
 
+[![Open Plugin Market](https://img.shields.io/endpoint?url=https%3A%2F%2Fdshopen.org%2Fbadge%2F%2540dungsil%2Fdsh-plugin-ui-sidebar-inbox.json%3Flang%3Den)](https://dshopen.org/plugins/@dungsil/dsh-plugin-ui-sidebar-inbox/)
+
 DSH 사이드바의 세션 목록을 T3 Code Nightly처럼 **상태별**로 정리합니다. 응답이 필요한 세션은 위로, 실행 중인 세션과 보관한 세션은 아래로 모아 줍니다. 기존 사이드바의 모양과 세션 행은 그대로 유지합니다.
 
 ## 미리보기
