@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
@@ -73,12 +74,65 @@ await test('전역과 isolated worktree 및 panel 설정을 각각 독립 엔트
   assert.deepEqual(
     result.value.entries.map(({ id, kind, settings }) => ({ id, kind, settings })),
     [
-      { id: 'worktree', kind: 'worktree', settings: { directory: '.agents/worktrees', prefix: 'dsh-' } },
-      { id: 'forge-worktree', kind: 'worktree', settings: { directory: '.agents/worktrees', prefix: 'dsh-' } },
+      {
+        id: 'worktree',
+        kind: 'worktree',
+        settings: { directory: '.agents/worktrees', prefix: 'dsh-', cleanupOnArchive: true },
+      },
+      {
+        id: 'forge-worktree',
+        kind: 'worktree',
+        settings: { directory: '.agents/worktrees', prefix: 'dsh-', cleanupOnArchive: true },
+      },
       { id: 'forge-panel', kind: 'panel', settings: { prefix: 'dsh-' } },
     ]
   )
   for (const entry of result.value.entries) assert.match(entry.revision, /^[a-f0-9]{64}$/)
+})
+
+await test('보관 정리 설정은 상속된 retainOnArchive의 반대이며 선택한 행만 보존 여부를 변경한다', async (t) => {
+  const h = await fixture(t, [
+    row('global', worktree, { retainOnArchive: true }),
+    row('isolated', worktree, { retainOnArchive: true }, { retainOnArchive: false }),
+    row('panel', panel),
+  ])
+  const entries = (await h.rpc(readMethod)).value.entries
+  assert.deepEqual(
+    entries.map((entry) => entry.settings.cleanupOnArchive),
+    [false, true, undefined]
+  )
+  const result = await h.rpc(saveMethod, {
+    id: entries[0].id,
+    revision: entries[0].revision,
+    settings: { ...entries[0].settings, cleanupOnArchive: true },
+  })
+  assert.equal(result.ok, true)
+  assert.equal(h.initial[0].override.retainOnArchive, false)
+  assert.deepEqual(h.initial[1].override, { retainOnArchive: false })
+  const updated = result.value.entries[0]
+  assert.equal(
+    (
+      await h.rpc(saveMethod, {
+        id: updated.id,
+        revision: updated.revision,
+        settings: { ...updated.settings, cleanupOnArchive: false },
+      })
+    ).ok,
+    true
+  )
+  assert.equal(h.initial[0].override.retainOnArchive, true)
+})
+
+await test('보관 설정 표현식과 비불리언 값은 편집하지 않는다', async (t) => {
+  for (const value of [null, 'true', { __jsExpr: 'ctx.env.VALUE' }]) {
+    for (const layer of ['inherited', 'override']) {
+      const entry = row('worktree', worktree)
+      entry[layer].retainOnArchive = value
+      const h = await fixture(t, [entry])
+      assert.equal((await h.rpc(readMethod)).error.code, 'unavailable')
+      assert.equal(h.writes, 0)
+    }
+  }
 })
 
 await test('상속과 현재 설정을 합쳐 읽고 선택 엔트리만 저장하며 알 수 없는 값과 표현식을 보존한다', async (t) => {
@@ -93,16 +147,17 @@ await test('상속과 현재 설정을 합쳐 읽고 선택 엔트리만 저장�
     row('forge-worktree', worktree, { namePrefix: 'isolated-' }),
   ])
   const before = (await h.rpc(readMethod)).value.entries[0]
-  assert.deepEqual(before.settings, { directory: 'base/trees', prefix: 'custom-' })
+  assert.deepEqual(before.settings, { directory: 'base/trees', prefix: 'custom-', cleanupOnArchive: true })
   const result = await h.rpc(saveMethod, {
     id: before.id,
     revision: before.revision,
-    settings: { directory: 'next/trees', prefix: '' },
+    settings: { directory: 'next/trees', prefix: '', cleanupOnArchive: true },
   })
   assert.equal(result.ok, true)
   assert.deepEqual(h.initial[0].override, {
     directory: 'next/trees',
     namePrefix: '',
+    retainOnArchive: false,
     gitCommand: unknown,
     timeoutMs: 123,
   })
@@ -231,6 +286,7 @@ await test('실제 configEditor로 선택 엔트리만 영속 저장하고 재�
             config: { directory: 'inherited/trees', gitCommand: { __jsExpr: "'custom-git'" } },
           },
           { id: 'forge-worktree', name: worktree, config: { namePrefix: 'isolated-' }, isolate: { worktrees: true } },
+          { id: 'default-worktree', name: worktree },
           { id: 'panel', name: panel, config: { maxBranches: 20 } },
         ],
       },
@@ -250,6 +306,19 @@ await test('실제 configEditor로 선택 엔트리만 영속 저장하고 재�
     telemetryDisabledEnv: undefined,
   }
   let ctx
+  const mounts = new Map()
+  const worktreePlugin = {
+    Config: z.object({
+      directory: z.string().default('.agents/worktrees'),
+      namePrefix: z.string().default('dsh-'),
+      gitCommand: z.string().default('git'),
+      retainOnArchive: z.boolean().default(false).volatile(),
+    }),
+    apply(context) {
+      const id = context.fiber.entry.options.id
+      mounts.set(id, (mounts.get(id) ?? 0) + 1)
+    },
+  }
   t.after(async () => {
     await ctx?.fiber.dispose()
     await rm(home, { recursive: true, force: true })
@@ -266,7 +335,8 @@ await test('실제 configEditor로 선택 엔트리만 영속 저장하고 재�
       root.loader.builtins.editor = ConfigEditor
       root.loader.internal = {
         version: 'v2',
-        import: async (name) => (name === '@dungsil/dsh-plugin-ui-setting-vcs' ? plugin : { apply() {} }),
+        import: async (name) =>
+          name === '@dungsil/dsh-plugin-ui-setting-vcs' ? plugin : name === worktree ? worktreePlugin : { apply() {} },
       }
       await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yml'), watch: false })
       await root.plugin(Connection)
@@ -286,15 +356,37 @@ await test('실제 configEditor로 선택 엔트리만 영속 저장하고 재�
         )
       ).json()
     ).result
+  const initial = await rpc(readMethod)
+  const defaultEntry = initial.value.entries.find((value) => value.id === 'default-worktree')
+  const mountCount = mounts.get('default-worktree')
+  assert.equal(mountCount, 1)
+  const toggled = await rpc(saveMethod, {
+    id: defaultEntry.id,
+    revision: defaultEntry.revision,
+    settings: { ...defaultEntry.settings, cleanupOnArchive: false },
+  })
+  assert.equal(toggled.ok, true, JSON.stringify(toggled))
+  assert.deepEqual(
+    ctx.configEditor.configuration().find(({ entry }) => entry.options.id === 'default-worktree').override,
+    { retainOnArchive: true }
+  )
+  assert.equal(mounts.get('default-worktree'), mountCount)
   const before = await rpc(readMethod)
   assert.equal(before.ok, true)
   const entry = before.value.entries.find((value) => value.id === 'worktree')
   const saved = await rpc(saveMethod, {
     id: entry.id,
     revision: entry.revision,
-    settings: { directory: 'custom/trees', prefix: 'custom-' },
+    settings: { directory: 'custom/trees', prefix: 'custom-', cleanupOnArchive: true },
   })
   assert.equal(saved.ok, true, JSON.stringify(saved))
+  const savedEntry = saved.value.entries.find((value) => value.id === 'worktree')
+  const resaved = await rpc(saveMethod, {
+    id: savedEntry.id,
+    revision: savedEntry.revision,
+    settings: { ...savedEntry.settings, cleanupOnArchive: false },
+  })
+  assert.equal(resaved.ok, true, JSON.stringify(resaved))
   const persisted = await readFile(profile.patchPath, 'utf8')
   assert.match(persisted, /# unrelated comment/)
   assert.match(persisted, /!!js/)
@@ -306,6 +398,7 @@ await test('실제 configEditor로 선택 엔트리만 영속 저장하고 재�
   assert.deepEqual(reloaded.value.entries.find((value) => value.id === 'worktree').settings, {
     directory: 'custom/trees',
     prefix: 'custom-',
+    cleanupOnArchive: false,
   })
 })
 
