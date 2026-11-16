@@ -37,6 +37,13 @@
     "sourceTitle": "Contenido de la habilidad: {name}",
     "sourceLoading": "Cargando contenido de la habilidad…",
     "sourceError": "No se pudo cargar el contenido de la habilidad.",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "catalog": "Catálogo efectivo",
+    "catalogHint": "Las habilidades visibles en este contexto son de solo lectura. Se omiten los nombres desactivados.",
+    "workspace": "Espacio de trabajo",
+    "defaultDirectory": "Directorio predeterminado",
+    "preset": "Preajuste",
+    "noPreset": "Sin preajuste",
+    "readOnly": "Solo lectura"
   }
 }

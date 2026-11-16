@@ -37,6 +37,13 @@
     "sourceTitle": "技能全文：{name}",
     "sourceLoading": "正在加载技能全文…",
     "sourceError": "无法加载技能全文。",
-    "close": "关闭"
+    "close": "关闭",
+    "catalog": "生效的技能目录",
+    "catalogHint": "此上下文中可见的技能在此处为只读。已禁用的名称不会显示。",
+    "workspace": "工作区",
+    "defaultDirectory": "默认目录",
+    "preset": "预设",
+    "noPreset": "无预设",
+    "readOnly": "只读"
   }
 }

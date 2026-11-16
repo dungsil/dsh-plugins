@@ -17,4 +17,23 @@ export interface SkillsView {
     path?: string
   }[]
   complete: boolean
+  catalogError?: boolean
+  contexts?: {
+    workspaces: { id: string; title: string; path: string }[]
+    presets: { id: string; name?: string; broken?: string }[]
+    workspaceId: string
+    presetId: string
+    cwd: string
+  }
+  catalog?: {
+    complete: boolean
+    skills: {
+      name: string
+      description: string
+      source: string
+      provider: string
+      path?: string
+      display?: { name?: string; description?: string }
+    }[]
+  }
 }
