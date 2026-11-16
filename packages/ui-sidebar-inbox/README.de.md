@@ -8,13 +8,13 @@ Das Plugin ordnet die Sitzungsliste in der DSH-Seitenleiste **nach Status**, äh
 
 ## Vorschau
 
-**Hell**: Links ist Archiviert eingeklappt, rechts ausgeklappt.
+**Hell**: Links sind Archiviert und Vorübergehend ausgeblendet eingeklappt, rechts ausgeklappt. Die Überschriften zeigen die Sitzungsanzahl.
 
-<img src="./assets/sidebar-preview-de-light.webp" alt="Sidebar Inbox im hellen Design mit deutscher Oberfläche: angeheftete und Posteingangs-Sitzungen oben, die Liste In Arbeit unten, Vergleich von Archiviert eingeklappt links und ausgeklappt rechts" width="720" />
+<img src="./assets/sidebar-preview-de-light.webp" alt="Sidebar Inbox im hellen Design: angeheftete und Posteingangs-Sitzungen sowie In Arbeit, Archiviert und Vorübergehend ausgeblendet mit Anzahl; die letzten beiden links eingeklappt, rechts ausgeklappt" width="720" />
 
-**Dunkel**: Dieselben Beispielsitzungen im Vergleich von Archiviert eingeklappt und ausgeklappt.
+**Dunkel**: Dieselben Beispielsitzungen mit Archiviert und Vorübergehend ausgeblendet im eingeklappten und ausgeklappten Zustand.
 
-<img src="./assets/sidebar-preview-de-dark.webp" alt="Sidebar Inbox im dunklen Design mit deutscher Oberfläche: angeheftete und Posteingangs-Sitzungen oben, die Liste In Arbeit unten, Vergleich von Archiviert eingeklappt links und ausgeklappt rechts" width="720" />
+<img src="./assets/sidebar-preview-de-dark.webp" alt="Sidebar Inbox im dunklen Design: angeheftete und Posteingangs-Sitzungen sowie In Arbeit, Archiviert und Vorübergehend ausgeblendet mit Anzahl; die letzten beiden links eingeklappt, rechts ausgeklappt" width="720" />
 
 ## Verwendung
 
