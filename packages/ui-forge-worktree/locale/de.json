@@ -14,6 +14,9 @@
     "locked": "Die Worktree-Auswahl kann nach dem Start dieser Sitzung nicht mehr geändert werden.",
     "error": "Die Worktree-Auswahl konnte nicht bestätigt werden. Aktualisieren Sie vor einem erneuten Versuch.",
     "refresh": "Auswahl aktualisieren",
+    "previous": "Vorherige Worktrees",
+    "more": "Weitere Worktrees",
+    "listError": "Bestehende Worktrees konnten nicht geladen werden",
     "blocked": "Für diesen Checkout ist kein neuer Worktree verfügbar."
   }
 }
