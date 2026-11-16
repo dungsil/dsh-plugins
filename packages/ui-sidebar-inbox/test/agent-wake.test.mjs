@@ -88,10 +88,10 @@ const quietState = () =>
     storage: { read: () => null, write: () => undefined },
   })
 
-await test('이미 전달되는 작업이 있으면 에이전트에게 묻지 않고 숨긴다', () => {
+await test('이미 전달되는 작업이 있으면 에이전트에게 묻지 않고 숨긴다', async () => {
   const state = quietState()
   const requests = []
-  createAgentChoice({
+  await createAgentChoice({
     hasPlan: () => true,
     request: async (...args) => {
       requests.push(args)
@@ -106,7 +106,7 @@ await test('이미 전달되는 작업이 있으면 에이전트에게 묻지 �
 await test('예약이 없으면 에이전트에게 한 번 요청하고 받아들여지면 숨김을 유지한다', async () => {
   const state = quietState()
   const requests = []
-  createAgentChoice({
+  await createAgentChoice({
     hasPlan: () => false,
     request: async (sessionId, text) => {
       requests.push([sessionId, text])
@@ -121,17 +121,18 @@ await test('예약이 없으면 에이전트에게 한 번 요청하고 받아�
 
 await test('호스트가 요청을 받지 않으면 숨김을 되돌린다', async () => {
   const state = quietState()
-  createAgentChoice({ hasPlan: () => false, request: async () => await Promise.resolve(false), state })('s1')
-  await new Promise((resolve) => setImmediate(resolve))
+  await assert.rejects(
+    createAgentChoice({ hasPlan: () => false, request: async () => await Promise.resolve(false), state })('s1')
+  )
   assert.equal(state.getSnapshot().has('s1'), false)
 })
 
 await test('거부되기 전에 다른 기한을 고른 항목은 건드리지 않는다', async () => {
   const state = quietState()
   const gate = Promise.withResolvers()
-  createAgentChoice({ hasPlan: () => false, request: async () => await gate.promise, state })('s1')
+  const result = createAgentChoice({ hasPlan: () => false, request: async () => await gate.promise, state })('s1')
   state.snooze('s1', '1h')
   gate.resolve(false)
-  await new Promise((resolve) => setImmediate(resolve))
+  await assert.rejects(result)
   assert.equal(state.getSnapshot().has('s1'), true)
 })

@@ -51,6 +51,7 @@ await test('기본 행에만 일시정지 메뉴를 등록하고 선택과 해�
   assert.equal(source.observe().length, 5)
   for (const id of ['blank', 'pinned', 'archived', 'child', 'missing'])
     assert.deepEqual(source.resolve({ sessionId: id }), [])
+  assert.equal(source.resolve({ sessionId: 'normal' })[0].icon.key, 'sidebar-inbox.snooze')
   let children = source.resolve({ sessionId: 'normal' })[0].children
   assert.deepEqual(
     children.map((item) => item.id),
@@ -60,9 +61,11 @@ await test('기본 행에만 일시정지 메뉴를 등록하고 선택과 해�
   assert.deepEqual(selection, ['normal', '30m'])
   available = true
   children = source.resolve({ sessionId: 'normal' })[0].children
+  assert.equal(children.at(-1).failureLabel, 'snooze.agentFailure')
   children.at(-1).run()
   assert.deepEqual(selection, ['normal', 'agent'])
   values.set('normal', 123)
+  assert.equal(source.resolve({ sessionId: 'normal' })[0].icon.key, 'sidebar-inbox.wake')
   source.resolve({ sessionId: 'normal' })[0].run()
   assert.deepEqual(selection, ['normal', 'wake'])
   active = false

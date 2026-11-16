@@ -42,15 +42,15 @@ export interface AgentChoiceOptions {
  * unless the user picked another duration for the entry in the meantime.
  */
 export function createAgentChoice({ hasPlan, request, state }: AgentChoiceOptions) {
-  return (sessionId: string): void => {
+  return async (sessionId: string): Promise<void> => {
     state.snoozeAgent(sessionId)
     if (hasPlan(sessionId)) return
     const entry = state.getSnapshot().get(sessionId)
-    const ask = async (): Promise<void> => {
-      const accepted = await request(sessionId, AGENT_PROMPT)
-      if (!accepted && state.getSnapshot().get(sessionId) === entry) state.wake(sessionId)
+    const accepted = await request(sessionId, AGENT_PROMPT)
+    if (!accepted) {
+      if (state.getSnapshot().get(sessionId) === entry) state.wake(sessionId)
+      throw new Error('Agent snooze request was not accepted')
     }
-    void ask()
   }
 }
 

@@ -14,6 +14,7 @@
     "snooze.tomorrow": "Bis morgen früh",
     "snooze.action": "Vorübergehend ausblenden",
     "snooze.agent": "Agent entscheiden lassen",
+    "snooze.agentFailure": "Der Agent konnte nicht gebeten werden, diese Unterhaltung zu planen.",
     "snooze.wake": "Wieder einblenden"
   }
 }

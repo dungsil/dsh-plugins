@@ -16,6 +16,7 @@ export type SidebarInboxKey =
   | 'sort.agentActivity'
   | 'snooze.action'
   | 'snooze.agent'
+  | 'snooze.agentFailure'
   | 'snooze.wake'
   | 'snooze.30m'
   | 'snooze.1h'
@@ -36,6 +37,7 @@ export const en: Record<SidebarInboxKey, string> = {
   'heading.snoozed': 'Snoozed',
   'snooze.action': 'Snooze',
   'snooze.agent': 'Let the agent decide',
+  'snooze.agentFailure': 'Could not ask the agent to schedule this conversation.',
   'snooze.wake': 'Unsnooze',
   'snooze.30m': '30 minutes',
   'snooze.1h': '1 hour',
@@ -51,6 +53,7 @@ export const ko: Record<SidebarInboxKey, string> = {
   'heading.snoozed': '잠시 숨김',
   'snooze.action': '잠시 숨기기',
   'snooze.agent': '에이전트가 정하기',
+  'snooze.agentFailure': '에이전트에게 이 대화의 일정을 요청하지 못했습니다.',
   'snooze.wake': '다시 표시',
   'snooze.30m': '30분 동안',
   'snooze.1h': '1시간 동안',
@@ -65,6 +68,7 @@ export const zh: Record<SidebarInboxKey, string> = {
   'sort.agentActivity': '智能体活动',
   'snooze.action': '暂时隐藏',
   'snooze.agent': '由智能体决定',
+  'snooze.agentFailure': '无法请求智能体安排此对话。',
   'snooze.wake': '重新显示',
   'snooze.30m': '30分钟',
   'snooze.1h': '1小时',

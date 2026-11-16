@@ -14,6 +14,7 @@
     "snooze.tomorrow": "Hasta mañana por la mañana",
     "snooze.action": "Ocultar temporalmente",
     "snooze.agent": "Que decida el agente",
+    "snooze.agentFailure": "No se pudo pedir al agente que programe esta conversación.",
     "snooze.wake": "Mostrar de nuevo"
   }
 }

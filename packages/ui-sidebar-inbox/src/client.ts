@@ -18,6 +18,7 @@ import { createScheduleLink } from './schedule-link.js'
 import { connectSchedule, SCHEDULE_INJECT } from './schedule-remote.js'
 import { AUTOMATION_VISIBLE_KEY, createAutomationVisibility } from './automation-visibility.js'
 import { installSnoozeMenu } from './snooze-menu.js'
+import { installSnoozeIcons } from './snooze-icons.js'
 
 export const name = 'dungsil-sidebar-inbox'
 export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
@@ -179,6 +180,7 @@ export function apply(ctx: Context) {
   pending.reconcile = reconcile
   ctx.effect(() => scheduleLink.subscribe(reconcile), 'sidebar-inbox: schedule updates')
   ctx.inject(['contextMenus'], (child) => {
+    installSnoozeIcons(child.slots as unknown as Parameters<typeof installSnoozeIcons>[0])
     const contextMenus = (child as unknown as { contextMenus: Parameters<typeof installSnoozeMenu>[0]['contextMenus'] })
       .contextMenus
     return installSnoozeMenu({
@@ -195,7 +197,7 @@ export function apply(ctx: Context) {
         subscribe: scheduleLink.subscribe,
         choose: (id) => {
           automationVisibility.keepVisible(id)
-          chooseAgent(id)
+          return chooseAgent(id)
         },
       },
       isActive,

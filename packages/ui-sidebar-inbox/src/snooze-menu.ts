@@ -9,7 +9,9 @@ interface Observable<T> {
 interface MenuAction {
   id: string
   label: string
-  run?: () => void
+  run?: () => void | Promise<void>
+  failureLabel?: string
+  icon?: { key: string }
   children?: MenuAction[]
 }
 interface ContextMenus {
@@ -33,7 +35,7 @@ export function installSnoozeMenu(options: {
     snooze(id: string, choice: (typeof SNOOZE_CHOICES)[number]): void
     wake(id: string): void
   }
-  agent: { available(): boolean; subscribe(listener: () => void): () => void; choose(id: string): void }
+  agent: { available(): boolean; subscribe(listener: () => void): () => void; choose(id: string): Promise<void> }
   locale: Observable<unknown>
   isActive: () => boolean
   isFlat: () => boolean
@@ -67,7 +69,14 @@ export function installSnoozeMenu(options: {
       )
         return []
       if (state.getSnapshot().has(sessionId)) {
-        return [{ id: 'wake', label: translate('snooze.wake'), run: () => state.wake(sessionId) }]
+        return [
+          {
+            id: 'wake',
+            label: translate('snooze.wake'),
+            icon: { key: 'sidebar-inbox.wake' },
+            run: () => state.wake(sessionId),
+          },
+        ]
       }
       const children: MenuAction[] = SNOOZE_CHOICES.map((choice) => ({
         id: choice,
@@ -75,8 +84,13 @@ export function installSnoozeMenu(options: {
         run: () => state.snooze(sessionId, choice),
       }))
       if (agent.available())
-        children.push({ id: AGENT_CHOICE, label: translate('snooze.agent'), run: () => agent.choose(sessionId) })
-      return [{ id: 'snooze', label: translate('snooze.action'), children }]
+        children.push({
+          id: AGENT_CHOICE,
+          label: translate('snooze.agent'),
+          failureLabel: translate('snooze.agentFailure'),
+          run: () => agent.choose(sessionId),
+        })
+      return [{ id: 'snooze', label: translate('snooze.action'), icon: { key: 'sidebar-inbox.snooze' }, children }]
     },
   })
 }

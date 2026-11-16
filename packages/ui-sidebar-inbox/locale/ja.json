@@ -14,6 +14,7 @@
     "snooze.tomorrow": "明日の朝まで",
     "snooze.action": "一時的に非表示",
     "snooze.agent": "エージェントに任せる",
+    "snooze.agentFailure": "エージェントにこの会話の予定を依頼できませんでした。",
     "snooze.wake": "表示に戻す"
   }
 }
