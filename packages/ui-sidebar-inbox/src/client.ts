@@ -172,7 +172,11 @@ export function apply(ctx: Context) {
     rememberSelection()
     const headings = installHeadings(
       () => placements,
-      () => ({ working: translate('heading.working'), archived: translate('heading.archived') }),
+      () => ({
+        working: translate('heading.working'),
+        archived: translate('heading.archived'),
+        language: ctx.locale.getSnapshot().active,
+      }),
       () => (view?.getSnapshot().archivedFilter ?? 'default') === 'show',
       isActive
     )

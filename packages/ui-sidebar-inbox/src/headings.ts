@@ -1,16 +1,16 @@
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { IconChevronDownOutlineRegular, IconChevronRightOutlineRegular } from '@dungsil/dsh-ui/icons'
-import type { Placement, Section } from './inbox.js'
+import type { Placement } from './inbox.js'
+import { countParts } from '@dungsil/dsh-ui/count'
+import { countFooterSections, type FooterSection } from './footer-counts.js'
 
 /** Section copy resolved at render time so a language switch relabels live DOM. */
 export interface HeadingLabels {
   working: string
   archived: string
+  language: string
 }
-
-/** Footer sections have separate controls to open or close their rows. */
-type FooterSection = Extract<Section, 'Working' | 'Archived'>
 
 /**
  * Add labels without moving, cloning or replacing any React-owned row.
@@ -76,6 +76,8 @@ export function installHeadings(
       color: inherit; font: inherit; text-align: start; cursor: pointer;
     }
     [data-dsh-inbox-heading] button > span:first-child { display: flex; flex: 0 0 16px; }
+    [data-dsh-inbox-count] { margin-inline-start: auto; white-space: nowrap; }
+    [data-dsh-inbox-count] small { font-size: .9em; font-weight: 400; }
   `
   document.head.append(style)
   const clearWrapper = (wrapper: HTMLElement) => {
@@ -213,6 +215,7 @@ export function installHeadings(
       scheduled = false
       if (disposed) return
       const wanted = new Map<HTMLElement, FooterSection>()
+      const countsByTree = new Map<HTMLElement, Record<FooterSection, number>>()
       const foldable = archivedCollapsible()
       resize.disconnect()
       for (const tree of trees) {
@@ -239,6 +242,7 @@ export function installHeadings(
         if ([...tree.children].some((child) => child.getAttribute('slot'))) continue
         let previous: FooterSection | undefined
         let firstFooter = true
+        const footerSections: FooterSection[] = []
         for (const row of tree.querySelectorAll<HTMLElement>('[data-row-key^="session:"]')) {
           const placement = placements().get(row.dataset.rowKey!.slice('session:'.length))
           if (placement?.blank) continue
@@ -248,6 +252,7 @@ export function installHeadings(
           // Archived rows share the footer only in the mixed view.
           // The archived-only view keeps all rows in the main list.
           if (section !== 'Working' && !(section === 'Archived' && foldable)) continue
+          footerSections.push(section)
           trees.add(tree)
           tree.dataset.dshInboxTree = ''
           wrappers.add(wrapper)
@@ -261,6 +266,7 @@ export function installHeadings(
           previous = section
         }
         if (trees.has(tree)) {
+          countsByTree.set(tree, countFooterSections(footerSections))
           installPane(tree)
           resize.observe(tree)
         }
@@ -299,7 +305,11 @@ export function installHeadings(
           const icon = document.createElement('span')
           icon.setAttribute('aria-hidden', 'true')
           icons.set(heading, createRoot(icon))
-          button.append(icon, document.createElement('span'))
+          const label = document.createElement('span')
+          const count = document.createElement('span')
+          count.dataset.dshInboxCount = ''
+          count.append(document.createElement('span'), document.createElement('small'))
+          button.append(icon, label, count)
           button.onclick = (event) => {
             event.stopPropagation()
             const current = heading.dataset.dshInboxSection
@@ -320,9 +330,17 @@ export function installHeadings(
         // Only write changed copy: an unconditional textContent write emits a
         // childList mutation that would re-trigger this refresh forever.
         const text = section === 'Archived' ? labels().archived : labels().working
-        const label = button.lastElementChild!
+        const label = button.children[1]!
         if (label.textContent !== text) label.textContent = text
-        button.setAttribute('aria-label', text)
+        const count = countsByTree.get(wrapper.parentElement!)![section]
+        const parts = countParts(count, labels().language)
+        const countElement = button.children[2]!
+        if (countElement.children[0]!.textContent !== parts.compact)
+          countElement.children[0]!.textContent = parts.compact
+        const exact = parts.exact ? ` (${parts.exact})` : ''
+        if (countElement.children[1]!.textContent !== exact) countElement.children[1]!.textContent = exact
+        const ariaLabel = `${text} ${parts.exact ?? parts.compact}`
+        if (button.getAttribute('aria-label') !== ariaLabel) button.setAttribute('aria-label', ariaLabel)
         const expanded = String(open[section])
         if (button.getAttribute('aria-expanded') !== expanded) {
           button.setAttribute('aria-expanded', expanded)

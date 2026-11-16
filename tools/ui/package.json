@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
+    "./count": "./src/count.ts",
     "./composer": "./src/composer.tsx",
     "./icons": "./src/icons.ts",
     "./icons/dom": "./src/icons-dom.ts"
