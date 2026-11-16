@@ -10,6 +10,15 @@ import { placeSessions, type Placement } from './inbox.js'
 import { installHeadings } from './headings.js'
 import { installSortOption } from './menu.js'
 import { dictionaries, NS, type SidebarInboxKey } from './locale.js'
+import { createWorktreeActivity, WORKTREE_INJECT } from './worktree-activity.js'
+import { createSnoozeState } from './snooze-state.js'
+import { SNOOZE_KEY } from './snooze.js'
+import { createAgentChoice, createAgentWake } from './agent-wake.js'
+import { createScheduleLink } from './schedule-link.js'
+import { connectSchedule, SCHEDULE_INJECT } from './schedule-remote.js'
+import { AUTOMATION_VISIBLE_KEY, createAutomationVisibility } from './automation-visibility.js'
+import { installSnoozeMenu } from './snooze-menu.js'
+import { installSnoozeIcons } from './snooze-icons.js'
 
 export const name = 'dungsil-sidebar-inbox'
 export const inject = ['slots', 'sessions', 'workspaces', 'uiSession', 'locale']
@@ -73,18 +82,75 @@ export function apply(ctx: Context) {
   let view: ViewInstance | undefined
   let refreshHeadings = () => {}
   let refreshSortOption = () => {}
+  // Retain the replaced native sort even when localStorage is unavailable.
+  let previousSort: NativeSort = 'manual'
 
   const isActive = () => view !== undefined && isAgentActivity(view.getSnapshot().orderBy)
   /** The agent-activity order only fits the hierarchy-free single list. */
   const isFlat = () => view !== undefined && view.getSnapshot().groupBy === 'flat'
+  const pending = { reconcile: (): void => undefined }
+  const worktree = createWorktreeActivity(() => pending.reconcile())
+  ctx.inject(WORKTREE_INJECT, (child) => worktree.attach(child))
+  ctx.effect(() => () => worktree.dispose(), 'sidebar-inbox: worktree activity')
+  const scheduleLink = createScheduleLink()
+  ctx.inject(SCHEDULE_INJECT, (child) => connectSchedule(child, scheduleLink))
+  const agentWake = createAgentWake({
+    schedule: () => scheduleLink.getSnapshot(),
+    busy: (id) => {
+      const list = ctx.sessions.list.getSnapshot()
+      const key = list.ids.find((candidate) => candidate === id)
+      return (
+        key !== undefined &&
+        (ctx.uiSession.sessionStatus.getSnapshot().get(key)?.running ?? list.byId[key]?.running ?? false)
+      )
+    },
+  })
+  const state = createSnoozeState({
+    now: Date.now,
+    storage: { read: () => localStorage.getItem(SNOOZE_KEY), write: (raw) => localStorage.setItem(SNOOZE_KEY, raw) },
+    schedule: (callback, delay) => {
+      const timer = setTimeout(callback, delay)
+      return () => clearTimeout(timer)
+    },
+    onChange: () => pending.reconcile(),
+    judgeAgent: agentWake.judge,
+  })
+  ctx.effect(() => () => state.dispose(), 'sidebar-inbox: snooze state')
+  const placementListeners = new Set<() => void>()
+  const automationVisibility = createAutomationVisibility({
+    storage: {
+      read: () => localStorage.getItem(AUTOMATION_VISIBLE_KEY),
+      write: (raw) => localStorage.setItem(AUTOMATION_VISIBLE_KEY, raw),
+    },
+    snooze: state,
+    automation: scheduleLink,
+    placement: {
+      isSnoozed: (id) => placements.get(id)?.section === 'Snoozed',
+      subscribe: (listener) => {
+        placementListeners.add(listener)
+        return () => {
+          placementListeners.delete(listener)
+        }
+      },
+    },
+    onChange: () => pending.reconcile(),
+  })
+  const chooseAgent = createAgentChoice({ state, hasPlan: agentWake.hasPlan, request: scheduleLink.request })
+
   const reconcile = () => {
+    state.prune()
     const list = ctx.sessions.list.getSnapshot()
     const workspace = ctx.workspaces.list.getSnapshot()
+    const statuses = ctx.uiSession.sessionStatus.getSnapshot()
+    worktree.reconcile(list, statuses)
     const result = placeSessions(
       list,
-      ctx.uiSession.sessionStatus.getSnapshot(),
+      statuses,
       workspace.pinnedSessionIds,
-      workspace.archivedSessionIds
+      workspace.archivedSessionIds,
+      worktree.active,
+      new Set(state.getSnapshot().keys()),
+      automationVisibility.getAutomationIds()
     )
     const changed =
       placements.size !== result.placements.size ||
@@ -92,7 +158,10 @@ export function apply(ctx: Context) {
         const previous = placements.get(id)
         return previous?.section !== value.section || previous.blank !== value.blank
       })
-    if (changed) placements = result.placements
+    if (changed) {
+      placements = result.placements
+      for (const listener of placementListeners) listener()
+    }
     // Only the selected plugin mode writes an order, and only for the flat list;
     // native group, sort and filter choices are otherwise left exactly as the
     // user set them.
@@ -110,14 +179,42 @@ export function apply(ctx: Context) {
     refreshSortOption()
   }
 
+  pending.reconcile = reconcile
+  ctx.effect(() => scheduleLink.subscribe(reconcile), 'sidebar-inbox: schedule updates')
+  ctx.inject(['contextMenus'], (child) => {
+    installSnoozeIcons(child.slots as unknown as Parameters<typeof installSnoozeIcons>[0])
+    const contextMenus = (child as unknown as { contextMenus: Parameters<typeof installSnoozeMenu>[0]['contextMenus'] })
+      .contextMenus
+    return installSnoozeMenu({
+      contextMenus,
+      sessions: ctx.sessions,
+      workspaces: ctx.workspaces,
+      state: automationVisibility.menuState,
+      locale: ctx.locale,
+      agent: {
+        available: () => {
+          const snapshot = scheduleLink.getSnapshot()
+          return snapshot.available && snapshot.settled
+        },
+        subscribe: scheduleLink.subscribe,
+        choose: (id) => {
+          automationVisibility.keepVisible(id)
+          return chooseAgent(id)
+        },
+      },
+      isActive,
+      isFlat,
+      translate,
+    })
+  })
+
   const toggleSort = () => {
-    if (view === undefined || !isFlat()) return
+    if (view === undefined || !isFlat() || isActive()) return
     const current = view.getSnapshot()
-    if (isAgentActivity(current.orderBy)) {
-      view.store.set({ ...current, orderBy: readPreviousSort() })
-      return
+    if (current.orderBy === 'manual' || current.orderBy === 'updated') {
+      previousSort = current.orderBy
+      writePreviousSort(previousSort)
     }
-    if (current.orderBy === 'manual' || current.orderBy === 'updated') writePreviousSort(current.orderBy)
     // The native store persists this value; native projections read it as manual.
     view.store.set({ ...current, orderBy: AGENT_ACTIVITY as View['orderBy'] })
   }
@@ -135,6 +232,7 @@ export function apply(ctx: Context) {
       throw new Error('Sidebar Inbox requires the DSH 0.2.1 workspace view store')
     view = entry.store.create() as unknown as ViewInstance
     const current = view.getSnapshot()
+    previousSort = current.orderBy === 'manual' || current.orderBy === 'updated' ? current.orderBy : readPreviousSort()
     let selectedSort: string | null = null
     let hasPreviousSort = false
     try {
@@ -172,7 +270,12 @@ export function apply(ctx: Context) {
     rememberSelection()
     const headings = installHeadings(
       () => placements,
-      () => ({ working: translate('heading.working'), archived: translate('heading.archived') }),
+      () => ({
+        working: translate('heading.working'),
+        archived: translate('heading.archived'),
+        snoozed: translate('heading.snoozed'),
+        language: ctx.locale.getSnapshot().active,
+      }),
       () => (view?.getSnapshot().archivedFilter ?? 'default') === 'show',
       isActive
     )
@@ -188,7 +291,7 @@ export function apply(ctx: Context) {
       // Switching the native group by away from the single list releases the
       // plugin mode: the state order has no meaning inside Workspace groups.
       if (view !== undefined && isActive() && !isFlat()) {
-        view.store.set({ ...view.getSnapshot(), orderBy: readPreviousSort() })
+        view.store.set({ ...view.getSnapshot(), orderBy: previousSort })
       }
       rememberSelection()
       reconcile()
@@ -216,7 +319,7 @@ export function apply(ctx: Context) {
       // native group, filter and pin/archive choices stay as the user left them.
       if (isActive()) {
         const current = view!.getSnapshot()
-        view!.store.set({ ...current, orderBy: readPreviousSort() })
+        view!.store.set({ ...current, orderBy: previousSort })
       }
       view = undefined
     }

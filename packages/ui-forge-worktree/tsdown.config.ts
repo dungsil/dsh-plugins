@@ -8,6 +8,7 @@ export default defineConfig([
     format: 'esm',
     platform: 'node',
     target: 'node24',
+    deps: { neverBundle: ['@deepseek-ai/dsh-client-connection'] },
     fixedExtension: false,
     dts: false,
     hooks: {

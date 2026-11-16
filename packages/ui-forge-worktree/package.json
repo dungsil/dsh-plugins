@@ -33,6 +33,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
     "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
     "@deepseek-ai/dsh-client-connection": "0.2.2-rc.3",
     "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
     "@deepseek-ai/dsh-client-store": "0.2.2-rc.3",
@@ -40,19 +41,33 @@
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
     "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.3",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-config-editor": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-session": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-session-projection": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-settings": "0.2.2-rc.3",
+    "@deepseek-ai/schemastery": "3.19.0",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
+    "happy-dom": "20.8.9",
     "react": "18.3.1",
-    "tsdown": "0.23.4"
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4",
+    "zod": "4.6.7"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.1.0",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-connection": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-config-editor": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-session": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-session-projection": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-settings": "^0.2.2-rc.1"
   },
   "icon": "./dist/icon.svg",
   "engines": {
-    "dsh": "^0.2.2-rc.1",
+    "dsh": "^0.2.2-rc.3",
     "node": ">=24.9.0"
   },
   "dsh": {
@@ -64,6 +79,7 @@
       "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-session",
