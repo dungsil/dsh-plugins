@@ -14,6 +14,9 @@
     "locked": "A seleção da árvore de trabalho não pode ser alterada após o início desta sessão.",
     "error": "Não foi possível confirmar a seleção da árvore de trabalho. Atualize antes de tentar novamente.",
     "refresh": "Atualizar seleção",
+    "previous": "Árvores anteriores",
+    "more": "Mais árvores de trabalho",
+    "listError": "Não foi possível carregar as árvores existentes",
     "blocked": "Uma nova árvore de trabalho não está disponível para este checkout."
   }
 }

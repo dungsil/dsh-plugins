@@ -52,6 +52,9 @@ await test('실제 configEditor로 기본값을 저장하고 owner만 읽으며 
   const start = async () => {
     ctx = await boot('dsh', join(dir, 'cordis.yml'), readProfilePatches('dsh', profile), async (root) => {
       root.provide('sessionProjections', { register: async () => ({}) })
+      // The combined Host plugin also requires the existing-worktree picker services.
+      for (const name of ['agents', 'sessions', 'workingDirectory', 'subprocess', 'fs', 'sandbox', 'sandboxPolicy'])
+        root.provide(name, {})
       root.provide('profileContext', profile)
       root.provide('appReady', {
         onReady(listener) {

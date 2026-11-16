@@ -14,6 +14,9 @@
     "locked": "La sélection de l’arbre de travail ne peut plus être modifiée une fois cette session démarrée.",
     "error": "Impossible de confirmer la sélection de l’arbre de travail. Actualisez avant de réessayer.",
     "refresh": "Actualiser la sélection",
+    "previous": "Arbres précédents",
+    "more": "Plus de worktrees",
+    "listError": "Impossible de charger les arbres existants",
     "blocked": "Aucun nouvel arbre de travail n’est disponible pour cette copie de travail."
   }
 }
