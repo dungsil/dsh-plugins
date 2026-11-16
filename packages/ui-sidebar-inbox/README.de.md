@@ -8,13 +8,13 @@ Das Plugin ordnet die Sitzungsliste in der DSH-Seitenleiste **nach Status**, äh
 
 ## Vorschau
 
-**Hell · Englisch**: Links ist Archived eingeklappt, rechts ausgeklappt.
+**Hell**: Links ist Archiviert eingeklappt, rechts ausgeklappt.
 
-<img src="./assets/sidebar-preview.webp" alt="Sidebar Inbox im hellen Design: angeheftete und Posteingangs-Sitzungen oben, die Working-Liste unten, Vergleich von Archived eingeklappt links und ausgeklappt rechts" width="720" />
+<img src="./assets/sidebar-preview-de-light.webp" alt="Sidebar Inbox im hellen Design mit deutscher Oberfläche: angeheftete und Posteingangs-Sitzungen oben, die Liste In Arbeit unten, Vergleich von Archiviert eingeklappt links und ausgeklappt rechts" width="720" />
 
-**Dunkel · Koreanisch**: Dieselben Beispielsitzungen im Vergleich von 보관됨 (Archived) eingeklappt und ausgeklappt.
+**Dunkel**: Dieselben Beispielsitzungen im Vergleich von Archiviert eingeklappt und ausgeklappt.
 
-<img src="./assets/sidebar-preview-dark.webp" alt="Sidebar Inbox im dunklen Design mit koreanischer Oberfläche: angeheftete und Posteingangs-Sitzungen oben, die Liste 작업 중 (Working) unten, Vergleich von 보관됨 (Archived) eingeklappt links und ausgeklappt rechts" width="720" />
+<img src="./assets/sidebar-preview-de-dark.webp" alt="Sidebar Inbox im dunklen Design mit deutscher Oberfläche: angeheftete und Posteingangs-Sitzungen oben, die Liste In Arbeit unten, Vergleich von Archiviert eingeklappt links und ausgeklappt rechts" width="720" />
 
 ## Verwendung
 

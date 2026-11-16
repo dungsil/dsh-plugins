@@ -8,13 +8,13 @@ Ce plugin organise la liste des sessions de la barre latérale de DSH **par éta
 
 ## Aperçu
 
-**Clair · anglais** : à gauche, Archived replié ; à droite, déplié.
+**Clair** : à gauche, Archivées replié ; à droite, déplié.
 
-<img src="./assets/sidebar-preview.webp" alt="Sidebar Inbox avec le thème clair : sessions épinglées et de la boîte de réception en haut, liste Working en bas, comparaison d’Archived replié à gauche et déplié à droite" width="720" />
+<img src="./assets/sidebar-preview-fr-light.webp" alt="Sidebar Inbox avec le thème clair et l’interface en français : sessions épinglées et de la boîte de réception en haut, liste En cours en bas, comparaison d’Archivées replié à gauche et déplié à droite" width="720" />
 
-**Sombre · coréen** : les mêmes sessions d’exemple, comparant 보관됨 (Archived) replié et déplié.
+**Sombre** : les mêmes sessions d’exemple, comparant Archivées replié et déplié.
 
-<img src="./assets/sidebar-preview-dark.webp" alt="Sidebar Inbox avec le thème sombre et l’interface en coréen : sessions épinglées et de la boîte de réception en haut, liste 작업 중 (Working) en bas, comparaison de 보관됨 (Archived) replié à gauche et déplié à droite" width="720" />
+<img src="./assets/sidebar-preview-fr-dark.webp" alt="Sidebar Inbox avec le thème sombre et l’interface en français : sessions épinglées et de la boîte de réception en haut, liste En cours en bas, comparaison d’Archivées replié à gauche et déplié à droite" width="720" />
 
 ## Utilisation
 

@@ -8,13 +8,13 @@ DSH サイドバーのセッション一覧を、T3 Code Nightly のように**�
 
 ## プレビュー
 
-**ライト · 英語**：左は Archived を折りたたんだ状態、右は展開した状態です。
+**ライト**：左は アーカイブ済み を折りたたんだ状態、右は展開した状態です。
 
-<img src="./assets/sidebar-preview.webp" alt="ライトテーマの Sidebar Inbox：上部にピン留め・受信箱のセッション、下部に Working 一覧。左は Archived を折りたたみ、右は展開した比較" width="720" />
+<img src="./assets/sidebar-preview-ja-light.webp" alt="ライトテーマ・日本語 UI の Sidebar Inbox：上部にピン留め・受信箱のセッション、下部に 作業中 一覧。左は アーカイブ済み を折りたたみ、右は展開した比較" width="720" />
 
-**ダーク · 韓国語**：同じサンプルセッションで、보관됨（Archived）の折りたたみと展開を比較します。
+**ダーク**：同じサンプルセッションで、アーカイブ済み の折りたたみと展開を比較します。
 
-<img src="./assets/sidebar-preview-dark.webp" alt="ダークテーマ・韓国語 UI の Sidebar Inbox：上部にピン留め・受信箱のセッション、下部に 작업 중（Working）一覧。左は 보관됨（Archived）を折りたたみ、右は展開した比較" width="720" />
+<img src="./assets/sidebar-preview-ja-dark.webp" alt="ダークテーマ・日本語 UI の Sidebar Inbox：上部にピン留め・受信箱のセッション、下部に 作業中 一覧。左は アーカイブ済み を折りたたみ、右は展開した比較" width="720" />
 
 ## 使い方
 
