@@ -41,6 +41,15 @@ export function installHeadings(
   const open: Record<FooterSection, boolean> = { Working: true, Archived: false, Snoozed: false }
   const style = document.createElement('style')
   style.textContent = `
+    /* The native wide sidebar sizes its final grid row to content. While we
+       split the list into panes, let that row and its list fill the viewport. */
+    [data-sidebar-scrollport]:has([data-dsh-inbox-tree]) {
+      grid-template-rows: 8px max-content 2px minmax(0, 1fr);
+    }
+    [data-sidebar-scrollport] :has(> [data-sidebar-list-area] [data-dsh-inbox-tree]) { flex: 1; }
+    [data-sidebar-scrollport] [data-sidebar-list-area]:has([data-dsh-inbox-tree]) { display: flex; }
+    /* The native viewport fade must not cover the independently scrolling footer. */
+    [data-sidebar-scrollport]:has([data-dsh-inbox-tree]) + span[aria-hidden="true"] { display: none; }
     [data-dsh-inbox-tree] {
       display: flex; flex-direction: column; padding-bottom: 0;
       overflow: hidden; scrollbar-gutter: auto; interpolate-size: allow-keywords;
@@ -167,7 +176,7 @@ export function installHeadings(
   }
   const sizeFooters = () => {
     for (const [tree, { footer }] of panes) {
-      footer.style.maxBlockSize = `${footerLimit(tree, window.innerHeight)}px`
+      footer.style.maxBlockSize = `${Math.min(tree.clientHeight / 2, footerLimit(tree, window.innerHeight))}px`
     }
   }
   const animateArchive = (tree: HTMLElement, from: number) => {
@@ -185,7 +194,7 @@ export function installHeadings(
         (Number.parseFloat(margins.marginTop) || 0) +
         (Number.parseFloat(margins.marginBottom) || 0)
     }
-    const target = Math.min(naturalHeight, footerLimit(tree, window.innerHeight))
+    const target = Math.min(naturalHeight, tree.clientHeight / 2, footerLimit(tree, window.innerHeight))
     if (Math.abs(target - from) < 0.5) return
     const duration = open.Archived ? 480 : 260
     footer.style.transition = 'none'

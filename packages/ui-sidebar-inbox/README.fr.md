@@ -8,13 +8,13 @@ Ce plugin organise la liste des sessions de la barre latérale de DSH **par éta
 
 ## Aperçu
 
-**Clair** : à gauche, Archivées replié ; à droite, déplié.
+**Clair** : Archivées et Masquées temporairement sont repliées à gauche et dépliées à droite. Les titres indiquent le nombre de sessions.
 
-<img src="./assets/sidebar-preview-fr-light.webp" alt="Sidebar Inbox avec le thème clair et l’interface en français : sessions épinglées et de la boîte de réception en haut, liste En cours en bas, comparaison d’Archivées replié à gauche et déplié à droite" width="720" />
+<img src="./assets/sidebar-preview-fr-light.webp" alt="Sidebar Inbox en thème clair : sessions épinglées et reçues, En cours, Archivées et Masquées temporairement avec compteurs ; les deux dernières repliées à gauche et dépliées à droite" width="720" />
 
-**Sombre** : les mêmes sessions d’exemple, comparant Archivées replié et déplié.
+**Sombre** : les mêmes sessions d’exemple, comparant Archivées et Masquées temporairement repliées et dépliées.
 
-<img src="./assets/sidebar-preview-fr-dark.webp" alt="Sidebar Inbox avec le thème sombre et l’interface en français : sessions épinglées et de la boîte de réception en haut, liste En cours en bas, comparaison d’Archivées replié à gauche et déplié à droite" width="720" />
+<img src="./assets/sidebar-preview-fr-dark.webp" alt="Sidebar Inbox en thème sombre : sessions épinglées et reçues, En cours, Archivées et Masquées temporairement avec compteurs ; les deux dernières repliées à gauche et dépliées à droite" width="720" />
 
 ## Utilisation
 

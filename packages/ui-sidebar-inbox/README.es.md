@@ -8,13 +8,13 @@ Organiza la lista de sesiones de la barra lateral de DSH **por estado**, como T3
 
 ## Vista previa
 
-**Claro**: a la izquierda, Archivadas plegado; a la derecha, desplegado.
+**Claro**: Archivadas y Ocultas temporalmente están plegadas a la izquierda y desplegadas a la derecha. Los encabezados muestran el número de sesiones.
 
-<img src="./assets/sidebar-preview-es-light.webp" alt="Sidebar Inbox con el tema claro y la interfaz en español: sesiones fijadas y de la bandeja de entrada arriba y la lista En curso abajo, comparando Archivadas plegado a la izquierda y desplegado a la derecha" width="720" />
+<img src="./assets/sidebar-preview-es-light.webp" alt="Sidebar Inbox con tema claro: sesiones fijadas y de la bandeja de entrada, En curso, Archivadas y Ocultas temporalmente con recuentos; las dos últimas plegadas a la izquierda y desplegadas a la derecha" width="720" />
 
-**Oscuro**: las mismas sesiones de ejemplo, comparando Archivadas plegado y desplegado.
+**Oscuro**: las mismas sesiones de ejemplo, comparando Archivadas y Ocultas temporalmente plegadas y desplegadas.
 
-<img src="./assets/sidebar-preview-es-dark.webp" alt="Sidebar Inbox con el tema oscuro y la interfaz en español: sesiones fijadas y de la bandeja de entrada arriba y la lista En curso abajo, comparando Archivadas plegado a la izquierda y desplegado a la derecha" width="720" />
+<img src="./assets/sidebar-preview-es-dark.webp" alt="Sidebar Inbox con tema oscuro: sesiones fijadas y de la bandeja de entrada, En curso, Archivadas y Ocultas temporalmente con recuentos; las dos últimas plegadas a la izquierda y desplegadas a la derecha" width="720" />
 
 ## Uso
 

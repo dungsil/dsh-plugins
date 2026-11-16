@@ -8,13 +8,13 @@
 
 ## 预览
 
-**浅色**：左侧为 Archived 折叠状态，右侧为展开状态。中文界面中分区标题以英语显示。
+**浅色**：左侧为已归档和已暂时隐藏折叠状态，右侧为两个分区展开状态。分区标题显示会话数量。
 
-<img src="./assets/sidebar-preview-zh-light.webp" alt="浅色主题、中文界面的 Sidebar Inbox：上方为置顶和收件箱会话，下方为 Working 列表，左右对比 Archived 折叠与展开" width="720" />
+<img src="./assets/sidebar-preview-zh-light.webp" alt="浅色主题、中文界面的 Sidebar Inbox：置顶和收件箱会话，以及进行中、已归档、已暂时隐藏列表和会话数量；左侧折叠已归档和已暂时隐藏，右侧展开" width="720" />
 
-**深色**：使用相同的示例会话，对比 Archived 的折叠与展开。
+**深色**：使用相同的示例会话，对比已归档和已暂时隐藏的折叠与展开。
 
-<img src="./assets/sidebar-preview-zh-dark.webp" alt="深色主题、中文界面的 Sidebar Inbox：上方为置顶和收件箱会话，下方为 Working 列表，左右对比 Archived 折叠与展开" width="720" />
+<img src="./assets/sidebar-preview-zh-dark.webp" alt="深色主题、中文界面的 Sidebar Inbox：置顶和收件箱会话，以及进行中、已归档、已暂时隐藏列表和会话数量；左侧折叠已归档和已暂时隐藏，右侧展开" width="720" />
 
 ## 使用方法
 

@@ -8,13 +8,13 @@ Organiza a lista de sessões da barra lateral do DSH **por estado**, como o T3 C
 
 ## Pré-visualização
 
-**Claro**: à esquerda, Arquivadas recolhido; à direita, expandido.
+**Claro**: Arquivadas e Ocultadas temporariamente estão recolhidas à esquerda e expandidas à direita. Os títulos mostram a contagem de sessões.
 
-<img src="./assets/sidebar-preview-pt-light.webp" alt="Sidebar Inbox no tema claro com a interface em português: sessões fixadas e da caixa de entrada no topo e a lista Em andamento embaixo, comparando Arquivadas recolhido à esquerda e expandido à direita" width="720" />
+<img src="./assets/sidebar-preview-pt-light.webp" alt="Sidebar Inbox no tema claro: sessões fixadas e da caixa de entrada, Em andamento, Arquivadas e Ocultadas temporariamente com contagens; as duas últimas recolhidas à esquerda e expandidas à direita" width="720" />
 
-**Escuro**: as mesmas sessões de exemplo, comparando Arquivadas recolhido e expandido.
+**Escuro**: as mesmas sessões de exemplo, comparando Arquivadas e Ocultadas temporariamente recolhidas e expandidas.
 
-<img src="./assets/sidebar-preview-pt-dark.webp" alt="Sidebar Inbox no tema escuro com a interface em português: sessões fixadas e da caixa de entrada no topo e a lista Em andamento embaixo, comparando Arquivadas recolhido à esquerda e expandido à direita" width="720" />
+<img src="./assets/sidebar-preview-pt-dark.webp" alt="Sidebar Inbox no tema escuro: sessões fixadas e da caixa de entrada, Em andamento, Arquivadas e Ocultadas temporariamente com contagens; as duas últimas recolhidas à esquerda e expandidas à direita" width="720" />
 
 ## Uso
 
