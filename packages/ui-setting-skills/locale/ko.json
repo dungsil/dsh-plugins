@@ -37,6 +37,13 @@
     "sourceTitle": "스킬 전문: {name}",
     "sourceLoading": "스킬 전문을 불러오는 중…",
     "sourceError": "스킬 전문을 불러오지 못했습니다.",
-    "close": "닫기"
+    "close": "닫기",
+    "catalog": "적용 카탈로그",
+    "catalogHint": "이 컨텍스트에서 보이는 스킬은 여기에서 읽기 전용입니다. 비활성화된 이름은 제외됩니다.",
+    "workspace": "워크스페이스",
+    "defaultDirectory": "기본 디렉터리",
+    "preset": "프리셋",
+    "noPreset": "프리셋 없음",
+    "readOnly": "읽기 전용"
   }
 }

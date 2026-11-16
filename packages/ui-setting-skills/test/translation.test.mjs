@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
 import * as React from 'react'
 
-async function mount(t, available = true, display, disabled = []) {
+async function mount(t, available = true, display, disabled = [], catalogList) {
   const window = new Window()
   const previous = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map((key) => [
     key,
@@ -40,6 +40,16 @@ async function mount(t, available = true, display, disabled = []) {
               Button: ({ icon, children, variant: _variant, size: _size, ...props }) =>
                 React.createElement('button', props, icon, children),
               Tooltip: ({ children }) => children,
+              Menu: ({ anchor, open, items, onSelect }) =>
+                React.createElement(
+                  React.Fragment,
+                  null,
+                  anchor,
+                  open &&
+                    items.map((item) =>
+                      React.createElement('button', { key: item.id, onClick: () => onSelect(item.id) }, item.label)
+                    )
+                ),
               Modal: ({ children, title, closeLabel, onClose }) =>
                 React.createElement(
                   'div',
@@ -68,9 +78,16 @@ async function mount(t, available = true, display, disabled = []) {
                     )
                   )
                 ),
-              Switch: () => null,
+              Switch: ({ label, checked, disabled: locked, onChange }) =>
+                React.createElement('button', {
+                  role: 'switch',
+                  'aria-label': label,
+                  'aria-checked': checked,
+                  disabled: locked,
+                  onClick: () => onChange(!checked),
+                }),
               ...Object.fromEntries(
-                ['ChevronRight', 'FolderOpen', 'Loading', 'Skill'].map((name) => [
+                ['ChevronDown', 'ChevronRight', 'FolderOpen', 'Loading', 'Skill'].map((name) => [
                   `Icon${name}OutlineRegular`,
                   () => React.createElement('svg'),
                 ])
@@ -83,6 +100,7 @@ async function mount(t, available = true, display, disabled = []) {
   })
   const requests = []
   const sources = []
+  const saves = []
   let snapshot = { active: 'ko' }
   const listeners = new Set()
   const skills = ['alpha', 'beta', 'empty'].map((name, index) => ({
@@ -104,8 +122,19 @@ async function mount(t, available = true, display, disabled = []) {
               folderOpenAvailable: false,
               translationAvailable: available,
               skills,
+              ...catalogList?.(payload),
             },
           }
+        if (method.endsWith('/save'))
+          return new Promise((resolve) =>
+            saves.push({
+              ...payload,
+              resolve: (value) => {
+                disabled = value.value.disabled
+                resolve(value)
+              },
+            })
+          )
         if (method.endsWith('/source')) return new Promise((resolve) => sources.push({ ...payload, signal, resolve }))
         assert.equal(method, 'dungsil-ui-setting-skills/translate')
         return new Promise((resolve) => requests.push({ ...payload, signal, resolve }))
@@ -133,6 +162,7 @@ async function mount(t, available = true, display, disabled = []) {
     doc,
     requests,
     sources,
+    saves,
     async search(value) {
       await React.act(async () => {
         const input = doc.querySelector('input[type="search"]')
@@ -157,6 +187,104 @@ async function mount(t, available = true, display, disabled = []) {
     },
   }
 }
+
+await test('비활성화 저장 중에는 컨텍스트 변경을 막고 저장된 상태를 유지한다', async (t) => {
+  const calls = []
+  const workspaces = [
+    { id: 'one', title: 'One', path: '/one' },
+    { id: 'two', title: 'Two', path: '/two' },
+  ]
+  const ui = await mount(t, false, undefined, [], (payload) => {
+    calls.push(payload)
+    return {
+      contexts: {
+        workspaces,
+        presets: [{ id: 'standard' }, { id: 'minimal' }],
+        workspaceId: payload?.workspaceId ?? 'one',
+        presetId: payload?.presetId ?? 'standard',
+        cwd: '/one',
+      },
+      catalog: { complete: true, skills: [] },
+    }
+  })
+  const toggle = ui.doc.querySelector('[role="switch"][aria-label$="alpha"]')
+  await React.act(async () => toggle.click())
+  assert.deepEqual(JSON.parse(JSON.stringify({ name: ui.saves[0].name, disabled: ui.saves[0].disabled })), {
+    name: 'alpha',
+    disabled: true,
+  })
+  await React.act(async () => ui.button('적용 카탈로그').click())
+  const workspace = ui.doc.querySelector('button[aria-label="워크스페이스"]')
+  const preset = ui.doc.querySelector('button[aria-label="프리셋"]')
+  assert.equal(workspace.disabled, true)
+  assert.equal(preset.disabled, true)
+  await React.act(async () => {
+    workspace.click()
+    preset.click()
+  })
+  assert.equal(calls.length, 1)
+  assert.equal(ui.doc.querySelector('button[aria-label="워크스페이스"]').getAttribute('aria-expanded'), 'false')
+  await React.act(async () => ui.saves[0].resolve({ ok: true, value: { disabled: ['alpha'] } }))
+  assert.equal(workspace.disabled, false)
+  await React.act(async () => workspace.click())
+  await React.act(async () =>
+    [...ui.doc.querySelectorAll('button')].find((button) => button.textContent.includes('Two')).click()
+  )
+  assert.equal(calls.length, 2)
+  await React.act(async () => ui.button('공용 스킬').click())
+  assert.equal(ui.doc.querySelector('[role="switch"][aria-label$="alpha"]').getAttribute('aria-checked'), 'false')
+})
+
+await test('기본 워크스페이스가 없을 때 선택기를 유지하고 다른 워크스페이스로 복구한다', async (t) => {
+  const calls = []
+  const workspaces = [
+    { id: 'one', title: 'Missing', path: '/missing' },
+    { id: 'two', title: 'Valid', path: '/valid' },
+  ]
+  const ui = await mount(t, false, undefined, [], (payload) => {
+    calls.push(payload)
+    const valid = payload?.workspaceId === 'two'
+    return {
+      contexts: {
+        workspaces,
+        presets: [{ id: 'standard' }],
+        workspaceId: valid ? 'two' : 'one',
+        presetId: 'standard',
+        cwd: valid ? '/valid' : '/missing',
+      },
+      catalogError: !valid,
+      catalog: {
+        complete: valid,
+        skills: valid
+          ? [{ name: 'project-fixture', description: 'Project', source: 'project-agents', provider: 'filesystem' }]
+          : [],
+      },
+    }
+  })
+  assert.ok(ui.doc.querySelector('[role="alert"]'))
+  assert.match(ui.doc.body.textContent, /alpha/)
+  await React.act(async () => ui.button('적용 카탈로그').click())
+  const picker = ui.doc.querySelector('button[aria-label="워크스페이스"]')
+  await React.act(async () => picker.click())
+  const choice = [...ui.doc.querySelectorAll('button')].find((button) => button.textContent.includes('Valid'))
+  await React.act(async () => choice.click())
+  assert.equal(calls.at(-1).workspaceId, 'two')
+  assert.equal(calls.at(-1).presetId, 'standard')
+  assert.match(ui.doc.body.textContent, /project-fixture/)
+  assert.equal(ui.doc.querySelector('[role="alert"]'), null)
+  const row = ui.doc.querySelector('.dsh-skills-contexts').parentElement.querySelector('li')
+  assert.match(row.textContent, /읽기 전용/)
+  assert.equal(row.querySelectorAll('input, [role="switch"]').length, 0)
+  assert.equal(row.querySelectorAll('button').length, 1)
+  await React.act(async () => row.querySelector('button').click())
+  assert.deepEqual(JSON.parse(JSON.stringify(ui.sources[0].catalog)), {
+    name: 'project-fixture',
+    source: 'project-agents',
+    provider: 'filesystem',
+    workspaceId: 'two',
+    presetId: 'standard',
+  })
+})
 
 await test('비활성 스킬도 표시 메타데이터와 호출 이름 검색을 유지하고 전문 오류를 재시도하고 닫는다', async (t) => {
   const ui = await mount(t, false, { name: 'Friendly name', description: 'Short description' }, ['alpha'])

@@ -37,6 +37,13 @@
     "sourceTitle": "Skill-Inhalt: {name}",
     "sourceLoading": "Skill-Inhalt wird geladen…",
     "sourceError": "Skill-Inhalt konnte nicht geladen werden.",
-    "close": "Schließen"
+    "close": "Schließen",
+    "catalog": "Effektiver Katalog",
+    "catalogHint": "Skills in diesem Kontext sind hier schreibgeschützt. Deaktivierte Namen werden ausgelassen.",
+    "workspace": "Arbeitsbereich",
+    "defaultDirectory": "Standardverzeichnis",
+    "preset": "Voreinstellung",
+    "noPreset": "Keine Voreinstellung",
+    "readOnly": "Schreibgeschützt"
   }
 }

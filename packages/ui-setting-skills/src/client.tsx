@@ -3,7 +3,16 @@ import { createRoot } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { Button, Input, installSettingsIcon, Modal, SegmentedControl, Switch, Tooltip } from '@dungsil/dsh-ui'
+import {
+  Button,
+  ButtonPicker,
+  Input,
+  installSettingsIcon,
+  Modal,
+  SegmentedControl,
+  Switch,
+  Tooltip,
+} from '@dungsil/dsh-ui'
 import {
   IconChevronRightOutlineRegular,
   IconFolderOpenOutlineRegular,
@@ -68,6 +77,14 @@ const styles = `
 .dsh-skills-open-error { grid-column: 1 / -1; padding: 0 0 16px 28px; }
 .dsh-skills-list-header { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 .dsh-skills-source-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow: auto; }
+.dsh-skills-contexts { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; min-width: 0; }
+.dsh-skills-context { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.dsh-skills-context > span:first-child { flex: none; white-space: nowrap; }
+.dsh-skills-context > span:last-child { min-width: 0; max-width: 100%; flex: 0 1 auto; }
+.dsh-skills-context button { min-width: 0; max-width: 100%; }
+.dsh-skills-context button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-skills-context button svg { flex: none; }
+.dsh-skills-context-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 `
 
 type Skill = SkillsView['skills'][number]
@@ -128,11 +145,13 @@ function SkillSource({
   language,
   connection,
   close,
+  catalog,
 }: {
-  skill: Skill
+  skill: Pick<Skill, 'name' | 'description' | 'display' | 'path'>
   language: string
   connection: ConnectionHandle
   close: () => void
+  catalog?: { name: string; source: string; provider: string; path?: string; workspaceId: string; presetId: string }
 }) {
   const text = localizedCopy(language)
   const [attempt, setAttempt] = useState(0)
@@ -143,7 +162,7 @@ function SkillSource({
     const controller = new AbortController()
     setState({ status: 'loading' })
     void connection.rpc
-      .call(channel, sourceMethod, { path: skill.path }, controller.signal)
+      .call(channel, sourceMethod, catalog ? { catalog } : { path: skill.path }, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return
         if (!result.ok || typeof result.value !== 'string') throw new Error('Could not load source')
@@ -153,7 +172,7 @@ function SkillSource({
         if (!controller.signal.aborted) setState({ status: 'error' })
       })
     return () => controller.abort()
-  }, [connection, skill.path, attempt])
+  }, [connection, skill.path, catalog, attempt])
   return (
     <Modal
       open
@@ -204,7 +223,25 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
   const pending = useRef(false)
   const mounted = useRef(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [source, setSource] = useState<'user-agents' | 'user-dsh'>('user-agents')
+  const [source, setSource] = useState<'user-agents' | 'user-dsh' | 'catalog'>('user-agents')
+  const [selection, setSelection] = useState<{ workspaceId: string; presetId: string }>()
+  const [catalogSource, setCatalogSource] = useState<{
+    skill: NonNullable<SkillsView['catalog']>['skills'][number]
+    workspaceId: string
+    presetId: string
+  }>()
+  const catalogSelection = useMemo(
+    () =>
+      catalogSource && {
+        name: catalogSource.skill.name,
+        source: catalogSource.skill.source,
+        provider: catalogSource.skill.provider,
+        ...(catalogSource.skill.path !== undefined && { path: catalogSource.skill.path }),
+        workspaceId: catalogSource.workspaceId,
+        presetId: catalogSource.presetId,
+      },
+    [catalogSource]
+  )
   const [query, setQuery] = useState('')
   const [, refreshTranslations] = useState(0)
   const translations = useMemo(
@@ -306,7 +343,7 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
     setError(false)
     void (async () => {
       try {
-        const result = await connection.rpc.call(channel, method, {}, controller.signal)
+        const result = await connection.rpc.call(channel, method, selection ?? {}, controller.signal)
         if (controller.signal.aborted) return
         if (!result.ok) throw new Error('Could not load skills')
         setView(result.value as unknown as SkillsView)
@@ -318,7 +355,11 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
       mounted.current = false
       controller.abort()
     }
-  }, [connection])
+  }, [connection, selection])
+
+  useEffect(() => {
+    if (view?.catalogError && !view.contexts) setSource('user-agents')
+  }, [view?.catalogError, view?.contexts])
 
   async function save(name: string, disabled: boolean) {
     if (pending.current) return
@@ -364,11 +405,20 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
           close={() => setSourceSkill(undefined)}
         />
       )}
+      {catalogSource && (
+        <SkillSource
+          skill={catalogSource.skill}
+          language={locale.active}
+          connection={connection}
+          close={() => setCatalogSource(undefined)}
+          catalog={catalogSelection}
+        />
+      )}
       {view && !view.folderOpenAvailable && <p className="dsh-skills-muted">{text.openFolderUnavailable}</p>}
       {!view && !error && <p role="status">{text.loading}</p>}
       {error && <p role="alert">{text.error}</p>}
       {saveError && <p role="alert">{text.saveError}</p>}
-      {view && !view.complete && <p role="alert">{text.incomplete}</p>}
+      {view && (!view.complete || view.catalogError) && <p role="alert">{text.incomplete}</p>}
       {view && (
         <>
           <div className="dsh-skills-toolbar">
@@ -376,7 +426,10 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
               id={id}
               className="dsh-skills-settings-tabs"
               value={source}
-              options={groups.map((group) => ({ value: group.value, label: group.label }))}
+              options={[
+                ...groups.map((group) => ({ value: group.value, label: group.label })),
+                ...(view.contexts ? [{ value: 'catalog' as const, label: text.catalog }] : []),
+              ]}
               onChange={setSource}
               label={text.nav}
             />
@@ -398,7 +451,9 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
           )}
           <div className="dsh-skills-list-header dsh-skills-muted">
             <span>
-              {text.nav} {groupCount(groups.find((group) => group.value === source)!)}
+              {source === 'catalog'
+                ? text.catalog
+                : `${text.nav} ${groupCount(groups.find((group) => group.value === source)!)}`}
             </span>
             <span>{text.use}</span>
           </div>
@@ -411,6 +466,101 @@ function SkillsSettings({ ctx }: { ctx: Context }) {
             autoComplete="off"
             onChange={(event) => setQuery(event.target.value)}
           />
+          {source === 'catalog' && view.contexts && (
+            <div role="tabpanel" id={`${id}-catalog-panel`} aria-labelledby={`${id}-catalog`}>
+              <p className="dsh-skills-muted">{text.catalogHint}</p>
+              <div className="dsh-skills-contexts">
+                <div className="dsh-skills-context">
+                  <span>{text.workspace}</span>
+                  <ButtonPicker
+                    label={text.workspace}
+                    disabled={busy}
+                    title={view.contexts.cwd}
+                    value={view.contexts.workspaceId}
+                    items={
+                      view.contexts.workspaces.length
+                        ? view.contexts.workspaces.map((workspace) => ({
+                            id: workspace.id,
+                            label: `${workspace.title} — ${workspace.path}`,
+                          }))
+                        : [{ id: '', label: text.defaultDirectory }]
+                    }
+                    onChange={(workspaceId) => setSelection({ workspaceId, presetId: view.contexts!.presetId })}
+                  />
+                </div>
+                <div className="dsh-skills-context">
+                  <span>{text.preset}</span>
+                  <ButtonPicker
+                    label={text.preset}
+                    disabled={busy}
+                    value={view.contexts.presetId}
+                    items={
+                      view.contexts.presets.length
+                        ? view.contexts.presets.map((preset) => ({
+                            id: preset.id,
+                            label: `${preset.name ?? preset.id}${preset.broken ? ` — ${text.incomplete}` : ''}`,
+                          }))
+                        : [{ id: '', label: text.noPreset }]
+                    }
+                    onChange={(presetId) => setSelection({ workspaceId: view.contexts!.workspaceId, presetId })}
+                  />
+                </div>
+              </div>
+              <p className="dsh-skills-muted dsh-skills-context-path" title={view.contexts.cwd}>
+                <code>{view.contexts.cwd}</code>
+              </p>
+              {!view.catalog?.complete && <p role="alert">{text.incomplete}</p>}
+              <ul>
+                {view.catalog?.skills
+                  .filter((skill) =>
+                    searchTerms.every((term) =>
+                      [skill.name, skill.description, skill.source, skill.provider, skill.path ?? ''].some((field) =>
+                        normalizeSearch(field).includes(term)
+                      )
+                    )
+                  )
+                  .map((skill) => (
+                    <li key={`${skill.name}:${skill.provider}:${skill.path ?? ''}`}>
+                      <details>
+                        <summary>
+                          <IconChevronRightOutlineRegular size={16} aria-hidden="true" />
+                          <span className="dsh-skills-summary-text">
+                            <strong>{skill.display?.name ?? skill.name}</strong>
+                            <span className="dsh-skills-muted">{skill.display?.description ?? skill.description}</span>
+                          </span>
+                        </summary>
+                        <div className="dsh-skills-detail">
+                          <p>
+                            <code>
+                              {skill.source} · {skill.provider}
+                            </code>
+                          </p>
+                          {skill.path && (
+                            <p>
+                              <code>{skill.path}</code>
+                            </p>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setCatalogSource({
+                                skill,
+                                workspaceId: view.contexts!.workspaceId,
+                                presetId: view.contexts!.presetId,
+                              })
+                            }
+                          >
+                            {text.viewSource}
+                          </Button>
+                        </div>
+                      </details>
+                      <span className="dsh-skills-muted">{text.readOnly}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
           {groups.map((group) => (
             <div
               key={group.value}
