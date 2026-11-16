@@ -46,6 +46,7 @@
     "@deepseek-ai/dsh-sandbox-policy": "0.2.2-rc.3",
     "@deepseek-ai/dsh-subprocess": "0.2.2-rc.3",
     "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
+    "@dungsil/dsh-plugin-server": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",

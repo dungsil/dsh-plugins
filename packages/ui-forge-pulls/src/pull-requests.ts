@@ -3,10 +3,10 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-experimental-forge'
 import type {} from '@deepseek-ai/dsh-experimental-forge-session'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
+import { gitProcessEnvironment, parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { inspectSession } from './inspect-session.js'
 import { checksQuery, completeChecks, mergeMethods } from './github-merge.js'
 import { readQueue } from './read-queue.js'
@@ -150,15 +150,7 @@ export function apply(ctx: Context, config: Config) {
         cwd,
         signal,
         graceMs: 1000,
-        env: {
-          GIT_DIR: undefined,
-          GIT_WORK_TREE: undefined,
-          GIT_COMMON_DIR: undefined,
-          GIT_CONFIG: undefined,
-          GIT_CONFIG_PARAMETERS: undefined,
-          GIT_CONFIG_COUNT: undefined,
-          GIT_TERMINAL_PROMPT: '0',
-          GIT_OPTIONAL_LOCKS: '0',
+        env: gitProcessEnvironment({
           GH_REPO: undefined,
           GH_HOST: undefined,
           GITLAB_REPO: undefined,
@@ -177,7 +169,7 @@ export function apply(ctx: Context, config: Config) {
           GH_PROMPT_DISABLED: '1',
           GLAB_CHECK_UPDATE: 'false',
           NO_COLOR: '1',
-        },
+        }),
         stdio: { stdin: 'ignore', stdout: { maxBytes: 2_097_152 }, stderr: { maxBytes: 16384 } },
       })
       try {
@@ -908,19 +900,10 @@ export function apply(ctx: Context, config: Config) {
         methods: ['POST'],
         requestBody: 'buffered',
         async fetch(request) {
-          let body
-          try {
-            body = clientRequestSchema.safeParse(await request.json())
-          } catch {
-            return new Response('Invalid request', { status: 400 })
-          }
-          if (!body.success || body.data.method !== route) return new Response('Invalid request', { status: 400 })
-          const reply = (result: unknown) =>
-            Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              { headers: { 'Cache-Control': 'no-store' } }
-            )
-          const input = body.data.payload as { sessionId?: unknown; requestUrl?: unknown; summary?: unknown } | null
+          const parsed = await parseRpcRequest(request, route)
+          if (!parsed) return new Response('Invalid request', { status: 400 })
+          const reply = (result: unknown) => rpcResponse(parsed.rpcId, result)
+          const input = parsed.payload as { sessionId?: unknown; requestUrl?: unknown; summary?: unknown } | null
           if (!input || typeof input.sessionId !== 'string' || !input.sessionId)
             return reply({ ok: false, error: { code: 'unavailable', message: 'Invalid session', details: {} } })
           let inFlight: string[] = []
@@ -928,7 +911,7 @@ export function apply(ctx: Context, config: Config) {
             let action: RequestAction | undefined
             if (route === actionMethod) {
               try {
-                action = actionInput(body.data.payload)
+                action = actionInput(parsed.payload)
               } catch {
                 throw new Error('invalid_payload')
               }

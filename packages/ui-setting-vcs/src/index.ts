@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { channel, readMethod, saveMethod, validSettings, type SettingsEntry, type SettingsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-vcs'
@@ -79,17 +79,12 @@ export function apply(ctx: Context) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
+            const parsed = await parseRpcRequest(request, endpoint)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
             let result
             try {
               if (endpoint === saveMethod) {
-                const payload = body.data.payload
+                const payload = parsed.payload
                 if (
                   !record(payload) ||
                   Object.keys(payload).length !== 3 ||
@@ -127,10 +122,7 @@ export function apply(ctx: Context) {
                 error instanceof SettingsError ? error.code : endpoint === saveMethod ? 'save_failed' : 'load_failed'
               result = { ok: false as const, error: { code, message: 'VCS settings operation failed.', details: {} } }
             }
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              { headers: { 'Cache-Control': 'no-store' } }
-            )
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       'ui-setting-vcs: owner-only settings'

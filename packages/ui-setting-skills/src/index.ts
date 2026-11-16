@@ -4,9 +4,9 @@ import { basename, dirname, join } from 'node:path'
 import { parse } from 'yaml'
 import type { Context } from '@deepseek-ai/cordis'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import type {} from '@deepseek-ai/dsh-experimental-client-ui-cot-translation'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { dshCachePath } from '@deepseek-ai/dsh-home-paths'
 import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-command'
 import { SkillRegistry } from '@deepseek-ai/dsh-skill'
@@ -213,15 +213,11 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
+            const parsed = await parseRpcRequest(request, endpoint)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
+            const rpcId = parsed.rpcId
             if (endpoint === sourceMethod) {
-              const payload = body.data.payload as {
+              const payload = parsed.payload as {
                 path?: unknown
                 catalog?: {
                   name?: unknown
@@ -281,13 +277,10 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                   error: { code: 'source_failed', message: 'Could not load skill source.', details: {} },
                 }
               }
-              return Response.json(
-                { type: 'server-response', rpcId: body.data.rpcId, result },
-                { headers: { 'Cache-Control': 'no-store' } }
-              )
+              return rpcResponse(rpcId, result)
             }
             if (endpoint === openFolderMethod) {
-              const payload = body.data.payload as { path?: unknown }
+              const payload = parsed.payload as { path?: unknown }
               if (!payload || typeof payload.path !== 'string') return new Response('Invalid request', { status: 400 })
               let result
               try {
@@ -307,13 +300,10 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                   error: { code: 'open_folder_failed', message: 'Could not open skill folder.', details: {} },
                 }
               }
-              return Response.json(
-                { type: 'server-response', rpcId: body.data.rpcId, result },
-                { headers: { 'Cache-Control': 'no-store' } }
-              )
+              return rpcResponse(rpcId, result)
             }
             if (endpoint === translateMethod) {
-              const payload = body.data.payload as { path?: unknown; language?: unknown }
+              const payload = parsed.payload as { path?: unknown; language?: unknown }
               if (!payload || typeof payload.path !== 'string' || typeof payload.language !== 'string') {
                 return new Response('Invalid request', { status: 400 })
               }
@@ -369,13 +359,10 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                   error: { code: 'translation_failed', message: 'Could not translate skill description.', details: {} },
                 }
               }
-              return Response.json(
-                { type: 'server-response', rpcId: body.data.rpcId, result },
-                { headers: { 'Cache-Control': 'no-store' } }
-              )
+              return rpcResponse(rpcId, result)
             }
             if (endpoint === saveMethod) {
-              const payload = body.data.payload as { name?: unknown; disabled?: unknown }
+              const payload = parsed.payload as { name?: unknown; disabled?: unknown }
               if (!payload || typeof payload.name !== 'string' || typeof payload.disabled !== 'boolean') {
                 return new Response('Invalid request', { status: 400 })
               }
@@ -405,10 +392,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                   error: { code: 'save_failed', message: 'Could not save skill settings.', details: {} },
                 }
               }
-              return Response.json(
-                { type: 'server-response', rpcId: body.data.rpcId, result },
-                { headers: { 'Cache-Control': 'no-store' } }
-              )
+              return rpcResponse(rpcId, result)
             }
             let result
             try {
@@ -441,7 +425,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                   )
                 ),
               }
-              const selection = (body.data.payload ?? {}) as { workspaceId?: unknown; presetId?: unknown }
+              const selection = (parsed.payload ?? {}) as { workspaceId?: unknown; presetId?: unknown }
               if (service('workingDirectory')) {
                 try {
                   const context = await resolveContext(selection, signal, (contexts) => {
@@ -480,10 +464,7 @@ export function apply(ctx: Context, config: { disabled?: string[] } = {}) {
                 error: { code: 'load_failed', message: 'Could not load skills.', details: {} },
               }
             }
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              { headers: { 'Cache-Control': 'no-store' } }
-            )
+            return rpcResponse(rpcId, result)
           },
         }),
       'ui-setting-skills: owner-only list'

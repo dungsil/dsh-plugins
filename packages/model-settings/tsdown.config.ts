@@ -4,7 +4,7 @@ export default defineConfig([
   {
     ...nodeConfig,
     entry: ['src/index.ts', 'src/pwsh-adapter.ts'],
-    deps: { alwaysBundle: ['@dungsil/dsh-task-prompts'] },
+    deps: { alwaysBundle: ['@dungsil/dsh-task-prompts', '@dungsil/dsh-plugin-server'] },
   },
   {
     entry: ['src/protocol.ts', 'src/contract.ts'],
