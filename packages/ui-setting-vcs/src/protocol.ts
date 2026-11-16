@@ -6,7 +6,7 @@ export interface SettingsEntry {
   id: string
   kind: 'worktree' | 'panel'
   revision: string
-  settings: { directory?: string; prefix: string }
+  settings: { directory?: string; prefix: string; cleanupOnArchive?: boolean }
 }
 
 export interface SettingsView {
@@ -17,7 +17,8 @@ export function validSettings(value: unknown, kind?: SettingsEntry['kind']): val
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const settings = value as Record<string, unknown>
   const target = kind ?? (Object.hasOwn(settings, 'directory') ? 'worktree' : 'panel')
-  const keys = target === 'worktree' ? ['directory', 'prefix'] : ['prefix']
+  const keys = target === 'worktree' ? ['directory', 'prefix', 'cleanupOnArchive'] : ['prefix']
+  if (target === 'worktree' && typeof settings.cleanupOnArchive !== 'boolean') return false
   if (Object.keys(settings).length !== keys.length || !keys.every((key) => Object.hasOwn(settings, key))) return false
   if (
     typeof settings.prefix !== 'string' ||

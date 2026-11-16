@@ -15,13 +15,13 @@ const fixture = () => ({
       id: 'worktree-one',
       kind: 'worktree',
       revision: 'worktree-v1',
-      settings: { directory: '.worktrees', prefix: 'tree' },
+      settings: { directory: '.worktrees', prefix: 'tree', cleanupOnArchive: true },
     },
     {
       id: 'worktree-two',
       kind: 'worktree',
       revision: 'worktree-two-v1',
-      settings: { directory: 'other/trees', prefix: 'second' },
+      settings: { directory: 'other/trees', prefix: 'second', cleanupOnArchive: false },
     },
     { id: 'panel-one', kind: 'panel', revision: 'panel-v1', settings: { prefix: 'panel' } },
   ],
@@ -93,6 +93,14 @@ async function renderSettings(t, { language = 'ko', rpc = async () => success(fi
             return {
               Button: ({ children, variant: _variant, size: _size, ...props }) =>
                 React.createElement('button', props, children),
+              Switch: ({ checked, label, onChange, disabled }) =>
+                React.createElement('button', {
+                  role: 'switch',
+                  'aria-label': label,
+                  'aria-checked': checked,
+                  disabled,
+                  onClick: () => onChange(!checked),
+                }),
               Input: React.forwardRef(({ onChange, ...props }, ref) =>
                 React.createElement('input', { ...props, ref, onInput: onChange })
               ),
@@ -215,6 +223,34 @@ await test('한국어 영어 중국어에서 디렉터리와 접두사 입력을
   assert.deepEqual(
     ui.calls.map(({ method }) => method),
     [readMethod]
+  )
+})
+
+await test('보관 정리가 혼합된 상태에서 전환하면 worktree 행에만 자동 저장하고 다른 설정을 유지한다', async (t) => {
+  const ui = await renderSettings(t, { rpc: savedServer() })
+  const toggle = ui.container.querySelector('[role="switch"]')
+  assert.equal(toggle.getAttribute('aria-checked'), 'false')
+  await ui.advance(1000)
+  assert.equal(ui.saves().length, 0)
+  await React.act(async () => toggle.click())
+  await ui.advance()
+  assert.equal(ui.saves().length, 1)
+  assert.equal(ui.saves()[0].payload.id, 'worktree-two')
+  assert.deepEqual(ui.saves()[0].payload.settings, { ...fixture().entries[1].settings, cleanupOnArchive: true })
+  await React.act(async () => toggle.click())
+  await ui.advance()
+  assert.deepEqual(
+    ui
+      .saves()
+      .slice(1)
+      .map(({ payload }) => payload.id),
+    ['worktree-one', 'worktree-two']
+  )
+  assert.ok(
+    ui
+      .saves()
+      .slice(1)
+      .every(({ payload }) => payload.settings.cleanupOnArchive === false)
   )
 })
 
@@ -365,8 +401,8 @@ await test('저장 중에도 입력을 허용하고 동시 RPC 없이 최신 초
   assert.deepEqual(
     view.entries.map(({ settings }) => settings),
     [
-      { directory: 'latest/trees', prefix: 'latest' },
-      { directory: 'latest/trees', prefix: 'latest' },
+      { directory: 'latest/trees', prefix: 'latest', cleanupOnArchive: true },
+      { directory: 'latest/trees', prefix: 'latest', cleanupOnArchive: false },
       { prefix: 'latest' },
     ]
   )

@@ -2,7 +2,10 @@ export const copy = {
   en: {
     nav: 'Version control',
     scope:
-      'Changes are saved automatically and apply to future worktrees from both tools and the Forge UI. Existing checkouts and Git configuration are not changed.',
+      'Changes are saved automatically. Directory and naming settings apply to future worktrees from tools and the Forge UI; changing a setting does not immediately alter existing checkouts or Git configuration.',
+    cleanup: 'Remove worktree on archive',
+    cleanupHint:
+      'When a session is archived, eligible clean Git worktrees are removed. This setting does not delete branches.',
     worktree: 'Worktrees',
     panel: 'Forge panel',
     directory: 'Worktree directory',
@@ -11,7 +14,7 @@ export const copy = {
       'Use a repository-relative subdirectory with / separators; absolute paths and . or .. segments are not supported.',
     prefixHint: 'Used for automatically generated names, not semantic branch naming.',
     unsupported:
-      'The official Forge bundle does not support the previous commit author, commit signing, default checkout selection, tracked remote, delete-on-archive, or semantic branch naming settings. These settings are not migrated or saved here.',
+      'The official Forge bundle does not support the previous commit author, commit signing, default checkout selection, tracked remote, or semantic branch naming settings. These settings are not migrated or saved here.',
     empty: 'No editable Forge settings were found. Enable the official Forge bundle first.',
     loading: 'Loading…',
     saving: 'Saving…',
@@ -28,7 +31,9 @@ export const copy = {
   ko: {
     nav: '버전 관리',
     scope:
-      '변경 사항은 자동 저장되며, 이후 도구와 Forge UI에서 생성할 워크트리에 공통 적용됩니다. 기존 체크아웃과 Git 설정은 변경하지 않습니다.',
+      '변경 사항은 자동 저장됩니다. 디렉터리와 이름 설정은 이후 도구와 Forge UI에서 생성할 워크트리에 적용되며, 설정 변경만으로 기존 체크아웃이나 Git 설정이 즉시 바뀌지는 않습니다.',
+    cleanup: '보관 시 워크트리 제거',
+    cleanupHint: '세션을 보관하면 제거 가능한 깨끗한 Git 워크트리가 제거됩니다. 이 설정은 브랜치를 삭제하지 않습니다.',
     worktree: '워크트리',
     panel: 'Forge 패널',
     directory: '워크트리 디렉터리',
@@ -37,7 +42,7 @@ export const copy = {
       '저장소 아래의 상대 경로를 /로 구분해 입력하세요. 절대 경로와 . 또는 .. 경로 조각은 지원하지 않습니다.',
     prefixHint: '자동 생성 이름에 사용하며, 시멘틱 브랜치 이름 형식은 지원하지 않습니다.',
     unsupported:
-      '공식 Forge 번들은 기존의 커밋 작성자, 커밋 서명, 기본 체크아웃 선택, 추적 중인 원격 브랜치, 보관 시 삭제, 시멘틱 브랜치 이름 설정을 지원하지 않습니다. 이 항목들은 여기서 이전하거나 저장하지 않습니다.',
+      '공식 Forge 번들은 기존의 커밋 작성자, 커밋 서명, 기본 체크아웃 선택, 추적 중인 원격 브랜치, 시멘틱 브랜치 이름 설정을 지원하지 않습니다. 이 항목들은 여기서 이전하거나 저장하지 않습니다.',
     empty: '편집할 수 있는 Forge 설정이 없습니다. 먼저 공식 Forge 번들을 활성화하세요.',
     loading: '불러오는 중…',
     saving: '저장 중…',
@@ -53,7 +58,10 @@ export const copy = {
   },
   zh: {
     nav: '版本控制',
-    scope: '更改会自动保存，并同时应用于之后通过工具和 Forge UI 创建的工作树。不会修改现有检出或 Git 配置。',
+    scope:
+      '更改会自动保存。目录和命名设置适用于之后通过工具和 Forge UI 创建的工作树；更改设置不会立即修改现有检出或 Git 配置。',
+    cleanup: '归档时移除工作树',
+    cleanupHint: '归档会话时，会移除符合条件且干净的 Git 工作树。此设置不会删除分支。',
     worktree: '工作树',
     panel: 'Forge 面板',
     directory: '工作树目录',
@@ -61,7 +69,7 @@ export const copy = {
     directoryHint: '请输入以 / 分隔的仓库内相对目录。不支持绝对路径以及 . 或 .. 路径段。',
     prefixHint: '用于自动生成的名称，不支持语义化分支命名。',
     unsupported:
-      '官方 Forge 插件包不支持旧版的提交作者、提交签名、默认检出选择、跟踪远程分支、归档时删除或语义化分支命名设置。此处不会迁移或保存这些设置。',
+      '官方 Forge 插件包不支持旧版的提交作者、提交签名、默认检出选择、跟踪远程分支或语义化分支命名设置。此处不会迁移或保存这些设置。',
     empty: '未找到可编辑的 Forge 设置。请先启用官方 Forge 插件包。',
     loading: '正在加载…',
     saving: '正在保存…',

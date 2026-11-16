@@ -3,17 +3,18 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { Button, Input, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
+import { Button, Input, SettingsRow, Switch, settingsStyles } from '@dungsil/dsh-ui'
 import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, readMethod, saveMethod, validSettings, type SettingsView } from './protocol.js'
 import { localized } from './copy.js'
 
 export const inject = ['connection', 'locale', 'slots']
-type Patch = { directory?: string; prefix?: string }
+type Patch = { directory?: string; prefix?: string; cleanupOnArchive?: boolean }
 const validPatch = (patch: Patch) =>
-  (patch.directory === undefined || validSettings({ directory: patch.directory, prefix: '' }, 'worktree')) &&
+  (patch.directory === undefined ||
+    validSettings({ directory: patch.directory, prefix: '', cleanupOnArchive: true }, 'worktree')) &&
   (patch.prefix === undefined || validSettings({ prefix: patch.prefix }, 'panel'))
-const common = (values: string[]) => (values.every((value) => value === values[0]) ? values[0] : undefined)
+const common = <T,>(values: T[]) => (values.every((value) => value === values[0]) ? values[0] : undefined)
 
 export function VcsSettings({ ctx }: { ctx: Context }) {
   const text = localized(useLocaleSnapshot(ctx.locale).active)
@@ -50,6 +51,9 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
           next.entries.filter((entry) => entry.kind === 'worktree').map((entry) => entry.settings.directory!)
         ),
         prefix: common(next.entries.map((entry) => entry.settings.prefix)),
+        cleanupOnArchive: common(
+          next.entries.filter((entry) => entry.kind === 'worktree').map((entry) => entry.settings.cleanupOnArchive)
+        ),
       })
       setNotice(undefined)
       setSavedNotice(false)
@@ -75,6 +79,9 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
             ...entry.settings,
             ...(patch.prefix !== undefined ? { prefix: patch.prefix } : {}),
             ...(entry.kind === 'worktree' && patch.directory !== undefined ? { directory: patch.directory } : {}),
+            ...(entry.kind === 'worktree' && patch.cleanupOnArchive !== undefined
+              ? { cleanupOnArchive: patch.cleanupOnArchive }
+              : {}),
           }
           if (JSON.stringify(settings) === JSON.stringify(entry.settings)) continue
           const result = await connection.rpc.call(
@@ -93,7 +100,7 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
           if (!next) throw new Error('unavailable')
           saved.current = { entries: saved.current!.entries.map((item) => (item.id === entry.id ? next : item)) }
         }
-        for (const key of ['directory', 'prefix'] as const) {
+        for (const key of ['directory', 'prefix', 'cleanupOnArchive'] as const) {
           if (latest.current[key] === patch[key]) delete latest.current[key]
         }
       }
@@ -108,7 +115,7 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
       if (!signal.aborted) setSaving(false)
     }
   }
-  const change = (key: keyof Patch, value: string) => {
+  const change = (key: keyof Patch, value: string | boolean) => {
     if (blocked.current) return
     latest.current = { ...latest.current, [key]: value }
     setDraft((current) => ({ ...current, [key]: value }))
@@ -160,6 +167,24 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
                   aria-invalid={invalidDirectory || undefined}
                   aria-describedby={invalid ? `${id}-invalid` : undefined}
                   onChange={(event) => change('directory', event.target.value)}
+                />
+              </SettingsRow>
+            )}
+            {hasDirectory && (
+              <SettingsRow
+                label={
+                  <>
+                    <span>{text.cleanup}</span>
+                    <p>{text.cleanupHint}</p>
+                    {draft.cleanupOnArchive === undefined && <p>{text.mixed}</p>}
+                  </>
+                }
+              >
+                <Switch
+                  label={text.cleanup}
+                  checked={draft.cleanupOnArchive ?? false}
+                  disabled={saving}
+                  onChange={(value) => change('cleanupOnArchive', value)}
                 />
               </SettingsRow>
             )}
