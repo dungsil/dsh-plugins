@@ -6,6 +6,15 @@
   "ui": {
     "heading.working": "In Arbeit",
     "heading.archived": "Archiviert",
-    "sort.agentActivity": "Agentenaktivität"
+    "sort.agentActivity": "Agentenaktivität",
+    "heading.snoozed": "Vorübergehend ausgeblendet",
+    "snooze.30m": "30 Minuten",
+    "snooze.1h": "1 Stunde",
+    "snooze.3h": "3 Stunden",
+    "snooze.tomorrow": "Bis morgen früh",
+    "snooze.action": "Vorübergehend ausblenden",
+    "snooze.agent": "Agent entscheiden lassen",
+    "snooze.agentFailure": "Der Agent konnte nicht gebeten werden, diese Unterhaltung zu planen.",
+    "snooze.wake": "Wieder einblenden"
   }
 }

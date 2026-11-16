@@ -37,7 +37,7 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 
 다음 패키지는 공식 플러그인 혹은 그 외의 플러그인으로 대체 되었습니다.
 
-| 플러그인                                                    | 대체된 패키지                              |
-| ----------------------------------------------------------- | ------------------------------------------ |
-| [@dungsil/dsh-plugin-ui-vcs](./deprecated/ui-vcs)           | @deepseek-ai/dsh-experimental-forge-bundle |
+| 플러그인                                                    | 대체된 패키지                                                                                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [@dungsil/dsh-plugin-ui-vcs](./deprecated/ui-vcs)           | @deepseek-ai/dsh-experimental-forge-bundle                                                                                        |
 | [@dungsil/dsh-plugin-ui-worktree](./deprecated/ui-worktree) | @deepseek-ai/dsh-experimental-forge-bundle, UI변경은 [@dungsil/dsh-plugin-ui-forge-worktree](./packages/ui-forge-worktree)가 계승 |
