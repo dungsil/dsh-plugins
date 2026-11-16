@@ -147,7 +147,7 @@ export function apply(ctx: Context) {
       !error &&
       !notice
 
-    const load = async () => {
+    const load = async (options?: { keepNotice?: boolean }) => {
       if (submitting.current) return
       active.current?.abort()
       const controller = new AbortController()
@@ -155,7 +155,7 @@ export function apply(ctx: Context) {
       const signal = AbortSignal.any([controller.signal, tab.signal])
       setLoading(true)
       setError(undefined)
-      setNotice(undefined)
+      if (!options?.keepNotice) setNotice(undefined)
       try {
         // A cached snapshot is display-only while the fresh, full read is in flight.
         // On first open, show the description without waiting for the discussion.
@@ -175,6 +175,8 @@ export function apply(ctx: Context) {
           if (views.size > 20) views.delete(views.keys().next().value!)
           if (!next.request) break
         }
+        // The action's notice clears only after the fresh read confirms the remote state.
+        if (options?.keepNotice) setNotice(undefined)
       } catch (cause) {
         if (signal.aborted) return
         const code = (cause as { code?: string } | null)?.code
@@ -236,17 +238,21 @@ export function apply(ctx: Context) {
       setPending(true)
       active.current?.abort()
       setLoading(false)
+      let completed = false
       try {
         const result = await connection.rpc.call(channel, actionMethod, payload, tab.signal)
         if (!result.ok) throw result.error
         setBody('')
         setNotice('completed')
+        completed = true
       } catch (cause) {
         setNotice((cause as { code?: string } | null)?.code === 'stale_request' ? 'stale_request' : 'action_failed')
       } finally {
         // A lost response may follow a successful write. Never automatically retry a mutation.
         submitting.current = false
         setPending(false)
+        // A completed action is followed by one read; the write is never retried.
+        if (completed) void load({ keepNotice: true })
       }
     }
 
@@ -265,6 +271,7 @@ export function apply(ctx: Context) {
       submitting.current = true
       setPending(true)
       active.current?.abort()
+      let completed = false
       try {
         const result = await connection.rpc.call(
           channel,
@@ -282,11 +289,14 @@ export function apply(ctx: Context) {
         )
         if (!result.ok) throw result.error
         setNotice('completed')
+        completed = true
       } catch (cause) {
         setNotice((cause as { code?: string } | null)?.code === 'stale_request' ? 'stale_request' : 'action_failed')
       } finally {
         submitting.current = false
         setPending(false)
+        // A completed action is followed by one read; the write is never retried.
+        if (completed) void load({ keepNotice: true })
       }
     }
 

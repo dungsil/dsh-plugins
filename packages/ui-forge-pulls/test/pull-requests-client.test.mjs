@@ -373,10 +373,40 @@ await test('리뷰 폼은 모든 로케일에서 추가 확인 없이 댓글과 
       action.resolve({ ok: true })
       await settle()
       assert.equal(findByType(fixture.render(), 'textarea')[0].value, '')
-      assert.equal(fixture.calls.length, before + 1)
+      // 성공한 쓰기 뒤에는 자동으로 읽기 한 번이 이어진다.
+      assert.equal(fixture.calls.length, before + 2)
+      assert.equal(fixture.calls.at(-1).payload.action, undefined)
+      assert.equal(fixture.calls.at(-1).payload.summary, false)
     } finally {
       fixture.dispose()
     }
+  }
+})
+
+await test('액션이 성공하면 완료 안내가 재조회가 도착할 때까지 유지되고 재조회 후에는 검토를 다시 할 수 있다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture)
+    findByType(fixture.render(), 'textarea')[0].onChange({ target: { value: '검토 의견' } })
+    const before = fixture.calls.length
+    submitReview(fixture.render())
+    const action = fixture.calls.at(-1)
+    action.resolve({ ok: true })
+    await settle()
+    assert.ok(texts(fixture.render()).includes('Action completed.'))
+    const next = request(42)
+    next.request.headSha = 'b'.repeat(40)
+    fixture.calls.at(-1).resolve({ ok: true, value: next })
+    await settle()
+    const tree = fixture.render()
+    assert.ok(!texts(tree).includes('Action completed.'))
+    const picker = findByClass(tree, 'dsh-forge-pulls-picker')[0]
+    assert.notEqual(picker.items.find((item) => item.id === 'comment').disabled, true)
+    // 쓰기는 한 번만 전송되고 재조회는 읽기 계약으로만 이루어진다.
+    assert.equal(fixture.calls.filter((call) => call.payload.action === 'comment').length, 1)
+    assert.equal(fixture.calls.length, before + 2)
+  } finally {
+    fixture.dispose()
   }
 })
 
