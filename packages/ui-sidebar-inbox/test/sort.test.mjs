@@ -271,3 +271,38 @@ await test('저장소 접근이 거부되어도 그룹 이탈 시 이전 기본 
   app.set({ groupBy: 'workspace' })
   assert.equal(app.snapshot().orderBy, 'updated')
 })
+
+await test('해제 시 플러그인이 강제한 flat 그룹을 원래 그룹으로 복원한다', () => {
+  const app = harness()
+  const dispose = app.mount()
+  assert.equal(app.snapshot().groupBy, 'flat')
+  dispose()
+  assert.equal(app.snapshot().groupBy, 'workspace')
+  assert.equal(app.snapshot().orderBy, 'updated')
+})
+
+await test('사용자가 flat으로 돌아온 그룹 선택은 해제 시에도 유지한다', () => {
+  const app = harness()
+  const dispose = app.mount()
+  app.set({ groupBy: 'workspace' })
+  app.set({ groupBy: 'flat' })
+  dispose()
+  assert.equal(app.snapshot().groupBy, 'flat')
+})
+
+await test('원래 flat 목록에서는 해제 시 그룹을 바꾸지 않는다', () => {
+  const app = harness({ groupBy: 'flat' })
+  const dispose = app.mount()
+  dispose()
+  assert.equal(app.snapshot().groupBy, 'flat')
+})
+
+await test('드래그로 활동 정렬을 해제한 뒤에도 강제한 flat 그룹을 복원한다', () => {
+  const app = harness()
+  const dispose = app.mount()
+  app.set({ orderBy: 'manual', sessionOrderByAccount: { __flat_session_order__: ['dragged'] } })
+  assert.equal(app.active(), false)
+  assert.equal(app.snapshot().groupBy, 'flat')
+  dispose()
+  assert.equal(app.snapshot().groupBy, 'workspace')
+})
