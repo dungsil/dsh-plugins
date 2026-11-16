@@ -21,6 +21,12 @@ export interface RequestAction {
   target?: string
 }
 
+export interface RequestChanges {
+  files: Array<{ path: string }>
+  diff: string
+  complete: boolean
+}
+
 export interface RequestItem {
   number: number
   title: string
@@ -36,6 +42,7 @@ export interface RequestItem {
   reviews: Array<{ author: string; body: string; state: string }>
   detailsError?: boolean
   mergeMethods?: MergeMethod[]
+  changes?: RequestChanges
 }
 
 export interface RequestView {

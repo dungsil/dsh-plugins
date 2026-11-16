@@ -10,6 +10,7 @@ import { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import { inspectSession } from './inspect-session.js'
 import { checksQuery, completeChecks, mergeMethods } from './github-merge.js'
 import { readQueue } from './read-queue.js'
+import { readChanges } from './changes.js'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import { actionMethod, channel, method, type RequestAction, type RequestItem, type RequestView } from './protocol.js'
@@ -122,7 +123,16 @@ export function apply(ctx: Context, config: Config) {
     summary = false
   ): Promise<RequestView | { completed: true }> => {
     const cwd = ctx.workingDirectory.get(session)
-    const run = async (executable: string, args: string[], failure = 'command_failed', allowed = [0], trim = true) => {
+    const argumentsSignal = signal
+    const run = async (
+      executable: string,
+      args: string[],
+      failure = 'command_failed',
+      allowed = [0],
+      trim = true,
+      options?: { signal?: AbortSignal; headers?: (text: string) => void }
+    ) => {
+      const signal = options?.signal ?? argumentsSignal
       let resolved: string
       try {
         resolved = await ctx.subprocess.resolveExecutable(executable, undefined, signal)
@@ -194,6 +204,7 @@ export function apply(ctx: Context, config: Config) {
         if (executable === 'tea' && args[0] === 'api') {
           const headers = child.collected!.stderr!.readFrom(0)
           if (headers.lossy || !/^HTTP\/[\d.]+ 2\d\d\b/m.test(headers.text)) throw new Error(failure)
+          options?.headers?.(headers.text)
         }
         return trim ? output.text.trim() : output.text
       } finally {
@@ -329,13 +340,19 @@ export function apply(ctx: Context, config: Config) {
     if (!branch && !requested) return view
     const mergeRef = tracked ? await git(['config', '--get', `branch.${branch}.merge`], [0, 1]) : ''
     const pushedBranch = mergeRef.startsWith('refs/heads/') ? mergeRef.slice(11) : branch
-    const forgeApi = (endpoint: string, fields: string[] = [], trim = true) =>
+    const forgeApi = (
+      endpoint: string,
+      fields: string[] = [],
+      trim = true,
+      options?: { signal?: AbortSignal; headers?: (text: string) => void }
+    ) =>
       run(
         'tea',
         ['api', '--login', login, '--include', '--output', '-', ...fields, `${origin}/api/v1/${endpoint}`],
         fields.length ? 'action_failed' : 'command_failed',
         [0],
-        trim
+        trim,
+        options
       )
     const forgePages = async (endpoint: string): Promise<any[]> => {
       const rows: any[] = []
@@ -655,6 +672,69 @@ export function apply(ctx: Context, config: Config) {
           })
         }
         if (!/^[a-fA-F0-9]{40,64}$/.test(item.headSha)) throw new Error()
+        if (!action || action.action === 'approve') {
+          // Keep changes failures from consuming the entire discussion/head-check deadline.
+          const changesSignal = AbortSignal.any([signal, AbortSignal.timeout(5_000)])
+          item.changes = await readChanges({
+            provider,
+            github: async () => {
+              const detail = JSON.parse(
+                await run(
+                  'gh',
+                  ['pr', 'view', item.url, '--repo', targetRepo, '--json', 'changedFiles,files'],
+                  'command_failed',
+                  [0],
+                  true,
+                  { signal: changesSignal }
+                )
+              )
+              const patch = await run(
+                'gh',
+                ['pr', 'diff', item.url, '--repo', targetRepo, '--color', 'never'],
+                'command_failed',
+                [0],
+                false,
+                { signal: changesSignal }
+              )
+              return { files: detail.files, changedFiles: detail.changedFiles, diff: patch }
+            },
+            gitlab: async () =>
+              JSON.parse(
+                await run('glab', ['api', '--hostname', host, `${endpoint}/changes`], 'command_failed', [0], true, {
+                  signal: changesSignal,
+                })
+              ),
+            forge: async () => {
+              const files: any[] = []
+              let total: number | undefined
+              for (let page = 1; page <= 3; page++) {
+                let count: number | undefined
+                const raw = await forgeApi(`${forgeEndpoint}/files?limit=50&page=${page}`, [], true, {
+                  signal: changesSignal,
+                  headers: (headers) => {
+                    const matches = [...headers.matchAll(/^x-total-count:\s*(\d+)\s*$/gim)]
+                    if (matches.length === 1) count = Number(matches[0][1])
+                  },
+                })
+                if (!Number.isSafeInteger(count) || count! > 100 || (total !== undefined && count !== total))
+                  throw new Error('invalid_response')
+                total = count
+                const rows = JSON.parse(raw)
+                if (rows !== null && !Array.isArray(rows)) throw new Error('invalid_response')
+                files.push(...(rows ?? []))
+                if (files.length > 100 || files.length > total!) throw new Error('invalid_response')
+                if (files.length === total)
+                  return {
+                    files,
+                    changedFiles: total,
+                    diff: await forgeApi(`${forgeEndpoint}.diff`, [], false, { signal: changesSignal }),
+                  }
+                if (!rows?.length) throw new Error('invalid_response')
+              }
+              throw new Error('invalid_response')
+            },
+          })
+        }
         // Detail reads follow a moving MR/PR head. Never authorize a review
         // against a head commit that changed while the discussion was read.
         const latest = JSON.parse(
@@ -736,7 +816,7 @@ export function apply(ctx: Context, config: Config) {
         )
           throw new Error('action_failed')
         if (item.detailsError || item.state !== 'open') throw new Error('action_failed')
-        if (action.action === 'approve' && item.draft) throw new Error('action_failed')
+        if (action.action === 'approve' && (item.draft || !item.changes?.complete)) throw new Error('action_failed')
         if ((await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1])) !== branch)
           throw new Error('stale_request')
         if (forge) {
