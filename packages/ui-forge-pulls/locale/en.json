@@ -43,7 +43,7 @@
   "gitlab_review_hint": "GitLab supports comments and approvals here. Approval cannot include text; submit a separate comment first. Requesting changes is available on the original page.",
   "submit": "Submit review",
   "pending": "Submitting…",
-  "completed": "Action completed. Refresh to verify the remote state.",
+  "completed": "Action completed. Verifying the remote state.",
   "action_failed": "The action could not be confirmed. Refresh and check the remote state before retrying; it may already have completed. Check permissions and repository rules.",
   "stale_request": "The branch, request or head commit changed. Refresh and review again.",
   "details_error": "Some details could not be loaded. Refresh before reviewing.",
