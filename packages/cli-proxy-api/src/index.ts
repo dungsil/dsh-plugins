@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-llm'
 import type { PiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
@@ -443,14 +443,8 @@ export function apply(ctx: Context, config: Config) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== `${endpointPrefix}${endpoint}`)
-              return new Response('Invalid request', { status: 400 })
+            const parsed = await parseRpcRequest(request, `${endpointPrefix}${endpoint}`)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
             let result
             if (busy || (!readOnly && readers > 0))
               result = {
@@ -461,7 +455,7 @@ export function apply(ctx: Context, config: Config) {
               if (readOnly) readers++
               else busy = true
               try {
-                result = { ok: true, value: await handle(endpoint, body.data.payload, request.signal) }
+                result = { ok: true, value: await handle(endpoint, parsed.payload, request.signal) }
               } catch (error) {
                 const code = error instanceof Error && errors.has(error.message) ? error.message : 'operation_failed'
                 result = {
@@ -473,12 +467,7 @@ export function apply(ctx: Context, config: Config) {
                 else busy = false
               }
             }
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              {
-                headers: { 'Cache-Control': 'no-store' },
-              }
-            )
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       `cli-proxy-api: owner-only ${endpoint}`

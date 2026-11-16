@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import { lastAssistantStreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-query'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { callLimit, isValidDateRange, method, type UsageTotals, type UsageView } from './protocol.js'
 
 export const name = 'dungsil-ui-usage'
@@ -41,23 +41,22 @@ export function apply(ctx: Context) {
         methods: ['POST'],
         requestBody: 'buffered',
         async fetch(request) {
-          let rpcId = ''
+          const parsed = await parseRpcRequest(request, method)
+          if (!parsed) return new Response('Invalid request', { status: 400 })
+          const rpcId = parsed.rpcId
           const failure = (code: string) => ({
             ok: false as const,
             error: { code, message: 'Usage unavailable', details: {} },
           })
           let result: { ok: true; value: UsageView } | ReturnType<typeof failure>
           try {
-            const body = clientRequestSchema.parse(await request.json())
-            rpcId = body.rpcId
-            const input = body.payload as {
+            const input = parsed.payload as {
               days?: unknown
               startDate?: unknown
               endDate?: unknown
               timeZone?: unknown
             } | null
             if (
-              body.method !== method ||
               !input ||
               typeof input !== 'object' ||
               Array.isArray(input) ||
@@ -69,10 +68,7 @@ export function apply(ctx: Context) {
                   !isValidDateRange(input.startDate, input.endDate)
                 : ![7, 30, 0].includes(input.days as number))
             ) {
-              return Response.json(
-                { type: 'server-response', rpcId, result: failure('invalid') },
-                { headers: { 'Cache-Control': 'no-store' } }
-              )
+              return rpcResponse(rpcId, failure('invalid'))
             }
             let formatter: Intl.DateTimeFormat
             try {
@@ -83,10 +79,7 @@ export function apply(ctx: Context) {
                 day: '2-digit',
               })
             } catch {
-              return Response.json(
-                { type: 'server-response', rpcId, result: failure('invalid') },
-                { headers: { 'Cache-Control': 'no-store' } }
-              )
+              return rpcResponse(rpcId, failure('invalid'))
             }
             const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60_000)])
             const updatedAt = Date.now()
@@ -198,7 +191,7 @@ export function apply(ctx: Context) {
           } catch {
             result = failure('unavailable')
           }
-          return Response.json({ type: 'server-response', rpcId, result }, { headers: { 'Cache-Control': 'no-store' } })
+          return rpcResponse(rpcId, result)
         },
       }),
     'usage: owner-only session accounting'

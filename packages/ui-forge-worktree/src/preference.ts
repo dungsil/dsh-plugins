@@ -1,7 +1,7 @@
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 
 export const channel = '/api'
 export const readMethod = 'dungsil-worktree-preference/read'
@@ -21,18 +21,13 @@ export function installPreference(ctx: Context, config: Config) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== method) return new Response('Invalid request', { status: 400 })
+            const parsed = await parseRpcRequest(request, method)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
             let result
             try {
               let defaultCheckout = config.defaultCheckout.get()
               if (method === saveMethod) {
-                const payload = body.data.payload
+                const payload = parsed.payload
                 if (
                   !payload ||
                   typeof payload !== 'object' ||
@@ -62,10 +57,7 @@ export function installPreference(ctx: Context, config: Config) {
                 },
               }
             }
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              { headers: { 'Cache-Control': 'no-store' } }
-            )
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       'ui-forge-worktree: owner-only preference'

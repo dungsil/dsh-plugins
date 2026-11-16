@@ -9,7 +9,7 @@ export default defineConfig([
     target: 'node24',
     fixedExtension: false,
     dts: false,
-    deps: { alwaysBundle: ['@dungsil/dsh-async'] },
+    deps: { alwaysBundle: ['@dungsil/dsh-async', '@dungsil/dsh-plugin-server'] },
   },
   {
     entry: ['src/client.tsx'],

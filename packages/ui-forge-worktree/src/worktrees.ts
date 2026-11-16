@@ -1,7 +1,7 @@
 import { realpath, stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
+import { gitProcessEnvironment, parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { canEnter, sessionGuardProjection, type SessionGuardState } from './session-guard.js'
 import { capWorktrees, parseWorktreeList, type ListedWorktree } from './worktree-list.js'
 
@@ -77,31 +77,7 @@ async function git(host: Host, session: Session, cwd: string, args: string[], si
   const handle = host.subprocess.spawn({
     argv,
     cwd,
-    env: {
-      ...Object.fromEntries(
-        [
-          'GIT_DIR',
-          'GIT_WORK_TREE',
-          'GIT_COMMON_DIR',
-          'GIT_INDEX_FILE',
-          'GIT_OBJECT_DIRECTORY',
-          'GIT_ALTERNATE_OBJECT_DIRECTORIES',
-          'GIT_CONFIG',
-          'GIT_CONFIG_PARAMETERS',
-          'GIT_CEILING_DIRECTORIES',
-          'GIT_PREFIX',
-          'GIT_SHALLOW_FILE',
-          'GIT_GRAFT_FILE',
-          'GIT_REPLACE_REF_BASE',
-          'GIT_ATTR_SOURCE',
-        ].map((name) => [name, undefined])
-      ),
-      GIT_CONFIG_COUNT: '0',
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_OPTIONAL_LOCKS: '0',
-      GIT_NO_LAZY_FETCH: '1',
-      LC_ALL: 'C',
-    },
+    env: gitProcessEnvironment(),
     signal: control,
     graceMs: 1000,
     stdio: { stdin: 'ignore', stdout: { maxBytes: 1048576 }, stderr: { maxBytes: 65536 } },
@@ -166,17 +142,11 @@ export async function registerWorktrees(ctx: Context) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== endpoint(method))
-              return new Response('Invalid request', { status: 400 })
+            const parsed = await parseRpcRequest(request, endpoint(method))
+            if (!parsed) return new Response('Invalid request', { status: 400 })
             let result
             try {
-              const payload = body.data.payload
+              const payload = parsed.payload
               if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw Error('invalid request')
               const value = payload as Record<string, unknown>
               if (
@@ -282,10 +252,7 @@ export async function registerWorktrees(ctx: Context) {
                 error: { code: 'unavailable', message: 'Worktree selection is unavailable.', details: {} },
               }
             }
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              { headers: { 'Cache-Control': 'no-store' } }
-            )
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       'ui-forge-worktree: owner-only worktrees'
