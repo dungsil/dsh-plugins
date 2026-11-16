@@ -29,6 +29,7 @@ export {
   IconGaugeOutlineRegular,
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
+  IconPlayOutlineRegular,
   IconPlusOutlineRegular,
   IconQuestionOutlineRegular,
   IconRefreshOutlineRegular,
