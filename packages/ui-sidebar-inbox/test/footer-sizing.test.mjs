@@ -3,13 +3,13 @@ import test from 'node:test'
 import { footerLimit, observeFooterAncestors } from '../src/footer-sizing.ts'
 
 function fixture(treeHeight) {
-  const root = { parentElement: null, maxHeight: '471px', getBoundingClientRect: () => ({ top: 100 }) }
-  const listArea = { parentElement: root, maxHeight: 'none', getBoundingClientRect: () => ({ top: 136 }) }
+  const root = { parentElement: null, maxHeight: '471px', scrollTop: 0, getBoundingClientRect: () => ({ top: 100 }) }
+  const listArea = { parentElement: root, maxHeight: 'none', scrollTop: 0, getBoundingClientRect: () => ({ top: 136 }) }
   const tree = {
     parentElement: listArea,
     maxHeight: 'none',
     clientHeight: treeHeight,
-    getBoundingClientRect: () => ({ top: 136 }),
+    getBoundingClientRect: () => ({ top: 136 - listArea.scrollTop - root.scrollTop }),
   }
   return { root, listArea, tree }
 }
@@ -21,6 +21,19 @@ await test('기본 작업 행 한 개가 있는 경우 자체 높이 대신 기�
     const { tree } = fixture(64.5)
     assert.equal(footerLimit(tree, 800), 217.5)
     tree.clientHeight = 32
+    assert.equal(footerLimit(tree, 800), 217.5)
+  } finally {
+    globalThis.getComputedStyle = original
+  }
+})
+
+await test('목록과 제한 상위 영역을 스크롤해도 하단 용량은 바뀌지 않는다', () => {
+  const original = globalThis.getComputedStyle
+  globalThis.getComputedStyle = (element) => ({ maxHeight: element.maxHeight })
+  try {
+    const { root, listArea, tree } = fixture(64.5)
+    listArea.scrollTop = 18
+    root.scrollTop = 7
     assert.equal(footerLimit(tree, 800), 217.5)
   } finally {
     globalThis.getComputedStyle = original
