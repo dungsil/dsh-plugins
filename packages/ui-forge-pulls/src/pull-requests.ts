@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import { inspectSession } from './inspect-session.js'
+import { checksQuery, completeChecks, mergeMethods } from './github-merge.js'
 import { readQueue } from './read-queue.js'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-working-directory'
@@ -75,7 +76,9 @@ function actionInput(value: unknown): RequestAction {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_payload')
   const input = value as RequestAction
   if (
-    Object.keys(input).some((key) => !['sessionId', 'requestUrl', 'headSha', 'action', 'body'].includes(key)) ||
+    Object.keys(input).some(
+      (key) => !['sessionId', 'requestUrl', 'headSha', 'action', 'body', 'strategy', 'branch', 'target'].includes(key)
+    ) ||
     typeof input.sessionId !== 'string' ||
     !input.sessionId ||
     input.sessionId.length > 256 ||
@@ -84,7 +87,17 @@ function actionInput(value: unknown): RequestAction {
     !safeUrl(input.requestUrl) ||
     typeof input.headSha !== 'string' ||
     !/^[a-fA-F0-9]{40,64}$/.test(input.headSha) ||
-    !['comment', 'approve', 'request_changes'].includes(input.action) ||
+    !['comment', 'approve', 'request_changes', 'merge'].includes(input.action) ||
+    (input.action === 'merge'
+      ? !['merge', 'squash', 'rebase'].includes(input.strategy ?? '') ||
+        typeof input.branch !== 'string' ||
+        !input.branch ||
+        input.branch.length > 1024 ||
+        typeof input.target !== 'string' ||
+        !input.target ||
+        input.target.length > 1024 ||
+        input.body !== undefined
+      : input.strategy !== undefined || input.branch !== undefined || input.target !== undefined) ||
     (input.body !== undefined &&
       (typeof input.body !== 'string' ||
         new TextEncoder().encode(input.body).length > 60_000 ||
@@ -311,7 +324,7 @@ export function apply(ctx: Context, config: Config) {
       requestedNumber = match[2]
       requestedUrl = `${origin}/${repository}/${provider === 'github' ? 'pull' : forge ? 'pulls' : '-/merge_requests'}/${requestedNumber}`
     }
-    const view = { provider, repository: `${host}/${repository}`, branch, request: null }
+    const view: RequestView = { provider, repository: `${host}/${repository}`, branch, request: null }
     // Detached HEAD has no branch to associate, but an explicit read needs no association.
     if (!branch && !requested) return view
     const mergeRef = tracked ? await git(['config', '--get', `branch.${branch}.merge`], [0, 1]) : ''
@@ -662,13 +675,72 @@ export function apply(ctx: Context, config: Config) {
       } catch {
         item.detailsError = true
       }
+      if (
+        provider === 'github' &&
+        (!action || action.action === 'merge') &&
+        !item.detailsError &&
+        item.state === 'open' &&
+        !item.draft
+      ) {
+        try {
+          const statusRef = ctx.forge.changeRequestFromUrl(item.url)
+          if (statusRef && ctx.forge.changeRequestUrl(statusRef) === item.url) {
+            const status = await ctx.forge.fetchChecks(statusRef, signal)
+            const methods = mergeMethods(
+              'headSha' in status && ctx.forge.changeRequestUrl(status.ref) === item.url ? status : undefined,
+              item
+            )
+            if (methods.length) {
+              const [owner, name] = link.pathname.split('/').slice(1, 3)
+              const checks = JSON.parse(
+                await run('gh', [
+                  'api',
+                  '--hostname',
+                  host,
+                  'graphql',
+                  '-f',
+                  `query=${checksQuery}`,
+                  '-f',
+                  `owner=${owner}`,
+                  '-f',
+                  `name=${name}`,
+                  '-F',
+                  `number=${number}`,
+                ])
+              )
+              if (completeChecks(checks, item.headSha)) {
+                item.mergeMethods = methods
+                view.checkoutBranch =
+                  ref && !action ? await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1]) : branch
+              }
+            }
+          }
+        } catch {
+          // Missing, unsupported or incomplete readiness never authorizes a merge.
+        }
+      }
       if (action) {
-        if (item.url !== action.requestUrl || item.headSha !== action.headSha) throw new Error('stale_request')
+        if (
+          item.url !== action.requestUrl ||
+          item.headSha !== action.headSha ||
+          (action.action === 'merge' && item.target !== action.target)
+        )
+          throw new Error('stale_request')
+        if (
+          action.action === 'merge' &&
+          (provider !== 'github' ||
+            !action.strategy ||
+            !item.mergeMethods?.includes(action.strategy) ||
+            !branch ||
+            branch !== action.branch)
+        )
+          throw new Error('action_failed')
         if (item.detailsError || item.state !== 'open') throw new Error('action_failed')
         if (action.action === 'approve' && item.draft) throw new Error('action_failed')
         if ((await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], [0, 1])) !== branch)
           throw new Error('stale_request')
         if (forge) {
+          if (action.action === 'merge') throw new Error('action_failed')
           const fields = ['--method', 'POST', '-f', `body=${action.body ?? ''}`]
           if (action.action !== 'comment')
             fields.push(
@@ -692,6 +764,26 @@ export function apply(ctx: Context, config: Config) {
               (response.commit_id !== action.headSha || response.stale || response.dismissed))
           )
             throw new Error('action_failed')
+        } else if (provider === 'github' && action.action === 'merge') {
+          const result = JSON.parse(
+            await run(
+              'gh',
+              [
+                'api',
+                '--hostname',
+                host,
+                `repos/${link.pathname.split('/').slice(1, 3).join('/')}/pulls/${number}/merge`,
+                '--method',
+                'PUT',
+                '-f',
+                `sha=${action.headSha}`,
+                '-f',
+                `merge_method=${action.strategy}`,
+              ],
+              'action_failed'
+            )
+          )
+          if (result?.merged !== true) throw new Error('action_failed')
         } else if (provider === 'github') {
           const base = [
             'api',
@@ -708,6 +800,7 @@ export function apply(ctx: Context, config: Config) {
           if (action.body !== undefined) base.push('-f', `body=${action.body}`)
           await run('gh', base, 'action_failed')
         } else {
+          if (action.action === 'merge') throw new Error('action_failed')
           // GitLab approvals do not accept a review body. Never silently discard
           // text or perform an unrequested second mutation to post it as a note.
           if (action.action === 'request_changes' || (action.action === 'approve' && action.body?.trim()))
@@ -750,7 +843,7 @@ export function apply(ctx: Context, config: Config) {
           const input = body.data.payload as { sessionId?: unknown; requestUrl?: unknown; summary?: unknown } | null
           if (!input || typeof input.sessionId !== 'string' || !input.sessionId)
             return reply({ ok: false, error: { code: 'unavailable', message: 'Invalid session', details: {} } })
-          let inFlight: string | undefined
+          let inFlight: string[] = []
           try {
             let action: RequestAction | undefined
             if (route === actionMethod) {
@@ -759,9 +852,11 @@ export function apply(ctx: Context, config: Config) {
               } catch {
                 throw new Error('invalid_payload')
               }
-              if (actionsInFlight.has(action.sessionId)) throw new Error('action_failed')
-              actionsInFlight.add(action.sessionId)
-              inFlight = action.sessionId
+              const keys = [`session:${action.sessionId}`]
+              if (action.action === 'merge') keys.push(`request:${action.requestUrl.toLowerCase()}`)
+              if (keys.some((key) => actionsInFlight.has(key))) throw new Error('action_failed')
+              keys.forEach((key) => actionsInFlight.add(key))
+              inFlight = keys
             }
             const requested =
               route === method && input.requestUrl !== undefined ? lookupUrl(input.requestUrl) : undefined
@@ -812,7 +907,7 @@ export function apply(ctx: Context, config: Config) {
               },
             })
           } finally {
-            if (inFlight) actionsInFlight.delete(inFlight)
+            inFlight.forEach((key) => actionsInFlight.delete(key))
           }
         },
       })

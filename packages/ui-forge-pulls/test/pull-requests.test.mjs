@@ -151,7 +151,7 @@ async function fixture(
   ctx.provide('sessionController', {
     resolveAgent: async (id) => {
       activations.push(id)
-      return id === 'test' ? { agent: { session: {} } } : { error: { code: 'missing' } }
+      return ['test', 'test2'].includes(id) ? { agent: { session: {} } } : { error: { code: 'missing' } }
     },
   })
   ctx.provide('sessionPersistence', {
@@ -210,7 +210,9 @@ async function fixture(
   const refUrl = (ref) =>
     `${ref.repository.host === 'github.com' || ref.repository.host === 'gitlab.com' ? 'https' : new URL(loginUrl).protocol.slice(0, -1)}://${ref.repository.host}/${ref.repository.owner}/${ref.repository.name}/${ref.repository.forge === 'github' ? 'pull' : ref.repository.forge === 'gitlab' ? '-/merge_requests' : 'pulls'}/${ref.number}`
   ctx.provide('forgeSession', { changeRequests: () => bindings })
+  let forgeStatus
   ctx.provide('forge', {
+    fetchChecks: async () => forgeStatus ?? { code: 'unavailable' },
     repositoryFromRemote: () => ({ forge: provider === 'auto' ? 'github' : provider }),
     changeRequestFromUrl: parseRef,
     changeRequestUrl: refUrl,
@@ -249,6 +251,10 @@ async function fixture(
     action: (input = {}, peer = owner) =>
       rpc(peer, 'test', { sessionId: 'test', requestUrl: github.url, headSha: sha, action: 'approve', ...input }),
     calls,
+    status: (value) => {
+      forgeStatus = value
+    },
+    ref: parseRef,
     confined,
     confine: () => {
       mode = 'workspace-write'
@@ -271,6 +277,200 @@ async function fixture(
     },
   }
 }
+
+const readyStatus = (f) => ({
+  ref: f.ref(github.url),
+  url: github.url,
+  number: 17,
+  headSha: sha,
+  headBranch: github.headRefName,
+  baseBranch: github.baseRefName,
+  state: 'open',
+  draft: false,
+  mergeReady: true,
+  mergeability: 'mergeable',
+  checksTruncated: false,
+  checksRollup: 'none',
+  reviewDecision: 'none',
+  checks: [],
+  mergeMethods: ['merge', 'squash', 'rebase'],
+})
+const readyChecks = () => ({
+  data: {
+    repository: {
+      pullRequest: { headRefOid: sha, commits: { nodes: [{ commit: { oid: sha, statusCheckRollup: null } }] } },
+    },
+  },
+})
+const mergeInput = { action: 'merge', strategy: 'merge', branch: github.headRefName, target: github.baseRefName }
+
+await test('GitHub 병합은 허용된 방식과 확인한 SHA로 REST PUT을 한 번만 보낸다', async (t) => {
+  for (const strategy of ['merge', 'squash', 'rebase']) {
+    await t.test(`${strategy} 방식은 SHA 조건부 요청을 보낸다`, async (t) => {
+      const f = await fixture(t)
+      f.setRows({ ...github, isDraft: false })
+      f.status(readyStatus(f))
+      f.dispatch((args, fallback) =>
+        args.includes('graphql') ? readyChecks() : args.includes('PUT') ? { merged: true } : fallback(args)
+      )
+      const result = await f.action({ ...mergeInput, strategy })
+      assert.equal(result.ok, true)
+      const writes = f.calls.filter((call) => call.argv.includes('PUT'))
+      assert.equal(writes.length, 1)
+      assert.ok(writes[0].argv.includes(`sha=${sha}`))
+      assert.ok(writes[0].argv.includes(`merge_method=${strategy}`))
+      assert.ok(!f.calls.some((call) => call.argv.includes('--auto')))
+    })
+  }
+})
+
+await test('실패한 이전 검사와 성공한 최신 재실행이 공존해도 provider가 성공으로 집계하면 병합한다', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status({ ...readyStatus(f), checksRollup: 'success', checks: [{ state: 'success' }] })
+  const response = readyChecks()
+  response.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup = {
+    state: 'SUCCESS',
+    contexts: {
+      pageInfo: { hasNextPage: false },
+      nodes: [
+        { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+      ],
+    },
+  }
+  f.dispatch((args, fallback) =>
+    args.includes('graphql') ? response : args.includes('PUT') ? { merged: true } : fallback(args)
+  )
+  assert.equal((await f.action(mergeInput)).ok, true)
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 1)
+})
+
+await test('검사 대상 커밋 SHA가 표시된 head SHA와 다르면 병합하지 않는다', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status(readyStatus(f))
+  const response = readyChecks()
+  response.data.repository.pullRequest.commits.nodes[0].commit.oid = 'b'.repeat(40)
+  f.dispatch((args, fallback) => (args.includes('graphql') ? response : fallback(args)))
+  assert.equal((await f.action(mergeInput)).ok, false)
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 0)
+})
+
+await test('검사 rollup이 대기 중이면 성공한 provider 상태에도 병합하지 않는다', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status(readyStatus(f))
+  const response = readyChecks()
+  response.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup = {
+    state: 'PENDING',
+    contexts: { pageInfo: { hasNextPage: false }, nodes: [{ __typename: 'CheckRun' }] },
+  }
+  f.dispatch((args, fallback) => (args.includes('graphql') ? response : fallback(args)))
+  assert.equal((await f.action(mergeInput)).ok, false)
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 0)
+})
+
+await test('서로 다른 세션의 같은 PR 병합은 동시 쓰기를 차단한다', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status(readyStatus(f))
+  f.dispatch((args, fallback) =>
+    args.includes('graphql') ? readyChecks() : args.includes('PUT') ? { merged: true } : fallback(args)
+  )
+  const results = await Promise.all([f.action(mergeInput), f.action({ ...mergeInput, sessionId: 'test2' })])
+  assert.equal(results.filter((result) => result.ok).length, 1)
+  assert.equal(results.find((result) => !result.ok).error.code, 'action_failed')
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 1)
+})
+
+await test('서로 다른 세션의 같은 PR 리뷰는 병합 잠금 때문에 차단되지 않는다', async (t) => {
+  const f = await fixture(t)
+  const comment = { action: 'comment', body: 'Review' }
+  const results = await Promise.all([f.action(comment), f.action({ ...comment, sessionId: 'test2' })])
+  assert.equal(results.filter((result) => result.ok).length, 2)
+  assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, 2)
+})
+
+await test('명시적 PR 조회는 원래 표시 브랜치를 유지하고 병합용 체크아웃 브랜치를 별도로 기록한다', async (t) => {
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status(readyStatus(f))
+  f.dispatch((args, fallback) => (args.includes('graphql') ? readyChecks() : fallback(args)))
+  f.git('checkout', '-b', 'another-local-branch')
+  f.bind(github.url)
+  const summary = await f.summary()
+  const full = await f.rpc()
+  assert.equal(summary.value.branch, github.headRefName)
+  assert.equal(summary.value.checkoutBranch, undefined)
+  assert.equal(full.value.branch, github.headRefName)
+  assert.equal(full.value.checkoutBranch, 'another-local-branch')
+  assert.deepEqual(full.value.request.mergeMethods, ['merge', 'squash', 'rebase'])
+})
+
+await test('불완전하거나 차단된 상태와 오래된 브랜치는 병합하지 않는다', async (t) => {
+  for (const patch of [
+    { checksTruncated: true },
+    { mergeReady: false },
+    { mergeability: 'unknown' },
+    { reviewDecision: 'review-required' },
+    { checksRollup: 'pending' },
+    { draft: true },
+    { state: 'closed' },
+    { headSha: 'b'.repeat(40) },
+    { mergeMethods: ['squash'] },
+    { ref: undefined },
+    { reviewDecision: 'changes-requested' },
+    { checksRollup: 'failure' },
+  ]) {
+    const f = await fixture(t)
+    f.setRows({ ...github, isDraft: false })
+    f.status({ ...readyStatus(f), ...patch })
+    f.dispatch((args, fallback) => (args.includes('graphql') ? readyChecks() : fallback(args)))
+    assert.equal((await f.action(mergeInput)).ok, false)
+    assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 0)
+  }
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status(readyStatus(f))
+  f.dispatch((args, fallback) => (args.includes('graphql') ? readyChecks() : fallback(args)))
+  assert.equal((await f.action({ ...mergeInput, branch: 'old' })).ok, false)
+  const retargeted = await f.action({ ...mergeInput, target: 'previous-base' })
+  assert.equal(retargeted.error.code, 'stale_request')
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 0)
+})
+
+await test('알 수 없거나 잘린 검사 컨텍스트와 불명확한 쓰기 결과는 재전송하지 않는다', async (t) => {
+  for (const contexts of [
+    { pageInfo: { hasNextPage: true }, nodes: [] },
+    { pageInfo: { hasNextPage: false }, nodes: [{ __typename: 'Unknown' }] },
+  ]) {
+    const f = await fixture(t)
+    f.setRows({ ...github, isDraft: false })
+    f.status(readyStatus(f))
+    const response = readyChecks()
+    response.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup = { state: 'SUCCESS', contexts }
+    f.dispatch((args, fallback) => (args.includes('graphql') ? response : fallback(args)))
+    assert.equal((await f.action(mergeInput)).ok, false)
+    assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 0)
+  }
+  const f = await fixture(t)
+  f.setRows({ ...github, isDraft: false })
+  f.status(readyStatus(f))
+  f.dispatch((args, fallback) =>
+    args.includes('graphql') ? readyChecks() : args.includes('PUT') ? new Error('lost response') : fallback(args)
+  )
+  assert.equal((await f.action(mergeInput)).ok, false)
+  assert.equal(f.calls.filter((call) => call.argv.includes('PUT')).length, 1)
+  const rejected = await fixture(t)
+  rejected.setRows({ ...github, isDraft: false })
+  rejected.status(readyStatus(rejected))
+  rejected.dispatch((args, fallback) =>
+    args.includes('graphql') ? readyChecks() : args.includes('PUT') ? { merged: false } : fallback(args)
+  )
+  assert.equal((await rejected.action(mergeInput)).ok, false)
+  assert.equal(rejected.calls.filter((call) => call.argv.includes('PUT')).length, 1)
+})
 
 // Each test owns its repository, Cordis context and CLI responses.
 await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrency: 4 }, async () => {
@@ -718,6 +918,7 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
     assert.equal((await f.action({ requestUrl, body: 'Review text' })).error.code, 'unsupported_action')
     assert.equal((await f.action({ requestUrl, headSha: 'b'.repeat(40) })).error.code, 'stale_request')
     assert.equal((await f.action({ requestUrl, action: 'merge' })).error.code, 'invalid_payload')
+    assert.equal((await f.action({ requestUrl, ...mergeInput, target: 'main' })).error.code, 'action_failed')
     assert.equal(writes(), count)
     for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
       assert.equal(call.argv[call.argv.indexOf('--hostname') + 1], 'gitlab.com')
@@ -933,6 +1134,12 @@ await describe('PR RPC는 조회와 변경 계약을 유지한다', { concurrenc
           assert.ok(args.includes(`event=${input.action === 'approve' ? 'APPROVED' : 'REQUEST_CHANGES'}`))
         }
       }
+      const writesBeforeMerge = f.calls.filter((call) => call.argv.includes('POST')).length
+      assert.equal(
+        (await f.action({ requestUrl: forge.html_url, ...mergeInput, target: 'release' })).error.code,
+        'action_failed'
+      )
+      assert.equal(f.calls.filter((call) => call.argv.includes('POST')).length, writesBeforeMerge)
       for (const call of f.calls.filter((call) => call.argv[1] === 'api')) {
         assert.match(call.argv.at(-1), /^https:\/\/forge\.example:3443\/git\/api\/v1\/repos\/team\/project(?:\/|$)/)
         assert.ok(!/\/(?:merge|statuses|branches|files)\b|\.diff$/.test(call.argv.at(-1)))

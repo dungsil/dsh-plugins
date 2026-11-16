@@ -19,7 +19,7 @@ import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
 import { splitMarkdownSections, type MarkdownSection } from './markdown-sections.js'
-import { actionMethod, channel, method, type RequestAction, type RequestView } from './protocol.js'
+import { actionMethod, channel, method, type MergeMethod, type RequestAction, type RequestView } from './protocol.js'
 import { styles } from './pull-requests-styles.js'
 import { bindPullRequestLinks, pullRequestUrl } from './pull-request-links.js'
 
@@ -32,7 +32,7 @@ declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
   }
 }
 
-type ReviewAction = RequestAction['action']
+type ReviewAction = Exclude<RequestAction['action'], 'merge'>
 
 const providerNames: Record<RequestView['provider'], string> = {
   github: 'GitHub',
@@ -120,6 +120,7 @@ export function apply(ctx: Context) {
     const [page, setPage] = useState<'overview' | 'conversation'>('overview')
     const [body, setBody] = useState('')
     const [reviewAction, setReviewAction] = useState<ReviewAction>('comment')
+    const [strategy, setStrategy] = useState<MergeMethod>('merge')
     const [notice, setNotice] = useState<'completed' | 'action_failed' | 'stale_request'>()
     const [pending, setPending] = useState(false)
     const submitting = useRef(false)
@@ -127,6 +128,7 @@ export function apply(ctx: Context) {
     const content = useRef<HTMLDivElement | null>(null)
     const tabsId = useId()
     const item = view?.request
+    const selectedStrategy = item?.mergeMethods?.includes(strategy) ? strategy : (item?.mergeMethods?.[0] ?? strategy)
     const labels = useMemo(
       () => ({ code: { copyLabel: copy.copy, copiedLabel: copy.copied }, footnotes: copy.footnotes }),
       [copy]
@@ -248,6 +250,46 @@ export function apply(ctx: Context) {
       }
     }
 
+    const merge = async () => {
+      if (
+        !item ||
+        !view ||
+        view.provider !== 'github' ||
+        !canReview ||
+        item.draft ||
+        !view.checkoutBranch ||
+        !item.mergeMethods?.includes(selectedStrategy) ||
+        submitting.current
+      )
+        return
+      submitting.current = true
+      setPending(true)
+      active.current?.abort()
+      try {
+        const result = await connection.rpc.call(
+          channel,
+          actionMethod,
+          {
+            sessionId,
+            requestUrl: item.url,
+            headSha: item.headSha,
+            branch: view.checkoutBranch,
+            target: item.target,
+            action: 'merge',
+            strategy: selectedStrategy,
+          } satisfies RequestAction,
+          tab.signal
+        )
+        if (!result.ok) throw result.error
+        setNotice('completed')
+      } catch (cause) {
+        setNotice((cause as { code?: string } | null)?.code === 'stale_request' ? 'stale_request' : 'action_failed')
+      } finally {
+        submitting.current = false
+        setPending(false)
+      }
+    }
+
     return (
       <section className="dsh-forge-pulls-panel" aria-label={copy.title}>
         <header>
@@ -331,6 +373,49 @@ export function apply(ctx: Context) {
                     </span>
                   </div>
                 </div>
+                {view.provider === 'github' && (
+                  <section className="dsh-forge-pulls-section" aria-label={copy.merge_title}>
+                    <h3>{copy.merge_title}</h3>
+                    <p>{copy.merge_hint}</p>
+                    {!loading &&
+                      !error &&
+                      item.state === 'open' &&
+                      !item.draft &&
+                      !item.detailsError &&
+                      (!item.mergeMethods?.length || !view.checkoutBranch) && <p>{copy.merge_unavailable}</p>}
+                    <div className="dsh-forge-pulls-actions">
+                      <ButtonPicker
+                        size="sm"
+                        className="dsh-forge-pulls-picker dsh-forge-pulls-merge-picker"
+                        menuClassName="dsh-forge-pulls-choice"
+                        compact
+                        label={copy.merge_title}
+                        value={selectedStrategy}
+                        disabled={pending}
+                        onChange={setStrategy}
+                        items={[
+                          { id: 'merge', label: copy.merge_commit, disabled: !item.mergeMethods?.includes('merge') },
+                          { id: 'squash', label: copy.merge_squash, disabled: !item.mergeMethods?.includes('squash') },
+                          { id: 'rebase', label: copy.merge_rebase, disabled: !item.mergeMethods?.includes('rebase') },
+                        ]}
+                      />
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        disabled={
+                          !canReview ||
+                          item.draft ||
+                          !view.checkoutBranch ||
+                          !item.mergeMethods?.includes(selectedStrategy)
+                        }
+                        onClick={() => void merge()}
+                      >
+                        {pending ? copy.pending : copy.merge_title}
+                      </Button>
+                    </div>
+                  </section>
+                )}
                 <div className="dsh-forge-pulls-tabs">
                   <SegmentedTabs
                     label={copy.title}
