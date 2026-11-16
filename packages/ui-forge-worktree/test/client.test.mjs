@@ -67,6 +67,7 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
     cleanups = []
   const ctx = {
     remote: { forgePanel: {} },
+    get: () => ({ rpc: { call: async () => ({ ok: false }) } }),
     locale: { getSnapshot: () => ({ active: language }), subscribe: () => () => {} },
     on: () => () => {},
     slots: {
@@ -362,6 +363,7 @@ for (const [language, label, current] of [
       sessionId: 'session',
       useSession: (fn) => fn({ running: false, removed: false, openState: 'open', pendingSubmissions: [] }),
       useInput: (fn) => fn({ phase: 'plain' }),
+      useProjection: () => false,
     })
     const tree = wrapped.type(wrapped.props)
     const menu = tree.props.children[0]
