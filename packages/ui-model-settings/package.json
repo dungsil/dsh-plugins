@@ -27,7 +27,8 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "prepack": "pnpm build"
+    "test": "node --test",
+    "prepack": "pnpm build && pnpm test"
   },
   "dependencies": {
     "@dungsil/dsh-plugin-model-settings": "workspace:*"
