@@ -6,11 +6,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { Menu, MenuItemButton } from '@dungsil/dsh-ui'
+import { Menu, MenuItemButton, Tooltip } from '@dungsil/dsh-ui'
 import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
-import { IconBranchOutlineRegular, IconCheckOutlineRegular, IconPlusOutlineRegular } from '@dungsil/dsh-ui/icons'
+import {
+  IconBranchOutlineRegular,
+  IconCheckOutlineRegular,
+  IconPlusOutlineRegular,
+  IconWarningTriangleOutlineRegular,
+} from '@dungsil/dsh-ui/icons'
 import { copy } from './copy.js'
+import { WORKTREES_PAGE_SIZE, rowsOf, type MenuRow, type WorktreeList } from './menu.js'
 import { styles } from './styles.js'
 import { createDefaultCheckout, readMethod, type Checkout } from './default-checkout.js'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
@@ -44,11 +50,6 @@ export interface ForgeRemote {
   cancelWorktree(id: string, signal: AbortSignal): Promise<Result>
 }
 type Snapshot = { panel?: Panel; busy: boolean; error: boolean }
-type WorktreeList = {
-  origin: { directory: string; root: string; branch: string | null }
-  current: string
-  worktrees: { path: string; branch: string | null }[]
-}
 
 /** One serialized writer, with selection receipts taken from a fresh Host stream. */
 export class SelectionController {
@@ -256,6 +257,7 @@ export function apply(ctx: Context) {
   function Picker({ sessionId, useSession, useInput, useProjection }: Props) {
     const { active } = useLocaleSnapshot(ctx.locale)
     const text = localizedCopy(copy, active)
+    const t = (key: keyof (typeof copy)['en']): string => text[key]
     const [controller] = useState(() => new SelectionController(remote, sessionId))
     const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
     const unavailable = useSession(
@@ -280,7 +282,7 @@ export function apply(ctx: Context) {
     const [open, setOpen] = useState(false)
     const [list, setList] = useState<WorktreeList | undefined>()
     const [listError, setListError] = useState(false)
-    const [page, setPage] = useState(0)
+    const [visibleCount, setVisibleCount] = useState(WORKTREES_PAGE_SIZE)
     const status = useId()
     const available = useRef(false)
     const worktree = state.panel?.worktree
@@ -330,7 +332,7 @@ export function apply(ctx: Context) {
       const abort = new AbortController()
       setList(undefined)
       setListError(false)
-      setPage(0)
+      setVisibleCount(WORKTREES_PAGE_SIZE)
       void connection.rpc
         .call('/api', 'dungsil-worktree-picker/list', { sessionId }, abort.signal)
         .then((result) => {
@@ -343,17 +345,41 @@ export function apply(ctx: Context) {
         })
       return () => abort.abort()
     }, [open, sessionId])
-    const choose = (choice: 'new' | 'current') => {
+    const rows = rowsOf({ blocked: !!worktree?.blocker, list, listError, requested, t, visibleCount })
+    const inWorktree = list !== undefined && list.current !== list.origin.root
+    const statusText = state.error
+      ? text.error
+      : state.busy
+        ? label
+        : worktree?.blocker
+          ? text.blocked
+          : requested
+            ? text.reserved
+            : inWorktree
+              ? text.attached
+              : ''
+    const iconOf = (row: MenuRow) => {
+      if (row.kind === 'new') return <IconPlusOutlineRegular />
+      if (row.kind === 'origin' || row.kind === 'existing') return <IconBranchOutlineRegular />
+      return undefined
+    }
+    const choose = (row: MenuRow): void => {
+      // 더 불러오기는 메뉴를 연 채로 페이지만 늘린다. 안내 행은 아무것도 하지 않는다.
+      if (row.kind === 'more') {
+        setVisibleCount((count) => count + WORKTREES_PAGE_SIZE)
+        return
+      }
+      if (row.kind === 'info') return
       defaults.mark(sessionId)
       setOpen(false)
       if (!available.current) return
-      if (choice === 'current' && list && list.current !== list.origin.root)
+      if (row.kind === 'new') void controller.choose('new')
+      else if (row.kind === 'origin' && list !== undefined && list.current !== list.origin.root)
         void controller.enter(list.origin.directory, connection)
-      else void controller.choose(choice)
+      else if (row.kind === 'origin') void controller.choose('current')
+      else if (row.path !== undefined && (requested || row.path !== list?.current))
+        void controller.enter(row.path, connection)
     }
-    const selected = list?.worktrees.find((entry) => entry.path === list.current)
-    const other = list?.worktrees.filter((entry) => entry.path !== list.current && entry.branch !== null) ?? []
-    const visible = [...(selected ? [selected] : []), ...other.slice(page * 5, page * 5 + 5)]
     return (
       <div className="dsh-forge-worktree">
         <Menu
@@ -391,70 +417,39 @@ export function apply(ctx: Context) {
             />
           }
         >
-          <MenuItemButton
-            icon={<IconPlusOutlineRegular />}
-            current={requested}
-            disabled={!!worktree?.blocker}
-            onSelect={() => choose('new')}
-          >
-            <span className="dsh-forge-worktree-option">
-              <span>{text.create}</span>
-              {requested && <IconCheckOutlineRegular />}
-            </span>
-          </MenuItemButton>
-          <MenuItemButton
-            icon={<IconBranchOutlineRegular />}
-            current={!requested && (!list || list.current === list.origin.root)}
-            onSelect={() => choose('current')}
-          >
-            <span className="dsh-forge-worktree-option">
-              <span>{list ? (list.origin.branch ?? text.detached) : branch}</span>
-              <span className="dsh-forge-worktree-badge">{text.current}</span>
-              {!requested && (!list || list.current === list.origin.root) && <IconCheckOutlineRegular />}
-            </span>
-          </MenuItemButton>
-          {visible.map((entry) => (
-            <MenuItemButton
-              key={entry.path}
-              icon={<IconBranchOutlineRegular />}
-              current={!requested && entry.path === list?.current}
-              onSelect={() => {
-                setOpen(false)
-                if (available.current && (requested || entry.path !== list?.current))
-                  void controller.enter(entry.path, connection)
-              }}
-            >
-              <span className="dsh-forge-worktree-option" title={entry.path}>
-                <span>{entry.branch ?? text.detached}</span>
-                {!requested && entry.path === list?.current && <IconCheckOutlineRegular />}
-              </span>
-            </MenuItemButton>
-          ))}
-          {page > 0 && <MenuItemButton onSelect={() => setPage(page - 1)}>{text.previous}</MenuItemButton>}
-          {(page + 1) * 5 < other.length && (
-            <MenuItemButton onSelect={() => setPage(page + 1)}>{text.more}</MenuItemButton>
-          )}
-          {listError && <span role="status">{text.listError}</span>}
+          {rows.map((row) => {
+            const icon = iconOf(row)
+            return (
+              <MenuItemButton
+                key={row.id}
+                icon={icon}
+                current={row.current}
+                disabled={row.disabled ?? false}
+                separatorBefore={row.kind === 'new'}
+                onSelect={() => choose(row)}
+              >
+                {row.kind === 'more' ? (
+                  <span className="dsh-forge-worktree-more">{row.text}</span>
+                ) : (
+                  <span className="dsh-forge-worktree-option" title={row.path}>
+                    <span>{row.text}</span>
+                    {row.badge === undefined ? null : <span className="dsh-forge-worktree-badge">{row.badge}</span>}
+                    {row.current && <IconCheckOutlineRegular />}
+                  </span>
+                )}
+              </MenuItemButton>
+            )
+          })}
         </Menu>
-        <span
-          id={status}
-          className={state.error ? 'dsh-forge-worktree-error' : 'dsh-forge-worktree-sr'}
-          role={state.error ? 'alert' : 'status'}
-        >
-          {state.error
-            ? text.error
-            : state.busy
-              ? label
-              : worktree?.blocker
-                ? text.blocked
-                : requested
-                  ? text.reserved
-                  : ''}
+        <span id={status} className="dsh-forge-worktree-sr" role={state.error ? 'alert' : 'status'}>
+          {statusText}
         </span>
         {state.error && (
-          <button type="button" className="dsh-forge-worktree-refresh" onClick={controller.refresh}>
-            {text.refresh}
-          </button>
+          <Tooltip label={text.error} portal side="top" maxWidth={280} openOnClick>
+            <button type="button" className="dsh-forge-worktree-warning" aria-label={text.error}>
+              <IconWarningTriangleOutlineRegular />
+            </button>
+          </Tooltip>
         )}
       </div>
     )

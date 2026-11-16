@@ -37,6 +37,7 @@ export {
   IconSearchOutlineRegular,
   IconSkillOutlineRegular,
   IconStopFillRegular,
+  IconWarningTriangleOutlineRegular,
   IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
