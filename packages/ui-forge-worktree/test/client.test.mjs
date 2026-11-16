@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
+import { installConnection } from '@deepseek-ai/dsh-client-connection/client'
 
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 const tick = () => new Promise((resolve) => setImmediate(resolve))
@@ -46,6 +47,7 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
   }
   runInNewContext(bundle, {
     AbortController,
+    AbortSignal,
     ...clock,
     console,
     document: { createElement: () => ({ remove() {} }), head: { append() {} } },
@@ -66,8 +68,8 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
   const registrations = [],
     cleanups = []
   const ctx = {
-    remote: { forgePanel: {} },
     get: () => ({ rpc: { call: async () => ({ ok: false }) } }),
+    remote: { forgePanel: {} },
     locale: { getSnapshot: () => ({ active: language }), subscribe: () => () => {} },
     on: () => () => {},
     slots: {
@@ -194,6 +196,46 @@ await test('취소 요청은 확인 프레임이 올 때까지 대기하고 병�
   await tick()
   assert.equal(h.controller.getSnapshot().busy, true)
   h.streams[1].push(panel())
+  await tick()
+  assert.equal(h.controller.getSnapshot().busy, false)
+})
+
+await test('기존 워크트리 진입은 취소 확인 프레임을 받은 후에만 전송한다', async (t) => {
+  const h = harness(t, panel({ from: 'main' }))
+  const calls = []
+  let connection
+  installConnection(
+    {
+      provide: (_name, handle) => {
+        connection = handle
+      },
+    },
+    {
+      transport: {
+        fetch: async (path, init) => {
+          const request = JSON.parse(init.body)
+          calls.push({ path, request })
+          return Response.json({ type: 'server-response', rpcId: request.rpcId, result: { ok: true, value: null } })
+        },
+      },
+    }
+  )
+  await tick()
+  const pending = h.controller.enter('/registered', connection)
+  await tick()
+  assert.equal(h.calls[0][0], 'current')
+  assert.equal(calls.length, 0)
+  h.streams[1].push(panel({ from: 'main' }))
+  await tick()
+  assert.equal(calls.length, 0)
+  h.streams[1].push(panel())
+  await pending
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].path, 'api/dungsil-worktree-picker/enter')
+  assert.equal(calls[0].request.method, 'dungsil-worktree-picker/enter')
+  assert.equal(calls[0].request.payload.path, '/registered')
+  assert.equal(h.controller.getSnapshot().busy, true)
+  h.streams[2].push(panel())
   await tick()
   assert.equal(h.controller.getSnapshot().busy, false)
 })

@@ -44,6 +44,11 @@ export interface ForgeRemote {
   cancelWorktree(id: string, signal: AbortSignal): Promise<Result>
 }
 type Snapshot = { panel?: Panel; busy: boolean; error: boolean }
+type WorktreeList = {
+  origin: { directory: string; root: string; branch: string | null }
+  current: string
+  worktrees: { path: string; branch: string | null }[]
+}
 
 /** One serialized writer, with selection receipts taken from a fresh Host stream. */
 export class SelectionController {
@@ -170,6 +175,68 @@ export class SelectionController {
       }
     }
   }
+  async enter(path: string, connection: ConnectionHandle) {
+    const { panel, busy, error } = this.snapshot
+    if (
+      this.writing ||
+      busy ||
+      error ||
+      !panel?.worktree.editable ||
+      panel.worktree.created ||
+      panel.worktree.creation ||
+      panel.worktree.restoration
+    )
+      return
+    this.writing = true
+    this.stopFeed()
+    this.publish({ ...this.snapshot, busy: true, error: false })
+    const lifetime = this.lifetime
+    const signal = AbortSignal.any([lifetime.signal, AbortSignal.timeout(15000)])
+    try {
+      if (panel.worktree.request) {
+        const cancelled = await this.remote.cancelWorktree(this.id, signal)
+        if (!cancelled.ok) throw cancelled.error
+        const stream = this.remote.follow(this.id, signal)
+        const stop = () => stream.dispose()
+        signal.addEventListener('abort', stop, { once: true })
+        let confirmed = false
+        try {
+          for await (const next of stream) {
+            if (
+              next.worktree.request === null &&
+              next.worktree.editable &&
+              !next.worktree.creation &&
+              !next.worktree.created &&
+              !next.worktree.restoration
+            ) {
+              confirmed = true
+              break
+            }
+          }
+        } finally {
+          signal.removeEventListener('abort', stop)
+          stream.dispose()
+        }
+        if (!confirmed) throw Error('Cancellation was not confirmed')
+      }
+      signal.throwIfAborted()
+      const moved = await connection.rpc.call(
+        '/api',
+        'dungsil-worktree-picker/enter',
+        { sessionId: this.id, path },
+        signal
+      )
+      signal.throwIfAborted()
+      if (!moved.ok) throw Error('Worktree move failed')
+      if (!lifetime.signal.aborted) this.follow()
+    } catch {
+      if (!lifetime.signal.aborted) {
+        this.writing = false
+        this.stopFeed()
+        this.publish({ ...this.snapshot, busy: false, error: true })
+      }
+    }
+  }
   dispose() {
     this.lifetime.abort()
     this.stopFeed()
@@ -212,6 +279,9 @@ export function apply(ctx: Context) {
       return () => abort.abort()
     }, [])
     const [open, setOpen] = useState(false)
+    const [list, setList] = useState<WorktreeList | undefined>()
+    const [listError, setListError] = useState(false)
+    const [page, setPage] = useState(0)
     const status = useId()
     const available = useRef(false)
     const worktree = state.panel?.worktree
@@ -256,11 +326,35 @@ export function apply(ctx: Context) {
         () => void controller.choose('new')
       )
     }, [sessionId, preferred, state.panel, disabled, open, blank, touched, controller])
+    useEffect(() => {
+      if (!open) return
+      const abort = new AbortController()
+      setList(undefined)
+      setListError(false)
+      setPage(0)
+      void connection.rpc
+        .call('/api', 'dungsil-worktree-picker/list', { sessionId }, abort.signal)
+        .then((result) => {
+          if (abort.signal.aborted) return
+          if (result.ok) setList(result.value as WorktreeList)
+          else setListError(true)
+        })
+        .catch(() => {
+          if (!abort.signal.aborted) setListError(true)
+        })
+      return () => abort.abort()
+    }, [open, sessionId])
     const choose = (choice: 'new' | 'current') => {
       defaults.mark(sessionId)
       setOpen(false)
-      if (available.current) void controller.choose(choice)
+      if (!available.current) return
+      if (choice === 'current' && list && list.current !== list.origin.root)
+        void controller.enter(list.origin.directory, connection)
+      else void controller.choose(choice)
     }
+    const selected = list?.worktrees.find((entry) => entry.path === list.current)
+    const other = list?.worktrees.filter((entry) => entry.path !== list.current && entry.branch !== null) ?? []
+    const visible = [...(selected ? [selected] : []), ...other.slice(page * 5, page * 5 + 5)]
     return (
       <div className="dsh-forge-worktree">
         <Menu
@@ -309,13 +403,39 @@ export function apply(ctx: Context) {
               {requested && <IconCheckOutlineRegular />}
             </span>
           </MenuItemButton>
-          <MenuItemButton icon={<IconBranchOutlineRegular />} current={!requested} onSelect={() => choose('current')}>
+          <MenuItemButton
+            icon={<IconBranchOutlineRegular />}
+            current={!requested && (!list || list.current === list.origin.root)}
+            onSelect={() => choose('current')}
+          >
             <span className="dsh-forge-worktree-option">
-              <span>{branch}</span>
+              <span>{list ? (list.origin.branch ?? text.detached) : branch}</span>
               <span className="dsh-forge-worktree-badge">{text.current}</span>
-              {!requested && <IconCheckOutlineRegular />}
+              {!requested && (!list || list.current === list.origin.root) && <IconCheckOutlineRegular />}
             </span>
           </MenuItemButton>
+          {visible.map((entry) => (
+            <MenuItemButton
+              key={entry.path}
+              icon={<IconBranchOutlineRegular />}
+              current={!requested && entry.path === list?.current}
+              onSelect={() => {
+                setOpen(false)
+                if (available.current && (requested || entry.path !== list?.current))
+                  void controller.enter(entry.path, connection)
+              }}
+            >
+              <span className="dsh-forge-worktree-option" title={entry.path}>
+                <span>{entry.branch ?? text.detached}</span>
+                {!requested && entry.path === list?.current && <IconCheckOutlineRegular />}
+              </span>
+            </MenuItemButton>
+          ))}
+          {page > 0 && <MenuItemButton onSelect={() => setPage(page - 1)}>{text.previous}</MenuItemButton>}
+          {(page + 1) * 5 < other.length && (
+            <MenuItemButton onSelect={() => setPage(page + 1)}>{text.more}</MenuItemButton>
+          )}
+          {listError && <span role="status">{text.listError}</span>}
         </Menu>
         <span
           id={status}

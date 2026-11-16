@@ -104,7 +104,12 @@ async function mount(t, { snapshot = {}, touched = false } = {}) {
   })
   const ctx = {
     remote: { forgePanel: remote },
-    get: () => ({ rpc: { call: () => preference.promise } }),
+    get: () => ({
+      rpc: {
+        call: (_api, method) =>
+          method === 'dungsil-worktree-picker/list' ? Promise.resolve({ ok: false }) : preference.promise,
+      },
+    }),
     locale: { getSnapshot: () => locale, subscribe: () => () => {} },
     on: () => () => {},
     slots: {
