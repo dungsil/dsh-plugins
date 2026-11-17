@@ -27,6 +27,7 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-forge-gitea](./packages/forge-gitea)                 | 공식 forge registry에 Gitea provider를 등록하는 플러그인 (`tea`)    |   MIT    |
 | [@dungsil/dsh-plugin-forge-forgejo](./packages/forge-forgejo)             | 공식 forge registry에 Forgejo provider를 등록하는 플러그인 (`tea`)  |   MIT    |
 | [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드    |   MIT    |
+| [@dungsil/dsh-plugin-ui-token-usage](./packages/ui-token-usage)           | 대화 화면의 토큰 수를 만·억 등 축약 단위와 정확한 값으로 표시       |   MIT    |
 | [@dungsil/dsh-plugin-cli-proxy-api](./packages/cli-proxy-api)             | CLIProxyAPI 모델 연결과 계정별 할당량 조회 UI                       |   MIT    |
 
 공식 `@deepseek-ai/dsh-experimental-forge-bundle`의 워크트리 설정은 [@dungsil/dsh-plugin-ui-setting-vcs](./packages/ui-setting-vcs)에서 관리합니다. 디렉터리와 이름 접두사는 한 번씩만 표시합니다. 변경 사항은 자동 저장하며 모델 도구와 Forge 패널에 공통으로 적용합니다. 기존 커밋 작성자·서명, 기본 체크아웃 선택, 추적 원격 브랜치, 시멘틱 이름 설정은 공식 번들에서 지원하지 않아 이전하지 않습니다. 보관 시 워크트리 삭제는 DSH `0.2.2-rc.2`부터 공식 번들이 기본으로 처리하므로 별도 설정이 없습니다. 세션을 보관하면 그 세션이 만든 깨끗한 워크트리를 정리하고 브랜치와 커밋은 유지합니다. 디렉터리는 저장소 아래의 상대 경로만 지원하며 기존 절대 경로나 상위 경로를 자동 변환하지 않습니다.

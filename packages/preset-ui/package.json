@@ -36,6 +36,7 @@
     "@dungsil/dsh-plugin-ui-setting-skills": "workspace:*",
     "@dungsil/dsh-plugin-ui-setting-vcs": "workspace:*",
     "@dungsil/dsh-plugin-ui-sidebar-inbox": "workspace:*",
+    "@dungsil/dsh-plugin-ui-token-usage": "workspace:*",
     "@dungsil/dsh-plugin-ui-turn-rail-left": "workspace:*",
     "@dungsil/dsh-plugin-ui-usage": "workspace:*",
     "@dungsil/dsh-plugin-yoonmoon": "workspace:*"

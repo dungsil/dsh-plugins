@@ -637,6 +637,9 @@ importers:
       '@dungsil/dsh-plugin-ui-sidebar-inbox':
         specifier: workspace:*
         version: link:../ui-sidebar-inbox
+      '@dungsil/dsh-plugin-ui-token-usage':
+        specifier: workspace:*
+        version: link:../ui-token-usage
       '@dungsil/dsh-plugin-ui-turn-rail-left':
         specifier: workspace:*
         version: link:../ui-turn-rail-left
@@ -1458,6 +1461,51 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
+  packages/ui-token-usage:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
+      '@types/react':
+        specifier: 18.3.31
+        version: 18.3.31
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+
   packages/ui-turn-rail-left:
     devDependencies:
       '@deepseek-ai/cordis':
@@ -1669,6 +1717,9 @@ importers:
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
       react:
         specifier: 18.3.1
         version: 18.3.1
