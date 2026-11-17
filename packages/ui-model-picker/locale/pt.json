@@ -18,6 +18,8 @@
     "retry": "Recarregar modelos",
     "busy": "Alterando…",
     "apply": "Aplicar",
+    "search": "Pesquisar modelos",
+    "searchEmpty": "Nenhum modelo correspondente.",
     "favorites": "Favoritos",
     "addFavorite": "Adicionar aos favoritos",
     "removeFavorite": "Remover dos favoritos",

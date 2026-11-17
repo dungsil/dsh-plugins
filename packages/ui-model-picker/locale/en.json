@@ -2,5 +2,28 @@
   "meta": {
     "title": "Model Picker",
     "description": "A compact composer picker with model menus and a reasoning effort slider."
+  },
+  "ui": {
+    "model": "Select model",
+    "effort": "Reasoning effort",
+    "choose": "Select reasoning effort",
+    "configure": "Configure reasoning effort",
+    "openPicker": "Open model picker",
+    "reset": "Reset to default",
+    "loading": "Loading models…",
+    "empty": "No models available.",
+    "partial": "Some providers could not be loaded.",
+    "missing": "The current model is unavailable.",
+    "error": "Could not change the selection. Check the current selection before retrying.",
+    "retry": "Reload models",
+    "busy": "Changing…",
+    "apply": "Apply",
+    "search": "Search models",
+    "searchEmpty": "No matching models.",
+    "favorites": "Favorites",
+    "addFavorite": "Add to favorites",
+    "removeFavorite": "Remove from favorites",
+    "unavailable": "Unavailable",
+    "cycleFavorites": "Switch to next favorite model"
   }
 }

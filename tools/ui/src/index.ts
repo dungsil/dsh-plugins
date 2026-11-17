@@ -30,6 +30,8 @@ export {
   Tag,
   Tooltip,
   focusWithoutRing,
+  isMobileDevice,
+  rankByName,
   useDismissOnOutsidePointer,
   useMarkdownDelegate,
   writeClipboard,

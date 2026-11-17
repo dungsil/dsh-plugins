@@ -18,6 +18,8 @@
     "retry": "モデルを再読み込み",
     "busy": "変更中…",
     "apply": "適用",
+    "search": "モデルを検索",
+    "searchEmpty": "一致するモデルがありません。",
     "favorites": "お気に入り",
     "addFavorite": "お気に入りに追加",
     "removeFavorite": "お気に入りから削除",
