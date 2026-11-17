@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-agent-browser",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Share the existing DeepSeek Harness Browser page with agent-browser, installed automatically on first use.",
   "license": "MIT",
   "repository": {

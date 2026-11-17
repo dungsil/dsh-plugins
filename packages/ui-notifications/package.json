@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-notifications",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Browser notifications and sounds when a DeepSeek Harness session needs input or finishes an answer.",
   "license": "MIT",
   "repository": {

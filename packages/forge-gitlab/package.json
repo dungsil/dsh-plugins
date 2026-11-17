@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-forge-gitlab",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "GitLab provider for the DSH experimental forge registry, using glab on the host.",
   "license": "MIT",
   "repository": {

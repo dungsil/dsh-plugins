@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-ui-forge-chip
 
+## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-chip%400.2.0...%40dungsil%2Fdsh-plugin-ui-forge-chip%400.3.0) (2026-11-17)
+
+### Features
+
+- **ui-forge-chip:** Gitea와 Forgejo에서도 호스트에서 PR을 생성한다 ([#248](https://github.com/dungsil/dsh-plugins/issues/248)) ([4879ac2](https://github.com/dungsil/dsh-plugins/commit/4879ac242a6409e5d7b50dc2692fb11f15236756))
+
+### Bug Fixes
+
+- **ui:** 슬롯 order와 스타일을 DSH 디자인 리소스 규칙에 맞춘다 ([#254](https://github.com/dungsil/dsh-plugins/issues/254)) ([2b3d8a0](https://github.com/dungsil/dsh-plugins/commit/2b3d8a09629737622c9772d2729cdf502f85c260))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-chip%400.1.0...%40dungsil%2Fdsh-plugin-ui-forge-chip%400.2.0) (2026-11-17)
 
 ### Features

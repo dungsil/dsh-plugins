@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-ui-turn-rail-left
 
+## [0.3.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.3.1...%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.3.2) (2026-11-17)
+
 - feat(ui-forge-chip): Git 칩에 단축키와 키보드 이동, 세션 상태 캐시를 추가한다 (#247) (9667c48)
 - feat(ui-forge-chip): 워크트리 커밋을 원본 작업 공간에 통합하는 칩을 추가한다 (#246) (1f73326)
 - ci(release): 변경 사항이 없는 패키지도 강제로 패치 릴리스한다 (#245) (0fd859b)

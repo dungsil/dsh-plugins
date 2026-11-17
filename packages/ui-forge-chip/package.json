@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-chip",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Composer commit, push and PR chips that run Git on the host with Forge.",
   "license": "MIT",
   "repository": {

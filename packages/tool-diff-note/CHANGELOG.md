@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-tool-diff-note
 
+## [0.2.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-diff-note%400.2.1...%40dungsil%2Fdsh-plugin-tool-diff-note%400.2.2) (2026-11-17)
+
 ## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-diff-note%400.2.0...%40dungsil%2Fdsh-plugin-tool-diff-note%400.2.1) (2026-11-17)
 
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-tool-diff-note%400.1.2...%40dungsil%2Fdsh-plugin-tool-diff-note%400.2.0) (2026-11-15)

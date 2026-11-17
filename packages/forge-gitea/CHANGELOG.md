@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-forge-gitea
 
+## [0.1.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-forge-gitea%400.1.2...%40dungsil%2Fdsh-plugin-forge-gitea%400.1.3) (2026-11-17)
+
 ## [0.1.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-forge-gitea%400.1.1...%40dungsil%2Fdsh-plugin-forge-gitea%400.1.2) (2026-11-17)
 
 ## [0.1.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-forge-gitea%400.1.0...%40dungsil%2Fdsh-plugin-forge-gitea%400.1.1) (2026-11-15)

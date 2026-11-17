@@ -1,5 +1,14 @@
 # @dungsil/dsh-preset-ui
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.3.2...%40dungsil%2Fdsh-preset-ui%400.4.0) (2026-11-17)
+
+### Features
+
+- **ui-answer-translation:** 외국어 답변 문단을 요청할 때만 번역해 원문 아래에 표시한다 ([#252](https://github.com/dungsil/dsh-plugins/issues/252)) ([4dc4058](https://github.com/dungsil/dsh-plugins/commit/4dc4058f94b319b98ca5703a66e8e0e4d9e6c3a6))
+- **ui-image-viewer:** 이미지 다운로드 표시와 라이트박스 이전·다음 이동을 추가한다 ([#250](https://github.com/dungsil/dsh-plugins/issues/250)) ([8e65f01](https://github.com/dungsil/dsh-plugins/commit/8e65f01ff3a2149abd7238d10d375211a60d0fab))
+- **ui-notifications:** 입력이 필요하거나 답변이 완료된 세션을 알림과 소리로 알린다 ([#253](https://github.com/dungsil/dsh-plugins/issues/253)) ([d1b5595](https://github.com/dungsil/dsh-plugins/commit/d1b5595f8539e171758a0de521a66056a8dc14b1))
+- **ui-token-usage:** 대화 화면의 토큰 수를 축약 단위와 정확한 값으로 표시한다 ([#251](https://github.com/dungsil/dsh-plugins/issues/251)) ([19f82cb](https://github.com/dungsil/dsh-plugins/commit/19f82cbfad15bb308f8122f7196dcd1023fc7d3d))
+
 ## [0.3.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.3.1...%40dungsil%2Fdsh-preset-ui%400.3.2) (2026-11-17)
 
 - refactor(ui): 로케일 선택과 스타일 주입을 공용 헬퍼로 통일한다 (#241) (c589087)

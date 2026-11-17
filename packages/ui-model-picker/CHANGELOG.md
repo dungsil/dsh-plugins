@@ -1,5 +1,16 @@
 # @dungsil/dsh-plugin-ui-model-picker
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.4.1...%40dungsil%2Fdsh-plugin-ui-model-picker%400.5.0) (2026-11-17)
+
+### Features
+
+- **ui-model-picker:** 검색과 키보드 탐색 및 안전한 선택 유지를 추가한다 ([#255](https://github.com/dungsil/dsh-plugins/issues/255)) ([3055ef9](https://github.com/dungsil/dsh-plugins/commit/3055ef9d6f4388d74ddb81a8d2edea7e3d3227a6))
+- **ui-model-picker:** 모델과 추론 강도 즐겨찾기와 순환 단축키를 추가한다 ([#249](https://github.com/dungsil/dsh-plugins/issues/249)) ([259887f](https://github.com/dungsil/dsh-plugins/commit/259887fb3b08e00a4908cc17fbbab382286d047d))
+
+### Bug Fixes
+
+- **ui:** 슬롯 order와 스타일을 DSH 디자인 리소스 규칙에 맞춘다 ([#254](https://github.com/dungsil/dsh-plugins/issues/254)) ([2b3d8a0](https://github.com/dungsil/dsh-plugins/commit/2b3d8a09629737622c9772d2729cdf502f85c260))
+
 ## [0.4.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.4.0...%40dungsil%2Fdsh-plugin-ui-model-picker%400.4.1) (2026-11-17)
 
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-picker%400.3.0...%40dungsil%2Fdsh-plugin-ui-model-picker%400.4.0) (2026-11-15)

@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-setting-skills
 
+## [0.6.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.1...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.2) (2026-11-17)
+
+### Bug Fixes
+
+- **ui:** 슬롯 order와 스타일을 DSH 디자인 리소스 규칙에 맞춘다 ([#254](https://github.com/dungsil/dsh-plugins/issues/254)) ([2b3d8a0](https://github.com/dungsil/dsh-plugins/commit/2b3d8a09629737622c9772d2729cdf502f85c260))
+
 ## [0.6.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.1) (2026-11-17)
 
 ## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.5.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.0) (2026-11-16)

@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-image-viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Show image download progress and move between conversation images in the native lightbox.",
   "license": "MIT",
   "repository": {
