@@ -17,17 +17,17 @@ export const quotaStyles = `
 .dsh-cli-quota .quota-card-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .dsh-cli-quota .quota-provider-icon { box-sizing: content-box; padding: 4px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-primary); }
 .dsh-cli-quota .quota-provider { min-width: 0; margin: 0; font: inherit; font-weight: 500; overflow-wrap: anywhere; }
-.dsh-cli-quota .quota-account-name { display: block; color: var(--dsw-alias-label-secondary); font-size: .857rem; overflow-wrap: anywhere; margin-top: 4px; }
-.dsh-cli-quota .quota-plan { color: var(--dsw-alias-label-secondary); font-size: .857rem; margin: 12px 0; }
+.dsh-cli-quota .quota-account-name { display: block; color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); overflow-wrap: anywhere; margin-top: 4px; }
+.dsh-cli-quota .quota-plan { color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); margin: 12px 0; }
 .dsh-cli-quota .quota-plan span { color: var(--dsw-alias-label-primary); margin-inline-start: 6px; }
 .dsh-cli-quota .quota-windows { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .dsh-cli-quota .quota-limit { min-width: 0; }
 .dsh-cli-quota .quota-limit + .quota-limit { border-top: .5px dashed var(--dsw-alias-border-l2); padding-top: 12px; }
-.dsh-cli-quota .quota-limit-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 8px; font-size: .857rem; }
+.dsh-cli-quota .quota-limit-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 8px; font-size: var(--dsw-font-xxs-12-font-size); }
 .dsh-cli-quota .quota-limit-label { min-width: 0; flex: 1; overflow-wrap: anywhere; font-weight: 500; }
 .dsh-cli-quota .quota-value { flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
 .dsh-cli-quota .quota-reset { display: block; text-align: end; }
-.dsh-cli-quota .quota-reset, .dsh-cli-quota .quota-missing { color: var(--dsw-alias-label-secondary); font-size: .857rem; line-height: 1.5; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.dsh-cli-quota .quota-reset, .dsh-cli-quota .quota-missing { color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); line-height: 1.5; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .dsh-cli-quota .quota-limit progress { height: 6px; margin: 6px 0 0; }
 .dsh-cli-quota .quota-limit progress::-webkit-progress-value { background: var(--dsw-alias-state-success-primary); }
 .dsh-cli-quota .quota-limit progress::-moz-progress-bar { background: var(--dsw-alias-state-success-primary); }
@@ -36,12 +36,12 @@ export const quotaStyles = `
 .dsh-cli-quota [data-tone=warning] progress::-moz-progress-bar { background: var(--dsw-alias-state-warn-primary); }
 .dsh-cli-quota [data-tone=danger] progress::-moz-progress-bar { background: var(--dsw-alias-state-error-primary); }
 .dsh-cli-quota .quota-card-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 16px; }
-.dsh-cli-quota .quota-routing { margin-top: 12px; color: var(--dsw-alias-label-secondary); font-size: .857rem; }
+.dsh-cli-quota .quota-routing { margin-top: 12px; color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); }
 .dsh-cli-quota .quota-routing summary { cursor: pointer; }
 .dsh-cli-quota .quota-routing p { margin: 8px 0; }
 .dsh-cli-quota .quota-empty { padding: 32px 16px; text-align: center; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-quota .quota-pagination { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.dsh-cli-quota .quota-help { color: var(--dsw-alias-label-secondary); font-size: .857rem; margin-top: 16px; }
+.dsh-cli-quota .quota-help { color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); margin-top: 16px; }
 .dsh-cli-quota .quota-help summary { cursor: pointer; }
 .dsh-cli-quota .quota-help p { max-width: 75ch; }
 @container (max-width: 1300px) { .dsh-cli-quota .quota-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

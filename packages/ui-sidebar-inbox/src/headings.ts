@@ -79,7 +79,7 @@ export function installHeadings(
        height, and the leftover row gaps alone can overflow the list. */
     [data-dsh-inbox-tree] > [data-dsh-inbox-closed]:not([data-dsh-inbox-first]) { margin-top: 0; }
     [data-dsh-inbox-heading] {
-      display: block; padding: 12px 8px 4px; font-size: 12px; line-height: 20px;
+      display: block; padding: 12px 8px 4px; font-size: var(--dsw-font-xxs-12-font-size); line-height: 20px;
       color: var(--dsw-alias-label-tertiary); font-weight: 500;
     }
     [data-dsh-inbox-heading] button {

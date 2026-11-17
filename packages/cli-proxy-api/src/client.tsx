@@ -34,16 +34,16 @@ declare module '@deepseek-ai/cordis' {
 const styles = `${settingsStyles}${quotaStyles}${pageStyles}
 .dsh-cli-proxy-icon { display: inline-flex; }
 .dsh-cli-proxy-icon > svg { width: 100%; height: 100%; }
-.dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/1.5714 var(--dsw-font-family, system-ui); }
+.dsh-cli-proxy { container-type: inline-size; color: var(--dsw-alias-label-primary); font: var(--dsw-font-s-14); }
 .dsh-plugin-page-content.dsh-cli-proxy { max-width: none; }
 .dsh-cli-proxy h3 { margin: 24px 0 0; font: inherit; color: var(--dsw-alias-label-secondary); }
 .dsh-cli-proxy .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-cli-proxy .controls > span:has(> input) { box-sizing: border-box; width: 280px; min-width: 0; max-width: 100%; }
 .dsh-cli-proxy .controls > button { max-width: 100%; }
-.dsh-cli-proxy .hint { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; margin: 8px 0; }
+.dsh-cli-proxy .hint { color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); line-height: 20px; margin: 8px 0; }
 .dsh-cli-proxy [role=alert] { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-cli-proxy p, .dsh-cli-proxy .dsh-plugin-settings-text { overflow-wrap: anywhere; }
-.dsh-cli-proxy progress { display: block; width: 100%; height: 6px; margin: 8px 0; border: 0; border-radius: 3px; overflow: hidden; appearance: none; background: var(--dsw-alias-bg-module-platform); }
+.dsh-cli-proxy progress { display: block; width: 100%; height: 6px; margin: 8px 0; border: 0; border-radius: var(--dsw-radius-xs); overflow: hidden; appearance: none; background: var(--dsw-alias-bg-module-platform); }
 .dsh-cli-proxy progress::-webkit-progress-bar { background: var(--dsw-alias-bg-module-platform); }
 .dsh-cli-proxy progress::-webkit-progress-value { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
 .dsh-cli-proxy progress::-moz-progress-bar { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
