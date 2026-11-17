@@ -1,4 +1,5 @@
 import { createElement } from 'react'
+import languagesIconSvg from './icons/languages.svg'
 import resetIconSvg from './icons/rotate-ccw.svg'
 import starIconSvg from './icons/star.svg'
 
@@ -42,21 +43,25 @@ export {
   IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
-export function IconResetOutlineRegular() {
+function svgIcon(svg: string) {
   // Only trusted, build-time SVG assets are inserted as markup.
   return createElement('span', {
     style: { display: 'inline-flex' },
     'aria-hidden': 'true',
-    dangerouslySetInnerHTML: { __html: resetIconSvg },
+    // Formatting whitespace would otherwise become text inside the host element.
+    dangerouslySetInnerHTML: { __html: svg.trim().replace(/>\s+</g, '><') },
   })
+}
+
+export function IconResetOutlineRegular() {
+  return svgIcon(resetIconSvg)
+}
+
+export function IconLanguagesOutlineRegular() {
+  return svgIcon(languagesIconSvg)
 }
 
 /** Outline star; consumers fill it with `fill: currentColor` for the selected state. */
 export function IconStarOutlineRegular() {
-  // Only trusted, build-time SVG assets are inserted as markup.
-  return createElement('span', {
-    style: { display: 'inline-flex' },
-    'aria-hidden': 'true',
-    dangerouslySetInnerHTML: { __html: starIconSvg },
-  })
+  return svgIcon(starIconSvg)
 }
