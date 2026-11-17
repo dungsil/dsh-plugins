@@ -47,5 +47,8 @@
   "integrationBusy": "別の統合またはターンが実行中です。終了してから再試行してください。",
   "integrationFailed": "統合に失敗したため元に戻しました。元のチェックアウトは変更されていません。",
   "integrationCleanupRefused": "統合を中止しました。別の操作の Git 状態である可能性があるためそのままにしています。元のチェックアウトを確認してください。",
-  "integrationError": "統合できませんでした。元のチェックアウトを確認してから再試行してください。"
+  "integrationError": "統合できませんでした。元のチェックアウトを確認してから再試行してください。",
+  "toolbar": "Git 操作",
+  "shortcut": "Git 操作 {n}",
+  "shortcutAlt": "Git 操作 {n}（補助）"
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { normalizeMessage } from '../src/message.ts'
-import { canCreatePr, requestForCheckout } from '../src/model.ts'
+import { canCreatePr, localKey, nextIndex, requestForCheckout } from '../src/model.ts'
 
 function panel(overrides = {}) {
   return {
@@ -91,4 +91,24 @@ await test('커밋 메시지 정규화는 코드 펜스와 따옴표와 레이�
 await test('커밋 메시지 정규화는 빈 출력과 지나치게 긴 제목을 거부한다', () => {
   for (const output of ['', '   ', '```\n```', 'x'.repeat(101)]) assert.equal(normalizeMessage(output), undefined)
   assert.equal(normalizeMessage('x'.repeat(100)), 'x'.repeat(100))
+})
+
+await test('같은 체크아웃 사실은 같은 조회 키를 만들고 커밋이 바뀌면 다른 키를 만든다', () => {
+  const at = (commit) => ({
+    ...panel(),
+    directory: '/repo',
+    checkout: { state: 'ready', checkout: { branch: 'topic', commit } },
+  })
+  assert.equal(localKey(at('a')), localKey(at('a')))
+  assert.notEqual(localKey(at('a')), localKey(at('b')))
+  assert.equal(localKey(panel({ checkout: { state: 'pending' } })), null)
+})
+
+await test('도구 모음 키는 양끝에서 순환하고 Home과 End로 이동하며 다른 키는 무시한다', () => {
+  assert.equal(nextIndex('ArrowRight', 2, 3), 0)
+  assert.equal(nextIndex('ArrowLeft', 0, 3), 2)
+  assert.equal(nextIndex('Home', 2, 3), 0)
+  assert.equal(nextIndex('End', 0, 3), 2)
+  assert.equal(nextIndex('Enter', 0, 3), null)
+  assert.equal(nextIndex('ArrowRight', 0, 0), null)
 })

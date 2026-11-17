@@ -47,5 +47,8 @@
   "integrationBusy": "Another integration or a turn is running. Try again when it finishes.",
   "integrationFailed": "Integration failed and was rolled back. The original checkout is unchanged.",
   "integrationCleanupRefused": "Integration stopped. Its Git state was left as-is because it may belong to another operation; check the original checkout.",
-  "integrationError": "Could not integrate. Check the original checkout and try again."
+  "integrationError": "Could not integrate. Check the original checkout and try again.",
+  "toolbar": "Git actions",
+  "shortcut": "Git action {n}",
+  "shortcutAlt": "Git action {n} (alternate)"
 }
