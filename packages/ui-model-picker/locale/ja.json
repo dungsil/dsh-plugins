@@ -17,6 +17,11 @@
     "error": "選択を変更できませんでした。現在の選択を確認してから再試行してください。",
     "retry": "モデルを再読み込み",
     "busy": "変更中…",
-    "apply": "適用"
+    "apply": "適用",
+    "favorites": "お気に入り",
+    "addFavorite": "お気に入りに追加",
+    "removeFavorite": "お気に入りから削除",
+    "unavailable": "利用不可",
+    "cycleFavorites": "次のお気に入りモデルに切り替え"
   }
 }

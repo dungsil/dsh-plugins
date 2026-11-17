@@ -17,6 +17,11 @@
     "error": "Die Auswahl konnte nicht geändert werden. Prüfen Sie die aktuelle Auswahl vor einem erneuten Versuch.",
     "retry": "Modelle neu laden",
     "busy": "Wird geändert…",
-    "apply": "Anwenden"
+    "apply": "Anwenden",
+    "favorites": "Favoriten",
+    "addFavorite": "Zu Favoriten hinzufügen",
+    "removeFavorite": "Aus Favoriten entfernen",
+    "unavailable": "Nicht verfügbar",
+    "cycleFavorites": "Zum nächsten Favoritenmodell wechseln"
   }
 }
