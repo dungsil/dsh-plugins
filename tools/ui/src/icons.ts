@@ -1,5 +1,6 @@
 import { createElement } from 'react'
 import resetIconSvg from './icons/rotate-ccw.svg'
+import starIconSvg from './icons/star.svg'
 
 export { ProviderIcon } from './provider-icon.js'
 
@@ -47,5 +48,15 @@ export function IconResetOutlineRegular() {
     style: { display: 'inline-flex' },
     'aria-hidden': 'true',
     dangerouslySetInnerHTML: { __html: resetIconSvg },
+  })
+}
+
+/** Outline star; consumers fill it with `fill: currentColor` for the selected state. */
+export function IconStarOutlineRegular() {
+  // Only trusted, build-time SVG assets are inserted as markup.
+  return createElement('span', {
+    style: { display: 'inline-flex' },
+    'aria-hidden': 'true',
+    dangerouslySetInnerHTML: { __html: starIconSvg },
   })
 }
