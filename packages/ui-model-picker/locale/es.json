@@ -17,6 +17,8 @@
     "error": "No se pudo cambiar la selección. Comprueba la selección actual antes de volver a intentarlo.",
     "retry": "Recargar modelos",
     "busy": "Cambiando…",
-    "apply": "Aplicar"
+    "apply": "Aplicar",
+    "search": "Buscar modelos",
+    "searchEmpty": "No hay modelos coincidentes."
   }
 }

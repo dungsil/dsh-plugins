@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
 import * as React from 'react'
 
-async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' } = {}) {
+async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', mobile = false } = {}) {
   const window = new Window()
   const { document } = window
   const keys = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT']
@@ -35,6 +35,16 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
         children,
         shortcutKeys?.map((key) => React.createElement('kbd', { key }, key))
       ),
+    Input: React.forwardRef(({ className, ...props }, ref) =>
+      React.createElement('span', { className }, React.createElement('input', { ...props, ref }))
+    ),
+    isMobileDevice: () => mobile,
+    rankByName: (items, query) =>
+      items.filter(({ name }) => {
+        let at = 0
+        for (const char of name.toLowerCase()) if (char === query.toLowerCase()[at]) at++
+        return at === query.length
+      }),
     MenuSurface: React.forwardRef((props, ref) => React.createElement('div', { ...props, ref })),
     focusWithoutRing: (element) => element.focus(),
     useDismissOnOutsidePointer() {},
@@ -141,7 +151,7 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
     slots: {
       inject: (_slot, setup) => setup(),
       register: (_options, render) => {
-        Picker = render
+        if (_options.name === 'conversation.input.model') Picker = render
       },
     },
     effect(setup, name) {
@@ -153,17 +163,30 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop' }
   )
   const click = (selector) => React.act(async () => document.querySelector(selector).click())
   const slider = () => document.querySelector('input[type=range]')
+  let activeGesture = null
   const change = (value, event = 'change', key = 'ArrowRight') =>
     React.act(async () => {
       const input = slider()
+      const kind = event === 'keyup' ? 'keyboard' : 'pointer'
+      if (activeGesture !== kind) {
+        input.dispatchEvent(
+          kind === 'keyboard'
+            ? new window.KeyboardEvent('keydown', { key, bubbles: true })
+            : new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 7 })
+        )
+        activeGesture = kind
+      }
       // Use the native setter so React observes the input rather than its value tracker.
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, String(value))
       input.dispatchEvent(new window.Event('input', { bubbles: true }))
       input.dispatchEvent(
         event === 'keyup'
           ? new window.KeyboardEvent(event, { key, bubbles: true })
-          : new window.Event(event, { bubbles: true })
+          : event.startsWith('pointer')
+            ? new window.PointerEvent(event, { bubbles: true, pointerId: 7 })
+            : new window.Event(event, { bubbles: true })
       )
+      if (event === 'keyup' || event === 'pointerup') activeGesture = null
     })
   const commit = async (value, event = 'pointerup') => {
     await change(value, event)
@@ -414,7 +437,7 @@ await test('웹 고정 단축키는 정확한 Alt P만 처리하고 모달과 �
   assert.ok(h.slider())
 })
 
-await test('단축키는 피커를 열고 다시 실행해도 닫지 않으며 Escape는 트리거로 포커스를 돌린다', async (t) => {
+await test('단축키는 피커를 열고 다시 실행하면 닫으며 Escape는 트리거로 포커스를 돌린다', async (t) => {
   const h = await mount(t)
   const invoke = () =>
     React.act(async () => {
@@ -426,7 +449,8 @@ await test('단축키는 피커를 열고 다시 실행해도 닫지 않으며 E
   assert.ok(h.slider())
   assert.equal(h.document.activeElement, h.slider())
   await invoke()
-  assert.ok(h.slider())
+  assert.equal(h.slider(), null)
+  await invoke()
   await React.act(async () =>
     h.slider().dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   )
@@ -516,4 +540,242 @@ await test('외부 변경으로 팝업을 닫아도 팝업 밖 컨트롤의 포�
   await React.act(async () => h.update({ current: { provider: 'provider', model: 'second', reasoningEffort: 'low' } }))
   assert.equal(h.slider(), null)
   assert.ok(h.document.activeElement === outside)
+})
+
+await test('다섯 모델부터 검색하며 제공자 순서를 유지하고 검색 결과를 선택한다', async (t) => {
+  const h = await mount(t)
+  const efforts = ['low', 'high'].map((id) => ({ id, name: id }))
+  const entry = (id) => ({ id, name: id, reasoning: { efforts, defaultEffort: 'low' } })
+  await React.act(async () =>
+    h.update({
+      groups: [
+        { id: 'other', name: 'Other', models: [entry('first'), entry('apple'), entry('berry')] },
+        { id: 'deepseek-official', name: 'Official', models: [entry('alpha')] },
+        { id: 'deepseek-account', name: 'Account', models: [entry('atlas')] },
+      ],
+      current: { provider: 'other', model: 'first', reasoningEffort: 'low' },
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  assert.deepEqual(
+    [...h.document.querySelectorAll('.dsh-codex-provider')].map((el) => el.textContent),
+    ['Account', 'Official', 'Other']
+  )
+  const input = h.document.querySelector('[role=searchbox]')
+  assert.equal(h.document.activeElement, input)
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(h.window.HTMLInputElement.prototype, 'value').set.call(input, 'ap')
+    input.dispatchEvent(new h.window.Event('input', { bubbles: true }))
+  })
+  assert.deepEqual(
+    [...h.document.querySelectorAll('.dsh-codex-models button')].map((el) => el.textContent),
+    ['alpha', 'apple']
+  )
+  assert.equal(h.document.activeElement, input)
+  await React.act(async () =>
+    input.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+  )
+  await React.act(async () =>
+    input.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  assert.match(h.document.querySelector('.dsh-codex-model').textContent, /apple/)
+  assert.equal(h.requests.length, 0)
+})
+
+await test('방향키로 열고 모델 화면에 들어갔다가 뒤로 이동하며 Home과 End로 버튼을 탐색한다', async (t) => {
+  const h = await mount(t)
+  const key = (element, value, options = {}) =>
+    React.act(async () =>
+      element.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: value, bubbles: true, ...options }))
+    )
+  const trigger = h.document.querySelector('.dsh-codex-trigger')
+  await key(trigger, 'ArrowDown')
+  const model = h.document.querySelector('.dsh-codex-model')
+  model.focus()
+  await key(model, 'ArrowRight')
+  assert.ok(h.document.querySelector('.dsh-codex-models'))
+  await key(h.document.activeElement, 'End')
+  assert.equal(h.document.activeElement.textContent, '모델 목록 새로고침')
+  await key(h.document.activeElement, 'Home')
+  assert.ok(h.document.activeElement.classList.contains('dsh-codex-back'))
+  await key(h.document.activeElement, 'ArrowLeft')
+  assert.equal(h.document.activeElement, h.document.querySelector('.dsh-codex-model'))
+  await key(h.document.activeElement, 'ArrowRight')
+  await key(h.document.activeElement, 'Tab', { shiftKey: true })
+  assert.equal(h.document.activeElement, h.document.querySelector('.dsh-codex-model'))
+})
+
+await test('비모달 피커에서 Alt P를 다시 누르면 닫고 다른 모달에서는 처리하지 않는다', async (t) => {
+  const h = await mount(t, { runtime: 'web' })
+  let consumed = 0
+  const input = {
+    type: 'keydown',
+    gesture: { code: 'KeyP', alt: true },
+    context: { region: 'editable', modal: null },
+    consume: () => consumed++,
+  }
+  await React.act(async () => h.fixedInput(input))
+  assert.equal(h.document.querySelector('[role=dialog]').getAttribute('aria-modal'), null)
+  await React.act(async () => h.fixedInput({ ...input, context: { region: 'editable', modal: 'settings' } }))
+  assert.ok(h.slider())
+  await React.act(async () => h.fixedInput(input))
+  assert.equal(h.slider(), null)
+  assert.equal(consumed, 2)
+})
+
+for (const cancellation of ['pointercancel', 'lostpointercapture', 'blur', 'windowblur', 'Escape']) {
+  await test(`${cancellation} 이후 늦게 도착한 포인터 해제는 변경을 확정하지 않는다`, async (t) => {
+    const h = await mount(t)
+    await h.click('.dsh-codex-trigger')
+    const input = h.slider()
+    await h.change(2)
+    await React.act(async () => {
+      if (cancellation === 'Escape')
+        input.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      else if (cancellation === 'windowblur') h.window.dispatchEvent(new h.window.Event('blur'))
+      else if (cancellation === 'blur') input.dispatchEvent(new h.window.Event('blur', { bubbles: true }))
+      else input.dispatchEvent(new h.window.PointerEvent(cancellation, { bubbles: true, pointerId: 7 }))
+      input.dispatchEvent(new h.window.PointerEvent('pointerup', { bubbles: true, pointerId: 7 }))
+    })
+    assert.equal(h.requests.length, 0)
+    if (h.slider()) assert.equal(h.slider().value, '1')
+  })
+}
+
+await test('모든 로케일이 동일한 UI 키와 비어 있지 않은 번역을 제공한다', async () => {
+  const languages = ['en', 'ko', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt']
+  const resources = await Promise.all(
+    languages.map(async (language) =>
+      JSON.parse(await readFile(new URL('../locale/' + language + '.json', import.meta.url), 'utf8'))
+    )
+  )
+  const keys = Object.keys(resources[0].ui).sort()
+  for (const resource of resources) {
+    assert.deepEqual(Object.keys(resource.ui).sort(), keys)
+    assert.ok(Object.values(resource.ui).every((value) => typeof value === 'string' && value.trim()))
+  }
+})
+
+await test('수정 키와 조합 중 입력 및 취소된 키는 슬라이더를 확정하지 않는다', async (t) => {
+  const h = await mount(t)
+  await h.click('.dsh-codex-trigger')
+  const input = h.slider()
+  for (const options of [
+    { altKey: true },
+    { ctrlKey: true },
+    { metaKey: true },
+    { shiftKey: true },
+    { isComposing: true },
+  ]) {
+    await React.act(async () => {
+      const down = new h.window.KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        bubbles: true,
+        cancelable: true,
+        ...options,
+      })
+      input.dispatchEvent(down)
+      assert.equal(down.defaultPrevented, !options.isComposing)
+      input.dispatchEvent(new h.window.KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true, ...options }))
+    })
+  }
+  await React.act(async () => {
+    const down = new h.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+    down.preventDefault()
+    input.dispatchEvent(down)
+    input.dispatchEvent(new h.window.KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }))
+  })
+  assert.equal(h.requests.length, 0)
+})
+
+await test('검색 결과의 강조 행을 가까운 위치로 스크롤한다', async (t) => {
+  const h = await mount(t)
+  const seen = []
+  h.window.HTMLElement.prototype.scrollIntoView = function (options) {
+    seen.push([this.id, options.block])
+  }
+  await React.act(async () =>
+    h.update({
+      groups: [
+        {
+          id: 'provider',
+          name: 'Provider',
+          models: ['first', 'second', 'third', 'fourth', 'fifth'].map((id) => ({ id, name: id })),
+        },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  const input = h.document.querySelector('[role=searchbox]')
+  assert.ok(input)
+  const before = input.getAttribute('aria-activedescendant')
+  await React.act(async () =>
+    input.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+  )
+  const after = input.getAttribute('aria-activedescendant')
+  assert.notEqual(after, before)
+  assert.deepEqual(seen.at(-1), [after, 'nearest'])
+  assert.equal(h.document.getElementById(after).getAttribute('role'), 'option')
+})
+
+await test('검색 결과에 포인터를 움직이면 단일 강조 행을 갱신하고 탭 순서에서 제외한다', async (t) => {
+  const h = await mount(t)
+  await React.act(async () =>
+    h.update({
+      groups: [
+        {
+          id: 'provider',
+          name: 'Provider',
+          models: ['first', 'second', 'third', 'fourth', 'fifth'].map((id) => ({ id, name: id })),
+        },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  const options = [...h.document.querySelectorAll('[role=option]')]
+  assert.ok(options.every((option) => option.tabIndex === -1))
+  await React.act(async () => options[3].dispatchEvent(new h.window.MouseEvent('mousemove', { bubbles: true })))
+  assert.deepEqual([...h.document.querySelectorAll('[data-highlighted]')], [options[3]])
+  assert.equal(h.document.querySelector('[role=searchbox]').getAttribute('aria-activedescendant'), options[3].id)
+  assert.equal(options[3].parentElement.getAttribute('role'), 'group')
+  assert.equal(options[3].parentElement.querySelector('.dsh-codex-provider').getAttribute('aria-hidden'), 'true')
+})
+
+await test('모바일에서는 검색을 자동으로 포커스하지 않고 트리거에 둔다', async (t) => {
+  const h = await mount(t, { mobile: true })
+  await React.act(async () =>
+    h.update({
+      current: null,
+      groups: [
+        {
+          id: 'provider',
+          name: 'Provider',
+          models: ['first', 'second', 'third', 'fourth', 'fifth'].map((id) => ({ id, name: id })),
+        },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  assert.ok(h.document.querySelector('[role=searchbox]'))
+  assert.equal(h.document.activeElement, h.document.querySelector('.dsh-codex-trigger'))
+})
+
+await test('모델 로딩 뒤 검색창이 나타나면 데스크톱에서 검색창에 포커스한다', async (t) => {
+  const h = await mount(t)
+  await React.act(async () => h.update({ current: null, groups: [], status: 'loading' }))
+  await h.click('.dsh-codex-trigger')
+  await React.act(async () =>
+    h.update({
+      status: 'ready',
+      groups: [
+        {
+          id: 'provider',
+          name: 'Provider',
+          models: ['first', 'second', 'third', 'fourth', 'fifth'].map((id) => ({ id, name: id })),
+        },
+      ],
+    })
+  )
+  assert.equal(h.document.activeElement, h.document.querySelector('[role=searchbox]'))
 })

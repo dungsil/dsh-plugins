@@ -17,6 +17,8 @@
     "error": "Die Auswahl konnte nicht geändert werden. Prüfen Sie die aktuelle Auswahl vor einem erneuten Versuch.",
     "retry": "Modelle neu laden",
     "busy": "Wird geändert…",
-    "apply": "Anwenden"
+    "apply": "Anwenden",
+    "search": "Modelle suchen",
+    "searchEmpty": "Keine passenden Modelle."
   }
 }

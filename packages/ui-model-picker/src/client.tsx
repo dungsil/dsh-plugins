@@ -19,8 +19,20 @@ import {
   IconDataOutlineRegular,
   IconResetOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
-import { MenuSurface, Tooltip, focusWithoutRing, useDismissOnOutsidePointer } from '@dungsil/dsh-ui'
+import {
+  Input,
+  MenuSurface,
+  Tooltip,
+  focusWithoutRing,
+  isMobileDevice,
+  rankByName,
+  useDismissOnOutsidePointer,
+} from '@dungsil/dsh-ui'
 import { styles } from './styles.js'
+import { registerRetention } from './retention.js'
+import en from '../locale/en.json' with { type: 'json' }
+import ko from '../locale/ko.json' with { type: 'json' }
+import zh from '../locale/zh.json' with { type: 'json' }
 import ja from '../locale/ja.json' with { type: 'json' }
 import es from '../locale/es.json' with { type: 'json' }
 import fr from '../locale/fr.json' with { type: 'json' }
@@ -38,54 +50,9 @@ const copy = {
   de: de.ui,
   ru: ru.ui,
   pt: pt.ui,
-  ko: {
-    model: '모델 선택',
-    effort: '추론 강도',
-    choose: '추론 수준 선택',
-    configure: '추론 수준 설정',
-    openPicker: '모델 피커 열기',
-    reset: '기본값으로 재설정',
-    loading: '모델을 불러오는 중입니다…',
-    empty: '사용할 수 있는 모델이 없습니다.',
-    partial: '일부 제공자의 모델을 불러오지 못했습니다.',
-    missing: '현재 모델을 사용할 수 없습니다.',
-    error: '변경하지 못했습니다. 현재 선택을 확인한 뒤 다시 시도하세요.',
-    retry: '모델 목록 새로고침',
-    busy: '변경 중…',
-    apply: '적용',
-  },
-  en: {
-    model: 'Select model',
-    effort: 'Reasoning effort',
-    choose: 'Select reasoning effort',
-    configure: 'Configure reasoning effort',
-    openPicker: 'Open model picker',
-    reset: 'Reset to default',
-    loading: 'Loading models…',
-    empty: 'No models available.',
-    partial: 'Some providers could not be loaded.',
-    missing: 'The current model is unavailable.',
-    error: 'Could not change the selection. Check the current selection before retrying.',
-    retry: 'Reload models',
-    busy: 'Changing…',
-    apply: 'Apply',
-  },
-  zh: {
-    model: '选择模型',
-    effort: '推理强度',
-    choose: '选择推理级别',
-    configure: '设置推理级别',
-    openPicker: '打开模型选择器',
-    reset: '重置为默认值',
-    loading: '正在加载模型…',
-    empty: '没有可用的模型。',
-    partial: '部分提供商的模型加载失败。',
-    missing: '当前模型不可用。',
-    error: '更改失败。请确认当前选择后重试。',
-    retry: '刷新模型列表',
-    busy: '正在更改…',
-    apply: '应用',
-  },
+  ko: ko.ui,
+  en: en.ui,
+  zh: zh.ui,
 }
 
 const localizedCopy = (language: string) => {
@@ -94,6 +61,7 @@ const localizedCopy = (language: string) => {
 }
 
 export function apply(ctx: Context) {
+  registerRetention(ctx)
   const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
   const pickers = new Map<HTMLDivElement, { disabled: boolean; open: () => void }>()
   const binding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt'] }
@@ -182,6 +150,12 @@ export function apply(ctx: Context) {
     // effort is committed, so the real model never changes first.
     const [staged, setStaged] = useState<{ provider: string; model: string } | null>(null)
     const [draft, setDraft] = useState(0)
+    const [query, setQuery] = useState('')
+    const [highlighted, setHighlighted] = useState<number | null>(null)
+    const gesture = useRef<{ kind: 'pointer' | 'keyboard'; start: number; pointerId?: number } | null>(null)
+    const draftRef = useRef(0)
+    const returnToModelButton = useRef(false)
+    const focusPanel = useRef<string | null>(null)
     const [failed, setFailed] = useState(false)
     const trigger = useRef<HTMLButtonElement | null>(null)
     const anchor = useRef<HTMLDivElement>(null)
@@ -206,6 +180,33 @@ export function apply(ctx: Context) {
     const effortIndex = efforts.findIndex((item) => item.id === effective)
     const effortLabel = efforts.length ? (efforts[effortIndex]?.name ?? state.retainedEffort) : undefined
     const stagedName = stagedModel?.name ?? (staged ? staged.model : current?.model) ?? text.model
+    const orderedGroups = [...state.groups].sort((a, b) => {
+      const priority = (id: string) => (id === 'deepseek-account' ? 0 : id === 'deepseek-official' ? 1 : 2)
+      return priority(a.id) - priority(b.id)
+    })
+    const showSearch = state.groups.reduce((count, provider) => count + provider.models.length, 0) > 4
+    const filteredGroups = orderedGroups
+      .map((provider) => ({
+        ...provider,
+        models: rankByName(provider.models, showSearch ? query.trim() : ''),
+      }))
+      .filter((provider) => provider.models.length > 0)
+    const visibleModels = filteredGroups.flatMap((provider) =>
+      provider.models.map((option) => ({ provider: provider.id, option }))
+    )
+    const selectedVisible = visibleModels.findIndex(
+      ({ provider, option }) => provider === current?.provider && option.id === current?.model
+    )
+    const activeIndex = Math.min(highlighted ?? Math.max(0, selectedVisible), visibleModels.length - 1)
+    const setSliderDraft = (value: number) => {
+      draftRef.current = value
+      setDraft(value)
+    }
+    const cancelGesture = () => {
+      if (!gesture.current) return
+      setSliderDraft(gesture.current.start)
+      gesture.current = null
+    }
     const busy = state.status === 'selecting'
     const disabled = locked || busy
 
@@ -218,6 +219,7 @@ export function apply(ctx: Context) {
     }, [directory])
 
     const close = () => {
+      gesture.current = null
       sliderSelection.current = null
       setPanel(null)
       setStaged(null)
@@ -238,6 +240,7 @@ export function apply(ctx: Context) {
       anchor,
       panel !== null,
       () => {
+        gesture.current = null
         sliderSelection.current = null
         setPanel(null)
         setStaged(null)
@@ -263,9 +266,66 @@ export function apply(ctx: Context) {
       window.addEventListener('resize', close)
       window.addEventListener('scroll', scroll, true)
       const keydown = (event: KeyboardEvent) => {
-        if (event.key === 'Escape') {
+        if (
+          event.defaultPrevented ||
+          event.isComposing ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          (event.shiftKey && event.key !== 'Tab')
+        )
+          return
+        if (event.key === 'Escape' || (event.key === 'Tab' && event.shiftKey)) {
           event.preventDefault()
-          close()
+          cancelGesture()
+          if (panel === 'model' && stagedEfforts.length) {
+            returnToModelButton.current = true
+            setPanel('effort')
+          } else close()
+          return
+        }
+        if (
+          panel === 'model' &&
+          event.key === 'ArrowLeft' &&
+          stagedEfforts.length &&
+          (!(event.target instanceof HTMLInputElement) || event.target.value === '')
+        ) {
+          event.preventDefault()
+          returnToModelButton.current = true
+          setPanel('effort')
+          return
+        }
+        if (
+          panel === 'effort' &&
+          event.key === 'ArrowRight' &&
+          event.target === element.querySelector('.dsh-codex-model')
+        ) {
+          event.preventDefault()
+          setQuery('')
+          setHighlighted(null)
+          setPanel('model')
+          return
+        }
+        if (panel === 'model' && showSearch && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+          event.preventDefault()
+          if (!disabled && visibleModels.length) {
+            setHighlighted(
+              (activeIndex + (event.key === 'ArrowUp' ? -1 : 1) + visibleModels.length) % visibleModels.length
+            )
+            element.querySelector<HTMLInputElement>('[role=searchbox]')?.focus()
+          }
+          return
+        }
+        if (
+          panel === 'model' &&
+          event.target instanceof HTMLInputElement &&
+          event.target.type !== 'range' &&
+          (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey)) &&
+          activeIndex >= 0
+        ) {
+          event.preventDefault()
+          const choice = visibleModels[activeIndex]
+          if (!disabled && choice) stageModel(choice.provider, choice.option)
           return
         }
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || event.target instanceof HTMLInputElement)
@@ -283,21 +343,54 @@ export function apply(ctx: Context) {
         ]?.focus()
       }
       element.addEventListener('keydown', keydown)
-      const focusable =
-        element.querySelector<HTMLElement>('[aria-current=true]') ??
-        element.querySelector<HTMLElement>('input:not(:disabled)') ??
-        element.querySelector<HTMLElement>('button:not(:disabled)')
-      focusable?.focus()
       return () => {
         observer.disconnect()
         window.removeEventListener('resize', close)
         window.removeEventListener('scroll', scroll, true)
         element.removeEventListener('keydown', keydown)
       }
+    }, [panel, showSearch, query, highlighted, state.groups, current, stagedEfforts.length, disabled])
+
+    useLayoutEffect(() => {
+      const element = popup.current
+      if (!panel || !element) {
+        focusPanel.current = null
+        return
+      }
+      const changedPanel = focusPanel.current !== panel
+      focusPanel.current = panel
+      if (!changedPanel && !element.contains(document.activeElement) && document.activeElement !== trigger.current)
+        return
+      if (panel === 'model' && isMobileDevice()) {
+        trigger.current?.focus()
+        returnToModelButton.current = false
+        return
+      }
+      const focusable =
+        (returnToModelButton.current ? element.querySelector<HTMLElement>('.dsh-codex-model:not(:disabled)') : null) ??
+        element.querySelector<HTMLElement>('[role=searchbox]:not(:disabled)') ??
+        element.querySelector<HTMLElement>('[aria-current=true]') ??
+        element.querySelector<HTMLElement>('input:not(:disabled)') ??
+        element.querySelector<HTMLElement>('button:not(:disabled)')
+      returnToModelButton.current = false
+      focusable?.focus()
+    }, [panel, showSearch])
+
+    const visibleIdentity = visibleModels.map(({ provider, option }) => JSON.stringify([provider, option.id])).join(',')
+    useLayoutEffect(() => {
+      if (panel !== 'model' || !showSearch || activeIndex < 0) return
+      document.getElementById(id + '-model-' + activeIndex)?.scrollIntoView?.({ block: 'nearest' })
+    }, [panel, showSearch, activeIndex, visibleIdentity, id])
+
+    useEffect(() => {
+      if (!panel) return
+      window.addEventListener('blur', cancelGesture)
+      return () => window.removeEventListener('blur', cancelGesture)
     }, [panel])
 
     useEffect(() => {
       if (locked) {
+        gesture.current = null
         restorePopupFocus()
         sliderSelection.current = null
         setPanel(null)
@@ -319,6 +412,7 @@ export function apply(ctx: Context) {
         setStaged(null)
         return
       }
+      gesture.current = null
       restorePopupFocus()
       setPanel(null)
       setStaged(null)
@@ -352,7 +446,9 @@ export function apply(ctx: Context) {
         return
       }
       setStaged(null)
-      setDraft(Math.max(0, effortIndex))
+      setQuery('')
+      setHighlighted(null)
+      setSliderDraft(Math.max(0, effortIndex))
       setFailed(false)
       setPanel('effort')
       void directory.load().catch(() => {})
@@ -363,11 +459,7 @@ export function apply(ctx: Context) {
       pickers.set(element, {
         disabled,
         open: () => {
-          if (panel) {
-            popup.current?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus()
-          } else if (trigger.current) {
-            show(trigger.current)
-          }
+          if (trigger.current) show(trigger.current)
         },
       })
       return () => {
@@ -414,7 +506,7 @@ export function apply(ctx: Context) {
         ? (current?.reasoningEffort ?? optionReasoning?.defaultEffort)
         : (optionReasoning?.defaultEffort ?? current?.reasoningEffort)
       setStaged({ provider, model: option.id })
-      setDraft(
+      setSliderDraft(
         Math.max(
           0,
           optionEfforts.findIndex((item) => item.id === preferredEffort)
@@ -442,6 +534,21 @@ export function apply(ctx: Context) {
               aria-controls={panel ? id : undefined}
               onClick={(event) => {
                 if (!disabled) show(event.currentTarget)
+              }}
+              onKeyDown={(event) => {
+                if (
+                  !panel &&
+                  !disabled &&
+                  !event.altKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing &&
+                  (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+                ) {
+                  event.preventDefault()
+                  show(event.currentTarget)
+                }
               }}
             />
           </Tooltip>
@@ -484,7 +591,11 @@ export function apply(ctx: Context) {
                     aria-disabled={disabled}
                     title={stagedName}
                     onClick={() => {
-                      if (!disabled) setPanel('model')
+                      if (!disabled) {
+                        setQuery('')
+                        setHighlighted(null)
+                        setPanel('model')
+                      }
                     }}
                   >
                     <strong>{stagedEfforts[draft]?.name}</strong>
@@ -530,19 +641,64 @@ export function apply(ctx: Context) {
               )}
               {panel === 'model' ? (
                 <>
-                  <div className="dsh-codex-models" role="group" aria-label={text.model}>
-                    {state.groups.map((provider) => (
-                      <section key={provider.id} aria-label={provider.name}>
-                        <div className="dsh-codex-provider">{provider.name}</div>
+                  {showSearch && (
+                    <Input
+                      type="text"
+                      role="searchbox"
+                      className="dsh-codex-search"
+                      aria-label={text.search}
+                      placeholder={text.search}
+                      value={query}
+                      readOnly={busy}
+                      aria-controls={id + '-models'}
+                      aria-activedescendant={activeIndex < 0 ? undefined : id + '-model-' + activeIndex}
+                      onChange={(event) => {
+                        setQuery(event.target.value)
+                        setHighlighted(0)
+                      }}
+                    />
+                  )}
+                  <div id={id + '-models'} className="dsh-codex-models" role="listbox" aria-label={text.model}>
+                    {filteredGroups.map((provider) => (
+                      <section key={provider.id} role="group" aria-label={provider.name}>
+                        <div className="dsh-codex-provider" aria-hidden="true">
+                          {provider.name}
+                        </div>
                         {provider.models.map((option) => (
                           <button
                             type="button"
+                            role="option"
+                            aria-selected={provider.id === current?.provider && option.id === current?.model}
                             aria-current={
                               provider.id === current?.provider && option.id === current?.model ? 'true' : undefined
                             }
                             className="dsh-codex-option"
+                            id={
+                              id +
+                              '-model-' +
+                              visibleModels.findIndex(
+                                (item) => item.provider === provider.id && item.option.id === option.id
+                              )
+                            }
+                            data-search-option={showSearch ? '' : undefined}
+                            data-highlighted={
+                              showSearch &&
+                              visibleModels[activeIndex]?.provider === provider.id &&
+                              visibleModels[activeIndex]?.option.id === option.id
+                                ? ''
+                                : undefined
+                            }
                             key={option.id}
                             disabled={disabled}
+                            tabIndex={showSearch ? -1 : undefined}
+                            onMouseMove={() => {
+                              if (showSearch)
+                                setHighlighted(
+                                  visibleModels.findIndex(
+                                    (item) => item.provider === provider.id && item.option.id === option.id
+                                  )
+                                )
+                            }}
                             onClick={() => stageModel(provider.id, option)}
                           >
                             <span>
@@ -559,9 +715,9 @@ export function apply(ctx: Context) {
                       </section>
                     ))}
                   </div>
-                  {state.status !== 'loading' && !state.groups.some((provider) => provider.models.length) && (
+                  {state.status !== 'loading' && visibleModels.length === 0 && (
                     <p className="dsh-codex-notice" role="status">
-                      {text.empty}
+                      {state.groups.some((provider) => provider.models.length) ? text.searchEmpty : text.empty}
                     </p>
                   )}
                   <button
@@ -604,10 +760,86 @@ export function apply(ctx: Context) {
                         aria-label={text.effort}
                         aria-valuetext={stagedEfforts[draft]?.name}
                         onChange={(event) => {
-                          if (!disabled) setDraft(Number(event.target.value))
+                          if (!disabled) setSliderDraft(Number(event.target.value))
                         }}
-                        onPointerUp={() => selectEffort(draft)}
+                        onPointerDown={(event) => {
+                          if (disabled) return
+                          gesture.current = { kind: 'pointer', start: draftRef.current, pointerId: event.pointerId }
+                          event.currentTarget.setPointerCapture?.(event.pointerId)
+                        }}
+                        onPointerUp={(event) => {
+                          if (gesture.current?.kind !== 'pointer' || gesture.current.pointerId !== event.pointerId)
+                            return
+                          gesture.current = null
+                          selectEffort(draftRef.current)
+                        }}
+                        onPointerCancel={(event) => {
+                          if (gesture.current?.kind === 'pointer' && gesture.current.pointerId === event.pointerId)
+                            cancelGesture()
+                        }}
+                        onLostPointerCapture={(event) => {
+                          if (gesture.current?.kind === 'pointer' && gesture.current.pointerId === event.pointerId)
+                            cancelGesture()
+                        }}
+                        onBlur={cancelGesture}
+                        onKeyDown={(event) => {
+                          if (
+                            !event.nativeEvent.isComposing &&
+                            (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) &&
+                            [
+                              'ArrowLeft',
+                              'ArrowRight',
+                              'ArrowUp',
+                              'ArrowDown',
+                              'Home',
+                              'End',
+                              'PageUp',
+                              'PageDown',
+                            ].includes(event.key)
+                          ) {
+                            event.preventDefault()
+                            if (gesture.current?.kind === 'keyboard') cancelGesture()
+                            return
+                          }
+                          if (
+                            event.defaultPrevented ||
+                            event.nativeEvent.isComposing ||
+                            event.altKey ||
+                            event.ctrlKey ||
+                            event.metaKey ||
+                            event.shiftKey
+                          )
+                            return
+                          if (event.key === 'Escape') cancelGesture()
+                          else if (
+                            !disabled &&
+                            [
+                              'ArrowLeft',
+                              'ArrowRight',
+                              'ArrowUp',
+                              'ArrowDown',
+                              'Home',
+                              'End',
+                              'PageUp',
+                              'PageDown',
+                            ].includes(event.key) &&
+                            !gesture.current
+                          ) {
+                            gesture.current = { kind: 'keyboard', start: draftRef.current }
+                          }
+                        }}
                         onKeyUp={(event) => {
+                          if (
+                            event.defaultPrevented ||
+                            event.nativeEvent.isComposing ||
+                            event.altKey ||
+                            event.ctrlKey ||
+                            event.metaKey ||
+                            event.shiftKey
+                          ) {
+                            if (gesture.current?.kind === 'keyboard') cancelGesture()
+                            return
+                          }
                           if (
                             [
                               'ArrowLeft',
@@ -620,7 +852,9 @@ export function apply(ctx: Context) {
                               'PageDown',
                             ].includes(event.key)
                           ) {
-                            selectEffort(draft)
+                            if (gesture.current?.kind !== 'keyboard') return
+                            gesture.current = null
+                            selectEffort(draftRef.current)
                           }
                         }}
                       />
