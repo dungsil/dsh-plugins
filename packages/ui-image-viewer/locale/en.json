@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "title": "Image Viewer",
+    "description": "Show progress while conversation images download, and move between a conversation's images in the image preview."
+  },
+  "ui": {
+    "previous": "Previous image",
+    "next": "Next image"
+  }
+}

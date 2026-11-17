@@ -21,6 +21,7 @@
   "errorPushFailed": "The commit was created, but the push failed. Check the remote and your credentials.",
   "errorNotPushed": "Push this branch before creating a PR.",
   "errorUnsupported": "Creating a PR is not supported for this code host.",
+  "errorPrUnavailable": "The code host CLI (gh, glab or tea) is not installed on the host. Install it, then try again.",
   "errorPrFailed": "Could not create the PR. Check that the code host CLI is signed in.",
   "checks": "Checks",
   "none": "No checks",

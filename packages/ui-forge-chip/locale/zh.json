@@ -21,6 +21,7 @@
   "errorPushFailed": "已创建提交，但推送失败。请检查远程仓库和凭据。",
   "errorNotPushed": "创建 PR 前请先推送此分支。",
   "errorUnsupported": "此代码托管平台不支持创建 PR。",
+  "errorPrUnavailable": "主机上未安装代码托管平台 CLI（gh、glab 或 tea）。请安装后重试。",
   "errorPrFailed": "无法创建 PR。请检查代码托管平台 CLI 是否已登录。",
   "checks": "检查",
   "none": "无检查",

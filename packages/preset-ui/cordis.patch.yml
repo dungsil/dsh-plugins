@@ -14,6 +14,10 @@
       name: '@dungsil/dsh-plugin-ui-forge-worktree'
     - id: dungsil-ui-image-paths
       name: '@dungsil/dsh-plugin-ui-image-paths'
+    - id: dungsil-ui-image-viewer
+      name: '@dungsil/dsh-plugin-ui-image-viewer'
+    - id: dungsil-ui-answer-translation
+      name: '@dungsil/dsh-plugin-ui-answer-translation'
     - id: dungsil-sidebar-inbox
       name: '@dungsil/dsh-plugin-ui-sidebar-inbox'
     - id: dungsil-ui-model-settings
@@ -24,6 +28,8 @@
       name: '@dungsil/dsh-plugin-ui-setting-skills'
     - id: dungsil-ui-setting-vcs
       name: '@dungsil/dsh-plugin-ui-setting-vcs'
+    - id: dungsil-ui-token-usage
+      name: '@dungsil/dsh-plugin-ui-token-usage'
     - id: dungsil-ui-usage
       name: '@dungsil/dsh-plugin-ui-usage'
     - id: dungsil-ui-notifications

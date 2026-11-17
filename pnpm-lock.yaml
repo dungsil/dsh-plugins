@@ -610,6 +610,9 @@ importers:
       '@dungsil/dsh-plugin-model-settings':
         specifier: workspace:*
         version: link:../model-settings
+      '@dungsil/dsh-plugin-ui-answer-translation':
+        specifier: workspace:*
+        version: link:../ui-answer-translation
       '@dungsil/dsh-plugin-ui-forge-chip':
         specifier: workspace:*
         version: link:../ui-forge-chip
@@ -622,6 +625,9 @@ importers:
       '@dungsil/dsh-plugin-ui-image-paths':
         specifier: workspace:*
         version: link:../ui-image-paths
+      '@dungsil/dsh-plugin-ui-image-viewer':
+        specifier: workspace:*
+        version: link:../ui-image-viewer
       '@dungsil/dsh-plugin-ui-model-picker':
         specifier: workspace:*
         version: link:../ui-model-picker
@@ -640,6 +646,9 @@ importers:
       '@dungsil/dsh-plugin-ui-sidebar-inbox':
         specifier: workspace:*
         version: link:../ui-sidebar-inbox
+      '@dungsil/dsh-plugin-ui-token-usage':
+        specifier: workspace:*
+        version: link:../ui-token-usage
       '@dungsil/dsh-plugin-ui-turn-rail-left':
         specifier: workspace:*
         version: link:../ui-turn-rail-left
@@ -784,6 +793,70 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
+  packages/ui-answer-translation:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: ^0.2.2-rc.1
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-scope@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))
+      '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-experimental-client-ui-cot-translation':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-experimental-translator@0.2.2-rc.3(5a66608bb1947120dc7fc9425e5833e1))
+      '@deepseek-ai/dsh-experimental-translator':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(5a66608bb1947120dc7fc9425e5833e1)
+      '@deepseek-ai/dsh-session':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-error@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-scope@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
+      '@types/react':
+        specifier: 18.3.31
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.31)
+      franc-min:
+        specifier: 6.2.0
+        version: 6.2.0
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+
   packages/ui-forge-chip:
     dependencies:
       '@deepseek-ai/dsh-client-ui-primitives':
@@ -844,6 +917,12 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: 3.19.0
         version: 3.19.0
+      '@dungsil/dsh-plugin-forge-forgejo':
+        specifier: workspace:*
+        version: link:../forge-forgejo
+      '@dungsil/dsh-plugin-forge-gitea':
+        specifier: workspace:*
+        version: link:../forge-gitea
       '@dungsil/dsh-plugin-model-settings':
         specifier: workspace:*
         version: link:../model-settings
@@ -1138,6 +1217,49 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/ui-image-viewer:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: ^0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
+      '@types/react':
+        specifier: 18.3.31
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: 18.3.7
+        version: 18.3.7(@types/react@18.3.31)
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
 
   packages/ui-model-picker:
     dependencies:
@@ -1518,6 +1640,51 @@ importers:
         specifier: 0.23.4
         version: 0.23.4(typescript@7.0.2)
 
+  packages/ui-token-usage:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
+      '@dungsil/dsh-ui':
+        specifier: workspace:*
+        version: link:../../tools/ui
+      '@types/react':
+        specifier: 18.3.31
+        version: 18.3.31
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      tsdown:
+        specifier: 0.23.4
+        version: 0.23.4(typescript@7.0.2)
+
   packages/ui-turn-rail-left:
     devDependencies:
       '@deepseek-ai/cordis':
@@ -1729,6 +1896,9 @@ importers:
       '@types/react':
         specifier: 18.3.31
         version: 18.3.31
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
       react:
         specifier: 18.3.1
         version: 18.3.1

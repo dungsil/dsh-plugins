@@ -20,6 +20,8 @@ export type ActionErrorCode =
   | 'push-failed'
   | 'not-pushed'
   | 'unsupported'
+  /** The code host CLI that creates PRs is not installed on the Host. */
+  | 'pr-unavailable'
   | 'pr-failed'
 
 export interface CommitResult {

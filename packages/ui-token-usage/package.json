@@ -1,0 +1,87 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-token-usage",
+  "version": "0.0.0",
+  "description": "Show conversation token counts in readable compact units with the exact count.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-token-usage"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-chat": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "happy-dom": "21.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "market": {
+    "order": 23,
+    "title": {
+      "en": "Token Counts",
+      "ko": "토큰 수 표시 개선",
+      "zh": "令牌数显示优化"
+    },
+    "description": {
+      "en": "Show composer usage, turn usage, and context meter token counts in compact units followed by the exact count.",
+      "ko": "입력창 사용량, 턴 사용량, 컨텍스트 미터의 토큰 수를 한국어 만·억 단위 축약값과 정확한 값으로 함께 표시합니다.",
+      "zh": "以紧凑单位并附带精确数值显示输入框用量、轮次用量和上下文占用中的令牌数。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "usage",
+      "tokens",
+      "context",
+      "korean"
+    ]
+  }
+}

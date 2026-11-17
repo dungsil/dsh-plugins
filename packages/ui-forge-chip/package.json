@@ -48,6 +48,8 @@
     "@deepseek-ai/dsh-settings": "0.2.2-rc.3",
     "@deepseek-ai/dsh-working-directory": "0.2.2-rc.3",
     "@deepseek-ai/schemastery": "3.19.0",
+    "@dungsil/dsh-plugin-forge-forgejo": "workspace:*",
+    "@dungsil/dsh-plugin-forge-gitea": "workspace:*",
     "@dungsil/dsh-plugin-model-settings": "workspace:*",
     "@dungsil/dsh-plugin-server": "workspace:*",
     "@dungsil/dsh-task-prompts": "workspace:*",
