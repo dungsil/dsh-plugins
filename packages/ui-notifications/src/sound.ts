@@ -22,9 +22,13 @@ export function createChime(create: () => AudioContextLike) {
   const ensure = () => (context ??= create())
   return {
     unlock() {
-      void ensure()
-        .resume()
-        .catch(() => undefined)
+      try {
+        void ensure()
+          .resume()
+          .catch(() => undefined)
+      } catch {
+        // No Web Audio here: this runs in global gesture listeners, so stay silent instead of throwing.
+      }
     },
     /** Resolve false when the browser keeps audio blocked or unavailable. */
     async play(volume: Volume): Promise<boolean> {

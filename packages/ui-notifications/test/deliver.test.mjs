@@ -128,3 +128,12 @@ await test('부모 순환이 있어도 최상위 세션 탐색이 끝난다', ()
   assert.equal(rootOf({ c: { parentId: 'p' }, p: { parentId: 'r' }, r: {} }, 'c'), 'r')
   assert.equal(rootOf({ a: { parentId: 'gone' } }, 'a'), 'a')
 })
+
+await test('AudioContext를 만들 수 없으면 unlock은 예외를 던지지 않고 play는 false를 반환한다', async () => {
+  const { createChime } = await import('../src/sound.ts')
+  const chime = createChime(() => {
+    throw new Error('unsupported')
+  })
+  assert.doesNotThrow(() => chime.unlock())
+  assert.equal(await chime.play('medium'), false)
+})

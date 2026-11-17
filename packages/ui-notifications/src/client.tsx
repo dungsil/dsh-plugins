@@ -287,7 +287,8 @@ export function apply(ctx: Context) {
     typeof BroadcastChannel === 'function' ? new BroadcastChannel(scopedName(endpoint, 'tabs')) : undefined
   const presence = createPresence({
     channel,
-    tab: crypto.randomUUID(),
+    // randomUUID exists only in secure contexts; plain-HTTP LAN access must still load the plugin.
+    tab: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
     local: () => (document.visibilityState === 'visible' && document.hasFocus() ? mainSession() : null),
   })
   ctx.effect(() => {
