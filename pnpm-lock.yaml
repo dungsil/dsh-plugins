@@ -796,6 +796,9 @@ importers:
       '@deepseek-ai/dsh-api-session-controller':
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(49d6bdcbde77a536771e6e1d2f044e9e)
+      '@deepseek-ai/dsh-client-connection':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-scope@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))
       '@deepseek-ai/dsh-client-locale':
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
@@ -823,6 +826,12 @@ importers:
       '@deepseek-ai/dsh-working-directory':
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(0149fdc93d1e602a15f5a642eb6d6ec5)
+      '@deepseek-ai/schemastery':
+        specifier: 3.19.0
+        version: 3.19.0
+      '@dungsil/dsh-plugin-server':
+        specifier: workspace:*
+        version: link:../../tools/plugin-server
       '@dungsil/dsh-tsconfig':
         specifier: workspace:*
         version: link:../../tools/tsconfig

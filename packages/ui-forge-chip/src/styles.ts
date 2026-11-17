@@ -7,5 +7,7 @@ export const styles = `
 .dsh-forge-chip-trigger svg { flex: none; width: 14px; height: 14px; }
 .dsh-forge-chip-trigger:disabled { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-dimmed); cursor: default; }
 .dsh-forge-chip-trigger:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 0; }
+.dsh-forge-chip-note { min-width: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.dsh-forge-chip-note[role="alert"] { color: var(--dsw-alias-label-primary); }
 @media (pointer: coarse) { .dsh-forge-chip-trigger { min-height: 44px; } .dsh-forge-chip-actions .dsh-forge-chip-menu { min-width: 44px; } }
 `

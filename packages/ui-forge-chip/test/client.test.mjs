@@ -74,7 +74,7 @@ async function mount(options = {}) {
   const openedTabs = []
   const session = { openState: 'open', pendingSubmissions: [], ...options.session }
   let cursor = 0
-  let registered, plugin, tree
+  let registered, plugin, tree, integration
   let language = options.language ?? 'en'
   let cwd = '/repo'
   let sessionId = 'target-session'
@@ -111,10 +111,11 @@ async function mount(options = {}) {
     AbortController,
     document: { head: { append() {} }, createElement: () => ({ remove() {} }) },
     window: {
-      addEventListener: (event, listener) => listeners.set(event, listener),
-      removeEventListener: (event, listener) => {
-        if (listeners.get(event) === listener) listeners.delete(event)
+      addEventListener: (event, listener) => {
+        if (!listeners.has(event)) listeners.set(event, new Set())
+        listeners.get(event).add(listener)
       },
+      removeEventListener: (event, listener) => listeners.get(event)?.delete(listener),
       __ModuleLoader__: {
         load({ factory }) {
           plugin = factory((id) => {
@@ -129,6 +130,17 @@ async function mount(options = {}) {
     },
   })
   const context = {
+    get(service) {
+      return this[service]
+    },
+    connection: {
+      rpc: {
+        async call(channel, method, payload) {
+          calls.push(['rpc', channel, method, payload])
+          return (await options.rpc?.(method, payload)) ?? { ok: true, value: null }
+        },
+      },
+    },
     locale: { getSnapshot: () => ({ active: language }) },
     on(event, listener) {
       events.set(event, listener)
@@ -181,7 +193,7 @@ async function mount(options = {}) {
   plugin.apply(
     new Proxy(context, {
       get(target, key) {
-        if (['locale', 'slots', 'sidebarRight', 'sessions', 'remote'].includes(key)) {
+        if (['locale', 'slots', 'sidebarRight', 'sessions', 'remote', 'connection'].includes(key)) {
           assert.ok(plugin.inject.includes(key), `Service ${String(key)} must be explicitly injected`)
         }
         return target[key]
@@ -197,6 +209,8 @@ async function mount(options = {}) {
       useProjection: () => cwd,
     })
     tree = element.type(element.props)
+    const child = tree?.props.children.at(-1)
+    integration = child && child.type(child.props)
     for (const effect of effects.splice(0)) effect()
     await tick()
     return tree
@@ -220,6 +234,9 @@ async function mount(options = {}) {
     get tree() {
       return tree
     },
+    get integration() {
+      return integration
+    },
     get primary() {
       return tree?.props.children[0].props.children[0].props
     },
@@ -241,8 +258,11 @@ async function mount(options = {}) {
     setSessionId(value) {
       sessionId = value
     },
+    setPanel(value) {
+      streams.at(-1).value.emit(value)
+    },
     focus() {
-      listeners.get('focus')?.()
+      for (const listener of listeners.get('focus') ?? []) listener()
     },
     reset() {
       events.get('connection/reset')?.()
@@ -401,6 +421,119 @@ await test('조회 실패는 전송을 차단하고 포커스로 다시 조회�
     view.focus()
     await view.refresh()
     assert.equal(view.primary.disabled, false)
+  } finally {
+    view.unmount()
+  }
+})
+
+const linked = (overrides = {}) =>
+  panel({ checkout: { state: 'ready', checkout: { branch: 'topic', linked: true } }, ...overrides })
+const proposal = (overrides = {}) => ({
+  source: { root: '/worktree', branch: 'topic', head: 'source-head' },
+  target: { root: '/repo', branch: 'main', head: 'target-head' },
+  method: 'ff',
+  methods: ['ff', 'merge', 'rebase', 'squash'],
+  commits: 1,
+  blocker: null,
+  paths: [],
+  ...overrides,
+})
+const integrationActions = (view) => view.integration?.props.children[0]?.props.children
+
+await test('연결된 워크트리가 아니면 통합 제안을 조회하거나 표시하지 않는다', async () => {
+  const view = await mount({ rpc: () => ({ ok: true, value: proposal() }) })
+  try {
+    assert.equal(view.integration, null)
+    assert.equal(view.calls.filter(([name]) => name === 'rpc').length, 0)
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('Host가 제안한 통합 칩 하나를 표시하고 실행 요청에 대상 브랜치와 양쪽 HEAD를 그대로 보낸다', async () => {
+  const view = await mount({
+    panel: linked(),
+    rpc: (method) =>
+      method.endsWith('/inspect') ? { ok: true, value: proposal() } : { ok: true, value: { method: 'rebase' } },
+  })
+  try {
+    await view.refresh()
+    const [primary, menu] = integrationActions(view)
+    assert.equal(primary.props.children[1], 'Fast-forward main')
+    assert.equal(primary.props.disabled, false)
+    assert.deepEqual(
+      menu.props.items.map(({ label }) => label),
+      ['Fast-forward main', 'Merge into main', 'Rebase onto main', 'Squash into main']
+    )
+    const rpc = () => JSON.parse(JSON.stringify(view.calls.filter(([name]) => name === 'rpc')))
+    assert.deepEqual(
+      rpc().map(([, , method, payload]) => [method, payload]),
+      [['dungsil-forge-integration/inspect', { sessionId: 'target-session' }]]
+    )
+    menu.props.onSelect('rebase')
+    await view.refresh()
+    assert.deepEqual(
+      rpc()
+        .filter(([, , method]) => method.endsWith('/run'))
+        .at(-1)[3],
+      {
+        sessionId: 'target-session',
+        method: 'rebase',
+        targetBranch: 'main',
+        targetHead: 'target-head',
+        sourceHead: 'source-head',
+      }
+    )
+    assert.equal(view.integration.props.children[2].props.children, 'Integrated into main.')
+    assert.equal(view.messages.length, 0)
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('통합을 실행할 수 없으면 칩을 비활성 상태로 유지하고 모든 로케일에서 이유를 표시한다', async () => {
+  for (const language of Object.keys(locales)) {
+    const view = await mount({
+      language,
+      panel: linked(),
+      rpc: (method) =>
+        method.endsWith('/inspect')
+          ? { ok: true, value: proposal({ blocker: 'overlap', paths: ['a.txt', 'b.txt'] }) }
+          : assert.fail('A blocked integration must not run'),
+    })
+    try {
+      await view.refresh()
+      const [primary, menu] = integrationActions(view)
+      assert.equal(primary.props.disabled, true)
+      assert.equal(menu.props.anchor.props.disabled, true)
+      primary.props.onClick()
+      menu.props.onSelect('merge')
+      assert.equal(
+        view.integration.props.children[1].props.children,
+        locales[language].blockedOverlap.replace('{paths}', 'a.txt, b.txt')
+      )
+    } finally {
+      view.unmount()
+    }
+  }
+})
+
+await test('통합 실패 응답의 진단을 경고와 함께 보여준다', async () => {
+  const view = await mount({
+    panel: linked(),
+    rpc: (method) =>
+      method.endsWith('/inspect')
+        ? { ok: true, value: proposal() }
+        : { ok: false, error: { code: 'cleanup-refused', message: '', details: { diagnostic: 'MERGE_HEAD' } } },
+  })
+  try {
+    await view.refresh()
+    integrationActions(view)[0].props.onClick()
+    await view.refresh()
+    const notice = view.integration.props.children[2].props
+    assert.equal(notice.role, 'alert')
+    assert.equal(notice.children, locales.en.integrationCleanupRefused)
+    assert.equal(notice.title, 'MERGE_HEAD')
   } finally {
     view.unmount()
   }
