@@ -255,14 +255,18 @@ export function apply(ctx: Context) {
       return priority(a.id) - priority(b.id)
     })
     const showSearch = state.groups.reduce((count, provider) => count + provider.models.length, 0) > 4
+    let globalIndex = 0
     const filteredGroups = orderedGroups
       .map((provider) => ({
         ...provider,
-        models: rankByName(provider.models, showSearch ? query.trim() : ''),
+        models: rankByName(provider.models, showSearch ? query.trim() : '').map((option) => ({
+          option,
+          index: globalIndex++,
+        })),
       }))
       .filter((provider) => provider.models.length > 0)
     const visibleModels = filteredGroups.flatMap((provider) =>
-      provider.models.map((option) => ({ provider: provider.id, option }))
+      provider.models.map(({ option, index }) => ({ provider: provider.id, option, index }))
     )
     const selectedVisible = visibleModels.findIndex(
       ({ provider, option }) => provider === current?.provider && option.id === current?.model
@@ -856,7 +860,7 @@ export function apply(ctx: Context) {
                         <div className="dsh-codex-provider" aria-hidden="true">
                           {provider.name}
                         </div>
-                        {provider.models.map((option) => (
+                        {provider.models.map(({ option, index }) => (
                           <button
                             type="button"
                             role="option"
@@ -865,31 +869,14 @@ export function apply(ctx: Context) {
                               provider.id === current?.provider && option.id === current?.model ? 'true' : undefined
                             }
                             className="dsh-codex-option"
-                            id={
-                              id +
-                              '-model-' +
-                              visibleModels.findIndex(
-                                (item) => item.provider === provider.id && item.option.id === option.id
-                              )
-                            }
+                            id={id + '-model-' + index}
                             data-search-option={showSearch ? '' : undefined}
-                            data-highlighted={
-                              showSearch &&
-                              visibleModels[activeIndex]?.provider === provider.id &&
-                              visibleModels[activeIndex]?.option.id === option.id
-                                ? ''
-                                : undefined
-                            }
+                            data-highlighted={showSearch && activeIndex === index ? '' : undefined}
                             key={option.id}
                             disabled={disabled}
                             tabIndex={showSearch ? -1 : undefined}
                             onMouseMove={() => {
-                              if (showSearch)
-                                setHighlighted(
-                                  visibleModels.findIndex(
-                                    (item) => item.provider === provider.id && item.option.id === option.id
-                                  )
-                                )
+                              if (showSearch) setHighlighted(index)
                             }}
                             onClick={() => stageModel(provider.id, option)}
                           >

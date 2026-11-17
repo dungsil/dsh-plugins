@@ -779,6 +779,51 @@ await test('검색 결과에 포인터를 움직이면 단일 강조 행을 갱�
   assert.equal(options[3].parentElement.querySelector('.dsh-codex-provider').getAttribute('aria-hidden'), 'true')
 })
 
+await test('검색 결과 인덱스를 제공자 전체에서 다시 계산하고 같은 모델 ID도 원본 변경 없이 구분한다', async (t) => {
+  const h = await mount(t)
+  const initial = h.snapshot().groups[0]
+  const shared = Object.freeze({ id: 'shared', name: 'Shared Provider' })
+  await React.act(async () =>
+    h.update({
+      groups: [
+        { ...initial, models: [initial.models[0], shared, Object.freeze({ id: 'more', name: 'More' })] },
+        {
+          id: 'deepseek-official',
+          name: 'Official',
+          models: [
+            Object.freeze({ id: 'shared', name: 'Shared Official' }),
+            Object.freeze({ id: 'last', name: 'Last' }),
+          ],
+        },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const rows = () => [...h.document.querySelectorAll('[role=option]')]
+  assert.equal(rows().length, 5)
+  assert.ok(rows().every((row, index) => row.id.endsWith('-model-' + index)))
+  const search = h.document.querySelector('[role=searchbox]')
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(h.window.HTMLInputElement.prototype, 'value').set.call(search, 'shared')
+    search.dispatchEvent(new h.window.Event('input', { bubbles: true }))
+  })
+  assert.deepEqual(
+    rows().map((row) => row.textContent),
+    ['Shared Official', 'Shared Provider']
+  )
+  assert.ok(rows().every((row, index) => row.id.endsWith('-model-' + index)))
+  const providerRow = rows()[1]
+  await React.act(async () => providerRow.dispatchEvent(new h.window.MouseEvent('mousemove', { bubbles: true })))
+  assert.equal(search.getAttribute('aria-activedescendant'), providerRow.id)
+  assert.deepEqual([...h.document.querySelectorAll('[data-highlighted]')], [providerRow])
+  await React.act(async () =>
+    search.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  assert.deepEqual({ ...h.requests.at(-1).selection }, { provider: 'provider', model: 'shared' })
+  assert.deepEqual(Object.keys(shared), ['id', 'name'])
+})
+
 await test('모바일에서는 검색을 자동으로 포커스하지 않고 트리거에 둔다', async (t) => {
   const h = await mount(t, { mobile: true })
   await React.act(async () =>
@@ -903,6 +948,106 @@ for (const query of ['', 'zzzz']) {
     assert.equal(h.requests.length, 0)
   })
 }
+
+await test('검색창의 Tab은 강조된 모델의 강도를 준비하고 Shift Tab 두 번으로 선택 없이 닫는다', async (t) => {
+  const h = await mount(t)
+  const initial = h.snapshot().groups[0]
+  await React.act(async () =>
+    h.update({
+      groups: [
+        { ...initial, models: [...initial.models, ...['third', 'fourth', 'fifth'].map((id) => ({ id, name: id }))] },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const search = h.document.querySelector('[role=searchbox]')
+  const tab = new h.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+  await React.act(async () => search.dispatchEvent(tab))
+  assert.equal(tab.defaultPrevented, true)
+  assert.ok(h.slider())
+  assert.equal(h.requests.length, 0)
+  await h.click('.dsh-codex-model')
+  await React.act(async () =>
+    h.document.activeElement.dispatchEvent(
+      new h.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    )
+  )
+  assert.ok(h.slider())
+  await React.act(async () =>
+    h.document.activeElement.dispatchEvent(
+      new h.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    )
+  )
+  assert.equal(h.document.querySelector('[role=dialog]'), null)
+  assert.equal(h.document.activeElement, h.document.querySelector('.dsh-codex-trigger'))
+  assert.equal(h.requests.length, 0)
+})
+
+await test('검색창에서 위쪽 방향키와 End로 새로고침 버튼에 도달하고 모델 선택 없이 다시 불러온다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('first', 'medium')] })
+  const initial = h.snapshot().groups[0]
+  await React.act(async () =>
+    h.update({
+      groups: [
+        { ...initial, models: [...initial.models, ...['third', 'fourth', 'fifth'].map((id) => ({ id, name: id }))] },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const search = h.document.querySelector('[role=searchbox]')
+  assert.equal(h.document.activeElement, search)
+  await React.act(async () =>
+    search.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+  )
+  assert.ok(h.document.activeElement.closest('.dsh-codex-favorites'))
+  await React.act(async () =>
+    h.document.activeElement.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'End', bubbles: true }))
+  )
+  const reload = h.document.activeElement
+  assert.equal(reload.textContent, '모델 목록 새로고침')
+  let loads = 0
+  h.directoryFor('test').load = async () => {
+    loads++
+  }
+  await React.act(async () => reload.click())
+  assert.equal(loads, 1)
+  assert.equal(h.requests.length, 0)
+})
+
+await test('즐겨찾기와 검색 결과가 없으면 Tab 기본 이동을 막지 않고 Escape로 선택 없이 닫는다', async (t) => {
+  const h = await mount(t)
+  await React.act(async () =>
+    h.update({
+      current: null,
+      groups: [
+        {
+          id: 'provider',
+          name: 'Provider',
+          models: ['first', 'second', 'third', 'fourth', 'fifth'].map((id) => ({ id, name: id })),
+        },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  const search = h.document.querySelector('[role=searchbox]')
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(h.window.HTMLInputElement.prototype, 'value').set.call(search, 'zzzz')
+    search.dispatchEvent(new h.window.Event('input', { bubbles: true }))
+  })
+  assert.equal(h.document.querySelector('.dsh-codex-favorites'), null)
+  assert.equal(h.document.querySelectorAll('[role=option]').length, 0)
+  const tab = new h.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+  await React.act(async () => search.dispatchEvent(tab))
+  assert.equal(tab.defaultPrevented, false)
+  await React.act(async () =>
+    search.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  )
+  assert.equal(h.document.querySelector('[role=dialog]'), null)
+  assert.equal(h.document.activeElement, h.document.querySelector('.dsh-codex-trigger'))
+  assert.equal(h.requests.length, 0)
+})
 
 await test('검색창이 있어도 즐겨찾기의 방향키 탐색은 검색창으로 포커스를 옮기지 않는다', async (t) => {
   const h = await mount(t, { favorites: [favorite('first', 'medium')] })
