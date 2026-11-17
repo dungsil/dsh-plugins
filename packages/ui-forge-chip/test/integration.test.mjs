@@ -38,6 +38,10 @@ async function setup(t, { method = 'merge' } = {}) {
   const agent = { session, status: 'idle' }
   let current = work
   let afterSpawn
+  let policy = { mode: 'workspace-write' }
+  let refuse = () => false
+  const spawned = []
+  const confined = []
   const hostConnection = new HostConnectionService(new Context(), [], {})
   const handler = hostConnection.createSharedFetchHandler('/api')
   const warnings = []
@@ -45,6 +49,20 @@ async function setup(t, { method = 'merge' } = {}) {
     agents: { get: (id) => (id === 'one' ? agent : undefined) },
     sessions: { get: (id) => (id === 'one' ? session : undefined) },
     workingDirectory: { get: () => current },
+    sandboxPolicy: {
+      resolve: ({ session: received }) => {
+        assert.equal(received, session)
+        return policy
+      },
+    },
+    sandbox: {
+      async confine(argv, received, signal) {
+        assert.ok(signal instanceof AbortSignal)
+        if (refuse(argv)) throw Error('sandbox denied')
+        confined.push({ argv, policy: received })
+        return { argv: [...argv] }
+      },
+    },
     fs: {
       resolve: async (path, { cwd } = {}) => realpath(resolve(cwd ?? '/', path)),
       processPath: (path) => path,
@@ -53,6 +71,7 @@ async function setup(t, { method = 'merge' } = {}) {
     subprocess: {
       resolveExecutable: async () => 'git',
       spawn({ argv, cwd, env }) {
+        spawned.push(argv)
         const environment = { ...process.env, ...env }
         for (const [name, value] of Object.entries(environment)) if (value === undefined) delete environment[name]
         const child = spawn(argv[0], argv.slice(1), { cwd, env: environment })
@@ -120,6 +139,10 @@ async function setup(t, { method = 'merge' } = {}) {
     commit,
     inspect,
     integrate,
+    spawned,
+    confined,
+    setPolicy: (value) => (policy = value),
+    setRefuse: (value) => (refuse = value),
     setCurrent: (path) => (current = path),
     setAfterSpawn: (hook) => (afterSpawn = hook),
   }
@@ -316,4 +339,46 @@ await test('실패한 뒤 다른 작업이 Git 상태를 바꿨으면 정리를 
   assert.match(result.error.details.diagnostic, /another operation/u)
   assert.equal(run(env.repo, 'log', '-1', '--format=%s'), 'someone else')
   assert.equal(env.warnings.length, 1)
+})
+
+await test('조회와 커밋을 포함한 모든 git 명령은 세션의 샌드박스 정책으로 감싸서 실행한다', async (t) => {
+  const env = await setup(t)
+  await env.commit(env.work, 'one.txt', '1\n')
+  await env.commit(env.repo, 'main.txt', 'main\n')
+  assert.equal((await env.integrate(await env.inspect(), 'merge')).ok, true)
+  assert.ok(env.spawned.some((argv) => argv.includes('merge') && argv.includes('--no-ff')))
+  assert.equal(env.confined.length, env.spawned.length)
+  assert.ok(env.confined.every(({ policy }) => policy.mode === 'workspace-write'))
+  env.setPolicy({ mode: 'danger-full-access' })
+  const before = env.confined.length
+  await env.commit(env.work, 'two.txt', '2\n')
+  await env.inspect()
+  assert.equal(env.confined.length, before)
+})
+
+await test('읽기 전용 세션은 통합을 차단하고 원본 작업 공간에 커밋하지 않는다', async (t) => {
+  const env = await setup(t)
+  await env.commit(env.work, 'one.txt', '1\n')
+  const head = run(env.repo, 'rev-parse', 'HEAD')
+  env.setPolicy({ mode: 'read-only' })
+  const proposal = await env.inspect()
+  assert.equal(proposal.blocker, 'read-only')
+  const result = await env.integrate(proposal)
+  assert.equal(result.error.code, 'blocked')
+  assert.ok(!env.spawned.some((argv) => argv.includes('--ff-only')))
+  assert.equal(run(env.repo, 'rev-parse', 'HEAD'), head)
+})
+
+await test('샌드박스가 커밋 명령을 거부하면 실패로 보고하고 원본을 바꾸지 않는다', async (t) => {
+  const env = await setup(t)
+  await env.commit(env.work, 'one.txt', '1\n')
+  await env.commit(env.repo, 'main.txt', 'main\n')
+  const head = run(env.repo, 'rev-parse', 'HEAD')
+  env.setRefuse((argv) => argv.includes('--no-ff'))
+  const result = await env.integrate(await env.inspect(), 'merge')
+  assert.equal(result.ok, false)
+  assert.equal(result.error.code, 'failed')
+  assert.match(result.error.details.diagnostic, /sandbox denied/u)
+  assert.equal(run(env.repo, 'rev-parse', 'HEAD'), head)
+  assert.equal(run(env.repo, 'status', '--porcelain'), '')
 })

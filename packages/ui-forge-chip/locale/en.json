@@ -28,6 +28,7 @@
   "integrationMenu": "Choose how to integrate",
   "integrationHint": "Bring this worktree's commits into the current branch of the original checkout",
   "integrating": "Integrating…",
+  "blockedReadOnly": "This session is read-only, so it cannot commit in the original checkout.",
   "blockedDetached": "The original checkout has no branch checked out.",
   "blockedInProgress": "A Git operation is in progress in the original checkout.",
   "blockedStaged": "The original checkout has staged changes.",

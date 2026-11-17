@@ -28,6 +28,7 @@
   "integrationMenu": "Choisir le mode d’intégration",
   "integrationHint": "Apporte les commits de cet arbre de travail dans la branche actuelle du checkout d’origine",
   "integrating": "Intégration…",
+  "blockedReadOnly": "Cette session est en lecture seule ; elle ne peut pas valider dans le checkout d’origine.",
   "blockedDetached": "Aucune branche n’est extraite dans le checkout d’origine.",
   "blockedInProgress": "Une opération Git est en cours dans le checkout d’origine.",
   "blockedStaged": "Le checkout d’origine contient des modifications indexées.",

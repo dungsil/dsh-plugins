@@ -22,6 +22,8 @@ type Host = {
   agents: { get(id: string): Agent | undefined }
   sessions: { get(id: string): Session | undefined }
   workingDirectory: { get(session: Session): string }
+  sandboxPolicy: { resolve(options: { session: Session }): { mode: string } }
+  sandbox: { confine(argv: string[], policy: { mode: string }, signal: AbortSignal): Promise<{ argv: string[] }> }
   fs: {
     resolve(path: string, options: { cwd?: string; signal: AbortSignal }): Promise<unknown>
     processPath(target: unknown): string
@@ -38,6 +40,8 @@ type Host = {
   }
 }
 type Place = { canonical: string; execution: string }
+/** Git runs with the Session's own sandbox policy, so it reads and writes only what the Session may. */
+type Scope = { readonly host: Host; readonly session: Session }
 type Inspection = { proposal: IntegrationProposal; source: Place; target: Place; gitDir: string; picks: string[] }
 
 const key = (path: string) => (process.platform === 'win32' ? path.toLowerCase() : path)
@@ -69,13 +73,17 @@ async function sharedPath(host: Host, path: string, signal: AbortSignal, cwd?: s
   return { canonical, execution }
 }
 
-// Runs on the Host, not in the Session sandbox: the original checkout is usually outside the
-// Session's writable root, and only the owner-only Connection reaches these endpoints.
-async function git(host: Host, cwd: string, args: string[], signal: AbortSignal, timeoutMs = 10000) {
+async function git(scope: Scope, cwd: string, args: string[], signal: AbortSignal, timeoutMs = 10000) {
+  const { host, session } = scope
   const control = AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
   const executable = await host.subprocess.resolveExecutable('git', undefined, control)
+  const command = [executable, '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args]
+  const policy = host.sandboxPolicy.resolve({ session })
+  const argv =
+    policy.mode === 'danger-full-access' ? command : (await host.sandbox.confine(command, policy, control)).argv
+  control.throwIfAborted()
   const handle = host.subprocess.spawn({
-    argv: [executable, '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
+    argv,
     cwd,
     env: gitProcessEnvironment({ GIT_EDITOR: 'true', GIT_SEQUENCE_EDITOR: 'true', GIT_MERGE_AUTOEDIT: 'no' }),
     signal: control,
@@ -94,27 +102,27 @@ async function git(host: Host, cwd: string, args: string[], signal: AbortSignal,
   }
 }
 
-async function read(host: Host, cwd: string, args: string[], signal: AbortSignal) {
-  const result = await git(host, cwd, args, signal)
+async function read(scope: Scope, cwd: string, args: string[], signal: AbortSignal) {
+  const result = await git(scope, cwd, args, signal)
   if (result.code !== 0) throw new IntegrationError('unavailable')
   return result.stdout
 }
 
 /** Exit 0 is yes and exit 1 is no; anything else is an error. */
-async function ask(host: Host, cwd: string, args: string[], signal: AbortSignal) {
-  const { code } = await git(host, cwd, args, signal)
+async function ask(scope: Scope, cwd: string, args: string[], signal: AbortSignal) {
+  const { code } = await git(scope, cwd, args, signal)
   if (code !== 0 && code !== 1) throw new IntegrationError('unavailable')
   return code === 0
 }
 
-async function branchOf(host: Host, cwd: string, signal: AbortSignal) {
-  const { code, stdout } = await git(host, cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'], signal)
+async function branchOf(scope: Scope, cwd: string, signal: AbortSignal) {
+  const { code, stdout } = await git(scope, cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'], signal)
   if (code !== 0 && code !== 1) throw new IntegrationError('unavailable')
   return code === 0 ? stdout.trim() : null
 }
 
-async function headOf(host: Host, cwd: string, signal: AbortSignal) {
-  const { code, stdout } = await git(host, cwd, ['rev-parse', '--quiet', '--verify', 'HEAD^{commit}'], signal)
+async function headOf(scope: Scope, cwd: string, signal: AbortSignal) {
+  const { code, stdout } = await git(scope, cwd, ['rev-parse', '--quiet', '--verify', 'HEAD^{commit}'], signal)
   return code === 0 ? stdout.trim() : null
 }
 
@@ -140,9 +148,10 @@ async function locate(host: Host, session: Session, signal: AbortSignal) {
   if (!origin || !isAbsolute(origin)) return null
   const start = await sharedPath(host, origin, signal)
   const current = await sharedPath(host, host.workingDirectory.get(session), signal)
+  const scope = { host, session }
   const facts = async (place: Place) => {
     const result = await git(
-      host,
+      scope,
       place.execution,
       ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-common-dir', '--absolute-git-dir'],
       signal
@@ -172,22 +181,25 @@ async function inspect(
   const located = await locate(host, session, signal)
   if (!located) return null
   const { source, target, gitDir } = located
+  const scope = { host, session }
   const S = source.execution
   const T = target.execution
   const [sourceHead, targetHead, sourceBranch, targetBranch] = await Promise.all([
-    headOf(host, S, signal),
-    headOf(host, T, signal),
-    branchOf(host, S, signal),
-    branchOf(host, T, signal),
+    headOf(scope, S, signal),
+    headOf(scope, T, signal),
+    branchOf(scope, S, signal),
+    branchOf(scope, T, signal),
   ])
   if (!sourceHead || !targetHead) return null
-  if (await ask(host, T, ['merge-base', '--is-ancestor', sourceHead, targetHead], signal)) return null
+  if (await ask(scope, T, ['merge-base', '--is-ancestor', sourceHead, targetHead], signal)) return null
   const range = `${targetHead}...${sourceHead}`
   const [ff, picks, merges, total] = await Promise.all([
-    ask(host, T, ['merge-base', '--is-ancestor', targetHead, sourceHead], signal),
-    read(host, T, ['rev-list', '--reverse', '--right-only', '--cherry-pick', '--no-merges', range], signal).then(lines),
-    read(host, T, ['rev-list', '--count', '--merges', `${targetHead}..${sourceHead}`], signal).then(Number),
-    read(host, T, ['rev-list', '--count', `${targetHead}..${sourceHead}`], signal).then(Number),
+    ask(scope, T, ['merge-base', '--is-ancestor', targetHead, sourceHead], signal),
+    read(scope, T, ['rev-list', '--reverse', '--right-only', '--cherry-pick', '--no-merges', range], signal).then(
+      lines
+    ),
+    read(scope, T, ['rev-list', '--count', '--merges', `${targetHead}..${sourceHead}`], signal).then(Number),
+    read(scope, T, ['rev-list', '--count', `${targetHead}..${sourceHead}`], signal).then(Number),
   ])
   // Every source commit already has an equivalent patch in the target.
   if (!ff && picks.length === 0 && merges === 0) return null
@@ -198,10 +210,12 @@ async function inspect(
   const effective = chosen ?? method
   let blocker: IntegrationBlocker | null = null
   let paths: string[] = []
-  if (!targetBranch) blocker = 'detached'
+  // Integration commits inside the Session's sandbox, which a read-only Session cannot write.
+  if (host.sandboxPolicy.resolve({ session }).mode === 'read-only') blocker = 'read-only'
+  else if (!targetBranch) blocker = 'detached'
   else if ((await present(gitDir)).length > 0) blocker = 'in-progress'
   else {
-    const staged = list(await read(host, T, ['diff', '--cached', '--no-renames', '--name-only', '-z'], signal))
+    const staged = list(await read(scope, T, ['diff', '--cached', '--no-renames', '--name-only', '-z'], signal))
     if (staged.length > 0) {
       blocker = 'staged'
       paths = staged
@@ -209,7 +223,7 @@ async function inspect(
       const changed = new Set(
         list(
           await read(
-            host,
+            scope,
             T,
             effective === 'cherry-pick'
               ? ['diff-tree', '--no-commit-id', '--no-renames', '--name-only', '-r', '-z', picks[0]!]
@@ -219,7 +233,7 @@ async function inspect(
         )
       )
       const dirty = list(
-        await read(host, T, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames'], signal)
+        await read(scope, T, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames'], signal)
       ).map((entry) => entry.slice(3))
       paths = dirty.filter((path) => changed.has(path))
       if (paths.length > 0) blocker = 'overlap'
@@ -269,7 +283,7 @@ function steps(method: IntegrationMethod, inspection: Inspection): string[][] {
  * sequencer's start) is the head the run began from, and every in-progress marker names this run.
  */
 async function cleanup(
-  host: Host,
+  scope: Scope,
   method: IntegrationMethod,
   inspection: Inspection,
   started: number,
@@ -279,12 +293,12 @@ async function cleanup(
   const { target, source } = inspection.proposal
   const signal = AbortSignal.timeout(60000)
   const [branch, head, found] = await Promise.all([
-    branchOf(host, T, signal),
-    headOf(host, T, signal),
+    branchOf(scope, T, signal),
+    headOf(scope, T, signal),
     present(inspection.gitDir),
   ])
   const revision = async (name: string) =>
-    (await git(host, T, ['rev-parse', '--quiet', '--verify', name], signal)).stdout.trim()
+    (await git(scope, T, ['rev-parse', '--quiet', '--verify', name], signal)).stdout.trim()
   const describe = (reason: string) =>
     [
       `Integration ${method} of ${source.head} into ${target.branch} at ${target.root} failed: ${reason}.`,
@@ -330,8 +344,8 @@ async function cleanup(
       return { cleaned: true, diagnostic: describe('nothing was changed') }
     return { cleaned: false, diagnostic: describe('the remaining Git state may belong to another operation') }
   }
-  const undone = await git(host, T, command, signal, 60000)
-  const [after, left] = await Promise.all([headOf(host, T, signal), present(inspection.gitDir)])
+  const undone = await git(scope, T, command, signal, 60000)
+  const [after, left] = await Promise.all([headOf(scope, T, signal), present(inspection.gitDir)])
   if (undone.code !== 0 || after !== target.head || left.length > 0)
     return { cleaned: false, diagnostic: describe(`cleanup with git ${command.join(' ')} did not finish`) }
   return { cleaned: true, diagnostic: describe(`the run was cleaned up with git ${command.join(' ')}`) }
@@ -366,6 +380,7 @@ export function registerIntegration(ctx: Context, preferred: () => MergeMethod) 
       const agent = agentOf(sessionId)
       if (agent.status !== 'idle') throw new IntegrationError('busy')
       const chosen = method as IntegrationMethod
+      const scope = { host, session: agent.session }
       const located = await locate(host, agent.session, signal)
       if (!located) throw new IntegrationError('stale')
       const lock = key(located.target.canonical)
@@ -388,17 +403,26 @@ export function registerIntegration(ctx: Context, preferred: () => MergeMethod) 
         const started = Date.now() - 1000
         let failure = ''
         for (const args of steps(chosen, inspection)) {
-          const result = await git(host, inspection.target.execution, args, AbortSignal.timeout(120000), 120000)
-          if (result.code !== 0) {
+          try {
+            const result = await git(scope, inspection.target.execution, args, AbortSignal.timeout(120000), 120000)
+            if (result.code === 0) continue
             failure = `git ${args[0]}:\n${[result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n')}`
-            break
+          } catch (error) {
+            // The sandbox refused or Git could not finish; only cleanup can judge what changed.
+            failure = `git ${args[0]} could not run in the Session sandbox: ${String(error)}`
           }
+          break
         }
         if (failure) {
-          const { cleaned, diagnostic } = await cleanup(host, chosen, inspection, started, failure)
-          throw new IntegrationError(cleaned ? 'failed' : 'cleanup-refused', diagnostic)
+          let outcome
+          try {
+            outcome = await cleanup(scope, chosen, inspection, started, failure)
+          } catch (error) {
+            outcome = { cleaned: false, diagnostic: `${failure}\nCleanup could not run: ${String(error)}` }
+          }
+          throw new IntegrationError(outcome.cleaned ? 'failed' : 'cleanup-refused', outcome.diagnostic)
         }
-        return { method: chosen, head: await headOf(host, inspection.target.execution, AbortSignal.timeout(10000)) }
+        return { method: chosen, head: await headOf(scope, inspection.target.execution, AbortSignal.timeout(10000)) }
       } finally {
         running.delete(lock)
       }

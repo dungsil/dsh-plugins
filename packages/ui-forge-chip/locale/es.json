@@ -28,6 +28,7 @@
   "integrationMenu": "Elegir cómo integrar",
   "integrationHint": "Lleva los commits de este árbol de trabajo a la rama actual del checkout original",
   "integrating": "Integrando…",
+  "blockedReadOnly": "Esta sesión es de solo lectura, así que no puede hacer commits en el checkout original.",
   "blockedDetached": "El checkout original no tiene ninguna rama activa.",
   "blockedInProgress": "Hay una operación de Git en curso en el checkout original.",
   "blockedStaged": "El checkout original tiene cambios preparados.",

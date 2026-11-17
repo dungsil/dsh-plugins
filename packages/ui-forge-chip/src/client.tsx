@@ -47,6 +47,7 @@ const methodLabels: Record<IntegrationMethod, keyof Copy> = {
   squash: 'integrateSquash',
 }
 const blockerLabels: Record<IntegrationBlocker, keyof Copy> = {
+  'read-only': 'blockedReadOnly',
   detached: 'blockedDetached',
   'in-progress': 'blockedInProgress',
   staged: 'blockedStaged',

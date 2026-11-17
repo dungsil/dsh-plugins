@@ -28,6 +28,7 @@
   "integrationMenu": "통합 방식 선택",
   "integrationHint": "이 워크트리의 커밋을 원본 작업 공간의 현재 브랜치로 가져옵니다",
   "integrating": "통합하는 중…",
+  "blockedReadOnly": "이 세션은 읽기 전용이어서 원본 작업 공간에 커밋할 수 없습니다.",
   "blockedDetached": "원본 작업 공간에 체크아웃된 브랜치가 없습니다.",
   "blockedInProgress": "원본 작업 공간에서 진행 중인 Git 작업이 있습니다.",
   "blockedStaged": "원본 작업 공간에 staged 변경 사항이 있습니다.",

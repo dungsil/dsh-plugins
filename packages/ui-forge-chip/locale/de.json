@@ -28,6 +28,7 @@
   "integrationMenu": "Integrationsart wählen",
   "integrationHint": "Übernimmt die Commits dieses Worktrees in den aktuellen Branch des ursprünglichen Checkouts",
   "integrating": "Wird integriert…",
+  "blockedReadOnly": "Diese Sitzung ist schreibgeschützt und kann im ursprünglichen Checkout nicht committen.",
   "blockedDetached": "Im ursprünglichen Checkout ist kein Branch ausgecheckt.",
   "blockedInProgress": "Im ursprünglichen Checkout läuft ein Git-Vorgang.",
   "blockedStaged": "Der ursprüngliche Checkout hat vorgemerkte Änderungen.",

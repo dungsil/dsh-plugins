@@ -28,6 +28,7 @@
   "integrationMenu": "統合方法を選択",
   "integrationHint": "このワークツリーのコミットを元のチェックアウトの現在のブランチに取り込みます",
   "integrating": "統合しています…",
+  "blockedReadOnly": "このセッションは読み取り専用のため、元のチェックアウトにコミットできません。",
   "blockedDetached": "元のチェックアウトでブランチがチェックアウトされていません。",
   "blockedInProgress": "元のチェックアウトで進行中の Git 操作があります。",
   "blockedStaged": "元のチェックアウトにステージ済みの変更があります。",

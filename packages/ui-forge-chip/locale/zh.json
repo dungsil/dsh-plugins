@@ -28,6 +28,7 @@
   "integrationMenu": "选择集成方式",
   "integrationHint": "将此工作树的提交带入原始检出的当前分支",
   "integrating": "正在集成…",
+  "blockedReadOnly": "此会话为只读，无法在原始检出中提交。",
   "blockedDetached": "原始检出没有检出任何分支。",
   "blockedInProgress": "原始检出中有正在进行的 Git 操作。",
   "blockedStaged": "原始检出中有已暂存的更改。",

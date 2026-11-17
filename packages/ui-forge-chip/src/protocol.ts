@@ -2,7 +2,7 @@
 
 export type MergeMethod = 'merge' | 'rebase' | 'squash'
 export type IntegrationMethod = 'ff' | 'cherry-pick' | MergeMethod
-export type IntegrationBlocker = 'detached' | 'in-progress' | 'staged' | 'overlap'
+export type IntegrationBlocker = 'read-only' | 'detached' | 'in-progress' | 'staged' | 'overlap'
 export const mergeMethods: readonly MergeMethod[] = ['merge', 'rebase', 'squash']
 export const inspectMethod = 'dungsil-forge-integration/inspect'
 export const runMethod = 'dungsil-forge-integration/run'

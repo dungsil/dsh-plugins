@@ -4,7 +4,16 @@ import { registerIntegration } from './integration.js'
 import type { MergeMethod } from './protocol.js'
 
 export const name = 'dungsil-ui-forge-chip'
-export const inject = ['connection', 'agents', 'sessions', 'workingDirectory', 'subprocess', 'fs']
+export const inject = [
+  'connection',
+  'agents',
+  'sessions',
+  'workingDirectory',
+  'subprocess',
+  'fs',
+  'sandbox',
+  'sandboxPolicy',
+]
 export const Config = z.object({ integrationMethod: z.union(['merge', 'rebase', 'squash']).default('merge') })
 export interface Config {
   integrationMethod: MergeMethod
