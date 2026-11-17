@@ -870,6 +870,40 @@ await test('검색 결과를 키보드로 선택해도 즐겨찾기를 유지하
   assert.equal(h.document.querySelector('[role=dialog]'), null)
 })
 
+for (const query of ['', 'zzzz']) {
+  await test(`${query ? '검색 결과가 없어도' : '첫 검색 결과에서'} 위쪽 방향키로 즐겨찾기에 도달하고 선택 없이 제거한다`, async (t) => {
+    const h = await mount(t, { favorites: [favorite('first', 'medium')] })
+    const initial = h.snapshot().groups[0]
+    await React.act(async () =>
+      h.update({
+        groups: [
+          { ...initial, models: [...initial.models, ...['third', 'fourth', 'fifth'].map((id) => ({ id, name: id }))] },
+        ],
+      })
+    )
+    await h.click('.dsh-codex-trigger')
+    await h.click('.dsh-codex-model')
+    const search = h.document.querySelector('[role=searchbox]')
+    assert.equal(h.document.activeElement, search)
+    if (query) {
+      await React.act(async () => {
+        Object.getOwnPropertyDescriptor(h.window.HTMLInputElement.prototype, 'value').set.call(search, query)
+        search.dispatchEvent(new h.window.Event('input', { bubbles: true }))
+      })
+    }
+    const active = search.getAttribute('aria-activedescendant')
+    await React.act(async () =>
+      search.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+    )
+    const star = h.document.querySelector('.dsh-codex-favorite .dsh-codex-star')
+    assert.equal(h.document.activeElement, star)
+    assert.equal(search.getAttribute('aria-activedescendant'), active)
+    await h.click('.dsh-codex-favorite .dsh-codex-star')
+    assert.deepEqual(JSON.parse(h.window.localStorage.getItem('dungsil.model-picker.favorites')), [])
+    assert.equal(h.requests.length, 0)
+  })
+}
+
 await test('검색창이 있어도 즐겨찾기의 방향키 탐색은 검색창으로 포커스를 옮기지 않는다', async (t) => {
   const h = await mount(t, { favorites: [favorite('first', 'medium')] })
   const initial = h.snapshot().groups[0]

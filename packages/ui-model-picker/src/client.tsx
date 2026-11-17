@@ -384,6 +384,18 @@ export function apply(ctx: Context) {
           !element.querySelector('.dsh-codex-favorites')?.contains(event.target as Node)
         ) {
           event.preventDefault()
+          // Tab confirms the highlighted model. ArrowUp at the start of the
+          // results provides a keyboard route to the separate favorites area.
+          if (!disabled && event.key === 'ArrowUp' && activeIndex <= 0) {
+            const favoriteButtons = element.querySelectorAll<HTMLButtonElement>(
+              '.dsh-codex-favorites button:not(:disabled)'
+            )
+            const lastFavorite = favoriteButtons[favoriteButtons.length - 1]
+            if (lastFavorite) {
+              lastFavorite.focus()
+              return
+            }
+          }
           if (!disabled && visibleModels.length) {
             setHighlighted(
               (activeIndex + (event.key === 'ArrowUp' ? -1 : 1) + visibleModels.length) % visibleModels.length
