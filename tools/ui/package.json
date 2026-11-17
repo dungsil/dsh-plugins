@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
     "./count": "./src/count.ts",
+    "./count/dom": "./src/count-dom.ts",
     "./composer": "./src/composer.tsx",
     "./icons": "./src/icons.ts",
     "./icons/dom": "./src/icons-dom.ts"
@@ -25,6 +26,7 @@
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "@types/react": "18.3.31",
+    "happy-dom": "21.0.4",
     "react": "18.3.1",
     "tsdown": "0.23.4"
   }
