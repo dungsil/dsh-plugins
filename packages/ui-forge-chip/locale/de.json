@@ -21,6 +21,7 @@
   "errorPushFailed": "Der Commit wurde erstellt, aber der Push ist fehlgeschlagen. Prüfen Sie Remote und Zugangsdaten.",
   "errorNotPushed": "Pushen Sie diesen Branch, bevor Sie einen PR erstellen.",
   "errorUnsupported": "Dieser Code-Host unterstützt das Erstellen von PRs nicht.",
+  "errorPrUnavailable": "Die CLI des Code-Hosts (gh, glab oder tea) ist auf dem Host nicht installiert. Installieren Sie sie und versuchen Sie es erneut.",
   "errorPrFailed": "Der PR konnte nicht erstellt werden. Prüfen Sie, ob die CLI des Code-Hosts angemeldet ist.",
   "checks": "Prüfungen",
   "none": "Keine Prüfungen",

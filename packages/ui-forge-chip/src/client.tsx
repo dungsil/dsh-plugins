@@ -79,6 +79,7 @@ const errorKeys: Record<ActionErrorCode, keyof Copy> = {
   'push-failed': 'errorPushFailed',
   'not-pushed': 'errorNotPushed',
   unsupported: 'errorUnsupported',
+  'pr-unavailable': 'errorPrUnavailable',
   'pr-failed': 'errorPrFailed',
 }
 

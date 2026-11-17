@@ -21,6 +21,7 @@
   "errorPushFailed": "커밋은 만들었지만 푸시에 실패했습니다. 원격 저장소와 인증 정보를 확인하세요.",
   "errorNotPushed": "PR을 만들기 전에 이 브랜치를 푸시하세요.",
   "errorUnsupported": "이 코드 호스트에서는 PR 생성을 지원하지 않습니다.",
+  "errorPrUnavailable": "호스트에 코드 호스트 CLI(gh, glab, tea)가 설치되어 있지 않습니다. CLI를 설치한 뒤 다시 시도하세요.",
   "errorPrFailed": "PR을 만들지 못했습니다. 코드 호스트 CLI에 로그인되어 있는지 확인하세요.",
   "checks": "검사",
   "none": "검사 없음",

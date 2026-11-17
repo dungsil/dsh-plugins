@@ -21,6 +21,7 @@
   "errorPushFailed": "Le commit a été créé, mais le push a échoué. Vérifiez le dépôt distant et vos identifiants.",
   "errorNotPushed": "Poussez cette branche avant de créer une PR.",
   "errorUnsupported": "Cet hébergeur de code ne prend pas en charge la création de PR.",
+  "errorPrUnavailable": "La CLI de l’hébergeur de code (gh, glab ou tea) n’est pas installée sur l’hôte. Installez-la, puis réessayez.",
   "errorPrFailed": "Impossible de créer la PR. Vérifiez que la CLI de l’hébergeur de code est connectée.",
   "checks": "Vérifications",
   "none": "Aucune vérification",
