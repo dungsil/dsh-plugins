@@ -38,6 +38,10 @@ interface ContextReading {
   rows: (number | undefined)[] | undefined
 }
 
+// Elements whose text this plugin rewrites or restyles; the context panel is a `[role="dialog"]`.
+const SURFACES =
+  '[data-composer-stat="usage"], [data-turn-tail], [role="dialog"], [data-composer-dock], [data-dsh-count-exact]'
+
 // The context panel header is one flex row sized for `~839K / 1M`.
 const STYLES = `${exactCountStyles}
 :has(> [data-dsh-token-usage-figures]) { flex-wrap: wrap; }
@@ -155,8 +159,9 @@ export function apply(ctx: Context) {
       const current = useLanguage()
       const usage = props.useProjection('tokenUsage') as TokenUsage | undefined
       // The same total the native pill formats compactly.
-      const total =
-        usage && usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens
+      const total = usage
+        ? usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens
+        : undefined
       const t = useMemo(() => countTranslate(props.t, current, total), [props.t, current, total])
       return createElement(Original, { ...props, t })
     }
@@ -222,7 +227,20 @@ export function apply(ctx: Context) {
   ctx.effect(() => {
     const disposeStyles = installStyles(STYLES)
     // Rewrite in the mutation microtask, before paint, then drop the records our own writes queued.
-    const observer = new MutationObserver(() => {
+    // Streaming transcript text mutates the document constantly; only changes in or adding a count surface refresh.
+    const observer = new MutationObserver((records) => {
+      const relevant = records.some(
+        (record) =>
+          (record.target.nodeType === 1 ? (record.target as Element) : record.target.parentElement)?.closest(
+            SURFACES
+          ) ||
+          [...record.addedNodes].some(
+            (node) =>
+              node.nodeType === 1 &&
+              ((node as Element).matches(SURFACES) || !!(node as Element).querySelector(SURFACES))
+          )
+      )
+      if (!relevant) return
       refresh()
       observer.takeRecords()
     })
