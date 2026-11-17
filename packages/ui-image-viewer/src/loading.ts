@@ -86,17 +86,17 @@ export function installImageLoading(document: Document) {
   }
 
   const observer = new MutationObserver((records) => {
+    let removed = false
     for (const record of records) {
       if (record.type === 'attributes') {
         if (record.target.nodeName === 'IMG') watch(record.target as HTMLImageElement)
         continue
       }
       record.addedNodes.forEach(scan)
-      // A removed frame, message or lightbox drops its indicator with it.
-      if (record.removedNodes.length > 0) {
-        for (const [image, entry] of pending) if (!image.isConnected) entry.settle()
-      }
+      removed ||= record.removedNodes.length > 0
     }
+    // A removed frame, message or lightbox drops its indicator with it; check once per batch.
+    if (removed) for (const [image, entry] of pending) if (!image.isConnected) entry.settle()
   })
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] })
   scan(document.body)

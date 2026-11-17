@@ -157,7 +157,9 @@ export function installLightboxNavigation(document: Document, labels: () => Navi
       const order = [controls.previous, view.parts.close, controls.next].filter((button) => !button.disabled)
       const index = order.indexOf(document.activeElement as HTMLButtonElement)
       const step = event.shiftKey ? -1 : 1
-      const target = order[index < 0 ? 0 : (index + step + order.length) % order.length]!
+      // From the image or the backdrop, Tab enters at the first control and Shift+Tab at the last.
+      const start = event.shiftKey ? order.length - 1 : 0
+      const target = order[index < 0 ? start : (index + step + order.length) % order.length]!
       event.preventDefault()
       event.stopImmediatePropagation()
       target.focus()

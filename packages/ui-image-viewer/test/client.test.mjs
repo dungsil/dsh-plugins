@@ -96,6 +96,8 @@ function nativeLightbox(document, opener) {
     const stage = document.createElement('div')
     const image = document.createElement('img')
     image.alt = opener.querySelector('img').alt
+    // The native image menu binding makes the preview image focusable.
+    image.tabIndex = 0
     const close = document.createElement('button')
     close.setAttribute('aria-label', 'Close')
     close.addEventListener('click', () => {
@@ -186,6 +188,11 @@ await test('같은 대화의 이미지 사이를 이동하고 작성기 첨부�
   assert.equal(shown(document), 'middle')
   assert.equal(control(document, 'previous').disabled, false)
   assert.equal(control(document, 'next').getAttribute('aria-label'), 'Next image')
+  openDialog(document).querySelector('img').focus()
+  await run(() =>
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true }))
+  )
+  assert.equal(document.activeElement?.getAttribute('data-dungsil-image-nav'), 'next')
 
   await key('ArrowRight')
   assert.equal(shown(document), 'last')
