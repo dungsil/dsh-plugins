@@ -47,13 +47,13 @@ export const inject = ['connection', 'locale', 'slots']
 const copy = { en, ko, zh, ja, es, fr, de, ru, pt }
 
 const styles = `
-.dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-skills-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: var(--dsw-font-s-14); }
 .dsh-skills-settings p { margin: 4px 0; }
 .dsh-skills-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 20px 0 12px; }
 .dsh-skills-search { width: 100%; box-sizing: border-box; margin: 12px 0; }
 .dsh-skills-settings .dsh-skills-muted { color: var(--dsw-alias-label-secondary); }
 .dsh-skills-settings ul { list-style: none; margin: 0; padding: 0; }
-.dsh-skills-settings code { font-size: 12px; overflow-wrap: anywhere; }
+.dsh-skills-settings code { font-size: var(--dsw-font-xxs-12-font-size); overflow-wrap: anywhere; }
 .dsh-skills-settings [role=alert], .dsh-skills-source-error { color: var(--dsw-alias-state-error-primary, #b54424); }
 .dsh-skills-settings li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; border-bottom: .5px solid var(--dsw-alias-border-l2); }
 .dsh-skills-settings details { min-width: 0; }
@@ -66,7 +66,7 @@ const styles = `
 .dsh-skills-summary-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .dsh-skills-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
 .dsh-skills-title strong { min-width: 0; overflow-wrap: anywhere; }
-.dsh-skills-title .dsh-skills-muted { flex: none; font-size: 12px; }
+.dsh-skills-title .dsh-skills-muted { flex: none; font-size: var(--dsw-font-xxs-12-font-size); }
 .dsh-skills-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-skills-detail { padding: 0 0 16px 28px; overflow-wrap: anywhere; }
 .dsh-skills-actions { display: flex; align-items: center; align-self: start; gap: 12px; height: 78px; }

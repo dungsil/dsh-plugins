@@ -221,11 +221,11 @@ function NotificationSettings({
 }
 
 const styles = `${settingsStyles}
-.dsh-notifications { color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-notifications { color: var(--dsw-alias-label-primary); font: var(--dsw-font-s-14); }
 .dsh-notifications p { color: var(--dsw-alias-label-secondary); margin: 0; overflow-wrap: anywhere; }
-.dsh-notifications .dsh-plugin-settings-text p { font-size: 12px; line-height: 20px; margin: 4px 0 0; }
+.dsh-notifications .dsh-plugin-settings-text p { font-size: var(--dsw-font-xxs-12-font-size); line-height: 20px; margin: 4px 0 0; }
 .dsh-notifications [role=alert] { color: var(--dsw-alias-state-error-primary); }
-.dsh-notifications-heading { margin: 24px 0 0; font-size: 14px; line-height: 22px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.dsh-notifications-heading { margin: 24px 0 0; font-size: var(--dsw-font-s-14-font-size); line-height: 22px; font-weight: 600; color: var(--dsw-alias-label-primary); }
 .dsh-notifications-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 @media (max-width: 520px) { .dsh-notifications .dsh-plugin-settings-row { align-items: stretch; flex-direction: column; gap: 8px; } }
 `

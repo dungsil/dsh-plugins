@@ -92,7 +92,7 @@ li > [data-answer-translation="panel"] {
 
 .dsh-answer-translation-source {
   margin-top: 2px !important;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-caption, var(--dsw-alias-label-secondary));
 }

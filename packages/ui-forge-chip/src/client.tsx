@@ -643,7 +643,7 @@ export function apply(ctx: Context) {
     )
   }
   ctx.slots.inject('conversation.input.dock', () =>
-    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: -100 }, (props) => (
+    ctx.slots.register({ name: 'conversation.input.dock', id: name, order: -5 }, (props) => (
       <Chip key={props.sessionId} {...props} />
     ))
   )

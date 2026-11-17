@@ -471,7 +471,7 @@ export function apply(ctx: Context) {
       {
         name: 'conversation.input.left',
         id: name,
-        order: -100,
+        order: -5,
       },
       (props) => <Picker key={props.sessionId} {...props} />
     )

@@ -251,10 +251,10 @@ export function apply(ctx: Context) {
   ctx.effect(
     () =>
       installStyles(`${settingsStyles}
-.dsh-setting-vcs { color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-setting-vcs { color: var(--dsw-alias-label-primary); font: var(--dsw-font-s-14); }
 .dsh-setting-vcs fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .dsh-setting-vcs p { color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-.dsh-setting-vcs .dsh-plugin-settings-text p { font-size: 12px; line-height: 20px; margin: 4px 0 0; }
+.dsh-setting-vcs .dsh-plugin-settings-text p { font-size: var(--dsw-font-xxs-12-font-size); line-height: 20px; margin: 4px 0 0; }
 .dsh-setting-vcs input { box-sizing: border-box; width: 240px; max-width: 50%; flex: 0 1 240px; min-width: 0; }
 .dsh-setting-vcs [role=alert] { color: var(--dsw-alias-state-error-primary); }
 .dsh-setting-vcs-note { margin-top: 24px; }

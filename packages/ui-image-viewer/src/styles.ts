@@ -19,7 +19,7 @@ button[${LOADING}] {
 [${LOADING}-indicator] > svg {
   box-sizing: content-box;
   padding: 6px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--dsw-specific-input-major);
   box-shadow: var(--dsw-shadow-lv1);
   animation: dungsil-image-loading-rotate 0.9s linear infinite;
@@ -44,7 +44,7 @@ button[${LOADING}] {
   margin-top: -18px;
   padding: 0;
   border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: 999px;
+  border-radius: 50%;
   corner-shape: round;
   background: var(--dsw-specific-input-major);
   color: var(--dsw-alias-label-primary);
