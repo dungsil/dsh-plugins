@@ -1,0 +1,87 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-image-viewer",
+  "version": "0.1.0",
+  "description": "Show image download progress and move between conversation images in the native lightbox.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-image-viewer"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "happy-dom": "21.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.3"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.3",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "market": {
+    "order": 23,
+    "title": {
+      "en": "Image Viewer",
+      "ko": "이미지 보기 개선",
+      "zh": "图片查看优化"
+    },
+    "description": {
+      "en": "Show progress while conversation images download, and move between a conversation's images in the image preview.",
+      "ko": "대화 이미지를 내려받는 동안 진행 표시를 보여 주고, 이미지 미리보기에서 같은 대화의 이전·다음 이미지로 이동합니다.",
+      "zh": "在下载对话图片时显示进度，并可在图片预览中切换到同一对话的上一张或下一张图片。"
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "image",
+      "lightbox",
+      "gallery",
+      "loading"
+    ]
+  }
+}
