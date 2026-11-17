@@ -6,8 +6,9 @@ import type {} from '@deepseek-ai/dsh-settings'
 import type { TaskDefinition, TaskRegistration } from '@dungsil/dsh-plugin-model-settings/contract'
 import { gitProcessEnvironment, parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { commitMessageInstructions } from '@dungsil/dsh-task-prompts'
+import { registerIntegration } from './integration.js'
 import { messageInput, normalizeMessage } from './message.js'
-import { channel, methods, type ActionErrorCode, type DefaultAction } from './protocol.js'
+import { channel, methods, type ActionErrorCode, type DefaultAction, type MergeMethod } from './protocol.js'
 
 export const name = 'dungsil-ui-forge-chip'
 export const inject = [
@@ -18,6 +19,7 @@ export const inject = [
   'sessions',
   'workingDirectory',
   'subprocess',
+  'fs',
   'sandbox',
   'sandboxPolicy',
   'forge',
@@ -26,6 +28,7 @@ export const inject = [
 
 export const Config = z.object({
   defaultAction: z.union(['commit', 'push']).default('commit').volatile(),
+  integrationMethod: z.union(['merge', 'rebase', 'squash']).default('merge'),
   provider: z.string(),
   model: z.string(),
   reasoningEffort: z.string(),
@@ -37,6 +40,7 @@ export const Config = z.object({
 
 export interface Config {
   defaultAction: Volatile<DefaultAction>
+  integrationMethod: MergeMethod
   provider?: string
   model?: string
   reasoningEffort?: string
@@ -357,6 +361,8 @@ export function apply(ctx: Context, config: Config) {
     }
     return { url, reused: false }
   }
+
+  registerIntegration(ctx, () => config.integrationMethod)
 
   const handlers: Record<string, (payload: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>> = {
     async [methods.settings]() {

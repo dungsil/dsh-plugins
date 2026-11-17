@@ -24,7 +24,17 @@ import de from '../locale/de.json' with { type: 'json' }
 import ru from '../locale/ru.json' with { type: 'json' }
 import pt from '../locale/pt.json' with { type: 'json' }
 import { canCreatePr, requestForCheckout } from './model.js'
-import { channel, methods, type ActionErrorCode, type DefaultAction } from './protocol.js'
+import {
+  channel,
+  inspectMethod,
+  methods,
+  runMethod,
+  type ActionErrorCode,
+  type DefaultAction,
+  type IntegrationBlocker,
+  type IntegrationMethod,
+  type IntegrationProposal,
+} from './protocol.js'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-forge-chip'
@@ -46,12 +56,171 @@ const errorKeys: Record<ActionErrorCode, keyof Copy> = {
   'pr-failed': 'errorPrFailed',
 }
 
+const methodLabels: Record<IntegrationMethod, keyof Copy> = {
+  ff: 'integrateFf',
+  'cherry-pick': 'integrateCherryPick',
+  merge: 'integrateMerge',
+  rebase: 'integrateRebase',
+  squash: 'integrateSquash',
+}
+const blockerLabels: Record<IntegrationBlocker, keyof Copy> = {
+  'read-only': 'blockedReadOnly',
+  detached: 'blockedDetached',
+  'in-progress': 'blockedInProgress',
+  staged: 'blockedStaged',
+  overlap: 'blockedOverlap',
+}
+const failureLabels: Record<string, keyof Copy> = {
+  stale: 'integrationStale',
+  busy: 'integrationBusy',
+  blocked: 'integrationStale',
+  failed: 'integrationFailed',
+  'cleanup-refused': 'integrationCleanupRefused',
+}
+const fill = (template: string, values: Record<string, string>) =>
+  template.replace(/\{(\w+)\}/gu, (match, name: string) => values[name] ?? match)
+
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const call = async (method: string, payload: Record<string, unknown>, signal?: AbortSignal) => {
     const result = await connection.rpc.call(channel, method, payload, signal)
     if (!result.ok) throw Object.assign(new Error('rpc'), { code: (result.error as { code?: string }).code })
     return result.value
+  }
+
+  /** The one integration the Host proposes for a Session working in a linked worktree. */
+  function Integration({
+    sessionId,
+    panel,
+    blocked,
+    text,
+  }: {
+    sessionId: string
+    panel: ForgePanelState
+    blocked: boolean
+    text: Copy
+  }) {
+    const linked = panel.checkout.state === 'ready' && panel.checkout.checkout.linked
+    const [proposal, setProposal] = useState<IntegrationProposal | null>(null)
+    const [notice, setNotice] = useState<{ text: string; alert: boolean; diagnostic?: string }>()
+    const [busy, setBusy] = useState(false)
+    const [open, setOpen] = useState(false)
+    const [tick, setTick] = useState(0)
+    const pending = useRef(false)
+    useEffect(() => {
+      // Returning to the window re-reads both checkouts, so an earlier result no longer describes them.
+      const refresh = () => {
+        if (pending.current) return
+        setNotice(undefined)
+        setTick((n) => n + 1)
+      }
+      window.addEventListener('focus', refresh)
+      return () => window.removeEventListener('focus', refresh)
+    }, [])
+    useEffect(() => {
+      if (!linked) {
+        setProposal(null)
+        return
+      }
+      if (blocked) return
+      const abort = new AbortController()
+      connection.rpc
+        .call('/api', inspectMethod, { sessionId }, abort.signal)
+        .then((result) => {
+          if (!abort.signal.aborted) setProposal(result.ok ? (result.value as IntegrationProposal | null) : null)
+        })
+        .catch(() => {
+          if (!abort.signal.aborted) setProposal(null)
+        })
+      return () => abort.abort()
+    }, [sessionId, panel, linked, blocked, tick])
+    const disabled = blocked || busy || !proposal || !!proposal.blocker
+    useEffect(() => {
+      if (disabled) setOpen(false)
+    }, [disabled])
+    const branch = proposal?.target.branch ?? 'HEAD'
+    const label = (method: IntegrationMethod) => fill(text[methodLabels[method]], { branch })
+    const integrate = async (method: IntegrationMethod) => {
+      if (disabled || pending.current || !proposal) return
+      pending.current = true
+      setBusy(true)
+      setOpen(false)
+      setNotice(undefined)
+      try {
+        const result = await connection.rpc.call('/api', runMethod, {
+          sessionId,
+          method,
+          targetBranch: proposal.target.branch,
+          targetHead: proposal.target.head,
+          sourceHead: proposal.source.head,
+        })
+        if (result.ok) setNotice({ text: fill(text.integrationDone, { branch }), alert: false })
+        else {
+          const diagnostic = (result.error.details as { diagnostic?: unknown }).diagnostic
+          setNotice({
+            text: text[failureLabels[result.error.code] ?? 'integrationError'],
+            alert: true,
+            diagnostic: typeof diagnostic === 'string' ? diagnostic : undefined,
+          })
+        }
+      } catch {
+        setNotice({ text: text.integrationError, alert: true })
+      } finally {
+        pending.current = false
+        setBusy(false)
+        setTick((n) => n + 1)
+      }
+    }
+    if (!linked || (!proposal && !notice)) return null
+    return (
+      <>
+        {proposal && (
+          <div className="dsh-forge-chip-actions">
+            <Pill
+              className="dsh-forge-chip-trigger"
+              disabled={disabled}
+              title={text.integrationHint}
+              aria-busy={busy}
+              onClick={() => void integrate(proposal.method)}
+            >
+              <IconBranchOutlineRegular aria-hidden="true" />
+              {busy ? text.integrating : label(proposal.method)}
+            </Pill>
+            <Menu
+              open={open}
+              side="top"
+              portal
+              compact
+              onClose={() => setOpen(false)}
+              items={proposal.methods.map((method) => ({ id: method, label: label(method) }))}
+              onSelect={(id) => void integrate(id as IntegrationMethod)}
+              anchor={
+                <Pill
+                  className="dsh-forge-chip-trigger dsh-forge-chip-menu"
+                  disabled={disabled}
+                  aria-label={text.integrationMenu}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={() => setOpen((value) => !value)}
+                >
+                  <IconChevronDownOutlineRegular aria-hidden="true" />
+                </Pill>
+              }
+            />
+          </div>
+        )}
+        {proposal?.blocker && (
+          <span className="dsh-forge-chip-note">
+            {fill(text[blockerLabels[proposal.blocker]], { paths: proposal.paths.join(', ') })}
+          </span>
+        )}
+        {notice && (
+          <span className="dsh-forge-chip-note" role={notice.alert ? 'alert' : 'status'} title={notice.diagnostic}>
+            {notice.text}
+          </span>
+        )}
+      </>
+    )
   }
 
   function Chip({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
@@ -195,7 +364,8 @@ export function apply(ctx: Context) {
     if (hidden || !panel || panel.checkout.state !== 'ready') return null
     const dirty = !!facts?.dirty
     const showCreate = !dirty && fresh && canCreatePr(panel)
-    if (!dirty && !showCreate && !request && !lookupError && !error) return null
+    const linked = panel.checkout.checkout.linked
+    if (!dirty && !showCreate && !request && !lookupError && !error && !linked) return null
     const commitLabel =
       busy === 'commit'
         ? text.committing
@@ -287,6 +457,7 @@ export function apply(ctx: Context) {
           </Pill>
         )}
         {error && <span role="alert">{text[error]}</span>}
+        <Integration sessionId={sessionId} panel={panel} blocked={!canPrompt || unavailable} text={text} />
       </div>
     )
   }
