@@ -67,7 +67,7 @@ async function mount(options = {}) {
   const hooks = []
   const effects = []
   const streams = []
-  const messages = []
+  const rpcs = []
   const calls = []
   const listeners = new Map()
   const events = new Map()
@@ -142,21 +142,19 @@ async function mount(options = {}) {
     },
     effect() {},
     sidebarRight: { openTab: (tab) => openedTabs.push(tab) },
-    sessions: {
-      scope(id) {
-        calls.push(['scope', id])
-        return {
-          get(service) {
-            assert.equal(service, 'conversation')
-            return {
-              send(message) {
-                messages.push({ sessionId: id, message })
-                return options.send?.(message)
-              },
-            }
+    get(name) {
+      assert.equal(name, 'connection')
+      return {
+        rpc: {
+          async call(channel, method, payload) {
+            assert.equal(channel, '/api')
+            rpcs.push([method, JSON.parse(JSON.stringify(payload))])
+            if (method === 'dungsil-forge-chip/settings')
+              return { ok: true, value: { defaultAction: options.defaultAction ?? 'commit' } }
+            return (await options.rpc?.(method, payload)) ?? { ok: true, value: {} }
           },
-        }
-      },
+        },
+      }
     },
     remote: {
       forgePanel: {
@@ -165,15 +163,12 @@ async function mount(options = {}) {
           streams.push({ value, signal, sessionId: id })
           return value
         },
+        async refresh(id) {
+          calls.push(['refresh', id])
+        },
         localDiff(id, spec, signal) {
           calls.push(['localDiff', id, spec, signal])
           return localDiff(id, spec, signal)
-        },
-        changeRequestDiff(id, url, commits, signal) {
-          calls.push(['changeRequestDiff', id, url, commits, signal])
-          assert.equal(commits, null)
-          assert.ok(signal instanceof AbortSignal)
-          return options.changeRequestDiff?.(id, url, commits, signal) ?? { ok: true, value: { localAhead: 0 } }
         },
       },
     },
@@ -181,7 +176,7 @@ async function mount(options = {}) {
   plugin.apply(
     new Proxy(context, {
       get(target, key) {
-        if (['locale', 'slots', 'sidebarRight', 'sessions', 'remote'].includes(key)) {
+        if (['locale', 'slots', 'sidebarRight', 'remote'].includes(key)) {
           assert.ok(plugin.inject.includes(key), `Service ${String(key)} must be explicitly injected`)
         }
         return target[key]
@@ -211,7 +206,10 @@ async function mount(options = {}) {
   await refresh()
   return {
     calls,
-    messages,
+    rpcs,
+    get actions() {
+      return rpcs.filter(([method]) => method !== 'dungsil-forge-chip/settings')
+    },
     streams,
     session,
     openedTabs,
@@ -220,14 +218,35 @@ async function mount(options = {}) {
     get tree() {
       return tree
     },
+    get pills() {
+      const found = []
+      const walk = (node) => {
+        if (!node || typeof node !== 'object') return
+        if (Array.isArray(node)) return node.forEach(walk)
+        if (node.type === 'Pill') found.push(node.props)
+        if (node.type === 'Menu') found.push({ menu: node.props })
+        walk(node.props?.children)
+      }
+      walk(tree)
+      return found
+    },
+    pill(className) {
+      return this.pills.find((props) => props.className?.split(' ').includes(className))
+    },
     get primary() {
-      return tree?.props.children[0].props.children[0].props
+      return this.pill('dsh-forge-chip-commit')
     },
     get menu() {
-      return tree?.props.children[0].props.children[1].props
+      return this.pills.find((props) => props.menu)?.menu
     },
-    get checks() {
-      return tree?.props.children[1]?.props
+    get alert() {
+      const find = (node) => {
+        if (!node || typeof node !== 'object') return undefined
+        if (Array.isArray(node)) return node.map(find).find(Boolean)
+        if (node.props?.role === 'alert') return node.props.children
+        return find(node.props?.children)
+      }
+      return find(tree)
     },
     setLocalDiff(value) {
       localDiff = value
@@ -253,63 +272,143 @@ async function mount(options = {}) {
   }
 }
 
-await test('모든 로케일의 Git 작업은 현재 화면이 아닌 대상 세션의 conversation에 해당 프롬프트만 보낸다', async () => {
-  for (const language of Object.keys(locales)) {
-    for (const [operation, key] of [
-      ['commit', 'promptCommit'],
-      ['push', 'promptPush'],
-      ['pr', 'promptPr'],
-    ]) {
-      const view = await mount({ language: `${language}-REGION` })
-      try {
-        assert.equal(view.primary.disabled, false)
-        view.menu.onSelect(operation)
-        await tick()
-        assert.deepEqual(view.messages, [{ sessionId: 'target-session', message: locales[language][key] }])
-        assert.deepEqual(
-          view.calls.filter(([name]) => name === 'scope'),
-          [['scope', 'target-session']]
-        )
-        assert.equal(view.menu.side, 'top')
-        assert.equal(view.menu.portal, true)
-      } finally {
-        view.unmount()
-      }
-    }
-  }
-})
+const COMMIT = 'dungsil-forge-chip/commit'
+const PR = 'dungsil-forge-chip/pr'
+const DEFAULT = 'dungsil-forge-chip/default'
+const label = (props) => (Array.isArray(props.children) ? props.children.at(-1) : props.children)
 
-await test('실행 중이거나 제출 대기 중이거나 프롬프트 권한이 없으면 직접 호출해도 전송하지 않는다', async () => {
-  for (const options of [
-    { session: { running: true } },
-    { session: { pendingSubmissions: [{}] } },
-    { canPrompt: false },
+await test('변경이 있으면 split 칩의 기본 버튼은 저장된 기본 동작을 대상 세션에서 실행한다', async () => {
+  for (const [defaultAction, key, push] of [
+    ['commit', 'commit', false],
+    ['push', 'commitPush', true],
   ]) {
-    const view = await mount(options)
+    const view = await mount({ defaultAction, localDiff: dirty })
     try {
-      assert.equal(view.primary.disabled, true)
-      assert.equal(view.menu.anchor.props.disabled, true)
+      assert.equal(label(view.primary), locales.en[key])
+      assert.equal(view.menu.selectedId, `default-${defaultAction}`)
       view.primary.onClick()
-      view.menu.onSelect('commit')
-      assert.equal(view.messages.length, 0)
+      await tick()
+      assert.deepEqual(view.actions, [[COMMIT, { sessionId: 'target-session', push }]])
+      await view.refresh()
+      assert.ok(view.calls.some(([name, id]) => name === 'refresh' && id === 'target-session'))
     } finally {
       view.unmount()
     }
   }
 })
 
-await test('전송 완료 전 같은 렌더의 버튼과 메뉴를 반복 호출해도 한 번만 전송한다', async () => {
+await test('메뉴의 실행 항목은 이번 실행에만 적용하고 기본 동작 항목만 기본값을 저장한다', async () => {
+  const view = await mount({ localDiff: dirty })
+  try {
+    view.menu.onSelect('push')
+    await tick()
+    await view.refresh()
+    assert.deepEqual(view.actions, [[COMMIT, { sessionId: 'target-session', push: true }]])
+    assert.equal(label(view.primary), locales.en.commit)
+    view.menu.onSelect('default-push')
+    await tick()
+    await view.refresh()
+    assert.deepEqual(view.actions.at(-1), [DEFAULT, { defaultAction: 'push' }])
+    assert.equal(view.actions.filter(([method]) => method === COMMIT).length, 1)
+    assert.equal(label(view.primary), locales.en.commitPush)
+    assert.equal(view.menu.selectedId, 'default-push')
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('변경이 없으면 커밋 칩을 숨기고 기능 브랜치에서만 PR 생성을 별도 작업으로 요청한다', async () => {
+  const main = await mount({
+    panel: panel({ local: { base: 'origin/main' }, checkout: { state: 'ready', checkout: { branch: 'main' } } }),
+  })
+  try {
+    assert.equal(main.tree, null)
+  } finally {
+    main.unmount()
+  }
+  const view = await mount({ panel: panel({ local: { base: 'origin/main' } }) })
+  try {
+    assert.equal(view.primary, undefined)
+    const create = view.pill('dsh-forge-chip-create')
+    assert.equal(label(create), locales.en.pr)
+    create.onClick()
+    await tick()
+    assert.deepEqual(view.actions, [[PR, { sessionId: 'target-session' }]])
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('PR 보기는 현재 브랜치의 열린 PR에만 표시하고 세션 실행 중에도 열 수 있다', async () => {
+  const unrelated = await mount({ localDiff: dirty, panel: panel({ changeRequests: [request('other')] }) })
+  try {
+    assert.equal(unrelated.pill('dsh-forge-chip-view'), undefined)
+  } finally {
+    unrelated.unmount()
+  }
+  const view = await mount({
+    session: { running: true },
+    localDiff: dirty,
+    panel: panel({ changeRequests: [request()] }),
+  })
+  try {
+    const open = view.pill('dsh-forge-chip-view')
+    assert.equal(label(open), locales.en.viewPr)
+    assert.equal(open.disabled, undefined)
+    open.onClick()
+    assert.deepEqual(view.openedTabs, ['forge-panel'])
+    assert.equal(view.actions.length, 0)
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('실행 중이거나 제출 대기 중이거나 프롬프트 권한이 없으면 직접 호출해도 Git 작업을 요청하지 않는다', async () => {
+  const running = await mount({ localDiff: dirty })
+  try {
+    running.session.running = true
+    await running.refresh()
+    // The last read stays visible during a turn but cannot run.
+    assert.equal(running.primary.disabled, true)
+    assert.equal(running.menu.anchor.props.disabled, true)
+    running.primary.onClick()
+    running.menu.onSelect('commit')
+    await tick()
+    assert.equal(running.actions.length, 0)
+  } finally {
+    running.unmount()
+  }
+  const pending = await mount({ session: { pendingSubmissions: [{}] }, localDiff: dirty })
+  try {
+    assert.equal(pending.primary, undefined)
+    assert.equal(pending.calls.filter(([name]) => name === 'localDiff').length, 0)
+  } finally {
+    pending.unmount()
+  }
+  const denied = await mount({ canPrompt: false, localDiff: dirty })
+  try {
+    assert.equal(denied.primary.disabled, true)
+    denied.primary.onClick()
+    await tick()
+    assert.equal(denied.actions.length, 0)
+  } finally {
+    denied.unmount()
+  }
+})
+
+await test('완료 전 반복 호출해도 한 번만 요청하고 진행 문구를 표시한다', async () => {
   const pending = Promise.withResolvers()
-  const view = await mount({ send: () => pending.promise })
+  const view = await mount({ localDiff: dirty, rpc: () => pending.promise })
   try {
     view.primary.onClick()
-    view.menu.onSelect('commit')
+    view.menu.onSelect('push')
     view.primary.onClick()
-    assert.equal(view.messages.length, 1)
+    assert.equal(view.actions.length, 1)
     await view.refresh()
     assert.equal(view.primary['aria-busy'], true)
     assert.equal(view.primary.disabled, true)
-    pending.resolve()
+    assert.equal(label(view.primary), locales.en.committing)
+    pending.resolve({ ok: true, value: {} })
     await view.refresh()
     assert.equal(view.primary['aria-busy'], false)
   } finally {
@@ -318,35 +417,35 @@ await test('전송 완료 전 같은 렌더의 버튼과 메뉴를 반복 호출
   }
 })
 
-await test('관련 없는 PR은 보기를 제공하거나 차이를 조회하지 않고 현재 브랜치의 열린 PR만 사용한다', async () => {
-  const unrelated = await mount({ panel: panel({ changeRequests: [request('other')] }) })
-  try {
-    assert.equal(unrelated.primary.children[1], locales.en.push)
-    assert.equal(unrelated.checks, undefined)
-    assert.equal(unrelated.calls.filter(([name]) => name === 'changeRequestDiff').length, 0)
-  } finally {
-    unrelated.unmount()
+await test('모든 로케일에서 호스트 오류 코드를 해당 안내 문구로 표시한다', async () => {
+  const codes = {
+    unavailable: 'errorUnavailable',
+    'nothing-to-commit': 'errorNothingToCommit',
+    'message-failed': 'errorMessageFailed',
+    'commit-failed': 'errorCommitFailed',
+    'no-remote': 'errorNoRemote',
+    'push-failed': 'errorPushFailed',
+    'not-pushed': 'errorNotPushed',
+    unsupported: 'errorUnsupported',
+    'pr-failed': 'errorPrFailed',
   }
   for (const language of Object.keys(locales)) {
-    const view = await mount({ language, panel: panel({ changeRequests: [request('other'), request()] }) })
-    try {
-      assert.equal(view.primary.children[1], locales[language].viewPr)
-      view.primary.onClick()
-      assert.deepEqual(view.openedTabs, ['forge-panel'])
-      assert.equal(view.messages.length, 0)
-      assert.equal(view.calls.find(([name]) => name === 'changeRequestDiff')[2], request().url)
-      view.setLocalDiff(dirty)
-      view.focus()
-      await view.refresh()
-      assert.equal(view.primary.children[1], locales[language].updatePr)
-    } finally {
-      view.unmount()
+    for (const [code, key] of Object.entries(codes)) {
+      const view = await mount({ language, localDiff: dirty, rpc: () => ({ ok: false, error: { code } }) })
+      try {
+        view.primary.onClick()
+        await tick()
+        await view.refresh()
+        assert.equal(view.alert, locales[language][key])
+      } finally {
+        view.unmount()
+      }
     }
   }
 })
 
 await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중단하고 늦게 도착한 상태를 무시한다', async () => {
-  const view = await mount()
+  const view = await mount({ localDiff: dirty })
   try {
     const initial = view.streams[0]
     view.reset()
@@ -360,7 +459,7 @@ await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중�
     assert.equal(view.tree, null)
     view.streams[1].value.emit(panel())
     await view.refresh()
-    assert.equal(view.primary.children[1], locales.en.push)
+    assert.equal(label(view.primary), locales.en.commit)
     view.setCwd('/other')
     await view.refresh()
     assert.equal(view.streams[1].signal.aborted, true)
@@ -371,33 +470,11 @@ await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중�
   }
 })
 
-await test('새 패널을 조회한 뒤 도착한 이전 diff 응답은 새 패널의 작업 가능 상태를 덮어쓰지 않는다', async () => {
-  const pending = Promise.withResolvers()
-  const view = await mount({ localDiff: () => pending.promise })
-  try {
-    assert.equal(view.primary.disabled, true)
-    view.setLocalDiff(clean)
-    view.streams[0].value.emit(panel({ local: { base: 'origin/main' } }))
-    await view.refresh()
-    assert.equal(view.primary.disabled, false)
-    assert.equal(view.primary.children[1], locales.en.pr)
-    pending.resolve({ ok: false, error: { code: 'stale' } })
-    await view.refresh()
-    assert.equal(view.primary.disabled, false)
-    assert.equal(view.primary.children[1], locales.en.pr)
-  } finally {
-    pending.resolve(clean())
-    view.unmount()
-  }
-})
-
-await test('조회 실패는 전송을 차단하고 포커스로 다시 조회하면 복구한다', async () => {
+await test('조회 실패는 Git 작업을 차단하고 포커스로 다시 조회하면 복구한다', async () => {
   const view = await mount({ localDiff: () => ({ ok: false, error: { code: 'unavailable' } }) })
   try {
-    assert.equal(view.primary.disabled, true)
-    view.menu.onSelect('commit')
-    assert.equal(view.messages.length, 0)
-    view.setLocalDiff(clean)
+    assert.equal(label(view.pills[0]), locales.en.lookupError)
+    view.setLocalDiff(dirty)
     view.focus()
     await view.refresh()
     assert.equal(view.primary.disabled, false)

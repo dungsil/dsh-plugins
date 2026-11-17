@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-experimental-client-ui-forge/remote'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import type { ForgePanelState } from '@deepseek-ai/dsh-experimental-client-ui-forge/types'
@@ -23,17 +23,37 @@ import fr from '../locale/fr.json' with { type: 'json' }
 import de from '../locale/de.json' with { type: 'json' }
 import ru from '../locale/ru.json' with { type: 'json' }
 import pt from '../locale/pt.json' with { type: 'json' }
-import { primaryOperation, requestForCheckout, type Operation } from './model.js'
+import { canCreatePr, requestForCheckout } from './model.js'
+import { channel, methods, type ActionErrorCode, type DefaultAction } from './protocol.js'
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-forge-chip'
-export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.forgePanel', 'sidebarRight']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.forgePanel', 'sidebarRight']
 
 const translations: Record<string, typeof en> = { en, ko, zh, ja, es, fr, de, ru, pt }
+type Copy = Omit<typeof en, 'meta'>
+type Busy = DefaultAction | 'pr'
+
+const errorKeys: Record<ActionErrorCode, keyof Copy> = {
+  unavailable: 'errorUnavailable',
+  'nothing-to-commit': 'errorNothingToCommit',
+  'message-failed': 'errorMessageFailed',
+  'commit-failed': 'errorCommitFailed',
+  'no-remote': 'errorNoRemote',
+  'push-failed': 'errorPushFailed',
+  'not-pushed': 'errorNotPushed',
+  unsupported: 'errorUnsupported',
+  'pr-failed': 'errorPrFailed',
+}
 
 export function apply(ctx: Context) {
-  // The UI facade also brings legacy SessionStore declarations; use the 0.2.2 controller contract explicitly.
-  const sessions = ctx.sessions as unknown as ISessions
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
+  const call = async (method: string, payload: Record<string, unknown>, signal?: AbortSignal) => {
+    const result = await connection.rpc.call(channel, method, payload, signal)
+    if (!result.ok) throw Object.assign(new Error('rpc'), { code: (result.error as { code?: string }).code })
+    return result.value
+  }
+
   function Chip({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const { active } = useLocaleSnapshot(ctx.locale)
     const text = localizedCopy(translations, active)
@@ -44,12 +64,14 @@ export function apply(ctx: Context) {
     const canPrompt = useAccess('session.prompt')
     const cwd = useProjection('workingDirectory')
     const [panel, setPanel] = useState<ForgePanelState>()
-    const [facts, setFacts] = useState<{ panel: ForgePanelState; dirty: boolean; ahead: number | null }>()
+    const [facts, setFacts] = useState<{ panel: ForgePanelState; dirty: boolean }>()
+    const [defaultAction, setDefaultAction] = useState<DefaultAction>('commit')
     const [lookupError, setLookupError] = useState(false)
-    const [error, setError] = useState(false)
-    const [sending, setSending] = useState(false)
+    const [error, setError] = useState<keyof Copy>()
+    const [busy, setBusy] = useState<Busy>()
     const [open, setOpen] = useState(false)
     const [generation, setGeneration] = useState(0)
+    const [version, setVersion] = useState(0)
     const pending = useRef(false)
     const mounted = useRef(true)
     useEffect(() => {
@@ -64,6 +86,16 @@ export function apply(ctx: Context) {
         dispose()
       }
     }, [])
+    useEffect(() => {
+      const controller = new AbortController()
+      void call(methods.settings, {}, controller.signal)
+        .then((value) => {
+          const action = (value as { defaultAction?: unknown } | null)?.defaultAction
+          if (!controller.signal.aborted && (action === 'commit' || action === 'push')) setDefaultAction(action)
+        })
+        .catch(() => {})
+      return () => controller.abort()
+    }, [generation])
 
     useEffect(() => {
       setPanel(undefined)
@@ -93,141 +125,159 @@ export function apply(ctx: Context) {
       }
     }, [sessionId, cwd, hidden, generation])
 
+    // Changes are read only while the Session is idle; the last answer stays visible, disabled, during a turn.
     useEffect(() => {
-      setFacts(undefined)
       if (!panel || panel.checkout.state !== 'ready' || unavailable) return
       const controller = new AbortController()
-      const request = requestForCheckout(panel)
       let sequence = 0
       const refresh = async () => {
         const current = ++sequence
         try {
           const local = await ctx.remote.forgePanel.localDiff(sessionId, { kind: 'uncommitted' }, controller.signal)
-          const remote = request
-            ? await ctx.remote.forgePanel.changeRequestDiff(sessionId, request.url, null, controller.signal)
-            : undefined
           if (controller.signal.aborted || current !== sequence) return
           if (!local.ok) {
             setLookupError(true)
             return
           }
-          setFacts({
-            panel,
-            dirty: local.value.files.length > 0 || local.value.omitted > 0,
-            ahead: remote?.ok ? remote.value.localAhead : null,
-          })
+          setFacts({ panel, dirty: local.value.files.length > 0 || local.value.omitted > 0 })
           setLookupError(false)
         } catch {
           if (!controller.signal.aborted && current === sequence) setLookupError(true)
         }
       }
       void refresh()
-      const onFocus = () => {
-        setFacts(undefined)
-        void refresh()
-      }
+      const onFocus = () => void refresh()
       window.addEventListener('focus', onFocus)
       return () => {
         controller.abort()
         window.removeEventListener('focus', onFocus)
       }
-    }, [panel, sessionId, unavailable])
+    }, [panel, sessionId, unavailable, version])
 
     const request = panel && requestForCheckout(panel)
     const fresh = facts?.panel === panel && facts !== undefined
-    const viewOnly = !!request && fresh && !facts.dirty && facts.ahead === 0
-    const disabled = !canPrompt || unavailable || sending || !fresh || lookupError
+    const disabled = !canPrompt || unavailable || !!busy || !fresh || lookupError
     useEffect(() => {
-      if (disabled || viewOnly) setOpen(false)
-    }, [disabled, viewOnly])
+      if (disabled) setOpen(false)
+    }, [disabled])
     const showPanel = () => ctx.sidebarRight.openTab('forge-panel')
-    const send = async (operation: Operation) => {
+    const act = async (operation: Busy) => {
       if (disabled || pending.current) return
       pending.current = true
-      setSending(true)
+      setBusy(operation)
       setOpen(false)
-      setError(false)
+      setError(undefined)
       try {
-        const conversation = sessions.scope(sessionId)?.get('conversation')
-        if (!conversation) throw new Error('Session unavailable')
-        await conversation.send({ commit: text.promptCommit, push: text.promptPush, pr: text.promptPr }[operation])
-      } catch {
-        if (mounted.current) setError(true)
+        if (operation === 'pr') await call(methods.pr, { sessionId })
+        else await call(methods.commit, { sessionId, push: operation === 'push' })
+      } catch (failure) {
+        const code = (failure as { code?: ActionErrorCode }).code
+        if (mounted.current) setError((code && errorKeys[code]) || 'error')
       } finally {
         pending.current = false
-        if (mounted.current) setSending(false)
+        void ctx.remote.forgePanel.refresh(sessionId).catch(() => {})
+        if (mounted.current) {
+          setBusy(undefined)
+          setVersion((n) => n + 1)
+        }
       }
     }
+    const saveDefault = (action: DefaultAction) => {
+      const previous = defaultAction
+      setDefaultAction(action)
+      void call(methods.saveDefault, { defaultAction: action }).catch(() => {
+        if (mounted.current) {
+          setDefaultAction(previous)
+          setError('error')
+        }
+      })
+    }
     if (hidden || !panel || panel.checkout.state !== 'ready') return null
-    const operation = primaryOperation(panel)
-    const label = sending
-      ? text.sending
-      : viewOnly
-        ? text.viewPr
-        : operation === 'pr' && request
-          ? text.updatePr
-          : text[operation]
+    const dirty = !!facts?.dirty
+    const showCreate = !dirty && fresh && canCreatePr(panel)
+    if (!dirty && !showCreate && !request && !lookupError && !error) return null
+    const commitLabel =
+      busy === 'commit'
+        ? text.committing
+        : busy === 'push'
+          ? text.pushing
+          : text[defaultAction === 'push' ? 'commitPush' : 'commit']
     const checks = request?.snapshot?.checksRollup ?? 'unknown'
     const stale = !!request?.update && 'error' in request.update
     return (
       <div className="dsh-forge-chip">
-        <div className="dsh-forge-chip-actions">
+        {dirty && (
+          <div className="dsh-forge-chip-actions">
+            <Pill
+              className="dsh-forge-chip-trigger dsh-forge-chip-commit"
+              disabled={disabled}
+              aria-busy={busy === 'commit' || busy === 'push'}
+              onClick={() => void act(defaultAction)}
+            >
+              <IconBranchOutlineRegular aria-hidden="true" />
+              {commitLabel}
+            </Pill>
+            <Menu
+              open={open}
+              side="top"
+              portal
+              compact
+              onClose={() => setOpen(false)}
+              selectedId={`default-${defaultAction}`}
+              items={[
+                { id: 'commit', label: text.commit },
+                ...(panel.repository ? [{ id: 'push', label: text.commitPush }] : []),
+                { type: 'separator', id: 'separator' },
+                { type: 'label', id: 'default', text: text.defaultAction },
+                { id: 'default-commit', label: text.commit },
+                { id: 'default-push', label: text.commitPush },
+              ]}
+              onSelect={(id) => {
+                setOpen(false)
+                if (id === 'default-commit' || id === 'default-push')
+                  saveDefault(id === 'default-push' ? 'push' : 'commit')
+                else void act(id as DefaultAction)
+              }}
+              anchor={
+                <Pill
+                  className="dsh-forge-chip-trigger dsh-forge-chip-menu"
+                  disabled={disabled}
+                  aria-label={text.menu}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={() => setOpen((value) => !value)}
+                  onKeyDown={(event) => {
+                    if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                      event.preventDefault()
+                      setOpen(true)
+                    }
+                  }}
+                >
+                  <IconChevronDownOutlineRegular aria-hidden="true" />
+                </Pill>
+              }
+            />
+          </div>
+        )}
+        {showCreate && (
           <Pill
-            className="dsh-forge-chip-trigger"
-            disabled={!viewOnly && disabled}
-            title={viewOnly ? text.viewPr : text.hint}
-            aria-busy={sending}
-            onClick={() => {
-              if (viewOnly) showPanel()
-              else void send(operation)
-            }}
+            className="dsh-forge-chip-trigger dsh-forge-chip-create"
+            disabled={disabled}
+            aria-busy={busy === 'pr'}
+            onClick={() => void act('pr')}
           >
             <IconBranchOutlineRegular aria-hidden="true" />
-            {label}
+            {busy === 'pr' ? text.creatingPr : text.pr}
           </Pill>
-          <Menu
-            open={open}
-            side="top"
-            portal
-            compact
-            onClose={() => setOpen(false)}
-            items={[
-              { id: 'commit', label: text.commit },
-              ...(panel.repository
-                ? [
-                    { id: 'push', label: text.push },
-                    { id: 'pr', label: request ? text.updatePr : text.pr },
-                  ]
-                : []),
-              { id: 'panel', label: text.panel },
-            ]}
-            onSelect={(id) => {
-              setOpen(false)
-              if (id === 'panel') showPanel()
-              else void send(id as Operation)
-            }}
-            anchor={
-              <Pill
-                className="dsh-forge-chip-trigger dsh-forge-chip-menu"
-                disabled={disabled}
-                aria-label={text.menu}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                onClick={() => setOpen((value) => !value)}
-                onKeyDown={(event) => {
-                  if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
-                    event.preventDefault()
-                    setOpen(true)
-                  }
-                }}
-              >
-                <IconChevronDownOutlineRegular aria-hidden="true" />
-              </Pill>
-            }
-          />
-        </div>
+        )}
+        {/* Viewing is read-only, so it stays available while a turn runs. */}
         {request && (
-          <Pill className="dsh-forge-chip-trigger" onClick={showPanel}>
+          <Pill className="dsh-forge-chip-trigger dsh-forge-chip-view" onClick={showPanel}>
+            {text.viewPr}
+          </Pill>
+        )}
+        {request && (
+          <Pill className="dsh-forge-chip-trigger dsh-forge-chip-checks" onClick={showPanel}>
             {text.checks}: {stale ? text.unknown : text[checks]}
           </Pill>
         )}
@@ -236,7 +286,7 @@ export function apply(ctx: Context) {
             {text.lookupError}
           </Pill>
         )}
-        {error && <span role="alert">{text.error}</span>}
+        {error && <span role="alert">{text[error]}</span>}
       </div>
     )
   }
