@@ -26,6 +26,8 @@
       name: '@dungsil/dsh-plugin-ui-setting-vcs'
     - id: dungsil-ui-usage
       name: '@dungsil/dsh-plugin-ui-usage'
+    - id: dungsil-ui-notifications
+      name: '@dungsil/dsh-plugin-ui-notifications'
     - id: dungsil-ui-model-picker
       name: '@dungsil/dsh-plugin-ui-model-picker'
     - id: dungsil-turn-rail-left

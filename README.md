@@ -16,6 +16,7 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-i-have-adhd](./packages/i-have-adhd)                 | ADHD 친화적 응답 스킬 플러그인                                      |   MIT    |
 | [@dungsil/dsh-plugin-pstack](./packages/pstack)                           | 검증 중심 엔지니어링 스킬 58개와 플레이북 23개                      |   MIT    |
 | [@dungsil/dsh-plugin-ui-sidebar-inbox](./packages/ui-sidebar-inbox)       | Inbox·Working·Archived 상태별 사이드바 목록 배치 플러그인           |   MIT    |
+| [@dungsil/dsh-plugin-ui-notifications](./packages/ui-notifications)       | 입력이 필요하거나 답변이 완료된 세션을 브라우저 알림과 소리로 알림  |   MIT    |
 | [@dungsil/dsh-plugin-tool-secret-request](./packages/tool-secret-request) | 비밀값을 메시지 내 입력 카드에서 받고 모델에는 참조만 전달하는 도구 |   MIT    |
 | [@dungsil/dsh-plugin-model-settings](./packages/model-settings)           | 세션 제목 모델을 관리하는 소유자 전용 API                           |   MIT    |
 | [@dungsil/dsh-plugin-ui-model-settings](./packages/ui-model-settings)     | 상황별 모델 설정 UI (모델 설정 기능 플러그인을 함께 설치함)         |   MIT    |

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Notifications de session",
+    "description": "Affiche des notifications du navigateur et joue un son lorsqu’une session nécessite une approbation, une réponse ou une revue du plan, ou termine une réponse."
+  }
+}

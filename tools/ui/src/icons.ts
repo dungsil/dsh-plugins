@@ -1,5 +1,7 @@
 import { createElement } from 'react'
 import resetIconSvg from './icons/rotate-ccw.svg'
+import bellSvg from './icons/bell.svg'
+import bellOffSvg from './icons/bell-off.svg'
 
 export { ProviderIcon } from './provider-icon.js'
 
@@ -40,6 +42,23 @@ export {
   IconWarningTriangleOutlineRegular,
   IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+
+export { bellSvg as bellIconSvg }
+
+/** Size a trusted, build-time 24×24 SVG asset like the DSH primitives (16px by default). */
+function svgIcon(svg: string) {
+  const html = svg.replace('width="24" height="24"', 'width="100%" height="100%"')
+  return function Icon({ size = 16 }: { size?: number }) {
+    return createElement('span', {
+      style: { display: 'inline-flex', flex: 'none', width: size, height: size },
+      'aria-hidden': 'true',
+      dangerouslySetInnerHTML: { __html: html },
+    })
+  }
+}
+
+export const IconBellOutlineRegular = /* @__PURE__ */ svgIcon(bellSvg)
+export const IconBellOffOutlineRegular = /* @__PURE__ */ svgIcon(bellOffSvg)
 
 export function IconResetOutlineRegular() {
   // Only trusted, build-time SVG assets are inserted as markup.

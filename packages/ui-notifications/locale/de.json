@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Sitzungsbenachrichtigungen",
+    "description": "Zeigt Browserbenachrichtigungen an und spielt einen Ton ab, wenn eine Sitzung eine Freigabe, eine Antwort oder eine Planprüfung benötigt oder eine Antwort abschließt."
+  }
+}

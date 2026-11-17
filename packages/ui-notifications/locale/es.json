@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Notificaciones de sesión",
+    "description": "Muestra notificaciones del navegador y reproduce un sonido cuando una sesión necesita una aprobación, una respuesta o una revisión del plan, o termina una respuesta."
+  }
+}
