@@ -21,6 +21,7 @@
   "errorPushFailed": "Se creó el commit, pero falló el push. Revisa el remoto y tus credenciales.",
   "errorNotPushed": "Haz push de esta rama antes de crear un PR.",
   "errorUnsupported": "Este servicio de alojamiento de código no admite crear PR.",
+  "errorPrUnavailable": "La CLI del servicio de código (gh, glab o tea) no está instalada en el host. Instálala y vuelve a intentarlo.",
   "errorPrFailed": "No se pudo crear el PR. Comprueba que la CLI del servicio de código tenga la sesión iniciada.",
   "checks": "Comprobaciones",
   "none": "Sin comprobaciones",

@@ -841,6 +841,12 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: 3.19.0
         version: 3.19.0
+      '@dungsil/dsh-plugin-forge-forgejo':
+        specifier: workspace:*
+        version: link:../forge-forgejo
+      '@dungsil/dsh-plugin-forge-gitea':
+        specifier: workspace:*
+        version: link:../forge-gitea
       '@dungsil/dsh-plugin-model-settings':
         specifier: workspace:*
         version: link:../model-settings

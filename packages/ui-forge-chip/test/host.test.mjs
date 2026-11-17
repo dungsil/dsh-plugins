@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import { installConnection } from '@deepseek-ai/dsh-client-connection/client'
+import { ForgejoProvider } from '@dungsil/dsh-plugin-forge-forgejo'
+import { GiteaProvider } from '@dungsil/dsh-plugin-forge-gitea'
 import { apply } from '../dist/index.js'
 
 const sh = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -27,6 +29,37 @@ async function setup(t, options = {}) {
   sh(repo, 'add', '.')
   sh(repo, 'commit', '--quiet', '-m', 'feat: 첫 커밋을 추가한다')
   if (options.remote !== false) sh(repo, 'remote', 'add', 'origin', remote)
+  // The forge registry sees the code host URL while pushes still reach the local bare repository.
+  if (options.remoteUrl) {
+    sh(repo, 'config', 'remote.origin.url', options.remoteUrl)
+    sh(repo, 'config', 'remote.origin.pushurl', remote)
+  }
+  // A fake tea that logs its arguments and answers from tea.json, keyed by its first two arguments.
+  const tea = join(root, 'tea')
+  await writeFile(
+    tea,
+    `#!/usr/bin/env node
+const { appendFileSync, readFileSync } = require('node:fs')
+const args = process.argv.slice(2)
+appendFileSync(__dirname + '/tea.log', JSON.stringify({ args, token: process.env.GITEA_TOKEN ?? null }) + '\\n')
+const reply = JSON.parse(readFileSync(__dirname + '/tea.json', 'utf8'))[args.slice(0, 2).join(' ')] ?? { code: 1 }
+process.stdout.write(reply.stdout ?? '')
+process.exit(reply.code ?? 0)
+`
+  )
+  await chmod(tea, 0o755)
+  const setTea = (replies) => writeFile(join(root, 'tea.json'), JSON.stringify(replies))
+  await setTea({})
+  const teaCalls = async () =>
+    (await readFile(join(root, 'tea.log'), 'utf8').catch(() => ''))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+  const providers = [
+    new GiteaProvider(async () => assert.fail('URL handling runs no tea'), ['gitea.test'], 1048576),
+    new ForgejoProvider(async () => assert.fail('URL handling runs no tea'), ['codeberg.test'], 1048576),
+  ]
+  const provided = (method, value) => providers.map((provider) => provider[method](value)).find(Boolean)
 
   const llmRequests = []
   const discovered = []
@@ -54,7 +87,10 @@ async function setup(t, options = {}) {
     sandboxPolicy: { resolve: () => ({ mode: 'danger-full-access' }) },
     sandbox: { confine: async () => assert.fail('full access never confines') },
     subprocess: {
-      resolveExecutable: async (name) => name,
+      resolveExecutable: async (name) => {
+        if (options.missing?.includes(name)) throw new Error(`${name} is not installed`)
+        return name === 'tea' ? tea : name
+      },
       spawn(spec) {
         spawned.push(spec.argv)
         let stdout = ''
@@ -86,14 +122,21 @@ async function setup(t, options = {}) {
         }
       },
     },
-    forge: {
-      repositoryFromRemote: (url) =>
-        url ? { forge: options.forge ?? 'github', host: 'h', owner: 'o', name: 'n' } : undefined,
-      findByHead: async (_repository, branch) => (options.existing ? [{ branch }] : []),
-      changeRequestUrl: (ref) => `https://h/o/n/pull/${ref.branch}`,
-    },
+    forge: options.remoteUrl
+      ? {
+          repositoryFromRemote: (url) => provided('repositoryFromRemote', url),
+          findByHead: async (repository) => (options.existing ? [{ repository, number: 3 }] : []),
+          changeRequestFromUrl: (url) => provided('changeRequestFromUrl', url),
+          changeRequestUrl: (ref) => providers.find((p) => p.forge === ref.repository.forge).changeRequestUrl(ref),
+        }
+      : {
+          repositoryFromRemote: (url) =>
+            url ? { forge: options.forge ?? 'github', host: 'h', owner: 'o', name: 'n' } : undefined,
+          findByHead: async (_repository, branch) => (options.existing ? [{ branch }] : []),
+          changeRequestUrl: (ref) => `https://h/o/n/pull/${ref.branch}`,
+        },
     forgeSession: {
-      track: (_session, url) => tracked.push(url),
+      track: (target, url) => tracked.push([target.id, url]),
       discoverBranch: async (_session, url, branch) => discovered.push([url, branch]),
     },
     configEditor: {},
@@ -122,6 +165,8 @@ async function setup(t, options = {}) {
     discovered,
     tracked,
     spawned,
+    setTea,
+    teaCalls,
     setReply: (value) => (reply = value),
   }
 }
@@ -199,15 +244,165 @@ await test('PR 생성은 커밋·푸시하지 않고 푸시되지 않은 커밋�
   const before = sh(h.repo, 'rev-parse', 'HEAD')
   const result = await h.call('pr', { sessionId: 'one' })
   assert.deepEqual(result, { ok: true, value: { url: 'https://h/o/n/pull/topic', reused: true } })
-  assert.deepEqual(h.tracked, ['https://h/o/n/pull/topic'])
+  assert.deepEqual(h.tracked, [['one', 'https://h/o/n/pull/topic']])
   assert.equal(sh(h.repo, 'rev-parse', 'HEAD'), before)
   assert.equal(h.llmRequests.length, 0)
   assert.ok(!h.spawned.some((argv) => argv[0] === 'gh'))
 })
 
-await test('지원하지 않는 코드 호스트에서는 새 PR을 만들지 않는다', async (t) => {
-  const h = await setup(t, { forge: 'gitea' })
+const families = [
+  { forge: 'gitea', host: 'gitea.test' },
+  { forge: 'forgejo', host: 'codeberg.test' },
+]
+const login = (host, name = 'work') => ({ name, url: `https://${host}`, sshhost: host, user: 'me', default: 'false' })
+
+/** A pushed topic branch whose remote is a Gitea-family repository and whose remote default branch is main. */
+async function giteaSetup(t, options = {}, family = families[0]) {
+  const h = await setup(t, { remoteUrl: `https://${family.host}/o/n.git`, ...options })
+  sh(h.repo, 'push', '--quiet', '-u', 'origin', 'main')
+  sh(h.repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+  sh(h.repo, 'switch', '--quiet', '-c', 'topic')
+  await writeFile(join(h.repo, 'b.txt'), 'b\n')
+  sh(h.repo, 'add', '.')
+  sh(h.repo, 'commit', '--quiet', '-m', 'feat: 기능을 추가한다', '-m', '본문 설명이다')
+  sh(h.repo, 'push', '--quiet', '-u', 'origin', 'topic')
+  return h
+}
+
+await test('지원하지 않는 코드 호스트에서는 새 PR을 만들지 않고 CLI가 없으면 pr-unavailable로 구분해 거부한다', async (t) => {
+  const h = await setup(t, { forge: 'bitbucket' })
   sh(h.repo, 'switch', '--quiet', '-c', 'topic')
   sh(h.repo, 'push', '--quiet', '-u', 'origin', 'topic')
   assert.equal((await h.call('pr', { sessionId: 'one' })).error.code, 'unsupported')
+  const github = await setup(t, { missing: ['gh'] })
+  sh(github.repo, 'switch', '--quiet', '-c', 'topic')
+  sh(github.repo, 'push', '--quiet', '-u', 'origin', 'topic')
+  assert.equal((await github.call('pr', { sessionId: 'one' })).error.code, 'pr-unavailable')
+  const gitea = await giteaSetup(t, { missing: ['tea'] })
+  assert.equal((await gitea.call('pr', { sessionId: 'one' })).error.code, 'pr-unavailable')
+  assert.deepEqual(await gitea.teaCalls(), [])
+  assert.deepEqual(gitea.tracked, [])
+})
+
+await test('Gitea와 Forgejo PR 생성은 호스트의 tea 로그인으로 tea pulls create를 실행하고 정규 URL을 세션에 연결한다', async (t) => {
+  const previous = process.env.GITEA_TOKEN
+  process.env.GITEA_TOKEN = 'ambient-token'
+  t.after(() => (previous === undefined ? delete process.env.GITEA_TOKEN : (process.env.GITEA_TOKEN = previous)))
+  for (const family of families) {
+    const h = await giteaSetup(t, {}, family)
+    if (family.forge === 'forgejo') {
+      await writeFile(join(h.repo, 'c.txt'), 'c\n')
+      sh(h.repo, 'add', '.')
+      sh(h.repo, 'commit', '--quiet', '-m', 'fix: 오류를 고친다')
+      sh(h.repo, 'push', '--quiet')
+    }
+    const before = sh(h.repo, 'rev-parse', 'HEAD')
+    await h.setTea({
+      'login list': { stdout: JSON.stringify([login('other.test', 'other'), login(family.host)]) },
+      'pulls create': {
+        stdout: `${JSON.stringify({ index: 12, title: 't', url: `https://${family.host}/O/N/pulls/12/`, state: 'open', base: 'main', head: 'topic' })}\n`,
+      },
+    })
+    const result = await h.call('pr', { sessionId: 'one' })
+    // The canonical URL keeps the host's spelling of the repository and drops the trailing slash.
+    const url = `https://${family.host}/O/N/pulls/12`
+    assert.deepEqual(result, { ok: true, value: { url, reused: false } }, family.forge)
+    assert.deepEqual(h.tracked, [['one', url]])
+    const calls = await h.teaCalls()
+    assert.deepEqual(
+      calls.map((call) => call.args),
+      [
+        ['login', 'list', '--output', 'json'],
+        [
+          'pulls',
+          'create',
+          '--login=work',
+          '--repo=o/n',
+          '--head=topic',
+          ...(family.forge === 'gitea'
+            ? ['--title=feat: 기능을 추가한다', '--description=본문 설명이다']
+            : ['--description=- feat: 기능을 추가한다\n- fix: 오류를 고친다']),
+          '--output=json',
+        ],
+      ]
+    )
+    assert.ok(
+      calls.every((call) => call.token === null),
+      'ambient tea credentials never reach tea'
+    )
+    assert.equal(sh(h.repo, 'rev-parse', 'HEAD'), before, 'PR creation never commits')
+    assert.equal(h.llmRequests.length, 0)
+    assert.equal(h.agent.maintenance, 1)
+  }
+})
+
+await test('tea 0.16 이전처럼 JSON 대신 PR 세부 정보를 출력하면 그 URL을 검증해 세션에 연결한다', async (t) => {
+  const h = await giteaSetup(t)
+  await h.setTea({
+    'login list': { stdout: JSON.stringify([login('gitea.test')]) },
+    'pulls create': {
+      stdout: '  # #4 feat (open)\n\n  @me created 2026-11-17\tmain <- topic\n\n  https://gitea.test/o/n/pulls/4\n',
+    },
+  })
+  assert.deepEqual(await h.call('pr', { sessionId: 'one' }), {
+    ok: true,
+    value: { url: 'https://gitea.test/o/n/pulls/4', reused: false },
+  })
+  assert.deepEqual(h.tracked, [['one', 'https://gitea.test/o/n/pulls/4']])
+})
+
+await test('Gitea PR 생성은 열린 PR을 재사용하고 푸시되지 않은 커밋이 있으면 tea를 실행하지 않고 거부한다', async (t) => {
+  const reuse = await giteaSetup(t, { existing: true }, families[1])
+  assert.deepEqual(await reuse.call('pr', { sessionId: 'one' }), {
+    ok: true,
+    value: { url: 'https://codeberg.test/o/n/pulls/3', reused: true },
+  })
+  assert.deepEqual(reuse.tracked, [['one', 'https://codeberg.test/o/n/pulls/3']])
+  assert.deepEqual(await reuse.teaCalls(), [])
+
+  const local = await giteaSetup(t)
+  await writeFile(join(local.repo, 'c.txt'), 'c\n')
+  sh(local.repo, 'add', '.')
+  sh(local.repo, 'commit', '--quiet', '-m', 'local')
+  assert.equal((await local.call('pr', { sessionId: 'one' })).error.code, 'not-pushed')
+  assert.deepEqual(await local.teaCalls(), [])
+  assert.notEqual(sh(local.remote, 'rev-parse', 'topic'), sh(local.repo, 'rev-parse', 'HEAD'), 'nothing was pushed')
+})
+
+await test('tea 로그인이 실패하거나 호스트에 맞는 로그인이 하나가 아니면 PR을 만들지 않고 pr-failed로 거부한다', async (t) => {
+  const h = await giteaSetup(t)
+  for (const reply of [
+    { code: 1, stdout: '' },
+    { stdout: JSON.stringify([]) },
+    { stdout: JSON.stringify([login('gitea.test', 'a'), login('gitea.test', 'b')]) },
+    { stdout: JSON.stringify([login('gitea.test', '--repo=x/y')]) },
+    { stdout: 'not json' },
+  ]) {
+    await h.setTea({ 'login list': reply, 'pulls create': { stdout: '{}' } })
+    assert.equal((await h.call('pr', { sessionId: 'one' })).error.code, 'pr-failed', JSON.stringify(reply))
+  }
+  assert.ok(
+    (await h.teaCalls()).every((call) => call.args[0] === 'login'),
+    'tea pulls create never ran'
+  )
+  assert.deepEqual(h.tracked, [])
+})
+
+await test('tea가 실패하거나 출력이 비정상이거나 다른 저장소의 URL이면 세션에 연결하지 않고 pr-failed로 거부한다', async (t) => {
+  const h = await giteaSetup(t)
+  const created = (fields) => ({ stdout: JSON.stringify({ index: 1, head: 'topic', ...fields }) })
+  for (const reply of [
+    { code: 1, stdout: '' },
+    { stdout: 'created' },
+    { stdout: '  # #1 x (open)\n\n  https://gitea.test/o/other/pulls/1\n' },
+    { stdout: 'null' },
+    created({ url: 'https://gitea.test/o/other/pulls/1' }),
+    created({ url: 'https://codeberg.test/o/n/pulls/1' }),
+    created({ url: 'https://gitea.test/o/n/pull/1' }),
+    created({ url: 'https://gitea.test/o/n/pulls/1', head: 'other' }),
+  ]) {
+    await h.setTea({ 'login list': { stdout: JSON.stringify([login('gitea.test')]) }, 'pulls create': reply })
+    assert.equal((await h.call('pr', { sessionId: 'one' })).error.code, 'pr-failed', JSON.stringify(reply))
+  }
+  assert.deepEqual(h.tracked, [])
 })

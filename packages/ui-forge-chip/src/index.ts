@@ -115,6 +115,7 @@ type Host = {
   forge: {
     repositoryFromRemote(url: string): Repository | undefined
     findByHead(repository: Repository, branch: string, signal: AbortSignal): Promise<readonly unknown[]>
+    changeRequestFromUrl(url: string): { repository: Repository; number: number } | undefined
     changeRequestUrl(ref: unknown): string
   }
   forgeSession: {
@@ -144,6 +145,22 @@ const prCommands: Record<string, (branch: string) => { executable: string; args:
   github: (branch) => ({ executable: 'gh', args: ['pr', 'create', '--fill', '--head', branch] }),
   gitlab: (branch) => ({ executable: 'glab', args: ['mr', 'create', '--fill', '--yes', '--source-branch', branch] }),
 }
+/** Families whose registry providers read pull requests through tea; tea creates their PRs too. */
+const teaForges = new Set(['gitea', 'forgejo'])
+
+/** Like the tea providers, ignore tea and other forge credentials from the environment so the chosen login applies. */
+const teaEnvironment = () =>
+  gitProcessEnvironment({
+    ...Object.fromEntries(
+      Object.keys(process.env)
+        .filter((key) => /^(?:TEA_|GITEA_|FORGEJO_|GH_|GITHUB_|GLAB_|GITLAB_)/iu.test(key))
+        .map((key) => [key, undefined])
+    ),
+    NO_COLOR: '1',
+    CLICOLOR: '0',
+    TERM: 'dumb',
+    TEA_NO_UPDATE_CHECK: '1',
+  })
 
 export function apply(ctx: Context, config: Config) {
   const host = ctx as unknown as Host
@@ -327,6 +344,100 @@ export function apply(ctx: Context, config: Config) {
     return { commit: sha, subject: message.split('\n')[0]!, pushed: push }
   }
 
+  /**
+   * Opens a Gitea or Forgejo PR with `tea pulls create`, which prints JSON from tea 0.16 on. Like the tea
+   * providers, it uses the one tea login for the repository's HTTPS host, and it fills title and description from
+   * the commits the way `gh pr create --fill` does; without a known default branch tea titles the PR after the branch.
+   */
+  const createTeaPr = async (
+    session: Session,
+    cwd: string,
+    repository: Repository,
+    target: { branch: string; remote: string | null },
+    signal: AbortSignal
+  ) => {
+    const env = teaEnvironment()
+    const tea = (args: string[], timeoutMs: number) =>
+      run(session, cwd, ['tea', ...args], signal, { unconfined: true, timeoutMs, env }).catch(() => {
+        signal.throwIfAborted()
+        throw new ActionError('pr-failed')
+      })
+    const listed = await tea(['login', 'list', '--output', 'json'], 15_000)
+    let logins: unknown
+    try {
+      logins = JSON.parse(listed.text)
+    } catch {
+      throw new ActionError('pr-failed')
+    }
+    const matches = (Array.isArray(logins) ? logins : []).filter((entry) => {
+      try {
+        const url = new URL(entry?.url)
+        return url.href === `https://${repository.host}/` && !url.username && !url.password
+      } catch {
+        return false
+      }
+    })
+    const login = matches.length === 1 ? matches[0].name : undefined
+    if (typeof login !== 'string' || !login || login.startsWith('-')) throw new ActionError('pr-failed')
+
+    const fill: string[] = []
+    const base = target.remote
+      ? (
+          await git(session, cwd, ['rev-parse', '--quiet', '--verify', `refs/remotes/${target.remote}/HEAD`], signal, {
+            allowed: [0, 1],
+          })
+        ).trim()
+      : ''
+    if (base) {
+      const commits = (await git(session, cwd, ['log', '--reverse', '--format=%s%x00%b%x1e', `${base}..HEAD`], signal))
+        .split('\x1e')
+        .map((entry) => entry.trim().split('\0'))
+        .filter(([subject]) => subject)
+      if (commits.length === 1) {
+        fill.push(`--title=${commits[0]![0]}`)
+        if (commits[0]![1]?.trim()) fill.push(`--description=${commits[0]![1].trim()}`)
+      } else if (commits.length > 1) fill.push(`--description=${commits.map(([subject]) => `- ${subject}`).join('\n')}`)
+    }
+
+    const output = await tea(
+      [
+        'pulls',
+        'create',
+        `--login=${login}`,
+        `--repo=${repository.owner}/${repository.name}`,
+        `--head=${target.branch}`,
+        ...fill,
+        '--output=json',
+      ],
+      60_000
+    )
+    let created: { url?: unknown; head?: unknown } | undefined
+    try {
+      created = JSON.parse(output.text)
+    } catch {
+      // tea before 0.16 ignores `--output` here and prints the created PR's details, which end with its URL.
+      created = { url: output.text.match(/https:\/\/\S+/gu)?.at(-1), head: target.branch }
+    }
+    const ref = typeof created?.url === 'string' ? host.forge.changeRequestFromUrl(created.url) : undefined
+    const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+    if (
+      !ref ||
+      created?.head !== target.branch ||
+      ref.repository.forge !== repository.forge ||
+      ref.repository.host !== repository.host ||
+      !same(ref.repository.owner, repository.owner) ||
+      !same(ref.repository.name, repository.name)
+    )
+      throw new ActionError('pr-failed')
+    const url = host.forge.changeRequestUrl(ref)
+    try {
+      host.forgeSession.track(session, url)
+    } catch {
+      // The PR exists; the panel discovers it on the next branch lookup.
+    }
+    return { url, reused: false }
+  }
+
   const createPr = async (agent: Agent, signal: AbortSignal) => {
     const session = agent.session
     const cwd = host.workingDirectory.get(session)
@@ -343,7 +454,14 @@ export function apply(ctx: Context, config: Config) {
       return { url, reused: true }
     }
     const command = prCommands[repository.forge]
-    if (!command) throw new ActionError('unsupported')
+    if (!command && !teaForges.has(repository.forge)) throw new ActionError('unsupported')
+    await host.subprocess
+      .resolveExecutable(command ? command(target.branch).executable : 'tea', undefined, signal)
+      .catch(() => {
+        signal.throwIfAborted()
+        throw new ActionError('pr-unavailable')
+      })
+    if (!command) return createTeaPr(session, cwd, repository, target, signal)
     const { executable, args } = command(target.branch)
     const output = await run(session, cwd, [executable, ...args], signal, {
       unconfined: true,
