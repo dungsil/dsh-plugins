@@ -17,6 +17,9 @@ export function releaseOptions({ dryRun = false, dependenciesUpdated = false, fo
 
   return {
     ci: true,
+    // release-it 21's CI spinner leaves a rejected promise unhandled on hook
+    // failure; verbose mode disables it so partial releases can be finalized.
+    verbose: true,
     'dry-run': dryRun,
     git: {
       requireBranch: dryRun ? false : 'main',

@@ -67,6 +67,9 @@ jobs:
           node-version: 26.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Unchanged workspace dependencies are not packed during release, but their
+      # build outputs can still be required when bundling packages being published.
+      - run: pnpm build
       - name: Configure release author
         run: |
           git config user.name 'github-actions[bot]'
