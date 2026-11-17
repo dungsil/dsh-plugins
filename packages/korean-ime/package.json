@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-korean-ime",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Korean IME Enter handling for DeepSeek Harness.",
   "license": "MIT",
   "repository": {

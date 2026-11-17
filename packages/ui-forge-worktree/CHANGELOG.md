@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-forge-worktree
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-worktree%400.2.0...%40dungsil%2Fdsh-plugin-ui-forge-worktree%400.2.1) (2026-11-17)
+
+### Bug Fixes
+
+- **ui-forge-worktree:** 워크트리 메뉴 레이아웃을 DUN 구현체와 맞춘다 ([#242](https://github.com/dungsil/dsh-plugins/issues/242)) ([46763ff](https://github.com/dungsil/dsh-plugins/commit/46763ff32e3dd9a5515ae9d06ca2ac482cf03405))
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-worktree%400.1.0...%40dungsil%2Fdsh-plugin-ui-forge-worktree%400.2.0) (2026-11-16)
 
 ### ⚠ BREAKING CHANGES

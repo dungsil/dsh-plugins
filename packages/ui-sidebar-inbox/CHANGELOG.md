@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-ui-sidebar-inbox
 
+## [0.4.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.4.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.4.1) (2026-11-17)
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.3.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.4.0) (2026-11-16)
 
 ### Features

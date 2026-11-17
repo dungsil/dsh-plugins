@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-ui-image-paths
 
+## [0.2.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-image-paths%400.2.1...%40dungsil%2Fdsh-plugin-ui-image-paths%400.2.2) (2026-11-17)
+
 ## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-image-paths%400.2.0...%40dungsil%2Fdsh-plugin-ui-image-paths%400.2.1) (2026-11-16)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-settings",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Task model and instruction settings UI for DeepSeek Harness, including the native pwsh tool description.",
   "license": "MIT",
   "repository": {

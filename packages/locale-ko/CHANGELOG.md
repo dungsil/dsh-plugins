@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-locale-ko
 
+## [0.9.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.9.0...%40dungsil%2Fdsh-plugin-locale-ko%400.9.1) (2026-11-17)
+
 ## [0.9.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-locale-ko%400.8.0...%40dungsil%2Fdsh-plugin-locale-ko%400.9.0) (2026-11-15)
 
 ### Features

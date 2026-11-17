@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-ui-setting-skills
 
+## [0.6.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.1) (2026-11-17)
+
 ## [0.6.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-skills%400.5.0...%40dungsil%2Fdsh-plugin-ui-setting-skills%400.6.0) (2026-11-16)
 
 ### ⚠ BREAKING CHANGES

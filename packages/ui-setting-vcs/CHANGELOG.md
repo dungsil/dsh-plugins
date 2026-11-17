@@ -1,5 +1,12 @@
 # @dungsil/dsh-plugin-ui-setting-vcs
 
+- feat(ui-forge-chip): Git 칩에 단축키와 키보드 이동, 세션 상태 캐시를 추가한다 (#247) (9667c48)
+- feat(ui-forge-chip): 워크트리 커밋을 원본 작업 공간에 통합하는 칩을 추가한다 (#246) (1f73326)
+- ci(release): 변경 사항이 없는 패키지도 강제로 패치 릴리스한다 (#245) (0fd859b)
+- feat(ui-forge-chip): 커밋·푸시·PR 생성을 호스트 Git 작업으로 실행한다 (#244) (c2100e6)
+- fix(ui-model-settings): 패키징 전에 클라이언트 번들을 검증한다 (#243) (a44e072)
+- fix(ui-forge-worktree): 워크트리 메뉴 레이아웃을 DUN 구현체와 맞춘다 (#242) (46763ff)
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-setting-vcs%400.2.0...%40dungsil%2Fdsh-plugin-ui-setting-vcs%400.3.0) (2026-11-16)
 
 ### ⚠ BREAKING CHANGES

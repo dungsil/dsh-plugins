@@ -1,5 +1,7 @@
 # @dungsil/dsh-preset-ui
 
+## [0.3.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.3.1...%40dungsil%2Fdsh-preset-ui%400.3.2) (2026-11-17)
+
 - refactor(ui): 로케일 선택과 스타일 주입을 공용 헬퍼로 통일한다 (#241) (c589087)
 - refactor(plugin-server): RPC 봉투 파싱과 git spawn 하드닝을 공용 패키지로 추출한다 (#240) (b1dbbb3)
 - fix(sidebar-inbox): 플러그인 해제 시 강제한 flat 그룹을 원래 그룹으로 복원한다 (#239) (defd7ec)

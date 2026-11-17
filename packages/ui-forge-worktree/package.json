@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-worktree",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Choose the current branch or a new Git worktree from the composer.",
   "license": "MIT",
   "repository": {

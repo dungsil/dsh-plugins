@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-ui-forge-pulls
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.2.0...%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.2.1) (2026-11-17)
+
 ## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.1.0...%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.2.0) (2026-11-16)
 
 ### Features
