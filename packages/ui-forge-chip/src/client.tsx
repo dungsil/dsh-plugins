@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type {} from '@deepseek-ai/dsh-experimental-client-ui-forge/remote'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import type { ForgePanelState } from '@deepseek-ai/dsh-experimental-client-ui-forge/types'
@@ -23,7 +24,7 @@ import fr from '../locale/fr.json' with { type: 'json' }
 import de from '../locale/de.json' with { type: 'json' }
 import ru from '../locale/ru.json' with { type: 'json' }
 import pt from '../locale/pt.json' with { type: 'json' }
-import { canCreatePr, requestForCheckout } from './model.js'
+import { canCreatePr, localKey, nextIndex, requestForCheckout } from './model.js'
 import {
   channel,
   inspectMethod,
@@ -38,11 +39,36 @@ import {
 import { styles } from './styles.js'
 
 export const name = 'dungsil-ui-forge-chip'
-export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.forgePanel', 'sidebarRight']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.forgePanel', 'sidebarRight', 'shortcuts']
 
 const translations: Record<string, typeof en> = { en, ko, zh, ja, es, fr, de, ru, pt }
 type Copy = Omit<typeof en, 'meta'>
 type Busy = DefaultAction | 'pr'
+type Local = { readonly key: string; readonly failed: boolean; readonly dirty: boolean }
+/** Per-session state that outlives the chip, so switching sessions neither blanks nor repeats anything. */
+type Entry = {
+  readonly panel?: ForgePanelState
+  readonly local?: Local
+  readonly busy?: Busy
+  readonly error?: keyof Copy
+  readonly nonce?: number
+}
+type Shortcut = { readonly run: () => void; readonly secondary?: () => void; readonly disabled: boolean }
+type ShortcutResolution =
+  | { status: 'handled'; run(): void }
+  | { status: 'blocked'; reason: string }
+  | { status: 'pass' }
+type Bar = {
+  readonly element: () => HTMLElement | null
+  readonly resolve: (index: number, secondary: boolean) => ShortcutResolution
+}
+
+/** PR state stays current while the composer is visible without hammering the code host. */
+const PR_POLL_MS = 60000
+const SHORTCUT_SLOTS = 9
+const ITEM = '[data-forge-chip-item]:not(:disabled)'
+const shortcutId = (slot: number, secondary: boolean) =>
+  `dungsil.forge-chip.${secondary ? 'alternate' : 'action'}-${slot}` as ShortcutCommandId
 
 const errorKeys: Record<ActionErrorCode, keyof Copy> = {
   unavailable: 'errorUnavailable',
@@ -87,6 +113,84 @@ export function apply(ctx: Context) {
     if (!result.ok) throw Object.assign(new Error('rpc'), { code: (result.error as { code?: string }).code })
     return result.value
   }
+  const entries = new Map<string, Entry>()
+  const listeners = new Set<() => void>()
+  const bars = new Set<Bar>()
+  // useSyncExternalStore needs a stable snapshot, including for a session with no entry yet.
+  const empty: Entry = {}
+  let defaultAction: DefaultAction = 'commit'
+  const read = (sessionId: string): Entry => entries.get(sessionId) ?? empty
+  const notify = () => {
+    for (const listener of listeners) listener()
+  }
+  const write = (sessionId: string, patch: Partial<Entry>) => {
+    entries.set(sessionId, { ...read(sessionId), ...patch })
+    notify()
+  }
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+  const defaultSnapshot = () => defaultAction
+  ctx.effect(() => () => entries.clear(), 'ui-forge-chip: session cache')
+
+  /** Run one host Git action. It lives here, not in the chip, so leaving the session cannot repeat it. */
+  async function start(sessionId: string, operation: Busy) {
+    if (read(sessionId).busy) return
+    write(sessionId, { busy: operation, error: undefined })
+    try {
+      if (operation === 'pr') await call(methods.pr, { sessionId })
+      else await call(methods.commit, { sessionId, push: operation === 'push' })
+    } catch (failure) {
+      const code = (failure as { code?: ActionErrorCode }).code
+      write(sessionId, { error: (code && errorKeys[code]) || 'error' })
+    } finally {
+      void ctx.remote.forgePanel.refresh(sessionId as never).catch(() => {})
+      write(sessionId, { busy: undefined, nonce: (read(sessionId).nonce ?? 0) + 1 })
+    }
+  }
+
+  ctx.effect(() => {
+    const text = () => localizedCopy(translations, ctx.locale.getSnapshot().active)
+    // Only an unambiguous, visible chip row answers a shortcut.
+    const resolve = (index: number, secondary: boolean): ShortcutResolution => {
+      const visible = [...bars].filter((bar) => {
+        const element = bar.element()
+        return !!element && element.isConnected && element.getClientRects().length > 0
+      })
+      return visible.length === 1 ? visible[0]!.resolve(index, secondary) : { status: 'pass' }
+    }
+    const disposers: (() => void)[] = []
+    for (let n = 1; n <= SHORTCUT_SLOTS; n++) {
+      for (const secondary of [false, true]) {
+        const binding = {
+          code: `Digit${n}`,
+          modifiers: secondary ? (['primary', 'shift'] as const) : (['primary'] as const),
+        }
+        try {
+          disposers.push(
+            ctx.shortcuts.register({
+              id: shortcutId(n, secondary),
+              label: () => fill(secondary ? text().shortcutAlt : text().shortcut, { n: String(n) }),
+              aliases: ['git', 'forge', 'commit', 'PR'],
+              // Web admits only Mod+Alt or Mod+Shift pairs, so the Web binding is left to the user.
+              defaults: { 'desktop:windows': binding, 'desktop:macos': binding, 'desktop:linux': binding },
+              regions: ['page', 'editable'],
+              modals: [],
+              resolve: () => resolve(n - 1, secondary),
+            })
+          )
+        } catch {
+          // Another feature already owns this default; the user can still bind the action in settings.
+        }
+      }
+    }
+    return () => {
+      for (const dispose of disposers) dispose()
+    }
+  }, 'ui-forge-chip: shortcuts')
 
   /** The one integration the Host proposes for a Session working in a linked worktree. */
   function Integration({
@@ -178,6 +282,7 @@ export function apply(ctx: Context) {
           <div className="dsh-forge-chip-actions">
             <Pill
               className="dsh-forge-chip-trigger"
+              data-forge-chip-item=""
               disabled={disabled}
               title={text.integrationHint}
               aria-busy={busy}
@@ -197,6 +302,7 @@ export function apply(ctx: Context) {
               anchor={
                 <Pill
                   className="dsh-forge-chip-trigger dsh-forge-chip-menu"
+                  data-forge-chip-item=""
                   disabled={disabled}
                   aria-label={text.integrationMenu}
                   aria-haspopup="menu"
@@ -226,29 +332,29 @@ export function apply(ctx: Context) {
   function Chip({ sessionId, useSession, useAccess, useProjection }: PropsRuntime<'conversation.input.dock'>) {
     const { active } = useLocaleSnapshot(ctx.locale)
     const text = localizedCopy(translations, active)
-    const hidden = useSession((s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open')
+    const entry = useSyncExternalStore(subscribe, () => read(sessionId))
+    const preferred = useSyncExternalStore(subscribe, defaultSnapshot)
+    const hidden = useSession(
+      (s) => s.blank || s.awaitingFirstTurn || s.removed || s.openState !== 'open' || !!s.subagent
+    )
     const unavailable = useSession(
       (s) => s.running || s.pendingSubmissions.length > 0 || s.removed || s.openState !== 'open'
     )
+    const turn = useSession((s) => !!s.running)
     const canPrompt = useAccess('session.prompt')
     const cwd = useProjection('workingDirectory')
-    const [panel, setPanel] = useState<ForgePanelState>()
-    const [facts, setFacts] = useState<{ panel: ForgePanelState; dirty: boolean }>()
-    const [defaultAction, setDefaultAction] = useState<DefaultAction>('commit')
-    const [lookupError, setLookupError] = useState(false)
-    const [error, setError] = useState<keyof Copy>()
-    const [busy, setBusy] = useState<Busy>()
+    const [streamFresh, setStreamFresh] = useState(false)
+    const [streamError, setStreamError] = useState(false)
     const [open, setOpen] = useState(false)
     const [generation, setGeneration] = useState(0)
-    const [version, setVersion] = useState(0)
-    const pending = useRef(false)
-    const mounted = useRef(true)
-    useEffect(() => {
-      mounted.current = true
-      return () => {
-        mounted.current = false
-      }
-    }, [])
+    const [tick, setTick] = useState(0)
+    const toolbar = useRef<HTMLDivElement | null>(null)
+    const focusIndex = useRef(0)
+    const wasTurn = useRef(turn)
+    const shortcuts = useRef<Shortcut[]>([])
+    const openRef = useRef(open)
+    openRef.current = open
+    const panel = entry.panel
     useEffect(() => {
       const dispose = ctx.on('connection/reset', () => setGeneration((n) => n + 1))
       return () => {
@@ -260,16 +366,28 @@ export function apply(ctx: Context) {
       void call(methods.settings, {}, controller.signal)
         .then((value) => {
           const action = (value as { defaultAction?: unknown } | null)?.defaultAction
-          if (!controller.signal.aborted && (action === 'commit' || action === 'push')) setDefaultAction(action)
+          if (!controller.signal.aborted && (action === 'commit' || action === 'push') && action !== defaultAction) {
+            defaultAction = action
+            notify()
+          }
         })
         .catch(() => {})
       return () => controller.abort()
     }, [generation])
 
+    // A finished turn may have changed anything the agent touched; read it again.
     useEffect(() => {
-      setPanel(undefined)
-      setFacts(undefined)
-      setLookupError(false)
+      if (wasTurn.current && !turn) {
+        setTick((n) => n + 1)
+        void ctx.remote.forgePanel.refresh(sessionId).catch(() => {})
+      }
+      wasTurn.current = turn
+    }, [sessionId, turn])
+
+    // The cached panel stays visible on return; writes wait for this stream's first frame.
+    useEffect(() => {
+      setStreamFresh(false)
+      setStreamError(false)
       setOpen(false)
       if (hidden) return
       const controller = new AbortController()
@@ -278,12 +396,13 @@ export function apply(ctx: Context) {
         try {
           for await (const state of stream) {
             if (controller.signal.aborted) return
-            setPanel(state)
-            setLookupError(false)
+            write(sessionId, { panel: state })
+            setStreamFresh(true)
+            setStreamError(false)
           }
-          if (!controller.signal.aborted) setLookupError(true)
+          if (!controller.signal.aborted) setStreamError(true)
         } catch {
-          if (!controller.signal.aborted) setLookupError(true)
+          if (!controller.signal.aborted) setStreamError(true)
         } finally {
           stream.dispose()
         }
@@ -294,95 +413,154 @@ export function apply(ctx: Context) {
       }
     }, [sessionId, cwd, hidden, generation])
 
-    // Changes are read only while the Session is idle; the last answer stays visible, disabled, during a turn.
+    // Changes are read only while the Session is idle, and only when the checkout facts change.
+    const key = panel && streamFresh ? localKey(panel) : null
+    const wanted = key === null ? null : `${key}#${tick}#${entry.nonce ?? 0}`
     useEffect(() => {
-      if (!panel || panel.checkout.state !== 'ready' || unavailable) return
+      if (wanted === null || unavailable || read(sessionId).local?.key === wanted) return
       const controller = new AbortController()
-      let sequence = 0
-      const refresh = async () => {
-        const current = ++sequence
-        try {
-          const local = await ctx.remote.forgePanel.localDiff(sessionId, { kind: 'uncommitted' }, controller.signal)
-          if (controller.signal.aborted || current !== sequence) return
-          if (!local.ok) {
-            setLookupError(true)
-            return
-          }
-          setFacts({ panel, dirty: local.value.files.length > 0 || local.value.omitted > 0 })
-          setLookupError(false)
-        } catch {
-          if (!controller.signal.aborted && current === sequence) setLookupError(true)
-        }
-      }
-      void refresh()
-      const onFocus = () => void refresh()
-      window.addEventListener('focus', onFocus)
-      return () => {
-        controller.abort()
-        window.removeEventListener('focus', onFocus)
-      }
-    }, [panel, sessionId, unavailable, version])
+      void Promise.resolve(ctx.remote.forgePanel.localDiff(sessionId, { kind: 'uncommitted' }, controller.signal))
+        .then(
+          (local): Local =>
+            local.ok
+              ? { key: wanted, failed: false, dirty: local.value.files.length > 0 || local.value.omitted > 0 }
+              : { key: wanted, failed: true, dirty: false },
+          (): Local => ({ key: wanted, failed: true, dirty: false })
+        )
+        .then((local) => {
+          if (controller.signal.aborted) return
+          // A failed read keeps the last known changes so the chips do not vanish.
+          write(sessionId, { local: local.failed ? { ...local, dirty: !!read(sessionId).local?.dirty } : local })
+        })
+      return () => controller.abort()
+    }, [sessionId, wanted, unavailable])
 
     const request = panel && requestForCheckout(panel)
-    const fresh = facts?.panel === panel && facts !== undefined
+    // The slow PR state refreshes on focus, on becoming visible, and on a poll while a PR is shown.
+    useEffect(() => {
+      if (hidden) return
+      const refreshPr = () => {
+        if (request && document.visibilityState === 'visible')
+          void ctx.remote.forgePanel.refresh(sessionId).catch(() => {})
+      }
+      const onFocus = () => {
+        setTick((n) => n + 1)
+        refreshPr()
+      }
+      const timer = setInterval(refreshPr, PR_POLL_MS)
+      window.addEventListener('focus', onFocus)
+      document.addEventListener('visibilitychange', refreshPr)
+      return () => {
+        clearInterval(timer)
+        window.removeEventListener('focus', onFocus)
+        document.removeEventListener('visibilitychange', refreshPr)
+      }
+    }, [hidden, sessionId, !!request])
+
+    useEffect(() => {
+      const bar: Bar = {
+        element: () => toolbar.current,
+        resolve(index, secondary) {
+          if (openRef.current) return { status: 'blocked', reason: 'Git action menu is open' }
+          const shortcut = shortcuts.current[index]
+          if (!shortcut || (secondary && !shortcut.secondary)) return { status: 'pass' }
+          if (shortcut.disabled) return { status: 'blocked', reason: 'Git action is unavailable' }
+          return { status: 'handled', run: secondary ? shortcut.secondary! : shortcut.run }
+        },
+      }
+      bars.add(bar)
+      return () => {
+        bars.delete(bar)
+      }
+    }, [])
+
+    // Roving focus: one Tab stop for the row; arrow keys, Home and End move between its chips.
+    useEffect(() => {
+      const items = [...(toolbar.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])]
+      const current = Math.min(focusIndex.current, items.length - 1)
+      items.forEach((item, index) => (item.tabIndex = index === current ? 0 : -1))
+    })
+
+    const local = entry.local
+    const fresh = !!local && local.key === wanted
+    const lookupError = streamError || (fresh && local.failed)
+    const busy = entry.busy
+    const error = entry.error
     const disabled = !canPrompt || unavailable || !!busy || !fresh || lookupError
     useEffect(() => {
       if (disabled) setOpen(false)
     }, [disabled])
+    if (hidden || !panel || panel.checkout.state !== 'ready') {
+      shortcuts.current = []
+      return null
+    }
     const showPanel = () => ctx.sidebarRight.openTab('forge-panel')
-    const act = async (operation: Busy) => {
-      if (disabled || pending.current) return
-      pending.current = true
-      setBusy(operation)
+    const openRequest = request ? () => window.open(request.url, '_blank', 'noopener,noreferrer') : undefined
+    // Shift+click is the pointer form of the alternate shortcut.
+    const viewRequest = (event?: MouseEvent) => (event?.shiftKey && openRequest ? openRequest() : showPanel())
+    const act = (operation: Busy) => {
       setOpen(false)
-      setError(undefined)
-      try {
-        if (operation === 'pr') await call(methods.pr, { sessionId })
-        else await call(methods.commit, { sessionId, push: operation === 'push' })
-      } catch (failure) {
-        const code = (failure as { code?: ActionErrorCode }).code
-        if (mounted.current) setError((code && errorKeys[code]) || 'error')
-      } finally {
-        pending.current = false
-        void ctx.remote.forgePanel.refresh(sessionId).catch(() => {})
-        if (mounted.current) {
-          setBusy(undefined)
-          setVersion((n) => n + 1)
-        }
-      }
+      // Re-checked at call time: a shortcut and a stale render can both reach here.
+      if (disabled) return
+      void start(sessionId, operation)
     }
     const saveDefault = (action: DefaultAction) => {
       const previous = defaultAction
-      setDefaultAction(action)
+      defaultAction = action
+      notify()
       void call(methods.saveDefault, { defaultAction: action }).catch(() => {
-        if (mounted.current) {
-          setDefaultAction(previous)
-          setError('error')
-        }
+        defaultAction = previous
+        write(sessionId, { error: 'error' })
       })
     }
-    if (hidden || !panel || panel.checkout.state !== 'ready') return null
-    const dirty = !!facts?.dirty
+    const dirty = !!local?.dirty
     const showCreate = !dirty && fresh && canCreatePr(panel)
     const linked = panel.checkout.checkout.linked
+    const rows: Shortcut[] = []
+    if (dirty) rows.push({ run: () => act(preferred), disabled })
+    if (showCreate) rows.push({ run: () => act('pr'), disabled })
+    if (request) rows.push({ run: showPanel, secondary: openRequest, disabled: false })
+    if (request) rows.push({ run: showPanel, secondary: openRequest, disabled: false })
+    if (lookupError) rows.push({ run: showPanel, disabled: false })
+    shortcuts.current = rows
     if (!dirty && !showCreate && !request && !lookupError && !error && !linked) return null
     const commitLabel =
       busy === 'commit'
         ? text.committing
         : busy === 'push'
           ? text.pushing
-          : text[defaultAction === 'push' ? 'commitPush' : 'commit']
+          : text[preferred === 'push' ? 'commitPush' : 'commit']
     const checks = request?.snapshot?.checksRollup ?? 'unknown'
     const stale = !!request?.update && 'error' in request.update
+    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+      const items = [...(toolbar.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])]
+      const next = nextIndex(event.key, items.indexOf(event.target as HTMLElement), items.length)
+      if (next === null || items.indexOf(event.target as HTMLElement) < 0) return
+      event.preventDefault()
+      focusIndex.current = next
+      items[next]!.focus()
+    }
     return (
-      <div className="dsh-forge-chip">
+      <div
+        ref={toolbar}
+        className="dsh-forge-chip"
+        role="toolbar"
+        aria-label={text.toolbar}
+        onKeyDown={onKeyDown}
+        onFocus={(event) => {
+          const items = [...(toolbar.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])]
+          const index = items.indexOf(event.target as HTMLElement)
+          if (index >= 0) focusIndex.current = index
+        }}
+      >
         {dirty && (
           <div className="dsh-forge-chip-actions">
             <Pill
               className="dsh-forge-chip-trigger dsh-forge-chip-commit"
+              data-forge-chip-item=""
               disabled={disabled}
               aria-busy={busy === 'commit' || busy === 'push'}
-              onClick={() => void act(defaultAction)}
+              onClick={() => act(preferred)}
             >
               <IconBranchOutlineRegular aria-hidden="true" />
               {commitLabel}
@@ -393,7 +571,7 @@ export function apply(ctx: Context) {
               portal
               compact
               onClose={() => setOpen(false)}
-              selectedId={`default-${defaultAction}`}
+              selectedId={`default-${preferred}`}
               items={[
                 { id: 'commit', label: text.commit },
                 ...(panel.repository ? [{ id: 'push', label: text.commitPush }] : []),
@@ -406,11 +584,12 @@ export function apply(ctx: Context) {
                 setOpen(false)
                 if (id === 'default-commit' || id === 'default-push')
                   saveDefault(id === 'default-push' ? 'push' : 'commit')
-                else void act(id as DefaultAction)
+                else act(id as DefaultAction)
               }}
               anchor={
                 <Pill
                   className="dsh-forge-chip-trigger dsh-forge-chip-menu"
+                  data-forge-chip-item=""
                   disabled={disabled}
                   aria-label={text.menu}
                   aria-haspopup="menu"
@@ -432,9 +611,10 @@ export function apply(ctx: Context) {
         {showCreate && (
           <Pill
             className="dsh-forge-chip-trigger dsh-forge-chip-create"
+            data-forge-chip-item=""
             disabled={disabled}
             aria-busy={busy === 'pr'}
-            onClick={() => void act('pr')}
+            onClick={() => act('pr')}
           >
             <IconBranchOutlineRegular aria-hidden="true" />
             {busy === 'pr' ? text.creatingPr : text.pr}
@@ -442,17 +622,17 @@ export function apply(ctx: Context) {
         )}
         {/* Viewing is read-only, so it stays available while a turn runs. */}
         {request && (
-          <Pill className="dsh-forge-chip-trigger dsh-forge-chip-view" onClick={showPanel}>
+          <Pill className="dsh-forge-chip-trigger dsh-forge-chip-view" data-forge-chip-item="" onClick={viewRequest}>
             {text.viewPr}
           </Pill>
         )}
         {request && (
-          <Pill className="dsh-forge-chip-trigger dsh-forge-chip-checks" onClick={showPanel}>
+          <Pill className="dsh-forge-chip-trigger dsh-forge-chip-checks" data-forge-chip-item="" onClick={viewRequest}>
             {text.checks}: {stale ? text.unknown : text[checks]}
           </Pill>
         )}
         {lookupError && (
-          <Pill className="dsh-forge-chip-trigger" onClick={showPanel}>
+          <Pill className="dsh-forge-chip-trigger" data-forge-chip-item="" onClick={showPanel}>
             {text.lookupError}
           </Pill>
         )}

@@ -47,5 +47,8 @@
   "integrationBusy": "Hay otra integración o un turno en curso. Inténtalo de nuevo cuando termine.",
   "integrationFailed": "La integración falló y se revirtió. El checkout original no cambió.",
   "integrationCleanupRefused": "La integración se detuvo. Su estado de Git se dejó tal cual porque puede pertenecer a otra operación; revisa el checkout original.",
-  "integrationError": "No se pudo integrar. Revisa el checkout original e inténtalo de nuevo."
+  "integrationError": "No se pudo integrar. Revisa el checkout original e inténtalo de nuevo.",
+  "toolbar": "Acciones de Git",
+  "shortcut": "Acción de Git {n}",
+  "shortcutAlt": "Acción de Git {n} (alternativa)"
 }

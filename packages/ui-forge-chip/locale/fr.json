@@ -47,5 +47,8 @@
   "integrationBusy": "Une autre intégration ou un tour est en cours. Réessayez une fois terminé.",
   "integrationFailed": "L’intégration a échoué et a été annulée. Le checkout d’origine n’a pas changé.",
   "integrationCleanupRefused": "L’intégration s’est arrêtée. Son état Git a été laissé tel quel car il peut appartenir à une autre opération ; vérifiez le checkout d’origine.",
-  "integrationError": "Intégration impossible. Vérifiez le checkout d’origine puis réessayez."
+  "integrationError": "Intégration impossible. Vérifiez le checkout d’origine puis réessayez.",
+  "toolbar": "Actions Git",
+  "shortcut": "Action Git {n}",
+  "shortcutAlt": "Action Git {n} (secondaire)"
 }

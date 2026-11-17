@@ -47,5 +47,8 @@
   "integrationBusy": "Eine andere Integration oder ein Durchlauf läuft. Versuchen Sie es danach erneut.",
   "integrationFailed": "Die Integration ist fehlgeschlagen und wurde zurückgesetzt. Der ursprüngliche Checkout ist unverändert.",
   "integrationCleanupRefused": "Die Integration wurde angehalten. Ihr Git-Zustand blieb unverändert, da er zu einem anderen Vorgang gehören kann; prüfen Sie den ursprünglichen Checkout.",
-  "integrationError": "Integration nicht möglich. Prüfen Sie den ursprünglichen Checkout und versuchen Sie es erneut."
+  "integrationError": "Integration nicht möglich. Prüfen Sie den ursprünglichen Checkout und versuchen Sie es erneut.",
+  "toolbar": "Git-Aktionen",
+  "shortcut": "Git-Aktion {n}",
+  "shortcutAlt": "Git-Aktion {n} (alternativ)"
 }

@@ -47,5 +47,8 @@
   "integrationBusy": "다른 통합이나 턴이 실행 중입니다. 끝난 뒤 다시 시도하세요.",
   "integrationFailed": "통합에 실패하여 되돌렸습니다. 원본 작업 공간은 바뀌지 않았습니다.",
   "integrationCleanupRefused": "통합을 중단했습니다. 다른 작업의 Git 상태일 수 있어 그대로 두었으니 원본 작업 공간을 확인하세요.",
-  "integrationError": "통합하지 못했습니다. 원본 작업 공간을 확인한 뒤 다시 시도하세요."
+  "integrationError": "통합하지 못했습니다. 원본 작업 공간을 확인한 뒤 다시 시도하세요.",
+  "toolbar": "Git 작업",
+  "shortcut": "Git 작업 {n}",
+  "shortcutAlt": "Git 작업 {n} (보조)"
 }

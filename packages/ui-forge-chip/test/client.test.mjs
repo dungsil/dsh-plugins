@@ -72,6 +72,8 @@ async function mount(options = {}) {
   const listeners = new Map()
   const events = new Map()
   const openedTabs = []
+  const opened = []
+  const commands = new Map()
   const session = { openState: 'open', pendingSubmissions: [], ...options.session }
   let cursor = 0
   let registered, plugin, tree, integration
@@ -95,7 +97,7 @@ async function mount(options = {}) {
     },
     useEffect(effect, deps) {
       const [previous, setPrevious] = react.useState()
-      if (!previous || deps.some((value, index) => value !== previous.deps[index])) {
+      if (!previous || !deps || deps.some((value, index) => value !== previous.deps[index])) {
         effects.push(() => {
           previous?.cleanup?.()
           setPrevious({ deps, cleanup: effect() })
@@ -107,10 +109,21 @@ async function mount(options = {}) {
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
   }
   const jsx = (type, props) => ({ type, props })
+  const timers = []
   runInNewContext(bundle, {
     AbortController,
-    document: { head: { append() {} }, createElement: () => ({ remove() {} }) },
+    Promise,
+    setInterval: (callback) => (timers.push(callback), timers.length),
+    clearInterval: () => {},
+    document: {
+      head: { append() {} },
+      createElement: () => ({ remove() {} }),
+      visibilityState: 'visible',
+      addEventListener() {},
+      removeEventListener() {},
+    },
     window: {
+      open: (url) => opened.push(url),
       addEventListener: (event, listener) => {
         if (!listeners.has(event)) listeners.set(event, new Set())
         listeners.get(event).add(listener)
@@ -141,7 +154,13 @@ async function mount(options = {}) {
         registered = render
       },
     },
-    effect() {},
+    effect: (effect) => effect(),
+    shortcuts: {
+      register(command) {
+        commands.set(command.id, command)
+        return () => commands.delete(command.id)
+      },
+    },
     sidebarRight: { openTab: (tab) => openedTabs.push(tab) },
     get(name) {
       assert.equal(name, 'connection')
@@ -177,7 +196,7 @@ async function mount(options = {}) {
   plugin.apply(
     new Proxy(context, {
       get(target, key) {
-        if (['locale', 'slots', 'sidebarRight', 'remote'].includes(key)) {
+        if (['locale', 'slots', 'sidebarRight', 'remote', 'shortcuts'].includes(key)) {
           assert.ok(plugin.inject.includes(key), `Service ${String(key)} must be explicitly injected`)
         }
         return target[key]
@@ -193,6 +212,9 @@ async function mount(options = {}) {
       useProjection: () => cwd,
     })
     tree = element.type(element.props)
+    // Stand in for the mounted, visible chip row the shortcuts look for.
+    if (tree?.props.ref)
+      tree.props.ref.current = { isConnected: true, getClientRects: () => [{}], querySelectorAll: () => [] }
     const child = tree?.props.children.at(-1)
     integration = child && typeof child.type === 'function' ? child.type(child.props) : undefined
     for (const effect of effects.splice(0)) effect()
@@ -216,6 +238,8 @@ async function mount(options = {}) {
     streams,
     session,
     openedTabs,
+    opened,
+    commands,
     render,
     refresh,
     get integration() {
@@ -453,7 +477,7 @@ await test('모든 로케일에서 호스트 오류 코드를 해당 안내 문�
   }
 })
 
-await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중단하고 늦게 도착한 상태를 무시한다', async () => {
+await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중단하고 새 프레임 전까지 쓰기를 막는다', async () => {
   const view = await mount({ localDiff: dirty })
   try {
     const initial = view.streams[0]
@@ -462,10 +486,11 @@ await test('연결 초기화와 디렉터리 변경은 이전 스트림을 중�
     assert.equal(initial.signal.aborted, true)
     assert.ok(initial.value.disposed > 0)
     assert.equal(view.streams.length, 2)
-    assert.equal(view.tree, null)
+    assert.equal(view.primary.disabled, true)
     initial.value.emit(panel({ changeRequests: [request()] }))
     await view.refresh()
-    assert.equal(view.tree, null)
+    assert.equal(view.pill('dsh-forge-chip-view'), undefined)
+    assert.equal(view.primary.disabled, true)
     view.streams[1].value.emit(panel())
     await view.refresh()
     assert.equal(label(view.primary), locales.en.commit)
@@ -597,6 +622,86 @@ await test('통합 실패 응답의 진단을 경고와 함께 보여준다', as
     assert.equal(notice.role, 'alert')
     assert.equal(notice.children, locales.en.integrationCleanupRefused)
     assert.equal(notice.title, 'MERGE_HEAD')
+  } finally {
+    view.unmount()
+  }
+})
+
+const localReads = (view) => view.calls.filter(([name]) => name === 'localDiff').length
+
+await test('세션을 다시 열면 캐시한 패널을 즉시 표시하고 같은 사실의 변경을 다시 조회하지 않는다', async () => {
+  const view = await mount({ localDiff: dirty, panel: panel({ changeRequests: [request()] }) })
+  try {
+    assert.equal(localReads(view), 1)
+    view.setSessionId('other-session')
+    await view.refresh()
+    view.setSessionId('target-session')
+    await view.refresh()
+    assert.equal(label(view.pill('dsh-forge-chip-view')), locales.en.viewPr)
+    assert.equal(view.primary.disabled, true)
+    view.setPanel(panel({ changeRequests: [request()] }))
+    await view.refresh()
+    assert.equal(view.primary.disabled, false)
+    assert.equal(localReads(view), 1)
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('같은 사실의 패널 프레임이 반복되면 변경을 다시 조회하지 않고 포커스와 관찰한 턴 종료로만 갱신한다', async () => {
+  const view = await mount({ localDiff: dirty })
+  try {
+    assert.equal(localReads(view), 1)
+    view.setPanel(panel())
+    await view.refresh()
+    assert.equal(localReads(view), 1)
+    view.focus()
+    await view.refresh()
+    assert.equal(localReads(view), 2)
+    view.session.running = true
+    await view.refresh()
+    view.session.running = false
+    await view.refresh()
+    assert.equal(localReads(view), 3)
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('단축키는 표시된 순서의 칩을 실행하고 메뉴가 열려 있거나 비활성이면 실행하지 않는다', async () => {
+  const view = await mount({ localDiff: dirty, panel: panel({ changeRequests: [request()] }) })
+  try {
+    const resolve = (n, secondary = false) =>
+      view.commands.get(`dungsil.forge-chip.${secondary ? 'alternate' : 'action'}-${n}`).resolve()
+    assert.equal(resolve(1, true).status, 'pass')
+    assert.equal(resolve(5).status, 'pass')
+    view.menu.anchor.props.onClick()
+    await view.refresh()
+    assert.equal(resolve(1).status, 'blocked')
+    view.menu.onClose()
+    await view.refresh()
+    resolve(1).run()
+    await tick()
+    assert.deepEqual(view.actions, [[COMMIT, { sessionId: 'target-session', push: false }]])
+    await view.refresh()
+    view.session.pendingSubmissions = [{}]
+    await view.refresh()
+    assert.equal(resolve(1).status, 'blocked')
+    assert.equal(view.actions.length, 1)
+  } finally {
+    view.unmount()
+  }
+})
+
+await test('PR 보기와 검사 칩은 보조 단축키와 Shift+클릭으로 브라우저에서 PR을 연다', async () => {
+  const view = await mount({ panel: panel({ changeRequests: [request()] }) })
+  try {
+    const url = request().url
+    view.pill('dsh-forge-chip-view').onClick({ shiftKey: true })
+    view.commands.get('dungsil.forge-chip.alternate-2').resolve().run()
+    assert.deepEqual(view.opened, [url, url])
+    view.pill('dsh-forge-chip-checks').onClick({ shiftKey: false })
+    assert.deepEqual(view.openedTabs, ['forge-panel'])
   } finally {
     view.unmount()
   }

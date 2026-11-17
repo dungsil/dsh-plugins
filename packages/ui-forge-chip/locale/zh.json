@@ -47,5 +47,8 @@
   "integrationBusy": "另一个集成或回合正在运行。请在其结束后重试。",
   "integrationFailed": "集成失败并已回滚。原始检出未被更改。",
   "integrationCleanupRefused": "集成已停止。其 Git 状态可能属于其他操作，因此保持原样；请检查原始检出。",
-  "integrationError": "无法集成。请检查原始检出后重试。"
+  "integrationError": "无法集成。请检查原始检出后重试。",
+  "toolbar": "Git 操作",
+  "shortcut": "Git 操作 {n}",
+  "shortcutAlt": "Git 操作 {n}（备用）"
 }
