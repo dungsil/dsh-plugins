@@ -32,6 +32,18 @@
     "translatingAll": "Traduzindo todas as habilidades…",
     "translationAllError": "Não foi possível traduzir algumas descrições de habilidades. Tente novamente para traduzir apenas os itens que falharam.",
     "translationError": "Não foi possível traduzir. O original é exibido. Serviços pagos exigem uma Session e não estão disponíveis aqui.",
-    "saveError": "Não foi possível salvar a configuração. Feche e reabra esta seção para verificar o estado salvo antes de tentar novamente."
+    "saveError": "Não foi possível salvar a configuração. Feche e reabra esta seção para verificar o estado salvo antes de tentar novamente.",
+    "viewSource": "Ver conteúdo da habilidade",
+    "sourceTitle": "Conteúdo da habilidade: {name}",
+    "sourceLoading": "Carregando conteúdo da habilidade…",
+    "sourceError": "Não foi possível carregar o conteúdo da habilidade.",
+    "close": "Fechar",
+    "catalog": "Catálogo efetivo",
+    "catalogHint": "As habilidades visíveis neste contexto são somente leitura. Nomes desativados são omitidos.",
+    "workspace": "Área de trabalho",
+    "defaultDirectory": "Diretório padrão",
+    "preset": "Predefinição",
+    "noPreset": "Sem predefinição",
+    "readOnly": "Somente leitura"
   }
 }

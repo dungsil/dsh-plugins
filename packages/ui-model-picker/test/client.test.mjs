@@ -6,7 +6,18 @@ import { runInNewContext } from 'node:vm'
 import { Window } from 'happy-dom'
 import * as React from 'react'
 
-async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', mobile = false } = {}) {
+async function mount(
+  t,
+  {
+    language = 'ko',
+    locked = false,
+    runtime = 'desktop',
+    mobile = false,
+    favorites,
+    conflict = false,
+    sessionId = 'test',
+  } = {}
+) {
   const window = new Window()
   const { document } = window
   const keys = ['window', 'document', 'IS_REACT_ACT_ENVIRONMENT']
@@ -26,6 +37,8 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
   })
   const require = createRequire(import.meta.url)
   let plugin, Picker, command, fixedInput
+  const commands = new Map()
+  if (favorites) window.localStorage.setItem('dungsil.model-picker.favorites', JSON.stringify(favorites))
   const disposers = []
   const primitives = {
     Tooltip: ({ label, shortcutKeys, children }) =>
@@ -66,7 +79,7 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
     HTMLInputElement: window.HTMLInputElement,
   })
   const efforts = ['low', 'medium', 'high'].map((id) => ({ id, name: id }))
-  let snapshot = {
+  const initial = {
     current: { provider: 'provider', model: 'first', reasoningEffort: 'medium' },
     groups: [
       {
@@ -82,26 +95,38 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
     status: 'ready',
     failures: [],
   }
-  const listeners = new Set()
-  const update = (patch) => {
-    snapshot = { ...snapshot, ...patch }
-    listeners.forEach((listener) => listener())
-  }
-  const requests = []
-  const directory = {
-    store: {
-      getSnapshot: () => snapshot,
-      subscribe: (listener) => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
+  // Each session owns its directory, as the host resolver does.
+  const directories = new Map()
+  const directoryFor = (id) => {
+    if (directories.has(id)) return directories.get(id)
+    let state = { ...initial }
+    const listeners = new Set()
+    const requests = []
+    const update = (patch) => {
+      state = { ...state, ...patch }
+      listeners.forEach((listener) => listener())
+    }
+    const directory = {
+      store: {
+        getSnapshot: () => state,
+        subscribe: (listener) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
       },
-    },
-    load: async () => {},
-    select: (selection) => {
-      update({ status: 'selecting' })
-      return new Promise((resolve) => requests.push({ selection, resolve }))
-    },
+      load: async () => {},
+      select: (selection) => {
+        update({ status: 'selecting' })
+        return new Promise((resolve) => requests.push({ selection, resolve }))
+      },
+      update,
+      requests,
+    }
+    directories.set(id, directory)
+    return directory
   }
+  const directory = directoryFor(sessionId)
+  const { update, requests } = directory
   const locale = { active: language }
   let shortcutRows = [{ id: 'other.command', keys: ['Ctrl', 'X'] }]
   const emptyShortcutRows = []
@@ -116,7 +141,7 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
   const setShortcutKeys = (keys) => {
     shortcutRows = [
       { id: 'other.command', keys: ['Ctrl', 'X'] },
-      { id: command.id, keys },
+      { id: 'dungsil.model-picker.open', keys },
     ]
     shortcutListeners.forEach((listener) => listener())
   }
@@ -139,15 +164,21 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
         }
       },
       register: (value) => {
-        command = value
-        setShortcutKeys(['Alt', 'P'])
+        if (conflict && value.id === 'dungsil.model-picker.cycle-favorites' && Object.keys(value.defaults).length)
+          throw new Error('Conflicting shortcut defaults')
+        commands.set(value.id, value)
+        if (value.id === 'dungsil.model-picker.open') {
+          command = value
+          setShortcutKeys(['Alt', 'P'])
+        }
         return () => {
-          command = undefined
+          commands.delete(value.id)
+          if (command === value) command = undefined
         }
       },
     },
     locale: { getSnapshot: () => locale, subscribe: () => () => {} },
-    modelDirectories: { directoryFor: () => directory },
+    modelDirectories: { directoryFor },
     slots: {
       inject: (_slot, setup) => setup(),
       register: (_options, render) => {
@@ -159,7 +190,7 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
     },
   })
   await React.act(async () =>
-    root.render(React.createElement(Picker, { sessionId: 'test', useSession: (read) => read({}), locked }))
+    root.render(React.createElement(Picker, { sessionId, useSession: (read) => read({}), locked }))
   )
   const click = (selector) => React.act(async () => document.querySelector(selector).click())
   const slider = () => document.querySelector('input[type=range]')
@@ -191,10 +222,10 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
   const commit = async (value, event = 'pointerup') => {
     await change(value, event)
   }
-  const reply = (ok = true, project = true) =>
+  const reply = (ok = true, project = true, target = directory) =>
     React.act(async () => {
-      const { selection, resolve } = requests.at(-1)
-      update({ status: 'ready', ...(ok && project ? { current: selection } : {}) })
+      const { selection, resolve } = target.requests.at(-1)
+      target.update({ status: 'ready', ...(ok && project ? { current: selection } : {}) })
       resolve({ ok })
     })
   const scroll = (target) => React.act(async () => target.dispatchEvent(new window.Event('scroll')))
@@ -212,8 +243,14 @@ async function mount(t, { language = 'ko', locked = false, runtime = 'desktop', 
     requests,
     update,
     scroll,
-    snapshot: () => snapshot,
+    snapshot: () => directory.store.getSnapshot(),
     command: () => command,
+    commands,
+    cycle: () => commands.get('dungsil.model-picker.cycle-favorites'),
+    directoryFor,
+    Picker: () => Picker,
+    createRoot,
+    container,
     fixedInput: (input) => fixedInput(input),
     setShortcutKeys: (keys) => React.act(async () => setShortcutKeys(keys)),
     anchor,
@@ -559,7 +596,7 @@ await test('다섯 모델부터 검색하며 제공자 순서를 유지하고 �
   await h.click('.dsh-codex-trigger')
   await h.click('.dsh-codex-model')
   assert.deepEqual(
-    [...h.document.querySelectorAll('.dsh-codex-provider')].map((el) => el.textContent),
+    [...h.document.querySelectorAll('.dsh-codex-models .dsh-codex-provider')].map((el) => el.textContent),
     ['Account', 'Official', 'Other']
   )
   const input = h.document.querySelector('[role=searchbox]')
@@ -778,4 +815,208 @@ await test('모델 로딩 뒤 검색창이 나타나면 데스크톱에서 검�
     })
   )
   assert.equal(h.document.activeElement, h.document.querySelector('[role=searchbox]'))
+})
+
+const favorite = (model, reasoningEffort) => ({ provider: 'provider', model, reasoningEffort })
+const runCycle = (h, context) =>
+  React.act(async () => {
+    const resolution = h.cycle().resolve(context ?? { region: 'editable', modal: null, target: null })
+    assert.equal(resolution.status, 'handled')
+    resolution.run()
+  })
+
+await test('검색 결과를 키보드로 선택해도 즐겨찾기를 유지하고 모델 결과의 기본 강도를 준비한다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('third', 'high')] })
+  const efforts = ['low', 'medium', 'high'].map((id) => ({ id, name: id }))
+  await React.act(async () =>
+    h.update({
+      groups: [
+        {
+          id: 'provider',
+          name: 'Provider',
+          models: ['first', 'second', 'third', 'fourth', 'fifth'].map((id) => ({
+            id,
+            name: id,
+            reasoning: { efforts, defaultEffort: 'low' },
+          })),
+        },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const input = h.document.querySelector('[role=searchbox]')
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(h.window.HTMLInputElement.prototype, 'value').set.call(input, 'se')
+    input.dispatchEvent(new h.window.Event('input', { bubbles: true }))
+  })
+  assert.deepEqual(
+    [...h.document.querySelectorAll('[role=option]')].map((row) => row.textContent),
+    ['second']
+  )
+  assert.equal(h.document.querySelector('.dsh-codex-favorite .dsh-codex-option').textContent, 'thirdhigh')
+  const active = h.document.getElementById(input.getAttribute('aria-activedescendant'))
+  assert.equal(active.getAttribute('role'), 'option')
+  assert.equal(active.textContent, 'second')
+  await React.act(async () =>
+    input.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  assert.match(h.document.querySelector('.dsh-codex-model').textContent, /low.*second/)
+  assert.equal(h.requests.length, 0)
+  await h.click('.dsh-codex-model')
+  await h.click('.dsh-codex-favorite .dsh-codex-option')
+  assert.deepEqual({ ...h.requests.at(-1).selection }, favorite('third', 'high'))
+  await h.reply()
+  assert.equal(h.document.querySelector('[role=dialog]'), null)
+})
+
+await test('검색창이 있어도 즐겨찾기의 방향키 탐색은 검색창으로 포커스를 옮기지 않는다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('first', 'medium')] })
+  const initial = h.snapshot().groups[0]
+  await React.act(async () =>
+    h.update({
+      groups: [
+        { ...initial, models: [...initial.models, ...['third', 'fourth', 'fifth'].map((id) => ({ id, name: id }))] },
+      ],
+    })
+  )
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const search = h.document.querySelector('[role=searchbox]')
+  const option = h.document.querySelector('.dsh-codex-favorite .dsh-codex-option')
+  const star = h.document.querySelector('.dsh-codex-favorite .dsh-codex-star')
+  const active = search.getAttribute('aria-activedescendant')
+  option.focus()
+  await React.act(async () =>
+    option.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+  )
+  assert.equal(h.document.activeElement, star)
+  await React.act(async () =>
+    star.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+  )
+  assert.equal(h.document.activeElement, option)
+  assert.equal(search.getAttribute('aria-activedescendant'), active)
+  assert.equal(h.requests.length, 0)
+})
+
+await test('즐겨찾기 전환은 저장된 순서를 따르고 현재 조합 다음 항목을 선택한다', async (t) => {
+  const h = await mount(t, {
+    favorites: [favorite('second', 'high'), favorite('first', 'medium'), favorite('first', 'low')],
+  })
+  await runCycle(h)
+  assert.deepEqual({ ...h.requests.at(-1).selection }, favorite('first', 'low'))
+  await h.reply()
+  await runCycle(h)
+  assert.deepEqual({ ...h.requests.at(-1).selection }, favorite('second', 'high'))
+  await h.reply()
+  await runCycle(h)
+  assert.deepEqual({ ...h.requests.at(-1).selection }, favorite('first', 'medium'))
+  assert.equal(h.slider(), null)
+})
+
+await test('즐겨찾기 추가는 목록 끝에 붙여 저장하고 다시 누르면 제거한다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('second', 'high')] })
+  await h.click('.dsh-codex-trigger')
+  await h.change(2)
+  const star = () => h.document.querySelector('.dsh-codex-header .dsh-codex-star')
+  assert.equal(star().getAttribute('aria-pressed'), 'false')
+  assert.match(star().getAttribute('aria-label'), /^즐겨찾기에 추가: first, high$/)
+  await h.click('.dsh-codex-header .dsh-codex-star')
+  assert.equal(star().getAttribute('aria-pressed'), 'true')
+  assert.equal(h.requests.length, 0)
+  const stored = () => JSON.parse(h.window.localStorage.getItem('dungsil.model-picker.favorites'))
+  assert.deepEqual(stored(), [favorite('second', 'high'), favorite('first', 'high')])
+  await h.click('.dsh-codex-model')
+  assert.deepEqual(
+    [...h.document.querySelectorAll('.dsh-codex-favorite .dsh-codex-option')].map((row) => row.textContent),
+    ['secondhigh', 'firsthigh']
+  )
+  await h.click('.dsh-codex-favorite:last-child .dsh-codex-star')
+  assert.deepEqual(stored(), [favorite('second', 'high')])
+  assert.equal(h.document.querySelectorAll('.dsh-codex-favorite').length, 1)
+})
+
+await test('즐겨찾기 행을 누르면 모델과 추론 강도를 함께 적용한다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('second', 'high')] })
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  await h.click('.dsh-codex-favorite .dsh-codex-option')
+  assert.deepEqual({ ...h.requests[0].selection }, favorite('second', 'high'))
+  await h.reply()
+  assert.equal(h.document.querySelector('[role=dialog]'), null)
+})
+
+await test('사용할 수 없는 모델과 지원하지 않는 추론 강도는 비활성화하고 전환에서 건너뛴다', async (t) => {
+  const h = await mount(t, {
+    favorites: [
+      favorite('first', 'medium'),
+      favorite('gone', 'high'),
+      favorite('second', 'max'),
+      favorite('second', 'low'),
+    ],
+  })
+  await runCycle(h)
+  assert.deepEqual({ ...h.requests.at(-1).selection }, favorite('second', 'low'))
+  await h.reply()
+  await h.click('.dsh-codex-trigger')
+  await h.click('.dsh-codex-model')
+  const rows = [...h.document.querySelectorAll('.dsh-codex-favorite .dsh-codex-option')]
+  assert.deepEqual(
+    rows.map((row) => row.disabled),
+    [false, true, true, false]
+  )
+  assert.match(rows[1].textContent, /사용할 수 없음/)
+  assert.match(rows[2].textContent, /사용할 수 없음/)
+  assert.match(rows[1].textContent, /^gonehigh/)
+  assert.match(rows[2].textContent, /^secondmax/)
+})
+
+await test('사용 가능한 즐겨찾기가 두 개 미만이면 전환을 차단한다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('first', 'medium'), favorite('gone', 'high')] })
+  assert.equal(h.cycle().resolve({ region: 'editable', modal: null, target: null }).status, 'blocked')
+})
+
+await test('잠긴 입력창에서는 즐겨찾기 전환을 차단한다', async (t) => {
+  const locked = await mount(t, {
+    locked: true,
+    favorites: [favorite('first', 'medium'), favorite('second', 'high')],
+  })
+  assert.equal(locked.cycle().resolve({ region: 'editable', modal: null, target: null }).status, 'blocked')
+  assert.equal(locked.requests.length, 0)
+})
+
+await test('여러 입력창이 보이면 입력 위치의 피커를 대상으로 전환하고 대상이 없으면 통과한다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('first', 'medium'), favorite('second', 'high')] })
+  const composer = h.document.createElement('div')
+  const container = h.document.createElement('div')
+  const editor = h.document.createElement('textarea')
+  composer.append(editor, container)
+  h.document.body.append(composer)
+  const root = h.createRoot(container)
+  await React.act(async () =>
+    root.render(React.createElement(h.Picker(), { sessionId: 'other', useSession: (read) => read({}), locked: false }))
+  )
+  for (const anchor of h.document.querySelectorAll('.dsh-codex-picker'))
+    anchor.getClientRects = () => [anchor.getBoundingClientRect()]
+  assert.equal(h.cycle().resolve({ region: 'page', modal: null, target: h.document.body }).status, 'pass')
+  await runCycle(h, { region: 'editable', modal: null, target: editor })
+  const other = h.directoryFor('other')
+  assert.deepEqual({ ...other.requests.at(-1).selection }, favorite('second', 'high'))
+  assert.equal(h.requests.length, 0)
+  await React.act(async () => root.unmount())
+})
+
+await test('기본 단축키가 충돌하면 기본값 없이 전환 명령을 등록하고 열기 명령을 유지한다', async (t) => {
+  const h = await mount(t, { conflict: true })
+  assert.deepEqual(Object.keys(h.cycle().defaults), [])
+  assert.equal(h.cycle().resolve({ region: 'page', modal: null, target: null }).status, 'blocked')
+  assert.equal(h.command().id, 'dungsil.model-picker.open')
+})
+
+await test('데스크톱 기본 전환 단축키는 Alt Shift P이고 웹 기본값은 없다', async (t) => {
+  const desktop = await mount(t)
+  assert.deepEqual(Object.keys(desktop.cycle().defaults).sort(), ['desktop:linux', 'desktop:macos', 'desktop:windows'])
+  for (const binding of Object.values(desktop.cycle().defaults))
+    assert.deepEqual([...binding.modifiers], ['alt', 'shift'])
+  assert.equal(desktop.cycle().label(), '다음 즐겨찾기 모델로 전환')
 })

@@ -1,5 +1,19 @@
 # @dungsil/dsh-plugin-ui-sidebar-inbox
 
+## [0.4.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.4.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.4.1) (2026-11-17)
+
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.3.0...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.4.0) (2026-11-16)
+
+### Features
+
+- **sidebar-inbox:** 기존 API로 잠시 숨김과 자동화 분류를 이식한다 ([#224](https://github.com/dungsil/dsh-plugins/issues/224)) ([36326bd](https://github.com/dungsil/dsh-plugins/commit/36326bd88d2829b0a69358777cfc679626ce2ad7))
+
+### Bug Fixes
+
+- **sidebar-inbox:** 플러그인 해제 시 강제한 flat 그룹을 원래 그룹으로 복원한다 ([#239](https://github.com/dungsil/dsh-plugins/issues/239)) ([defd7ec](https://github.com/dungsil/dsh-plugins/commit/defd7ec688a693a8b008e6b6fb67c740ca0d0f77))
+- **sidebar-inbox:** 하단 고정을 복구하고 잠시 숨김 미리보기를 갱신한다 ([#234](https://github.com/dungsil/dsh-plugins/issues/234)) ([244f9a0](https://github.com/dungsil/dsh-plugins/commit/244f9a09b9a1133d50e1e6d67eeb38f14e302b00))
+- **sidebar-inbox:** 활동 정렬을 다시 선택해도 유지한다 ([#222](https://github.com/dungsil/dsh-plugins/issues/222)) ([a1975a3](https://github.com/dungsil/dsh-plugins/commit/a1975a3fa30b9d461dcd495fb9e67fc749c0aa2d))
+
 ## [0.3.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.2.3...%40dungsil%2Fdsh-plugin-ui-sidebar-inbox%400.3.0) (2026-11-15)
 
 ### Features

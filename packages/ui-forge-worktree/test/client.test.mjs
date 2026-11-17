@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
+import { installConnection } from '@deepseek-ai/dsh-client-connection/client'
 
 const bundle = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 const tick = () => new Promise((resolve) => setImmediate(resolve))
@@ -46,6 +47,7 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
   }
   runInNewContext(bundle, {
     AbortController,
+    AbortSignal,
     ...clock,
     console,
     document: { createElement: () => ({ remove() {} }), head: { append() {} } },
@@ -56,7 +58,16 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
             if (id === 'react') return react
             if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' }
             if (id === '@deepseek-ai/dsh-client-ui-primitives')
-              return { Menu: 'Menu', MenuItemButton: 'MenuItemButton' }
+              return {
+                Menu: 'Menu',
+                MenuItemButton: 'MenuItemButton',
+                Tooltip: 'Tooltip',
+                IconChevronDownOutlineRegular: 'Chevron',
+                IconBranchOutlineRegular: 'Branch',
+                IconPlusOutlineRegular: 'Plus',
+                IconCheckOutlineRegular: 'Check',
+                IconWarningTriangleOutlineRegular: 'Warning',
+              }
             throw Error(`Unexpected dependency: ${id}`)
           })
         },
@@ -66,6 +77,7 @@ function load(snapshot, language = 'en', clock = { setTimeout, clearTimeout }) {
   const registrations = [],
     cleanups = []
   const ctx = {
+    get: () => ({ rpc: { call: async () => ({ ok: false }) } }),
     remote: { forgePanel: {} },
     locale: { getSnapshot: () => ({ active: language }), subscribe: () => () => {} },
     on: () => () => {},
@@ -193,6 +205,46 @@ await test('취소 요청은 확인 프레임이 올 때까지 대기하고 병�
   await tick()
   assert.equal(h.controller.getSnapshot().busy, true)
   h.streams[1].push(panel())
+  await tick()
+  assert.equal(h.controller.getSnapshot().busy, false)
+})
+
+await test('기존 워크트리 진입은 취소 확인 프레임을 받은 후에만 전송한다', async (t) => {
+  const h = harness(t, panel({ from: 'main' }))
+  const calls = []
+  let connection
+  installConnection(
+    {
+      provide: (_name, handle) => {
+        connection = handle
+      },
+    },
+    {
+      transport: {
+        fetch: async (path, init) => {
+          const request = JSON.parse(init.body)
+          calls.push({ path, request })
+          return Response.json({ type: 'server-response', rpcId: request.rpcId, result: { ok: true, value: null } })
+        },
+      },
+    }
+  )
+  await tick()
+  const pending = h.controller.enter('/registered', connection)
+  await tick()
+  assert.equal(h.calls[0][0], 'current')
+  assert.equal(calls.length, 0)
+  h.streams[1].push(panel({ from: 'main' }))
+  await tick()
+  assert.equal(calls.length, 0)
+  h.streams[1].push(panel())
+  await pending
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].path, 'api/dungsil-worktree-picker/enter')
+  assert.equal(calls[0].request.method, 'dungsil-worktree-picker/enter')
+  assert.equal(calls[0].request.payload.path, '/registered')
+  assert.equal(h.controller.getSnapshot().busy, true)
+  h.streams[2].push(panel())
   await tick()
   assert.equal(h.controller.getSnapshot().busy, false)
 })
@@ -362,14 +414,20 @@ for (const [language, label, current] of [
       sessionId: 'session',
       useSession: (fn) => fn({ running: false, removed: false, openState: 'open', pendingSubmissions: [] }),
       useInput: (fn) => fn({ phase: 'plain' }),
+      useProjection: () => false,
     })
     const tree = wrapped.type(wrapped.props)
     const menu = tree.props.children[0]
+    const [info, origin, create] = menu.props.children
     assert.equal(menu.props.anchor.props.label, label)
     assert.equal(menu.props.anchor.props.disabled, false)
-    assert.equal(menu.props.children[0].props.current, true)
-    assert.equal(menu.props.children[1].props.current, false)
-    assert.equal(menu.props.children[1].props.children.props.children[1].props.children, current)
+    // 목록을 읽기 전에는 안내 행만 비활성으로 보여 주고 체크아웃·생성 행은 유지한다.
+    assert.equal(info.props.disabled, true)
+    assert.equal(origin.props.current, false)
+    assert.equal(origin.props.children.props.children[1].props.children, current)
+    assert.equal(create.props.current, true)
+    assert.equal(create.props.separatorBefore, true)
+    assert.equal(create.props.children.props.children[0].props.children, label)
     for (const cleanup of h.cleanups) cleanup()
   })
 }
@@ -379,9 +437,15 @@ await test('모든 지원 로케일의 문구를 번들에 포함하고 다른 �
     'New worktree',
     '새 워크트리',
     '新建工作树',
-    'Refresh selection',
-    '선택 새로고침',
-    '刷新选择',
+    'Load more',
+    '더 불러오기',
+    '加载更多',
+    'Original checkout',
+    '원래 체크아웃',
+    '原始检出',
+    'Loading existing worktrees…',
+    '기존 워크트리를 불러오는 중…',
+    '正在加载现有工作树…',
     '新しいワークツリー',
     'Nuevo árbol de trabajo',
     'Nouvel arbre de travail',

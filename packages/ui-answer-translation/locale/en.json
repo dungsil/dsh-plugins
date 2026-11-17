@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Answer Paragraph Translation",
+    "description": "Translate a foreign-language answer paragraph on demand and show it below the original. Uses the official translation service and its settings."
+  }
+}

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { channel, readMethod, saveMethod, validSettings, type SettingsEntry, type SettingsView } from './protocol.js'
 
 export const name = 'dungsil-ui-setting-vcs'
@@ -31,6 +31,11 @@ function revision(inherited: Record<string, unknown>, current: Record<string, un
 function settings(kind: SettingsEntry['kind'], inherited: Record<string, unknown>, current: Record<string, unknown>) {
   const effective = layers(inherited, current)
   const keys = kind === 'worktree' ? ['directory', 'namePrefix'] : ['worktreePrefix']
+  if (kind === 'worktree') {
+    for (const layer of [inherited, current])
+      if (Object.hasOwn(layer, 'retainOnArchive') && typeof layer.retainOnArchive !== 'boolean')
+        throw new SettingsError('unavailable')
+  }
   // Raw expressions must never become editable fallback strings, even if evaluated at runtime.
   for (const layer of [inherited, current])
     for (const key of keys)
@@ -39,6 +44,7 @@ function settings(kind: SettingsEntry['kind'], inherited: Record<string, unknown
     ? {
         directory: (effective.directory as string | undefined) ?? '.agents/worktrees',
         prefix: (effective.namePrefix as string | undefined) ?? 'dsh-',
+        cleanupOnArchive: effective.retainOnArchive !== true,
       }
     : { prefix: (effective.worktreePrefix as string | undefined) ?? 'dsh-' }
 }
@@ -73,17 +79,12 @@ export function apply(ctx: Context) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== endpoint) return new Response('Invalid request', { status: 400 })
+            const parsed = await parseRpcRequest(request, endpoint)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
             let result
             try {
               if (endpoint === saveMethod) {
-                const payload = body.data.payload
+                const payload = parsed.payload
                 if (
                   !record(payload) ||
                   Object.keys(payload).length !== 3 ||
@@ -102,10 +103,17 @@ export function apply(ctx: Context) {
                 await editor.edit(target.entry, (current, inherited) => {
                   // Recheck inside the editor's serialized write, not before acquiring its lock.
                   if (revision(inherited, current) !== payload.revision) throw new SettingsError('conflict')
-                  settings(kind, inherited, current)
-                  return kind === 'worktree'
-                    ? { ...layers(inherited, current), directory: next.directory, namePrefix: next.prefix }
-                    : { ...layers(inherited, current), worktreePrefix: next.prefix }
+                  const previous = settings(kind, inherited, current)
+                  if (kind !== 'worktree') return { ...layers(inherited, current), worktreePrefix: next.prefix }
+                  // Keep archive-only changes volatile instead of materializing defaults that restart Git operations.
+                  if (next.directory === previous.directory && next.prefix === previous.prefix)
+                    return { ...current, retainOnArchive: !next.cleanupOnArchive }
+                  return {
+                    ...layers(inherited, current),
+                    directory: next.directory,
+                    namePrefix: next.prefix,
+                    retainOnArchive: !next.cleanupOnArchive,
+                  }
                 })
               }
               result = { ok: true as const, value: view() }
@@ -114,10 +122,7 @@ export function apply(ctx: Context) {
                 error instanceof SettingsError ? error.code : endpoint === saveMethod ? 'save_failed' : 'load_failed'
               result = { ok: false as const, error: { code, message: 'VCS settings operation failed.', details: {} } }
             }
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              { headers: { 'Cache-Control': 'no-store' } }
-            )
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       'ui-setting-vcs: owner-only settings'

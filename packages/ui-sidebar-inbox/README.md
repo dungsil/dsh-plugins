@@ -4,17 +4,19 @@
 
 `@dungsil/dsh-plugin-ui-sidebar-inbox`
 
+[![Open Plugin Market](https://img.shields.io/endpoint?url=https%3A%2F%2Fdshopen.org%2Fbadge%2F%2540dungsil%2Fdsh-plugin-ui-sidebar-inbox.json%3Flang%3Den)](https://dshopen.org/plugins/@dungsil/dsh-plugin-ui-sidebar-inbox/)
+
 DSH 사이드바의 세션 목록을 T3 Code Nightly처럼 **상태별**로 정리합니다. 응답이 필요한 세션은 위로, 실행 중인 세션과 보관한 세션은 아래로 모아 줍니다. 기존 사이드바의 모양과 세션 행은 그대로 유지합니다.
 
 ## 미리보기
 
-**라이트 · 영어**: 왼쪽은 Archived를 접은 상태, 오른쪽은 펼친 상태입니다.
+**라이트**: 왼쪽은 보관됨과 잠시 숨김을 접은 상태, 오른쪽은 두 영역을 펼친 상태입니다. 각 영역 제목에는 세션 수를 표시합니다.
 
-<img src="./assets/sidebar-preview.webp" alt="라이트 테마의 Sidebar Inbox: 상단의 고정·수신함 세션과 하단 Working 목록, 왼쪽 Archived 접힘과 오른쪽 펼침 비교" width="720" />
+<img src="./assets/sidebar-preview-ko-light.webp" alt="라이트 테마의 한국어 Sidebar Inbox: 고정·수신함과 작업 중·보관됨·잠시 숨김 목록 및 세션 수, 왼쪽은 보관됨·잠시 숨김 접힘, 오른쪽은 펼침" width="720" />
 
-**다크 · 한국어**: 같은 예시 세션에서 보관됨을 접은 상태와 펼친 상태를 비교합니다.
+**다크**: 같은 예시 세션에서 보관됨과 잠시 숨김을 접은 상태와 펼친 상태를 비교합니다.
 
-<img src="./assets/sidebar-preview-dark.webp" alt="다크 테마의 한국어 Sidebar Inbox: 상단의 고정·수신함 세션과 하단 작업 중 목록, 왼쪽 보관됨 접힘과 오른쪽 펼침 비교" width="720" />
+<img src="./assets/sidebar-preview-ko-dark.webp" alt="다크 테마의 한국어 Sidebar Inbox: 고정·수신함과 작업 중·보관됨·잠시 숨김 목록 및 세션 수, 왼쪽은 보관됨·잠시 숨김 접힘, 오른쪽은 펼침" width="720" />
 
 ## 사용법
 

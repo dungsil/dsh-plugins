@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-config-editor'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import type { ModelSettingsService, TaskDefinition, TaskSettings } from './contract.js'
 import { legacyRole, legacyTarget, readLegacySettings } from './compatibility.js'
 import { channel, endpointPrefix, type ModelSelection, type Route, type TaskSnapshot } from './protocol.js'
@@ -431,21 +431,10 @@ export async function apply(ctx: Context) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== `${endpointPrefix}${endpoint}`)
-              return new Response('Invalid request', { status: 400 })
-            const result = await handle(endpoint, body.data.payload, request.signal)
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              {
-                headers: { 'Cache-Control': 'no-store' },
-              }
-            )
+            const parsed = await parseRpcRequest(request, `${endpointPrefix}${endpoint}`)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
+            const result = await handle(endpoint, parsed.payload, request.signal)
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       `model-settings: owner-only ${endpoint}`

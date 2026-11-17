@@ -13,7 +13,7 @@ import {
   type MenuEntry,
 } from '@dungsil/dsh-ui'
 import { IconChevronDownOutlineRegular, modelSettingsIconSvg } from '@dungsil/dsh-ui/icons'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, localizedLanguage, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   channel,
   endpointPrefix,
@@ -129,22 +129,17 @@ const copy = {
   },
 }
 
-const languageKey = (language: string) => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en'
-}
-const localizedCopy = (language: string) => copy[languageKey(language)]
 // Tasks come from other plugins, which may not yet supply every UI language.
 const taskText = (text: { en: string } & Partial<Record<keyof typeof copy, string>>, language: keyof typeof copy) =>
   text[language] ?? text.en
 
 const styles = `${settingsStyles}
-.dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-model-settings { container-type: inline-size; color: var(--dsw-alias-label-primary); font: var(--dsw-font-s-14); }
 .dsh-model-settings-field { border-bottom: .5px solid var(--dsw-alias-border-l2); }
 .dsh-model-settings-field[data-auxiliary=true] { border-bottom: none; }
 .dsh-model-settings .dsh-plugin-settings-row { border-bottom: none; gap: 8px; }
 .dsh-model-settings-task-heading { margin: 32px 0 0; padding-bottom: 8px; border-bottom: .5px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-secondary); font: inherit; }
-.dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.dsh-model-settings-description { margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: var(--dsw-font-xxs-12-font-size); line-height: 20px; }
 .dsh-model-settings-controls { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 65%; }
 .dsh-model-settings-picker + .dsh-model-settings-picker { flex: none; max-width: 60%; }
 .dsh-model-settings-expander { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: var(--dsw-radius-xs); color: var(--dsw-alias-label-tertiary); background: transparent; cursor: pointer; }
@@ -179,8 +174,8 @@ type Notice = 'error' | 'conflict' | 'model_unavailable' | 'reasoning_unavailabl
 
 function ModelSettings({ ctx }: { ctx: Context }) {
   const locale = useLocaleSnapshot(ctx.locale)
-  const language = languageKey(locale.active)
-  const text = localizedCopy(locale.active)
+  const language = localizedLanguage(copy, locale.active)
+  const text = localizedCopy(copy, locale.active)
   const id = useId()
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const [view, setView] = useState<ModelSettingsViewV2>()
@@ -551,8 +546,8 @@ export function apply(ctx: Context) {
       {
         name: 'settings.section',
         id: name,
-        order: 15,
-        label: () => localizedCopy(ctx.locale.getSnapshot().active).nav,
+        order: 14,
+        label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).nav,
         inject: () => ({ ctx }),
       },
       ModelSettings

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ComponentProps } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, ButtonPicker, MarkdownText, SegmentedTabs, Tag } from '@dungsil/dsh-ui'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
@@ -19,7 +20,7 @@ import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
 import { splitMarkdownSections, type MarkdownSection } from './markdown-sections.js'
-import { actionMethod, channel, method, type RequestAction, type RequestView } from './protocol.js'
+import { actionMethod, channel, method, type MergeMethod, type RequestAction, type RequestView } from './protocol.js'
 import { styles } from './pull-requests-styles.js'
 import { bindPullRequestLinks, pullRequestUrl } from './pull-request-links.js'
 
@@ -32,7 +33,7 @@ declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
   }
 }
 
-type ReviewAction = RequestAction['action']
+type ReviewAction = Exclude<RequestAction['action'], 'merge'>
 
 const providerNames: Record<RequestView['provider'], string> = {
   github: 'GitHub',
@@ -80,17 +81,8 @@ export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   const views = new Map<string, RequestView>()
   ctx.effect(() => () => views.clear())
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = styles
-    document.head.append(style)
-    return () => style.remove()
-  }, 'ui-forge-pulls: pull request styles')
-  const subscribe = (listener: () => void) => ctx.locale.subscribe(listener)
-  const text = () => {
-    const language = ctx.locale.getSnapshot().active
-    return language.startsWith('ko') ? ko : language.startsWith('zh') ? zh : en
-  }
+  ctx.effect(() => installStyles(styles), 'ui-forge-pulls: pull request styles')
+  const copyFor = (language: string) => localizedCopy({ en, ko, zh }, language)
 
   function Links({ sessionId }: PropsRuntime<'conversation.input.dock'>) {
     const anchor = useRef<HTMLSpanElement>(null)
@@ -107,8 +99,8 @@ export function apply(ctx: Context) {
   }
 
   function Requests({ sessionId, useTabInfo, useSession }: PropsRuntime<'sidebar.right.pane.tab'>) {
-    useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
-    const copy = text()
+    const { active: language } = useLocaleSnapshot(ctx.locale)
+    const copy = copyFor(language)
     const { tab } = useTabInfo()
     const params = tab.navigation.params as { requestUrl?: unknown } | undefined
     const requestUrl = typeof params?.requestUrl === 'string' ? pullRequestUrl(params.requestUrl) : undefined
@@ -117,9 +109,10 @@ export function apply(ctx: Context) {
     const [view, setView] = useState<RequestView | undefined>(() => views.get(cacheKey))
     const [error, setError] = useState<Exclude<keyof typeof en, 'meta'>>()
     const [loading, setLoading] = useState(true)
-    const [page, setPage] = useState<'overview' | 'conversation'>('overview')
+    const [page, setPage] = useState<'overview' | 'conversation' | 'changes'>('overview')
     const [body, setBody] = useState('')
     const [reviewAction, setReviewAction] = useState<ReviewAction>('comment')
+    const [strategy, setStrategy] = useState<MergeMethod>('merge')
     const [notice, setNotice] = useState<'completed' | 'action_failed' | 'stale_request'>()
     const [pending, setPending] = useState(false)
     const submitting = useRef(false)
@@ -127,6 +120,7 @@ export function apply(ctx: Context) {
     const content = useRef<HTMLDivElement | null>(null)
     const tabsId = useId()
     const item = view?.request
+    const selectedStrategy = item?.mergeMethods?.includes(strategy) ? strategy : (item?.mergeMethods?.[0] ?? strategy)
     const labels = useMemo(
       () => ({ code: { copyLabel: copy.copy, copiedLabel: copy.copied }, footnotes: copy.footnotes }),
       [copy]
@@ -145,7 +139,7 @@ export function apply(ctx: Context) {
       !error &&
       !notice
 
-    const load = async () => {
+    const load = async (options?: { keepNotice?: boolean }) => {
       if (submitting.current) return
       active.current?.abort()
       const controller = new AbortController()
@@ -153,7 +147,7 @@ export function apply(ctx: Context) {
       const signal = AbortSignal.any([controller.signal, tab.signal])
       setLoading(true)
       setError(undefined)
-      setNotice(undefined)
+      if (!options?.keepNotice) setNotice(undefined)
       try {
         // A cached snapshot is display-only while the fresh, full read is in flight.
         // On first open, show the description without waiting for the discussion.
@@ -173,6 +167,8 @@ export function apply(ctx: Context) {
           if (views.size > 20) views.delete(views.keys().next().value!)
           if (!next.request) break
         }
+        // The action's notice clears only after the fresh read confirms the remote state.
+        if (options?.keepNotice) setNotice(undefined)
       } catch (cause) {
         if (signal.aborted) return
         const code = (cause as { code?: string } | null)?.code
@@ -219,7 +215,7 @@ export function apply(ctx: Context) {
       if (
         (action !== 'approve' && !body.trim()) ||
         (view?.provider === 'gitlab' && action === 'approve' && !!body.trim()) ||
-        (action === 'approve' && item.draft)
+        (action === 'approve' && (item.draft || !item.changes?.complete))
       )
         return
       const payload: RequestAction = {
@@ -234,17 +230,65 @@ export function apply(ctx: Context) {
       setPending(true)
       active.current?.abort()
       setLoading(false)
+      let completed = false
       try {
         const result = await connection.rpc.call(channel, actionMethod, payload, tab.signal)
         if (!result.ok) throw result.error
         setBody('')
         setNotice('completed')
+        completed = true
       } catch (cause) {
         setNotice((cause as { code?: string } | null)?.code === 'stale_request' ? 'stale_request' : 'action_failed')
       } finally {
         // A lost response may follow a successful write. Never automatically retry a mutation.
         submitting.current = false
         setPending(false)
+        // A completed action is followed by one read; the write is never retried.
+        if (completed) void load({ keepNotice: true })
+      }
+    }
+
+    const merge = async () => {
+      if (
+        !item ||
+        !view ||
+        view.provider !== 'github' ||
+        !canReview ||
+        item.draft ||
+        !view.checkoutBranch ||
+        !item.mergeMethods?.includes(selectedStrategy) ||
+        submitting.current
+      )
+        return
+      submitting.current = true
+      setPending(true)
+      active.current?.abort()
+      let completed = false
+      try {
+        const result = await connection.rpc.call(
+          channel,
+          actionMethod,
+          {
+            sessionId,
+            requestUrl: item.url,
+            headSha: item.headSha,
+            branch: view.checkoutBranch,
+            target: item.target,
+            action: 'merge',
+            strategy: selectedStrategy,
+          } satisfies RequestAction,
+          tab.signal
+        )
+        if (!result.ok) throw result.error
+        setNotice('completed')
+        completed = true
+      } catch (cause) {
+        setNotice((cause as { code?: string } | null)?.code === 'stale_request' ? 'stale_request' : 'action_failed')
+      } finally {
+        submitting.current = false
+        setPending(false)
+        // A completed action is followed by one read; the write is never retried.
+        if (completed) void load({ keepNotice: true })
       }
     }
 
@@ -331,6 +375,49 @@ export function apply(ctx: Context) {
                     </span>
                   </div>
                 </div>
+                {view.provider === 'github' && (
+                  <section className="dsh-forge-pulls-section" aria-label={copy.merge_title}>
+                    <h3>{copy.merge_title}</h3>
+                    <p>{copy.merge_hint}</p>
+                    {!loading &&
+                      !error &&
+                      item.state === 'open' &&
+                      !item.draft &&
+                      !item.detailsError &&
+                      (!item.mergeMethods?.length || !view.checkoutBranch) && <p>{copy.merge_unavailable}</p>}
+                    <div className="dsh-forge-pulls-actions">
+                      <ButtonPicker
+                        size="sm"
+                        className="dsh-forge-pulls-picker dsh-forge-pulls-merge-picker"
+                        menuClassName="dsh-forge-pulls-choice"
+                        compact
+                        label={copy.merge_title}
+                        value={selectedStrategy}
+                        disabled={pending}
+                        onChange={setStrategy}
+                        items={[
+                          { id: 'merge', label: copy.merge_commit, disabled: !item.mergeMethods?.includes('merge') },
+                          { id: 'squash', label: copy.merge_squash, disabled: !item.mergeMethods?.includes('squash') },
+                          { id: 'rebase', label: copy.merge_rebase, disabled: !item.mergeMethods?.includes('rebase') },
+                        ]}
+                      />
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        disabled={
+                          !canReview ||
+                          item.draft ||
+                          !view.checkoutBranch ||
+                          !item.mergeMethods?.includes(selectedStrategy)
+                        }
+                        onClick={() => void merge()}
+                      >
+                        {pending ? copy.pending : copy.merge_title}
+                      </Button>
+                    </div>
+                  </section>
+                )}
                 <div className="dsh-forge-pulls-tabs">
                   <SegmentedTabs
                     label={copy.title}
@@ -352,12 +439,23 @@ export function apply(ctx: Context) {
                         id: `${tabsId}-conversation`,
                         panelId: `${tabsId}-conversation-panel`,
                       },
+                      {
+                        value: 'changes',
+                        label: copy.changes,
+                        id: `${tabsId}-changes`,
+                        panelId: `${tabsId}-changes-panel`,
+                      },
                     ]}
                   />
                 </div>
                 {item.detailsError && (
                   <p className="dsh-forge-pulls-warning" role="alert">
                     {copy.details_error}
+                  </p>
+                )}
+                {!loading && !item.changes?.complete && (
+                  <p className="dsh-forge-pulls-warning" role="alert">
+                    {copy.changes_incomplete}
                   </p>
                 )}
                 <div
@@ -374,6 +472,30 @@ export function apply(ctx: Context) {
                         <Description key={item.body} text={item.body || copy.no_body} labels={labels} />
                       </section>
                     </>
+                  )}
+                  {page === 'changes' && (
+                    <section className="dsh-forge-pulls-section" aria-label={copy.changes}>
+                      <h3>
+                        {copy.changes} {loading && <Loading label={copy.loading} />}
+                      </h3>
+                      {!loading && !item.detailsError && item.changes?.complete && (
+                        <>
+                          {!item.changes.files.length && <p>{copy.no_changes}</p>}
+                          <ul>
+                            {item.changes.files.map((file, index) => (
+                              <li key={index}>
+                                <code>{file.path}</code>
+                              </li>
+                            ))}
+                          </ul>
+                          {item.changes.diff && (
+                            <pre className="dsh-forge-pulls-diff">
+                              <code>{item.changes.diff}</code>
+                            </pre>
+                          )}
+                        </>
+                      )}
+                    </section>
                   )}
                   {page === 'conversation' && (
                     <section className="dsh-forge-pulls-section" aria-label={copy.conversation}>
@@ -428,7 +550,7 @@ export function apply(ctx: Context) {
                             onChange={setReviewAction}
                             items={[
                               { id: 'comment', label: copy.comment },
-                              { id: 'approve', label: copy.approve, disabled: item.draft },
+                              { id: 'approve', label: copy.approve, disabled: item.draft || !item.changes?.complete },
                               ...(view.provider !== 'gitlab'
                                 ? [{ id: 'request_changes' as const, label: copy.request_changes }]
                                 : []),
@@ -442,7 +564,7 @@ export function apply(ctx: Context) {
                               !canReview ||
                               (reviewAction !== 'approve' && !body.trim()) ||
                               (view.provider === 'gitlab' && reviewAction === 'approve' && !!body.trim()) ||
-                              (reviewAction === 'approve' && item.draft)
+                              (reviewAction === 'approve' && (item.draft || !item.changes?.complete))
                             }
                           >
                             {pending ? copy.pending : copy.submit}
@@ -470,27 +592,27 @@ export function apply(ctx: Context) {
     ctx.sidebarRightTabs.register({
       id: name,
       kind: name,
-      title: () => text().title,
+      title: () => copyFor(ctx.locale.getSnapshot().active).title,
       guide: [
         {
           id: 'requests',
           order: 30,
-          title: () => text().title,
-          description: () => text().description,
+          title: () => copyFor(ctx.locale.getSnapshot().active).title,
+          description: () => copyFor(ctx.locale.getSnapshot().active).description,
           icon: IconBranchOutlineRegular,
         },
       ],
     })
   )
   ctx.slots.inject('conversation.input.dock', () =>
-    ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links` }, Links)
+    ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links`, order: 30 }, Links)
   )
   ctx.slots.inject('sidebar.right.pane.tab', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab', key: name }, Requests)
   )
   function Title() {
-    useSyncExternalStore(subscribe, () => ctx.locale.getSnapshot().active)
-    return <span>{text().title}</span>
+    const { active } = useLocaleSnapshot(ctx.locale)
+    return <span>{copyFor(active).title}</span>
   }
   ctx.slots.inject('sidebar.right.pane.tab.title', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: name }, Title)

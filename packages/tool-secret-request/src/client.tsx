@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
+import { localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, endpointPrefix, maxSecretLength, type SecretRequest, type SecretStatus } from './protocol.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
@@ -32,16 +33,16 @@ const copy = {
 }
 
 const styles = `
-.dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 6px 0; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 10px; color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: 13px/1.45 var(--dsw-font-family, system-ui); overflow-wrap: anywhere; }
+.dsh-secret-card { box-sizing: border-box; width: 100%; min-width: 0; margin: 6px 0; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: var(--dsw-radius-md); color: var(--dsw-alias-label-primary, #222); background: var(--dsw-alias-bg-layer-2, #fff); font: var(--dsw-font-xs-13); overflow-wrap: anywhere; }
 .dsh-secret-card bdi { unicode-bidi: isolate; }
 .dsh-secret-card .dsh-secret-context { unicode-bidi: plaintext; }
-.dsh-secret-card h3 { margin: 0; font-size: 14px; }
+.dsh-secret-card h3 { margin: 0; font-size: var(--dsw-font-s-14-font-size); }
 .dsh-secret-card p { margin: 4px 0; }
-.dsh-secret-card small { display: block; margin-top: 6px; font-size: 12px; color: var(--dsw-alias-label-secondary, #666); }
-.dsh-secret-card input { box-sizing: border-box; flex: 1 1 140px; min-width: 0; height: 36px; padding: 6px 10px; border: 1px solid var(--dsw-alias-border-l4, #8888); border-radius: 7px; font: inherit; color: inherit; background: var(--dsw-alias-bg-layer-1, #f5f5f5); }
-.dsh-secret-card input:focus-visible, .dsh-secret-card button:focus-visible { outline: 2px solid #5677ee; outline-offset: 3px; }
+.dsh-secret-card small { display: block; margin-top: 6px; font-size: var(--dsw-font-xxs-12-font-size); color: var(--dsw-alias-label-secondary, #666); }
+.dsh-secret-card input { box-sizing: border-box; flex: 1 1 140px; min-width: 0; height: 36px; padding: 6px 10px; border: 1px solid var(--dsw-alias-border-l4, #8888); border-radius: var(--dsw-radius-sm); font: inherit; color: inherit; background: var(--dsw-alias-bg-layer-1, #f5f5f5); }
+.dsh-secret-card input:focus-visible, .dsh-secret-card button:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }
 .dsh-secret-card footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 8px; }
-.dsh-secret-card button { flex: none; min-height: 36px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: 7px; padding: 6px 10px; font: inherit; cursor: pointer; background: transparent; color: inherit; }
+.dsh-secret-card button { flex: none; min-height: 36px; border: 1px solid var(--dsw-alias-border-l4, #8886); border-radius: var(--dsw-radius-sm); padding: 6px 10px; font: inherit; cursor: pointer; background: transparent; color: inherit; }
 .dsh-secret-card button[type=submit] { background: var(--dsw-alias-button-primary-fill, #222); border-color: transparent; color: var(--dsw-alias-label-primary-foreground, white); }
 .dsh-secret-card button:hover:not(:disabled) { filter: brightness(.9); }
 .dsh-secret-card button:disabled { opacity: .5; cursor: default; }
@@ -196,10 +197,8 @@ export function apply(ctx: Context) {
   function SecretCard(props: ToolCallViewProps) {
     const pending = useSyncExternalStore(subscribe, snapshot)
     const [submitted, setSubmitted] = useState<SecretStatus>()
-    const subscribeLocale = useCallback((listener: () => void) => ctx.locale.subscribe(listener), [])
-    const localeSnapshot = useCallback(() => ctx.locale.getSnapshot(), [])
-    const locale = useSyncExternalStore(subscribeLocale, localeSnapshot)
-    const text = (copy as Record<string, Text>)[locale.active.toLowerCase().split(/[-_]/)[0]] ?? copy.en
+    const locale = useLocaleSnapshot(ctx.locale)
+    const text = localizedCopy(copy, locale.active)
     // A card may only answer the live request for this exact session and call.
     const request = pending.find((item) => item.sessionId === props.sessionId && item.callId === props.callId)
     let status: string | undefined = submitted && text[submitted]

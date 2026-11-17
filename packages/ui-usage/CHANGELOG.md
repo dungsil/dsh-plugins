@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-ui-usage
 
+## [0.5.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.5.0...%40dungsil%2Fdsh-plugin-ui-usage%400.5.1) (2026-11-17)
+
 ## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-usage%400.4.0...%40dungsil%2Fdsh-plugin-ui-usage%400.5.0) (2026-11-15)
 
 ### Features

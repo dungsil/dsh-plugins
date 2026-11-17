@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { ChatFlowSlotProps, ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ChatFlowSlotProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SlotComponent, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
@@ -51,13 +51,17 @@ export function apply(ctx: Context) {
         function ImagePaths(props: ChatFlowSlotProps) {
           const directories = props.useProjection(projection)
           const renderSlot = useMemo<ChatFlowSlotProps['renderSlot']>(
-            () => (childSlot, owner, options) => (
-              <ImageScope
-                cwd={directories?.findLast((change) => change.seq <= (owner as ChatNodeViewProps).node.anchorSeq)?.cwd}
-              >
-                {props.renderSlot(childSlot, owner, options)}
-              </ImageScope>
-            ),
+            () => (childSlot, owner, options) => {
+              // Owners of other child slots have no node; skip the correction instead of crashing.
+              const anchorSeq = (owner as { node?: { anchorSeq?: number } }).node?.anchorSeq
+              return (
+                <ImageScope
+                  cwd={directories?.findLast((change) => anchorSeq !== undefined && change.seq <= anchorSeq)?.cwd}
+                >
+                  {props.renderSlot(childSlot, owner, options)}
+                </ImageScope>
+              )
+            },
             [directories, props.renderSlot]
           )
           return <Original {...props} renderSlot={renderSlot} />

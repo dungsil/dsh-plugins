@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools'
@@ -263,14 +263,9 @@ export async function setupBrowser(ctx: Context, install: (signal: AbortSignal) 
       methods: ['POST'],
       requestBody: 'buffered',
       async fetch(request) {
-        let body
-        try {
-          body = clientRequestSchema.safeParse(await request.json())
-        } catch {
-          return new Response('Invalid request', { status: 400 })
-        }
-        if (!body.success || body.data.method !== method) return new Response('Invalid request', { status: 400 })
-        const payload = body.data.payload as { sessionId?: unknown; tabId?: unknown; sequence?: unknown } | null
+        const parsed = await parseRpcRequest(request, method)
+        if (!parsed) return new Response('Invalid request', { status: 400 })
+        const payload = parsed.payload as { sessionId?: unknown; tabId?: unknown; sequence?: unknown } | null
         if (typeof payload?.sessionId !== 'string' || !payload.sessionId)
           return new Response('Invalid session', { status: 400 })
         if (payload.tabId !== undefined && typeof payload.tabId !== 'string')
@@ -279,20 +274,13 @@ export async function setupBrowser(ctx: Context, install: (signal: AbortSignal) 
         if (browser) await refresh(browser)
         const view = browser?.view ?? { status: 'idle', sequence: 0 }
         // The owner-only route exposes neither CLI output nor the unauthenticated loopback stream port.
-        return Response.json(
-          {
-            type: 'server-response',
-            rpcId: body.data.rpcId,
-            result: {
-              ok: true,
-              value: {
-                ...view,
-                image: payload.sequence === view.sequence ? undefined : view.image,
-              },
-            },
+        return rpcResponse(parsed.rpcId, {
+          ok: true,
+          value: {
+            ...view,
+            image: payload.sequence === view.sequence ? undefined : view.image,
           },
-          { headers: { 'Cache-Control': 'no-store' } }
-        )
+        })
       },
     })
   )
@@ -434,14 +422,9 @@ export async function setupBrowser(ctx: Context, install: (signal: AbortSignal) 
       methods: ['POST'],
       requestBody: 'buffered',
       async fetch(request) {
-        let body
-        try {
-          body = clientRequestSchema.safeParse(await request.json())
-        } catch {
-          return new Response('Invalid request', { status: 400 })
-        }
-        if (!body.success || body.data.method !== controlMethod) return new Response('Invalid request', { status: 400 })
-        const payload = body.data.payload as {
+        const parsed = await parseRpcRequest(request, controlMethod)
+        if (!parsed) return new Response('Invalid request', { status: 400 })
+        const payload = parsed.payload as {
           sessionId?: unknown
           tabId?: unknown
           action?: unknown
@@ -456,13 +439,9 @@ export async function setupBrowser(ctx: Context, install: (signal: AbortSignal) 
           return new Response('Invalid session or tab', { status: 400 })
         const { sessionId, tabId } = payload
         const reply = (ok: boolean, value: unknown) =>
-          Response.json(
-            {
-              type: 'server-response',
-              rpcId: body.data.rpcId,
-              result: ok ? { ok, value } : { ok, error: { code: String(value), message: String(value), details: {} } },
-            },
-            { headers: { 'Cache-Control': 'no-store' } }
+          rpcResponse(
+            parsed.rpcId,
+            ok ? { ok, value } : { ok, error: { code: String(value), message: String(value), details: {} } }
           )
         const resolved = await ctx.sessionController.resolveAgent(
           sessionId as Parameters<typeof ctx.sessionController.resolveAgent>[0]

@@ -131,6 +131,26 @@
       },
       "versions": [
         {
+          "version": "0.2.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.2.1",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1794723961,
           "source": {
@@ -218,6 +238,26 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.3.1",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1794723961,
@@ -316,6 +356,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.9.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.9.0",
           "publishTimestamp": 1794723961,
@@ -495,6 +545,16 @@
       },
       "versions": [
         {
+          "version": "0.5.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.5.1",
           "publishTimestamp": 1794709137,
           "source": {
@@ -602,6 +662,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.7.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.7.0",
           "publishTimestamp": 1794709097,
@@ -721,6 +791,16 @@
       },
       "versions": [
         {
+          "version": "0.5.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.5.1",
           "publishTimestamp": 1794709216,
           "source": {
@@ -829,6 +909,16 @@
       },
       "versions": [
         {
+          "version": "0.1.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1794709184,
           "source": {
@@ -876,6 +966,26 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1794723961,
@@ -975,6 +1085,16 @@
       },
       "versions": [
         {
+          "version": "0.3.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.3.0",
           "publishTimestamp": 1794709131,
           "source": {
@@ -1062,6 +1182,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.9.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.9.0",
           "publishTimestamp": 1794723961,
@@ -1201,6 +1331,26 @@
       },
       "versions": [
         {
+          "version": "0.6.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
+        {
+          "version": "0.6.0",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
+        {
           "version": "0.5.0",
           "publishTimestamp": 1794723961,
           "source": {
@@ -1297,6 +1447,26 @@
       },
       "versions": [
         {
+          "version": "0.3.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1794723961,
           "source": {
@@ -1344,6 +1514,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.4.0",
           "publishTimestamp": 1794722657,
@@ -1463,6 +1643,26 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1794723961,
           "source": {
@@ -1510,6 +1710,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.4.0",
           "publishTimestamp": 1794723961,
@@ -1649,6 +1859,16 @@
       },
       "versions": [
         {
+          "version": "0.3.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.3.0",
           "publishTimestamp": 1794709088,
           "source": {
@@ -1725,6 +1945,16 @@
       },
       "versions": [
         {
+          "version": "0.1.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.1",
           "publishTimestamp": 1794709113,
           "source": {
@@ -1771,6 +2001,16 @@
       },
       "versions": [
         {
+          "version": "0.1.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.1",
           "publishTimestamp": 1794709025,
           "source": {
@@ -1816,6 +2056,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.1.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.1.1",
           "publishTimestamp": 1794709036,
@@ -1875,6 +2125,16 @@
       },
       "versions": [
         {
+          "version": "0.1.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1794722738,
           "source": {
@@ -1932,6 +2192,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.5.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.5.0",
           "publishTimestamp": 1794723961,
@@ -2051,6 +2321,16 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1794722725,
           "source": {
@@ -2127,6 +2407,26 @@
       },
       "versions": [
         {
+          "version": "0.2.1",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1794723961,
           "source": {
@@ -2163,6 +2463,26 @@
       },
       "versions": [
         {
+          "version": "0.2.2",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
+          "version": "0.2.1",
+          "publishTimestamp": 1794810208,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1794723961,
           "source": {
@@ -2188,15 +2508,15 @@
         "pt": "Chips do Forge"
       },
       "description": {
-        "en": "Commit, push and create or view PRs from compact composer chips using Forge.",
-        "ko": "Forge와 연결된 입력창 칩으로 커밋·푸시·PR 생성과 조회를 실행합니다.",
-        "zh": "通过连接 Forge 的紧凑输入框按钮提交、推送、创建或查看 PR。",
-        "ja": "Forge と連携した入力欄のコンパクトなチップから、コミット、プッシュ、PR の作成や表示を行います。",
-        "es": "Haz commit, push y crea o consulta PR desde chips compactos en el cuadro de entrada con Forge.",
-        "fr": "Effectuez des commits et des push, créez ou consultez des PR depuis des pastilles compactes dans la zone de saisie avec Forge.",
-        "de": "Committen, pushen und PRs erstellen oder anzeigen – über kompakte Chips im Eingabefeld mit Forge.",
-        "ru": "Делайте коммиты, отправляйте изменения, создавайте и просматривайте PR с помощью компактных кнопок Forge в поле ввода.",
-        "pt": "Faça commit, push e crie ou veja PRs em chips compactos no campo de mensagem com o Forge."
+        "en": "Commit, push and create or view PRs from compact composer chips. Git runs on the host and an auxiliary model writes commit messages.",
+        "ko": "입력창 칩으로 커밋·푸시·PR 생성과 조회를 실행합니다. Git은 호스트가 직접 실행하고 커밋 메시지는 보조 모델이 작성합니다.",
+        "zh": "通过输入框按钮提交、推送、创建或查看 PR。Git 由主机直接执行，提交信息由辅助模型生成。",
+        "ja": "入力欄のチップからコミット、プッシュ、PR の作成や表示を行います。Git はホストが直接実行し、コミットメッセージは補助モデルが作成します。",
+        "es": "Haz commit, push y crea o consulta PR desde chips del cuadro de entrada. Git se ejecuta en el host y un modelo auxiliar redacta los mensajes de commit.",
+        "fr": "Effectuez des commits et des push, créez ou consultez des PR depuis des pastilles de la zone de saisie. Git s’exécute sur l’hôte et un modèle auxiliaire rédige les messages de commit.",
+        "de": "Committen, pushen und PRs erstellen oder anzeigen über Chips im Eingabefeld. Git läuft auf dem Host, ein Hilfsmodell schreibt die Commit-Nachrichten.",
+        "ru": "Делайте коммиты, отправляйте изменения, создавайте и просматривайте PR с помощью кнопок в поле ввода. Git выполняется на хосте, а сообщения коммитов пишет вспомогательная модель.",
+        "pt": "Faça commit, push e crie ou veja PRs em chips do campo de mensagem. O Git roda no host e um modelo auxiliar escreve as mensagens de commit."
       },
       "repository": {
         "url": "https://github.com/dungsil/dsh-plugins",
@@ -2210,6 +2530,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1794896463,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.2"
+          }
+        },
         {
           "version": "0.1.0",
           "publishTimestamp": 1794723770,

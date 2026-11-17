@@ -19,6 +19,11 @@
     "busy": "Changing…",
     "apply": "Apply",
     "search": "Search models",
-    "searchEmpty": "No matching models."
+    "searchEmpty": "No matching models.",
+    "favorites": "Favorites",
+    "addFavorite": "Add to favorites",
+    "removeFavorite": "Remove from favorites",
+    "unavailable": "Unavailable",
+    "cycleFavorites": "Switch to next favorite model"
   }
 }

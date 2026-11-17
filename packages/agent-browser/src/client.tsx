@@ -11,7 +11,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { SlotComponent, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
-import { installStyles } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy } from '@dungsil/dsh-ui/client'
 import en from '../locale/en.json' with { type: 'json' }
 import ja from '../locale/ja.json' with { type: 'json' }
 import es from '../locale/es.json' with { type: 'json' }
@@ -33,10 +33,7 @@ const dictionaries: Record<string, typeof en> = { en, ko, zh, ja, es, fr, de, ru
 
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
-  const text = (): Omit<typeof en, 'meta'> => {
-    const language = ctx.locale.getSnapshot().active.toLowerCase().split(/[-_]/)[0]!
-    return Object.hasOwn(dictionaries, language) ? dictionaries[language]! : en
-  }
+  const text = (): Omit<typeof en, 'meta'> => localizedCopy(dictionaries, ctx.locale.getSnapshot().active)
   const controllers = new Map<string, BrowserInjected>()
 
   const createControllers = (sessionId: string, initialActions: Actions): BrowserInjected => {

@@ -19,6 +19,11 @@
     "busy": "변경 중…",
     "apply": "적용",
     "search": "모델 검색",
-    "searchEmpty": "일치하는 모델이 없습니다."
+    "searchEmpty": "일치하는 모델이 없습니다.",
+    "favorites": "즐겨찾기",
+    "addFavorite": "즐겨찾기에 추가",
+    "removeFavorite": "즐겨찾기에서 제거",
+    "unavailable": "사용할 수 없음",
+    "cycleFavorites": "다음 즐겨찾기 모델로 전환"
   }
 }

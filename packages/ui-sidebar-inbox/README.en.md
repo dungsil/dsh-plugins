@@ -8,13 +8,13 @@ Sidebar Inbox organizes the DSH sidebar session list **by state**, like T3 Code 
 
 ## Preview
 
-**Light · English**: Archived is collapsed on the left and expanded on the right.
+**Light**: Archived and Snoozed are collapsed on the left and expanded on the right. Section headings show session counts.
 
-<img src="./assets/sidebar-preview.webp" alt="Sidebar Inbox in the light theme: pinned and inbox sessions at the top and the Working list at the bottom, comparing Archived collapsed on the left and expanded on the right" width="720" />
+<img src="./assets/sidebar-preview-en-light.webp" alt="Sidebar Inbox in the light theme: pinned and inbox sessions, Working, Archived and Snoozed lists with counts; Archived and Snoozed collapsed on the left and expanded on the right" width="720" />
 
-**Dark · Korean**: The same sample sessions, comparing 보관됨 (Archived) collapsed and expanded.
+**Dark**: The same sample sessions, comparing Archived and Snoozed collapsed and expanded.
 
-<img src="./assets/sidebar-preview-dark.webp" alt="Sidebar Inbox in the dark theme with the Korean UI: pinned and inbox sessions at the top and the 작업 중 (Working) list at the bottom, comparing 보관됨 (Archived) collapsed on the left and expanded on the right" width="720" />
+<img src="./assets/sidebar-preview-en-dark.webp" alt="Sidebar Inbox in the dark theme: pinned and inbox sessions, Working, Archived and Snoozed lists with counts; Archived and Snoozed collapsed on the left and expanded on the right" width="720" />
 
 ## Usage
 

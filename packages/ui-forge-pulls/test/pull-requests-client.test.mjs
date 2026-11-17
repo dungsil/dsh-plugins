@@ -51,6 +51,7 @@ function mount(language = 'en') {
       return react.useState({ current: initial })[0]
     },
     useMemo: (compute) => compute(),
+    useCallback: (compute) => compute,
     useId: () => 'requests',
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useEffect(effect, deps) {
@@ -195,6 +196,7 @@ const request = (number) => ({
   provider: 'github',
   repository: 'github.com/team/repo',
   branch: 'feature',
+  checkoutBranch: 'feature',
   request: {
     number,
     title: `Request ${number}`,
@@ -206,6 +208,7 @@ const request = (number) => ({
     body: '',
     comments: [],
     reviews: [],
+    changes: { complete: true, files: [{ path: 'a.ts' }], diff: '+hello' },
   },
 })
 
@@ -371,10 +374,40 @@ await test('리뷰 폼은 모든 로케일에서 추가 확인 없이 댓글과 
       action.resolve({ ok: true })
       await settle()
       assert.equal(findByType(fixture.render(), 'textarea')[0].value, '')
-      assert.equal(fixture.calls.length, before + 1)
+      // 성공한 쓰기 뒤에는 자동으로 읽기 한 번이 이어진다.
+      assert.equal(fixture.calls.length, before + 2)
+      assert.equal(fixture.calls.at(-1).payload.action, undefined)
+      assert.equal(fixture.calls.at(-1).payload.summary, false)
     } finally {
       fixture.dispose()
     }
+  }
+})
+
+await test('액션이 성공하면 완료 안내가 재조회가 도착할 때까지 유지되고 재조회 후에는 검토를 다시 할 수 있다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture)
+    findByType(fixture.render(), 'textarea')[0].onChange({ target: { value: '검토 의견' } })
+    const before = fixture.calls.length
+    submitReview(fixture.render())
+    const action = fixture.calls.at(-1)
+    action.resolve({ ok: true })
+    await settle()
+    assert.ok(texts(fixture.render()).includes('Action completed.'))
+    const next = request(42)
+    next.request.headSha = 'b'.repeat(40)
+    fixture.calls.at(-1).resolve({ ok: true, value: next })
+    await settle()
+    const tree = fixture.render()
+    assert.ok(!texts(tree).includes('Action completed.'))
+    const picker = findByClass(tree, 'dsh-forge-pulls-picker')[0]
+    assert.notEqual(picker.items.find((item) => item.id === 'comment').disabled, true)
+    // 쓰기는 한 번만 전송되고 재조회는 읽기 계약으로만 이루어진다.
+    assert.equal(fixture.calls.filter((call) => call.payload.action === 'comment').length, 1)
+    assert.equal(fixture.calls.length, before + 2)
+  } finally {
+    fixture.dispose()
   }
 })
 
@@ -429,6 +462,24 @@ await test('초안 PR의 승인은 선택 항목과 제출 버튼에서 차단�
   }
 })
 
+await test('불완전한 변경 내용은 승인만 차단하고 댓글과 변경 요청은 허용한다', async () => {
+  const fixture = mount()
+  try {
+    await openReview(fixture, { changes: { complete: false, files: [], diff: '' } })
+    const picker = findByClass(fixture.render(), 'dsh-forge-pulls-picker')[0]
+    assert.equal(picker.items.find((item) => item.id === 'approve').disabled, true)
+    assert.notEqual(picker.items.find((item) => item.id === 'comment').disabled, true)
+    assert.notEqual(picker.items.find((item) => item.id === 'request_changes').disabled, true)
+    picker.onChange('approve')
+    const before = fixture.calls.length
+    submitReview(fixture.render())
+    assert.equal(fixture.calls.length, before)
+    assert.match(texts(fixture.render()), /could not be fully loaded/)
+  } finally {
+    fixture.dispose()
+  }
+})
+
 await test('빈 댓글과 공백뿐인 댓글은 제출 버튼에서 차단하고 폼을 직접 제출해도 전송하지 않는다', async () => {
   const fixture = mount()
   try {
@@ -447,7 +498,70 @@ await test('빈 댓글과 공백뿐인 댓글은 제출 버튼에서 차단하�
   }
 })
 
-await test('개요와 댓글·리뷰 탭만 제공하고 CI, 변경 내용, 병합 UI는 표시하지 않는다', async () => {
+await test('병합은 각 로케일에서 표시된 방식과 SHA를 한 번만 제출하고 실패 후 재전송하지 않는다', async () => {
+  for (const [language, label] of [
+    ['en', 'Merge pull request'],
+    ['ko', 'PR 병합'],
+    ['zh', '合并拉取请求'],
+  ]) {
+    const fixture = mount(language)
+    try {
+      const view = await openReview(fixture, { mergeMethods: ['squash', 'rebase'] })
+      const tree = fixture.render()
+      const picker = findByClass(tree, 'dsh-forge-pulls-picker dsh-forge-pulls-merge-picker')[0]
+      assert.equal(picker.value, 'squash')
+      assert.equal(picker.items.find((item) => item.id === 'merge').disabled, true)
+      picker.onChange('rebase')
+      const current = fixture.render()
+      const button = findByClass(current, 'dsh-forge-pulls-actions')[0].children[1].props
+      assert.equal(button.children, label)
+      assert.equal(button.disabled, false)
+      const before = fixture.calls.length
+      button.onClick()
+      button.onClick()
+      assert.equal(fixture.calls.length, before + 1)
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.calls.at(-1).payload)), {
+        sessionId: 'session',
+        requestUrl: view.request.url,
+        headSha: view.request.headSha,
+        branch: 'feature',
+        target: view.request.target,
+        action: 'merge',
+        strategy: 'rebase',
+      })
+      fixture.calls.at(-1).reject(new Error('lost response'))
+      await settle()
+      findByClass(fixture.render(), 'dsh-forge-pulls-actions')[0].children[1].props.onClick()
+      assert.equal(fixture.calls.length, before + 1)
+    } finally {
+      fixture.dispose()
+    }
+  }
+})
+
+await test('병합 방법이 없으면 설명을 표시하고 직접 클릭해도 전송하지 않으며 초안과 닫힌 PR에는 설명을 표시하지 않는다', async () => {
+  for (const [fields, showHint] of [
+    [{}, true],
+    [{ draft: true }, false],
+    [{ state: 'closed' }, false],
+  ]) {
+    const fixture = mount()
+    try {
+      await openReview(fixture, fields)
+      const tree = fixture.render()
+      assert.equal(texts(tree).includes('Merge is unavailable until readiness'), showHint)
+      const button = findByClass(tree, 'dsh-forge-pulls-actions')[0].children[1].props
+      assert.equal(button.disabled, true)
+      const before = fixture.calls.length
+      button.onClick()
+      assert.equal(fixture.calls.length, before)
+    } finally {
+      fixture.dispose()
+    }
+  }
+})
+
+await test('개요와 댓글·리뷰 및 변경 내용 탭을 제공하고 CI는 표시하지 않으며 열기만으로 병합을 요청하지 않는다', async () => {
   const fixture = mount()
   try {
     await openReview(fixture)
@@ -455,14 +569,9 @@ await test('개요와 댓글·리뷰 탭만 제공하고 CI, 변경 내용, 병�
     const tabs = findByClass(tree, 'dsh-forge-pulls-tabs')[0].children.props.items
     assert.deepEqual(
       Array.from(tabs, (item) => item.value),
-      ['overview', 'conversation']
+      ['overview', 'conversation', 'changes']
     )
-    for (const className of [
-      'dsh-forge-pulls-ci-trigger',
-      'dsh-forge-pulls-merge-footer',
-      'dsh-forge-pulls-merge-menu',
-    ])
-      assert.equal(findByClass(tree, className).length, 0, className)
+    assert.equal(findByClass(tree, 'dsh-forge-pulls-ci-trigger').length, 0)
     assert.ok(!fixture.calls.some((call) => call.payload.action === 'merge'))
   } finally {
     fixture.dispose()

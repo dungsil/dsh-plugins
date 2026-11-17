@@ -1,5 +1,18 @@
 # @dungsil/dsh-plugin-ui-forge-pulls
 
+## [0.2.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.2.0...%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.2.1) (2026-11-17)
+
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.1.0...%40dungsil%2Fdsh-plugin-ui-forge-pulls%400.2.0) (2026-11-16)
+
+### Features
+
+- **pulls:** GitHub PR을 SHA 조건으로 명시적으로 병합한다 ([#223](https://github.com/dungsil/dsh-plugins/issues/223)) ([8db29eb](https://github.com/dungsil/dsh-plugins/commit/8db29ebb522b2f92933e126ea1f28abe0d81b142))
+- **pulls:** PR과 MR의 변경 파일 및 diff를 표시한다 ([#227](https://github.com/dungsil/dsh-plugins/issues/227)) ([fe19bd5](https://github.com/dungsil/dsh-plugins/commit/fe19bd5e219ffec84fca489fe5147811abd28077))
+
+### Bug Fixes
+
+- **forge-pulls:** 리뷰 액션이 성공하면 읽기 한 번으로 원격 상태를 자동 갱신한다 ([#236](https://github.com/dungsil/dsh-plugins/issues/236)) ([9a2fb14](https://github.com/dungsil/dsh-plugins/commit/9a2fb1499448279986dc3b11811ba021abb02be0))
+
 ## 0.1.0 (2026-11-15)
 
 ### Features

@@ -1,17 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-slots'
-import { createElement } from 'react'
+import { installStyles } from '@dungsil/dsh-ui/client'
 import { STYLES } from './styles.js'
 
 export const name = 'dungsil-turn-rail-left'
-export const inject = ['slots']
-
-function RailStyles() {
-  return createElement('style', { 'data-dungsil-turn-rail-left': '', children: STYLES })
-}
+export const inject = [] as const
 
 export function apply(ctx: Context) {
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: name }, RailStyles))
+  ctx.effect(() => installStyles(STYLES), 'ui-turn-rail-left: styles')
 }

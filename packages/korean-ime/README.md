@@ -1,5 +1,7 @@
 # @dungsil/dsh-plugin-korean-ime
 
+[![Open Plugin Market](https://img.shields.io/endpoint?url=https%3A%2F%2Fdshopen.org%2Fbadge%2F%2540dungsil%2Fdsh-plugin-korean-ime.json%3Flang%3Den)](https://dshopen.org/plugins/@dungsil/dsh-plugin-korean-ime/)
+
 DeepSeek Harness 대화 입력창의 한국어 IME Enter 처리를 제공합니다.
 
 - Enter로 한글 조합을 확정하면 메시지를 전송합니다.

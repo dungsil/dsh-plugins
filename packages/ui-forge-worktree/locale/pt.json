@@ -7,13 +7,17 @@
     "title": "Árvore de trabalho",
     "create": "Nova árvore de trabalho",
     "current": "Branch atual",
+    "origin": "Checkout original",
+    "attached": "Esta sessão começa na árvore de trabalho selecionada.",
     "detached": "HEAD desanexado",
     "loading": "Carregando a árvore de trabalho…",
     "saving": "Salvando a seleção…",
     "reserved": "Uma nova árvore de trabalho será criada quando você enviar a primeira mensagem.",
     "locked": "A seleção da árvore de trabalho não pode ser alterada após o início desta sessão.",
-    "error": "Não foi possível confirmar a seleção da árvore de trabalho. Atualize antes de tentar novamente.",
-    "refresh": "Atualizar seleção",
-    "blocked": "Uma nova árvore de trabalho não está disponível para este checkout."
+    "error": "Não foi possível confirmar a seleção da árvore de trabalho. Recarregue a página antes de tentar novamente.",
+    "blocked": "Uma nova árvore de trabalho não está disponível para este checkout.",
+    "more": "Carregar mais",
+    "worktreesLoading": "Carregando as árvores de trabalho existentes…",
+    "worktreesUnavailable": "Não foi possível carregar as árvores de trabalho existentes."
   }
 }

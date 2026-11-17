@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-tool-secret-request",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Private credential input for DeepSeek Harness without returning secret values to the model.",
   "license": "MIT",
   "repository": {
@@ -42,8 +42,10 @@
     "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.3",
     "@deepseek-ai/dsh-tool-executor-native": "0.2.2-rc.3",
     "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
+    "@dungsil/dsh-plugin-server": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
     "@types/react": "18.3.31",
     "react": "18.3.1",
     "tsdown": "0.23.4"

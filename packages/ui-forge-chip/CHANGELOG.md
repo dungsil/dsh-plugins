@@ -1,5 +1,13 @@
 # @dungsil/dsh-plugin-ui-forge-chip
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-forge-chip%400.1.0...%40dungsil%2Fdsh-plugin-ui-forge-chip%400.2.0) (2026-11-17)
+
+### Features
+
+- **ui-forge-chip:** Git 칩에 단축키와 키보드 이동, 세션 상태 캐시를 추가한다 ([#247](https://github.com/dungsil/dsh-plugins/issues/247)) ([9667c48](https://github.com/dungsil/dsh-plugins/commit/9667c48610ed581fdc45cf08d4628451100c58e0))
+- **ui-forge-chip:** 워크트리 커밋을 원본 작업 공간에 통합하는 칩을 추가한다 ([#246](https://github.com/dungsil/dsh-plugins/issues/246)) ([1f73326](https://github.com/dungsil/dsh-plugins/commit/1f73326dca2e663ee3dc6ca2d58d1bc327495c8a))
+- **ui-forge-chip:** 커밋·푸시·PR 생성을 호스트 Git 작업으로 실행한다 ([#244](https://github.com/dungsil/dsh-plugins/issues/244)) ([c2100e6](https://github.com/dungsil/dsh-plugins/commit/c2100e689ac3d861c094ce791742b045cc788247))
+
 ## 0.1.0 (2026-11-15)
 
 ### Features

@@ -8,12 +8,23 @@ export interface GitContext {
   dirty: boolean
 }
 
+export type MergeMethod = 'merge' | 'squash' | 'rebase'
+
 export interface RequestAction {
   sessionId: string
   requestUrl: string
   headSha: string
-  action: 'comment' | 'approve' | 'request_changes'
+  action: 'comment' | 'approve' | 'request_changes' | 'merge'
   body?: string
+  strategy?: MergeMethod
+  branch?: string
+  target?: string
+}
+
+export interface RequestChanges {
+  files: Array<{ path: string }>
+  diff: string
+  complete: boolean
 }
 
 export interface RequestItem {
@@ -30,11 +41,14 @@ export interface RequestItem {
   comments: Array<{ author: string; body: string; url: string }>
   reviews: Array<{ author: string; body: string; state: string }>
   detailsError?: boolean
+  mergeMethods?: MergeMethod[]
+  changes?: RequestChanges
 }
 
 export interface RequestView {
   provider: 'github' | 'gitlab' | 'gitea' | 'forgejo'
   repository: string
   branch: string
+  checkoutBranch?: string
   request: RequestItem | null
 }

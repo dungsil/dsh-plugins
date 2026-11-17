@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-model-settings
 
+## [0.9.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-settings%400.9.0...%40dungsil%2Fdsh-plugin-ui-model-settings%400.9.1) (2026-11-17)
+
+### Bug Fixes
+
+- **ui-model-settings:** 패키징 전에 클라이언트 번들을 검증한다 ([#243](https://github.com/dungsil/dsh-plugins/issues/243)) ([a44e072](https://github.com/dungsil/dsh-plugins/commit/a44e072541e66e1067c7509d91e8468ddbdb81cd))
+
 ## [0.9.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-model-settings%400.8.0...%40dungsil%2Fdsh-plugin-ui-model-settings%400.9.0) (2026-11-15)
 
 ### Features

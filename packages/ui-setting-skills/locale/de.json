@@ -32,6 +32,18 @@
     "translatingAll": "Alle Skills werden übersetzt…",
     "translationAllError": "Einige Skill-Beschreibungen konnten nicht übersetzt werden. Versuchen Sie es erneut, um nur fehlgeschlagene Einträge zu übersetzen.",
     "translationError": "Übersetzung fehlgeschlagen. Das Original wird angezeigt. Kostenpflichtige Dienste erfordern eine Session und sind hier nicht verfügbar.",
-    "saveError": "Die Einstellung konnte nicht gespeichert werden. Schließen und öffnen Sie diesen Bereich erneut, um den gespeicherten Zustand vor einem weiteren Versuch zu prüfen."
+    "saveError": "Die Einstellung konnte nicht gespeichert werden. Schließen und öffnen Sie diesen Bereich erneut, um den gespeicherten Zustand vor einem weiteren Versuch zu prüfen.",
+    "viewSource": "Skill-Inhalt anzeigen",
+    "sourceTitle": "Skill-Inhalt: {name}",
+    "sourceLoading": "Skill-Inhalt wird geladen…",
+    "sourceError": "Skill-Inhalt konnte nicht geladen werden.",
+    "close": "Schließen",
+    "catalog": "Effektiver Katalog",
+    "catalogHint": "Skills in diesem Kontext sind hier schreibgeschützt. Deaktivierte Namen werden ausgelassen.",
+    "workspace": "Arbeitsbereich",
+    "defaultDirectory": "Standardverzeichnis",
+    "preset": "Voreinstellung",
+    "noPreset": "Keine Voreinstellung",
+    "readOnly": "Schreibgeschützt"
   }
 }

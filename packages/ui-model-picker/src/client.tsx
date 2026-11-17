@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelCatalogModel, ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { ShortcutBinding, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
+import type { ShortcutBinding, ShortcutCommand, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
 import {
   IconChevronLeftOutlineRegular,
@@ -18,6 +18,7 @@ import {
   IconCheckOutlineRegular,
   IconDataOutlineRegular,
   IconResetOutlineRegular,
+  IconStarOutlineRegular,
 } from '@dungsil/dsh-ui/icons'
 import {
   Input,
@@ -30,6 +31,7 @@ import {
 } from '@dungsil/dsh-ui'
 import { styles } from './styles.js'
 import { registerRetention } from './retention.js'
+import { availableFavorite, createFavoriteStore, nextFavorite, sameFavorite } from './favorites.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
@@ -55,29 +57,83 @@ const copy = {
   zh: zh.ui,
 }
 
-const localizedCopy = (language: string) => {
-  const base = language.toLowerCase().split(/[-_]/)[0]!
-  return copy[Object.hasOwn(copy, base) ? (base as keyof typeof copy) : 'en']
-}
-
 export function apply(ctx: Context) {
   registerRetention(ctx)
   const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
-  const pickers = new Map<HTMLDivElement, { disabled: boolean; open: () => void }>()
+  const cycleId = 'dungsil.model-picker.cycle-favorites' as ShortcutCommandId
+  const pickers = new Map<
+    HTMLDivElement,
+    {
+      disabled: boolean
+      owns: (node: Node) => boolean
+      open: () => void
+      next: () => ModelSelection | null
+      cycle: (selection: ModelSelection) => void
+    }
+  >()
+  const favorites = createFavoriteStore(() => window.localStorage)
   const binding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt'] }
+  const cycleBinding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt', 'shift'] }
+  // One visible picker is the target. With several composers on screen, the
+  // target is the picker whose popover holds the input, or the one sharing the
+  // closest ancestor with it that holds no other visible picker.
+  const pickerFor = (target: Element | null) => {
+    const visible = [...pickers].filter(([element]) => element.isConnected && element.getClientRects().length > 0)
+    if (visible.length < 2) return visible[0]?.[1]
+    if (!target) return undefined
+    const popover = visible.find(([, picker]) => picker.owns(target))
+    if (popover) return popover[1]
+    const owners = visible.filter(([element]) => {
+      let scope = element.parentElement
+      while (scope && !scope.contains(target)) scope = scope.parentElement
+      return scope !== null && visible.every(([other]) => other === element || !scope!.contains(other))
+    })
+    return owners.length === 1 ? owners[0]![1] : undefined
+  }
+  const targetOf = (context?: { target: Element | null }) => context?.target ?? document.activeElement
   const shortcutCatalog = ctx.shortcuts.runtime === 'web' ? ctx.shortcuts.fixedCatalog : ctx.shortcuts.catalog
   ctx.effect(() => {
     const label = () => {
       const locale = ctx.locale.getSnapshot().active
-      return localizedCopy(locale).openPicker
+      return localizedCopy(copy, locale).openPicker
     }
-    const resolve = () => {
-      const visible = [...pickers].filter(([element]) => element.isConnected && element.getClientRects().length > 0)
-      if (visible.length !== 1) return { status: 'pass' } as const
-      const [, picker] = visible[0]!
+    const resolve = (context?: { target: Element | null }) => {
+      const picker = pickerFor(targetOf(context))
+      if (!picker) return { status: 'pass' } as const
       if (picker.disabled) return { status: 'blocked', reason: 'Model picker is locked or busy' } as const
       return { status: 'handled', run: picker.open } as const
     }
+    const cycle: ShortcutCommand = {
+      id: cycleId,
+      label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).cycleFavorites,
+      aliases: ['favorite', 'model', '즐겨찾기', '모델', '收藏', '模型'],
+      // Web admits no Alt+Shift default, so Web users bind it in shortcut settings.
+      defaults: {
+        'desktop:windows': cycleBinding,
+        'desktop:macos': cycleBinding,
+        'desktop:linux': cycleBinding,
+      },
+      regions: ['page', 'editable'],
+      modals: [],
+      resolve(context) {
+        const picker = pickerFor(targetOf(context))
+        if (!picker) return { status: 'pass' }
+        if (picker.disabled) return { status: 'blocked', reason: 'Model picker is locked or busy' }
+        const next = picker.next()
+        if (!next) return { status: 'blocked', reason: 'Fewer than two available favorites' }
+        return { status: 'handled', run: () => picker.cycle(next) }
+      },
+    }
+    const registerCycle = () => {
+      try {
+        return ctx.shortcuts.register(cycle)
+      } catch (error) {
+        // Another command already owns the default; keep the command bindable.
+        console.warn('ui-model-picker: favorite shortcut default unavailable', error)
+        return ctx.shortcuts.register({ ...cycle, defaults: {} })
+      }
+    }
+    const unregisterCycle = registerCycle()
     if (ctx.shortcuts.runtime === 'web') {
       const unregister = ctx.shortcuts.registerFixed({
         id: commandId,
@@ -103,7 +159,7 @@ export function apply(ctx: Context) {
           gesture.defaultPrevented
         )
           return
-        const action = resolve()
+        const action = resolve(context)
         if (action.status === 'pass') return
         input.consume()
         if (action.status === 'handled') action.run()
@@ -111,9 +167,10 @@ export function apply(ctx: Context) {
       return () => {
         unobserve()
         unregister()
+        unregisterCycle()
       }
     }
-    return ctx.shortcuts.register({
+    const unregister = ctx.shortcuts.register({
       id: commandId,
       label,
       aliases: ['model', 'reasoning', '모델', '추론', '模型'],
@@ -126,7 +183,16 @@ export function apply(ctx: Context) {
       modals: [],
       resolve,
     })
+    return () => {
+      unregister()
+      unregisterCycle()
+    }
   }, 'ui-model-picker: shortcut')
+  ctx.effect(() => {
+    const sync = (event: StorageEvent) => favorites.sync(event)
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, 'ui-model-picker: favorites')
 
   function Picker({
     locked,
@@ -142,8 +208,12 @@ export function apply(ctx: Context) {
     const shortcutKeys = useSyncExternalStore(subscribeShortcuts, () => shortcutCatalog.getSnapshot()).find(
       (entry) => entry.id === commandId
     )?.keys
+    const favoriteList = useSyncExternalStore(
+      (listener) => favorites.subscribe(listener),
+      () => favorites.getSnapshot()
+    )
     const { active: locale } = useLocaleSnapshot(ctx.locale)
-    const text = localizedCopy(locale)
+    const text = localizedCopy(copy, locale)
     const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
     // A model chosen from the list while its reasoning effort is still unset.
     // It is staged only inside the popover; the selection changes when the
@@ -218,12 +288,12 @@ export function apply(ctx: Context) {
       }
     }, [directory])
 
-    const close = () => {
+    const close = (refocus = true) => {
       gesture.current = null
       sliderSelection.current = null
       setPanel(null)
       setStaged(null)
-      if (trigger.current) focusWithoutRing(trigger.current)
+      if (refocus && trigger.current) focusWithoutRing(trigger.current)
     }
 
     const restorePopupFocus = () => {
@@ -260,10 +330,11 @@ export function apply(ctx: Context) {
       position()
       const observer = new ResizeObserver(position)
       observer.observe(element)
+      const resize = () => close()
       const scroll = (event: Event) => {
         if (!element.contains(event.target as Node)) position()
       }
-      window.addEventListener('resize', close)
+      window.addEventListener('resize', resize)
       window.addEventListener('scroll', scroll, true)
       const keydown = (event: KeyboardEvent) => {
         if (
@@ -306,7 +377,12 @@ export function apply(ctx: Context) {
           setPanel('model')
           return
         }
-        if (panel === 'model' && showSearch && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+        if (
+          panel === 'model' &&
+          showSearch &&
+          (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+          !element.querySelector('.dsh-codex-favorites')?.contains(event.target as Node)
+        ) {
           event.preventDefault()
           if (!disabled && visibleModels.length) {
             setHighlighted(
@@ -345,7 +421,7 @@ export function apply(ctx: Context) {
       element.addEventListener('keydown', keydown)
       return () => {
         observer.disconnect()
-        window.removeEventListener('resize', close)
+        window.removeEventListener('resize', resize)
         window.removeEventListener('scroll', scroll, true)
         element.removeEventListener('keydown', keydown)
       }
@@ -418,7 +494,8 @@ export function apply(ctx: Context) {
       setStaged(null)
     }, [current?.provider, current?.model, current?.reasoningEffort])
 
-    const select = async (selection: ModelSelection, keepSlider = false) => {
+    // `refocus` is false for the cycle shortcut, which keeps focus in the editor.
+    const select = async (selection: ModelSelection, keepSlider = false, refocus = true) => {
       if (disabled || pending.current) return
       pending.current = true
       sliderSelection.current = keepSlider ? selection : null
@@ -427,7 +504,7 @@ export function apply(ctx: Context) {
         const result = await directory.select(selection)
         if (!mounted.current) return
         if (result.ok) {
-          if (!keepSlider) close()
+          if (!keepSlider) close(refocus)
         } else {
           sliderSelection.current = null
           setFailed(true)
@@ -458,6 +535,12 @@ export function apply(ctx: Context) {
       if (!element) return
       pickers.set(element, {
         disabled,
+        owns: (node) => popup.current?.contains(node) ?? false,
+        next: () => {
+          const snapshot = directory.store.getSnapshot()
+          return nextFavorite(favorites.getSnapshot(), snapshot.groups, snapshot.current)
+        },
+        cycle: (selection) => void select(selection, false, panel !== null),
         open: () => {
           if (trigger.current) show(trigger.current)
         },
@@ -514,6 +597,56 @@ export function apply(ctx: Context) {
       )
       setFailed(false)
       setPanel('effort')
+    }
+
+    // Favorites keep an explicit effort so a cycle restores the exact combination.
+    const currentEffort = current?.reasoningEffort ?? reasoning?.defaultEffort
+    const currentFavorite: ModelSelection | null = current
+      ? {
+          provider: current.provider,
+          model: current.model,
+          ...(currentEffort === undefined ? {} : { reasoningEffort: currentEffort }),
+        }
+      : null
+    const draftTarget = staged ?? current
+    const draftEffort = stagedEfforts[draft]?.id
+    const draftFavorite: ModelSelection | null =
+      draftTarget && draftEffort !== undefined
+        ? { provider: draftTarget.provider, model: draftTarget.model, reasoningEffort: draftEffort }
+        : null
+    const star = (favorite: ModelSelection, name: string, removesRow = false) => {
+      const saved = favoriteList.some((item) => sameFavorite(item, favorite))
+      const label = `${saved ? text.removeFavorite : text.addFavorite}: ${name}`
+      return (
+        <button
+          type="button"
+          className="dsh-codex-star"
+          aria-pressed={saved}
+          aria-label={label}
+          title={label}
+          onClick={() => {
+            favorites.toggle(favorite)
+            // A removed row takes its focused button with it.
+            if (removesRow)
+              setTimeout(() => {
+                if (!popup.current?.contains(document.activeElement))
+                  popup.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
+              })
+          }}
+        >
+          <IconStarOutlineRegular />
+        </button>
+      )
+    }
+    const favoriteName = (favorite: ModelSelection) => {
+      // A listed model keeps its catalog name even when the saved effort is gone.
+      const listed = availableFavorite(state.groups, { provider: favorite.provider, model: favorite.model })
+      const effort =
+        favorite.reasoningEffort === undefined
+          ? undefined
+          : (listed?.reasoning?.efforts.find((item) => item.id === favorite.reasoningEffort)?.name ??
+            favorite.reasoningEffort)
+      return { option: availableFavorite(state.groups, favorite), name: listed?.name ?? favorite.model, effort }
     }
 
     return (
@@ -603,6 +736,11 @@ export function apply(ctx: Context) {
                       {stagedName} <IconChevronRightOutlineRegular size={14} />
                     </span>
                   </button>
+                  {draftFavorite ? (
+                    star(draftFavorite, `${stagedName}, ${stagedEfforts[draft]?.name ?? draftEffort}`)
+                  ) : (
+                    <span />
+                  )}
                   <button
                     type="button"
                     className="dsh-codex-apply"
@@ -657,6 +795,48 @@ export function apply(ctx: Context) {
                         setHighlighted(0)
                       }}
                     />
+                  )}
+                  {(currentFavorite || favoriteList.length > 0) && (
+                    <section className="dsh-codex-favorites" aria-label={text.favorites}>
+                      <div className="dsh-codex-provider dsh-codex-favorites-title">
+                        <span>{text.favorites}</span>
+                        {currentFavorite &&
+                          star(
+                            currentFavorite,
+                            [model?.name ?? current!.model, effortLabel].filter(Boolean).join(', ')
+                          )}
+                      </div>
+                      {favoriteList.map((favorite) => {
+                        const { option, name, effort } = favoriteName(favorite)
+                        const selected = currentFavorite !== null && sameFavorite(currentFavorite, favorite)
+                        return (
+                          <div
+                            className="dsh-codex-favorite"
+                            key={`${favorite.provider}\u0000${favorite.model}\u0000${favorite.reasoningEffort ?? ''}`}
+                          >
+                            <button
+                              type="button"
+                              className="dsh-codex-option"
+                              disabled={disabled || !option}
+                              onClick={() => void select(favorite)}
+                            >
+                              <span>
+                                {name}
+                                {(effort || !option) && (
+                                  <small>
+                                    {[effort, option ? undefined : text.unavailable].filter(Boolean).join(' · ')}
+                                  </small>
+                                )}
+                              </span>
+                              <span className="dsh-codex-check" aria-hidden="true">
+                                {selected && <IconCheckOutlineRegular size={14} />}
+                              </span>
+                            </button>
+                            {star(favorite, [name, effort].filter(Boolean).join(', '), true)}
+                          </div>
+                        )
+                      })}
+                    </section>
                   )}
                   <div id={id + '-models'} className="dsh-codex-models" role="listbox" aria-label={text.model}>
                     {filteredGroups.map((provider) => (

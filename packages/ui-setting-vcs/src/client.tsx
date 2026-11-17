@@ -3,20 +3,23 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { Button, Input, SettingsRow, settingsStyles } from '@dungsil/dsh-ui'
-import { installStyles, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
+import { Button, Input, SettingsRow, Switch, settingsStyles } from '@dungsil/dsh-ui'
+import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
 import { channel, readMethod, saveMethod, validSettings, type SettingsView } from './protocol.js'
-import { localized } from './copy.js'
+import { copy } from './copy.js'
+import { DefaultCheckoutRow } from './default-checkout.js'
 
 export const inject = ['connection', 'locale', 'slots']
-type Patch = { directory?: string; prefix?: string }
+type Patch = { directory?: string; prefix?: string; cleanupOnArchive?: boolean }
 const validPatch = (patch: Patch) =>
-  (patch.directory === undefined || validSettings({ directory: patch.directory, prefix: '' }, 'worktree')) &&
+  (patch.directory === undefined ||
+    validSettings({ directory: patch.directory, prefix: '', cleanupOnArchive: true }, 'worktree')) &&
   (patch.prefix === undefined || validSettings({ prefix: patch.prefix }, 'panel'))
-const common = (values: string[]) => (values.every((value) => value === values[0]) ? values[0] : undefined)
+const common = <T,>(values: T[]) => (values.every((value) => value === values[0]) ? values[0] : undefined)
 
 export function VcsSettings({ ctx }: { ctx: Context }) {
-  const text = localized(useLocaleSnapshot(ctx.locale).active)
+  const { active } = useLocaleSnapshot(ctx.locale)
+  const text = localizedCopy(copy, active)
   const id = useId()
   const [view, setView] = useState<SettingsView>()
   const [draft, setDraft] = useState<Patch>({})
@@ -50,6 +53,9 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
           next.entries.filter((entry) => entry.kind === 'worktree').map((entry) => entry.settings.directory!)
         ),
         prefix: common(next.entries.map((entry) => entry.settings.prefix)),
+        cleanupOnArchive: common(
+          next.entries.filter((entry) => entry.kind === 'worktree').map((entry) => entry.settings.cleanupOnArchive)
+        ),
       })
       setNotice(undefined)
       setSavedNotice(false)
@@ -75,6 +81,9 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
             ...entry.settings,
             ...(patch.prefix !== undefined ? { prefix: patch.prefix } : {}),
             ...(entry.kind === 'worktree' && patch.directory !== undefined ? { directory: patch.directory } : {}),
+            ...(entry.kind === 'worktree' && patch.cleanupOnArchive !== undefined
+              ? { cleanupOnArchive: patch.cleanupOnArchive }
+              : {}),
           }
           if (JSON.stringify(settings) === JSON.stringify(entry.settings)) continue
           const result = await connection.rpc.call(
@@ -93,7 +102,7 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
           if (!next) throw new Error('unavailable')
           saved.current = { entries: saved.current!.entries.map((item) => (item.id === entry.id ? next : item)) }
         }
-        for (const key of ['directory', 'prefix'] as const) {
+        for (const key of ['directory', 'prefix', 'cleanupOnArchive'] as const) {
           if (latest.current[key] === patch[key]) delete latest.current[key]
         }
       }
@@ -108,7 +117,7 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
       if (!signal.aborted) setSaving(false)
     }
   }
-  const change = (key: keyof Patch, value: string) => {
+  const change = (key: keyof Patch, value: string | boolean) => {
     if (blocked.current) return
     latest.current = { ...latest.current, [key]: value }
     setDraft((current) => ({ ...current, [key]: value }))
@@ -136,6 +145,7 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
   return (
     <section className="dsh-setting-vcs" aria-label={text.nav} aria-busy={loading || saving}>
       <p>{text.scope}</p>
+      <DefaultCheckoutRow connection={connection} text={text} />
       {loading && <p role="status">{text.loading}</p>}
       {!loading && view?.entries.length === 0 && <p>{text.empty}</p>}
       {!loading && !!view?.entries.length && (
@@ -160,6 +170,24 @@ export function VcsSettings({ ctx }: { ctx: Context }) {
                   aria-invalid={invalidDirectory || undefined}
                   aria-describedby={invalid ? `${id}-invalid` : undefined}
                   onChange={(event) => change('directory', event.target.value)}
+                />
+              </SettingsRow>
+            )}
+            {hasDirectory && (
+              <SettingsRow
+                label={
+                  <>
+                    <span>{text.cleanup}</span>
+                    <p>{text.cleanupHint}</p>
+                    {draft.cleanupOnArchive === undefined && <p>{text.mixed}</p>}
+                  </>
+                }
+              >
+                <Switch
+                  label={text.cleanup}
+                  checked={draft.cleanupOnArchive ?? false}
+                  disabled={saving}
+                  onChange={(value) => change('cleanupOnArchive', value)}
                 />
               </SettingsRow>
             )}
@@ -214,7 +242,7 @@ export function apply(ctx: Context) {
         name: 'settings.section',
         id: 'dungsil-ui-setting-vcs',
         order: 18,
-        label: () => localized(ctx.locale.getSnapshot().active).nav,
+        label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).nav,
         inject: () => ({ ctx }),
       },
       VcsSettings
@@ -223,10 +251,10 @@ export function apply(ctx: Context) {
   ctx.effect(
     () =>
       installStyles(`${settingsStyles}
-.dsh-setting-vcs { color: var(--dsw-alias-label-primary); font: 14px/22px var(--dsw-font-family, system-ui); }
+.dsh-setting-vcs { color: var(--dsw-alias-label-primary); font: var(--dsw-font-s-14); }
 .dsh-setting-vcs fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .dsh-setting-vcs p { color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-.dsh-setting-vcs .dsh-plugin-settings-text p { font-size: 12px; line-height: 20px; margin: 4px 0 0; }
+.dsh-setting-vcs .dsh-plugin-settings-text p { font-size: var(--dsw-font-xxs-12-font-size); line-height: 20px; margin: 4px 0 0; }
 .dsh-setting-vcs input { box-sizing: border-box; width: 240px; max-width: 50%; flex: 0 1 240px; min-width: 0; }
 .dsh-setting-vcs [role=alert] { color: var(--dsw-alias-state-error-primary); }
 .dsh-setting-vcs-note { margin-top: 24px; }

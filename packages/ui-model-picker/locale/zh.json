@@ -19,6 +19,11 @@
     "busy": "正在更改…",
     "apply": "应用",
     "search": "搜索模型",
-    "searchEmpty": "没有匹配的模型。"
+    "searchEmpty": "没有匹配的模型。",
+    "favorites": "收藏",
+    "addFavorite": "添加到收藏",
+    "removeFavorite": "从收藏中移除",
+    "unavailable": "不可用",
+    "cycleFavorites": "切换到下一个收藏模型"
   }
 }

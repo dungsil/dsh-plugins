@@ -7,13 +7,17 @@
     "title": "Worktree",
     "create": "New worktree",
     "current": "Current branch",
+    "origin": "Original checkout",
+    "attached": "This session starts in the selected worktree.",
     "detached": "Detached HEAD",
     "loading": "Loading worktree…",
     "saving": "Saving selection…",
     "reserved": "A new worktree will be created when you send your first message.",
     "locked": "The worktree selection cannot be changed after this session starts.",
-    "error": "Could not confirm the worktree selection. Refresh before trying again.",
-    "refresh": "Refresh selection",
-    "blocked": "A new worktree is not available for this checkout."
+    "error": "Could not confirm the worktree selection. Reload the page before trying again.",
+    "blocked": "A new worktree is not available for this checkout.",
+    "more": "Load more",
+    "worktreesLoading": "Loading existing worktrees…",
+    "worktreesUnavailable": "Could not load existing worktrees."
   }
 }

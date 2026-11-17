@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { boot, initProfile, readProfilePatches } from '@deepseek-ai/dsh-app-boot'
@@ -20,7 +20,7 @@ const url = `http://localhost/api/${method}`
 const owner = { principal: { kind: 'owner' }, interactions: 'answer' }
 
 async function fixture(t, withRegistry = false) {
-  const home = await mkdtemp(join(tmpdir(), 'dsh-skills-test-'))
+  const home = await realpath(await mkdtemp(join(tmpdir(), 'dsh-skills-test-')))
   const dsh = join(home, 'dsh')
   const agents = join(home, 'agents')
   const previousEnv = Object.fromEntries(
@@ -97,12 +97,13 @@ async function fixture(t, withRegistry = false) {
     })
   }
   await start()
-  const fetch = (body, peer = owner) =>
+  const fetch = (body, peer = owner, signal) =>
     ctx.connection.createSharedFetchHandler('/api').fetch(
       new Request(
         body?.method?.startsWith('dungsil-ui-setting-skills/') ? `http://localhost/api/${body.method}` : url,
         {
           method: 'POST',
+          signal,
           headers: { 'Content-Type': 'application/json' },
           body: typeof body === 'string' ? body : JSON.stringify(body),
         }
@@ -330,6 +331,29 @@ await test('스킬을 변경하지 않고 승인된 기본 설정을 사용해 �
   assert.equal(await translate({ path, language: 'ko' }), 404)
 })
 
+await test('번역은 클라이언트 텍스트가 아닌 재발견한 표시 설명을 사용한다', async (t) => {
+  const h = await fixture(t)
+  const path = await h.skill(h.agents, 'display-skill', 'Raw routing description')
+  const dir = join(dirname(path), 'agents')
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'openai.yaml'), 'interface:\n  short_description: Visible description\n')
+  const calls = []
+  h.ctx.provide('cotTranslation', {
+    limits: async () => ({ preferences: { provider: 'google', targetLanguage: 'ko' } }),
+    translate: async (request) => {
+      calls.push(request)
+      return '표시 설명'
+    },
+  })
+  const response = await h.fetch({
+    ...h.request,
+    method: 'dungsil-ui-setting-skills/translate',
+    payload: { path, language: 'ko', text: 'Untrusted' },
+  })
+  assert.equal((await response.json()).result.value, '표시 설명')
+  assert.equal(calls[0].text, 'Visible description')
+})
+
 await test('원문과 실제 대상 언어가 같으면 공급자 요청 없이 원문을 반환한다', async (t) => {
   const h = await fixture(t)
   let targetLanguage = 'auto'
@@ -465,6 +489,42 @@ await test('스킬 파일을 변경하지 않고 재로드 후에도 DSH 전용 
   assert.ok(await isolated.get('skills').get('planning-work'))
 })
 
+await test('비활성화한 사용자 스킬과 같은 이름의 다른 소스 스킬은 카탈로그 조회에서 유지한다', async (t) => {
+  const h = await fixture(t, true)
+  await h.skill(h.agents, 'planning-work', 'User entry')
+  const stopRuntime = h.skills.register({
+    name: 'planning-work',
+    description: 'Catalog entry',
+    content: 'Catalog body',
+    source: 'runtime',
+  })
+  t.after(stopRuntime)
+  const save = async (name, disabled) =>
+    (
+      await (
+        await h.fetch({ ...h.request, method: 'dungsil-ui-setting-skills/save', payload: { name, disabled } })
+      ).json()
+    ).result
+  assert.equal((await save('planning-work', true)).ok, true)
+  // 런타임 소스는 사용자 소스가 아니므로 같은 이름이어도 숨기지 않는다.
+  const catalog = await h.skills.snapshot()
+  assert.deepEqual(
+    catalog.skills.map((skill) => skill.name),
+    ['planning-work']
+  )
+  assert.equal(catalog.skills[0].source, 'runtime')
+  assert.equal((await h.skills.get('planning-work'))?.source, 'runtime')
+  // 사용자 소스 스킬은 계속 숨긴다.
+  await h.skill(h.agents, 'reviewing-code', 'Second user entry')
+  assert.equal((await save('reviewing-code', true)).ok, true)
+  assert.deepEqual(
+    (await h.skills.snapshot()).skills.map((skill) => skill.name),
+    ['planning-work']
+  )
+  assert.equal(await h.skills.get('reviewing-code'), undefined)
+  assert.deepEqual((await h.rpc()).value.disabled, ['not-installed', 'planning-work', 'reviewing-code'])
+})
+
 await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부하고 언로드 시 라우트를 제거한다', async (t) => {
   const h = await fixture(t)
   for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
@@ -491,6 +551,309 @@ await test('소유자가 아닌 요청과 형식이 잘못된 봉투를 거부�
   }
   await h.fiber.dispose()
   assert.equal((await h.fetch(h.request)).status, 404)
+})
+
+await test('사용자 스킬 전문은 비활성화되어도 소유자만 재발견하여 읽고 임의 경로는 거부한다', async (t) => {
+  const h = await fixture(t, true)
+  const path = await h.skill(h.agents, 'planning-work', 'Plan')
+  const project = await h.skill(join(h.home, '.agents'), 'project-only', 'Project')
+  const request = (payload) => ({ ...h.request, method: 'dungsil-ui-setting-skills/source', payload })
+  const source = async (path) => (await (await h.fetch(request({ path }))).json()).result
+  const saved = await h.fetch({
+    ...h.request,
+    method: 'dungsil-ui-setting-skills/save',
+    payload: { name: 'planning-work', disabled: true },
+  })
+  assert.deepEqual((await saved.json()).result, { ok: true, value: { disabled: ['not-installed', 'planning-work'] } })
+  assert.deepEqual(await source(path), { ok: true, value: 'Private body' })
+  assert.equal((await source(project)).ok, false)
+  assert.equal((await source(join(h.home, 'package.json'))).ok, false)
+  for (const payload of [null, {}, { path: 42 }]) assert.equal((await h.fetch(request(payload))).status, 400)
+  for (const principal of [{ kind: 'anonymous' }, { kind: 'session', sessionId: 'shared' }]) {
+    assert.equal((await h.fetch(request({ path }), { principal, interactions: 'deny' })).status, 403)
+  }
+  await rm(path)
+  assert.equal((await source(path)).ok, false)
+  await h.fiber.dispose()
+  assert.equal((await h.fetch(request({ path }))).status, 404)
+})
+
+await test('선택 메타데이터가 없거나 손상되어도 스킬 목록은 유지되고 유효한 표시 값만 사용한다', async (t) => {
+  const h = await fixture(t)
+  const path = await h.skill(h.agents, 'planning-work', 'Original description')
+  const dir = join(h.agents, 'skills', 'planning-work', 'agents')
+  const file = join(dir, 'openai.yaml')
+  await mkdir(dir)
+  const skill = async () => (await h.rpc()).value.skills.find((entry) => entry.path === path)
+  assert.equal((await skill()).display, undefined)
+  await writeFile(file, 'interface:\n  display_name: " Display name "\n  short_description: " Short description "\n')
+  assert.deepEqual((await skill()).display, { name: 'Display name', description: 'Short description' })
+  assert.equal((await skill()).name, 'planning-work')
+  assert.equal((await skill()).description, 'Original description')
+  for (const content of [
+    'interface: [',
+    'interface: []',
+    'interface:\n  display_name: 123\n  short_description: " "',
+    'interface:\n  display_name: "\\u200b"',
+    `interface:\n  display_name: ${'x'.repeat(65_536)}`,
+  ]) {
+    await writeFile(file, content)
+    assert.equal((await skill()).display, undefined)
+  }
+})
+
+await test('서버의 워크스페이스와 프리셋 범위로 카탈로그를 읽고 오래된 원본 선택을 거부한다', async (t) => {
+  const h = await fixture(t, true)
+  const other = join(h.home, 'other')
+  const firstPath = await h.skill(join(h.home, '.agents'), 'project-one', 'First project')
+  const secondPath = await h.skill(join(other, '.agents'), 'project-two', 'Second project')
+  await h.skill(h.agents, 'not-installed', 'Disabled but inspectable')
+  let leases = 0
+  let released = 0
+  let broken = false
+  class Workspace {
+    constructor(id, title, path) {
+      this.values = { id, title, path }
+    }
+    get id() {
+      return this.values.id
+    }
+    get title() {
+      return this.values.title
+    }
+    get path() {
+      return this.values.path
+    }
+    async status() {
+      try {
+        return (await import('node:fs/promises')).stat(this.path).then(
+          (info) => (info.isDirectory() ? 'ok' : 'missing-dir'),
+          () => 'missing-dir'
+        )
+      } catch {
+        return 'missing-dir'
+      }
+    }
+  }
+  const workspaces = [new Workspace('one', 'One', h.home), new Workspace('two', 'Two', other)]
+  h.ctx.provide('workingDirectory', { defaultDirectory: h.home })
+  h.ctx.provide('workspaceRegistry', { list: () => workspaces })
+  h.ctx.provide('agentPresets', {
+    defaultId: 'standard',
+    async list() {
+      return [{ id: 'standard', ...(broken && { broken: 'broken' }) }]
+    },
+    async acquireScope(id) {
+      assert.equal(id, 'standard')
+      if (broken) throw new Error('broken preset')
+      leases++
+      return {
+        key: undefined,
+        async [Symbol.asyncDispose]() {
+          released++
+        },
+      }
+    },
+  })
+  const call = async (endpoint, payload, peer = owner) => {
+    const response = await h.fetch({ ...h.request, method: `dungsil-ui-setting-skills/${endpoint}`, payload }, peer)
+    return response.status === 200 ? (await response.json()).result : response.status
+  }
+  const first = await call('list', { workspaceId: 'one', presetId: 'standard' })
+  assert.equal(first.value.contexts.cwd, h.home)
+  assert.deepEqual(first.value.contexts.workspaces[0], { id: 'one', title: 'One', path: h.home })
+  assert.equal(first.value.catalog.complete, true)
+  assert.ok(first.value.skills.some((skill) => skill.name === 'not-installed'))
+  assert.ok(!first.value.catalog.skills.some((skill) => skill.name === 'not-installed'))
+  const picked = first.value.catalog.skills.find((skill) => skill.path === firstPath)
+  assert.ok(picked)
+  const selection = { ...picked, workspaceId: 'one', presetId: 'standard' }
+  assert.equal((await call('source', { catalog: selection })).value.trim(), 'Private body')
+  assert.equal((await call('source', { catalog: { ...selection, workspaceId: 'two' } })).ok, false)
+  const second = await call('list', { workspaceId: 'two', presetId: 'standard' })
+  assert.equal(second.value.contexts.cwd, other)
+  const secondPicked = second.value.catalog.skills.find((skill) => skill.path === secondPath)
+  assert.ok(secondPicked)
+  await rm(other, { recursive: true })
+  const deleted = await call('list', { workspaceId: 'two', presetId: 'standard' })
+  assert.equal(deleted.value.catalogError, true)
+  assert.equal(deleted.value.catalog.complete, false)
+  assert.equal(deleted.value.contexts.workspaces.length, 2)
+  const recovered = await call('list', { workspaceId: 'one', presetId: 'standard' })
+  assert.equal(recovered.value.catalog.complete, true)
+  assert.ok(recovered.value.catalog.skills.some((skill) => skill.path === firstPath))
+  assert.ok(deleted.value.skills.some((skill) => skill.name === 'not-installed'))
+  assert.equal(
+    (await call('source', { catalog: { ...secondPicked, workspaceId: 'two', presetId: 'standard' } })).ok,
+    false
+  )
+  const missing = await call('list', { workspaceId: 'missing', presetId: 'standard' })
+  assert.equal(missing.value.catalogError, true)
+  assert.ok(missing.value.skills.some((skill) => skill.name === 'not-installed'))
+  assert.equal(missing.value.contexts.workspaces.length, 2)
+  assert.equal(missing.value.catalog.complete, false)
+  assert.equal(
+    await call('source', { catalog: selection }, { principal: { kind: 'anonymous' }, interactions: 'deny' }),
+    403
+  )
+  broken = true
+  const incomplete = await call('list', { workspaceId: 'one', presetId: 'standard' })
+  assert.equal(incomplete.value.catalog.complete, false)
+  assert.equal((await call('source', { catalog: selection })).ok, false)
+  assert.equal(leases, released)
+})
+
+await test('경로 없는 가상 공급자의 원본을 읽고 숨겨지거나 바뀐 승자를 거부한다', async (t) => {
+  const h = await fixture(t)
+  h.ctx.provide('workingDirectory', { defaultDirectory: h.home })
+  h.ctx.provide('workspaceRegistry', { list: () => [] })
+  const scope = Symbol('preset')
+  let released = 0
+  h.ctx.provide('agentPresets', {
+    defaultId: 'standard',
+    list: async () => [{ id: 'standard' }],
+    acquireScope: async () => ({
+      key: scope,
+      async [Symbol.asyncDispose]() {
+        released++
+      },
+    }),
+  })
+  let winner = { name: 'virtual', description: 'Virtual skill', provider: 'remote', source: 'plugin' }
+  h.ctx.provide('skills', {
+    snapshot: async (options) => {
+      assert.equal(options.scope, scope)
+      return { complete: true, skills: winner ? [winner] : [] }
+    },
+    get: async (_name, options) => {
+      assert.equal(options.scope, scope)
+      return winner && { ...winner, content: 'Remote body' }
+    },
+  })
+  const call = async (endpoint, payload) =>
+    (await (await h.fetch({ ...h.request, method: `dungsil-ui-setting-skills/${endpoint}`, payload })).json()).result
+  const list = await call('list', {})
+  const selected = { ...list.value.catalog.skills[0], workspaceId: '', presetId: 'standard' }
+  assert.equal(selected.path, undefined)
+  assert.equal((await call('source', { catalog: selected })).value, 'Remote body')
+  winner = null
+  assert.equal((await call('source', { catalog: selected })).ok, false)
+  winner = {
+    name: 'virtual',
+    description: 'Replaced',
+    provider: 'filesystem',
+    source: 'project-agents',
+    path: '/new/SKILL.md',
+  }
+  assert.equal((await call('source', { catalog: selected })).ok, false)
+  assert.equal(released, 4)
+})
+
+await test('범위 획득 중 요청이 취소되면 즉시 응답하고 늦게 도착한 리스를 해제한다', async (t) => {
+  const h = await fixture(t, true)
+  h.ctx.provide('workingDirectory', { defaultDirectory: h.home })
+  h.ctx.provide('workspaceRegistry', { list: () => [] })
+  let acquired
+  let started
+  let disposed = 0
+  const startedPromise = new Promise((resolve) => {
+    started = resolve
+  })
+  const leasePromise = new Promise((resolve) => {
+    acquired = resolve
+  })
+  h.ctx.provide('agentPresets', {
+    defaultId: 'standard',
+    async list() {
+      return [{ id: 'standard' }]
+    },
+    acquireScope() {
+      started()
+      return leasePromise
+    },
+  })
+  const controller = new AbortController()
+  const pending = h.fetch(h.request, owner, controller.signal)
+  await startedPromise
+  controller.abort()
+  const response = await pending
+  assert.equal((await response.json()).result.ok, false)
+  acquired({
+    key: undefined,
+    async [Symbol.asyncDispose]() {
+      disposed++
+    },
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(disposed, 1)
+})
+
+await test('프리셋 목록 시작 중 취소된 요청은 늦은 거절도 처리한다', async (t) => {
+  const h = await fixture(t, true)
+  h.ctx.provide('workingDirectory', { defaultDirectory: h.home })
+  h.ctx.provide('workspaceRegistry', { list: () => [] })
+  const controller = new AbortController()
+  let rejectList
+  const pendingList = new Promise((_resolve, reject) => {
+    rejectList = reject
+  })
+  h.ctx.provide('agentPresets', {
+    defaultId: 'standard',
+    list() {
+      controller.abort()
+      return pendingList
+    },
+    acquireScope() {
+      throw new Error('unexpected scope acquisition')
+    },
+  })
+  const result = (await (await h.fetch(h.request, owner, controller.signal)).json()).result
+  assert.equal(result.ok, false)
+  rejectList(new Error('late failure'))
+  await new Promise((resolve) => setImmediate(resolve))
+})
+
+await test('프리셋 목록이 지연되어 시간 초과되면 사용자 목록을 유지하고 원본을 거부한다', async (t) => {
+  const h = await fixture(t, true)
+  await h.skill(h.agents, 'raw-inventory', 'Raw fixture')
+  h.ctx.provide('workingDirectory', { defaultDirectory: h.home })
+  h.ctx.provide('workspaceRegistry', { list: () => [] })
+  h.ctx.provide('agentPresets', {
+    defaultId: 'standard',
+    list: () => new Promise(() => {}),
+    acquireScope: () => {
+      throw new Error('unexpected scope acquisition')
+    },
+  })
+  const original = AbortSignal.timeout.bind(AbortSignal)
+  AbortSignal.timeout = () => original(20)
+  t.after(() => {
+    AbortSignal.timeout = original
+  })
+  // Keep the event loop alive while the platform's unref'ed timeout is pending.
+  const keepAlive = setTimeout(() => {}, 1000)
+  try {
+    const result = (await (await h.fetch(h.request)).json()).result
+    assert.equal(result.ok, true)
+    assert.equal(result.value.catalogError, true)
+    assert.ok(result.value.skills.some((skill) => skill.name === 'raw-inventory'))
+    const source = await h.fetch({
+      ...h.request,
+      method: 'dungsil-ui-setting-skills/source',
+      payload: {
+        catalog: {
+          name: 'raw-inventory',
+          source: 'user-agents',
+          provider: 'filesystem',
+          workspaceId: '',
+          presetId: 'standard',
+        },
+      },
+    })
+    assert.equal((await source.json()).result.ok, false)
+  } finally {
+    clearTimeout(keepAlive)
+  }
 })
 
 await test('모든 UI 문자열에 지원하는 아홉 언어의 번역이 있고 보간 변수를 유지한다', async () => {

@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-model-settings
 
+## [0.9.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.8.1...%40dungsil%2Fdsh-plugin-model-settings%400.9.0) (2026-11-17)
+
+### Features
+
+- **ui-forge-chip:** 커밋·푸시·PR 생성을 호스트 Git 작업으로 실행한다 ([#244](https://github.com/dungsil/dsh-plugins/issues/244)) ([c2100e6](https://github.com/dungsil/dsh-plugins/commit/c2100e689ac3d861c094ce791742b045cc788247))
+
 ## [0.8.1](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-model-settings%400.8.0...%40dungsil%2Fdsh-plugin-model-settings%400.8.1) (2026-11-15)
 
 ### Bug Fixes

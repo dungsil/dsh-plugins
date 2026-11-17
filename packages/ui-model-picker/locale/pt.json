@@ -19,6 +19,11 @@
     "busy": "Alterando…",
     "apply": "Aplicar",
     "search": "Pesquisar modelos",
-    "searchEmpty": "Nenhum modelo correspondente."
+    "searchEmpty": "Nenhum modelo correspondente.",
+    "favorites": "Favoritos",
+    "addFavorite": "Adicionar aos favoritos",
+    "removeFavorite": "Remover dos favoritos",
+    "unavailable": "Indisponível",
+    "cycleFavorites": "Alternar para o próximo modelo favorito"
   }
 }

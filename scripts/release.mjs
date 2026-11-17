@@ -7,7 +7,7 @@ import release from 'release-it'
 import semver from 'semver'
 import { generateIndex, INDEX_FILE } from './market-index.mjs'
 
-export function releaseOptions({ dryRun = false, dependenciesUpdated = false } = {}) {
+export function releaseOptions({ dryRun = false, dependenciesUpdated = false, force = false } = {}) {
   const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
   const tags = execFileSync('git', ['tag', '--merged', 'HEAD', '--list', `${name}@*`], { encoding: 'utf8' })
   // Only locale-ko was published under the old repository-wide v* tags.
@@ -46,6 +46,8 @@ export function releaseOptions({ dryRun = false, dependenciesUpdated = false } =
           // Keep feature and fix bumps unchanged; only cap breaking changes in 0.x.
           if (bump?.level === 0 && semver.major(version) === 0) bump.level = 1
           if (!bump && dependenciesUpdated) return { level: 2, reason: 'Preset dependencies updated' }
+          // A forced release only fills in a patch bump when no commit asks for one.
+          if (!bump && force) return { level: 2, reason: 'Forced release' }
           return bump
         },
         infile: 'CHANGELOG.md',
@@ -135,11 +137,19 @@ function recoverTaggedRelease(pkg, dryRun) {
   return { pkg, result: { version: versions[0] }, recovered: true }
 }
 
-export async function releaseWorkspace({ dryRun = false, recoverOnly = false, packageName, version, ...options } = {}) {
+export async function releaseWorkspace({
+  dryRun = false,
+  recoverOnly = false,
+  force = false,
+  packageName,
+  version,
+  ...options
+} = {}) {
   if (version && (!packageName || semver.valid(version) !== version)) {
     throw new Error('An exact version requires a package name and a valid semantic version')
   }
   if (recoverOnly && version) throw new Error('Recovery cannot specify a new version')
+  if (recoverOnly && force) throw new Error('Recovery cannot force a new release')
   const root = process.cwd()
   const git = (args, options = {}) => execFileSync('git', args, { cwd: root, encoding: 'utf8', ...options })
   if (!dryRun) {
@@ -214,7 +224,7 @@ export async function releaseWorkspace({ dryRun = false, recoverOnly = false, pa
           }
         })
       process.chdir(pkg.path)
-      const settings = releaseOptions({ dryRun, dependenciesUpdated })
+      const settings = releaseOptions({ dryRun, dependenciesUpdated, force })
       const exactVersion = pkg.name === packageName ? version : undefined
       const npmOptions = { ...settings.npm, ...options.npm, ...(exactVersion ? { allowSameVersion: true } : {}) }
       const originalFiles = ['package.json', 'CHANGELOG.md'].map((file) => ({
@@ -238,6 +248,16 @@ export async function releaseWorkspace({ dryRun = false, recoverOnly = false, pa
           github: { ...settings.github, ...options.github, release: false },
         })
         if (result.version) {
+          // pnpm writes each workspace dependency's manifest version into the published package.
+          // A dependency this run did not release must already be on npm, or installs fail.
+          const unpublished = packages
+            .filter((dependency) => Object.hasOwn(pkg.dependencies ?? {}, dependency.name))
+            .filter((dependency) => !releases.some(({ pkg }) => pkg.name === dependency.name))
+            .filter((dependency) => !isPublished(dependency.name, dependency.version))
+            .map((dependency) => `${dependency.name}@${dependency.version}`)
+          if (unpublished.length > 0) {
+            throw new Error(`Cannot release ${pkg.name} with unpublished dependencies: ${unpublished.join(', ')}`)
+          }
           if (npmOptions.publish) publishOnce(pkg, result.version)
           releases.push({ pkg, settings, result })
         }
@@ -325,6 +345,7 @@ if (import.meta.main) {
     options: {
       'dry-run': { type: 'boolean', default: false },
       'recover-only': { type: 'boolean', default: false },
+      force: { type: 'boolean', default: false },
       package: { type: 'string' },
       version: { type: 'string' },
     },
@@ -332,6 +353,7 @@ if (import.meta.main) {
   await releaseWorkspace({
     dryRun: values['dry-run'],
     recoverOnly: values['recover-only'],
+    force: values.force,
     packageName: values.package,
     version: values.version,
   })

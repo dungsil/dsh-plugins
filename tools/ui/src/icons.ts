@@ -1,5 +1,9 @@
 import { createElement } from 'react'
+import languagesIconSvg from './icons/languages.svg'
 import resetIconSvg from './icons/rotate-ccw.svg'
+import starIconSvg from './icons/star.svg'
+import bellSvg from './icons/bell.svg'
+import bellOffSvg from './icons/bell-off.svg'
 
 export { ProviderIcon } from './provider-icon.js'
 
@@ -29,6 +33,7 @@ export {
   IconGaugeOutlineRegular,
   IconLinkOutlineRegular,
   IconLoadingOutlineRegular,
+  IconPlayOutlineRegular,
   IconPlusOutlineRegular,
   IconQuestionOutlineRegular,
   IconRefreshOutlineRegular,
@@ -36,14 +41,42 @@ export {
   IconSearchOutlineRegular,
   IconSkillOutlineRegular,
   IconStopFillRegular,
+  IconWarningTriangleOutlineRegular,
   IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
-export function IconResetOutlineRegular() {
+function svgIcon(svg: string) {
   // Only trusted, build-time SVG assets are inserted as markup.
   return createElement('span', {
     style: { display: 'inline-flex' },
     'aria-hidden': 'true',
-    dangerouslySetInnerHTML: { __html: resetIconSvg },
+    // Formatting whitespace would otherwise become text inside the host element.
+    dangerouslySetInnerHTML: { __html: svg.trim().replace(/>\s+</g, '><') },
   })
+}
+
+export function IconResetOutlineRegular() {
+  return svgIcon(resetIconSvg)
+}
+
+export function IconLanguagesOutlineRegular() {
+  return svgIcon(languagesIconSvg)
+}
+
+/** Outline star; consumers fill it with `fill: currentColor` for the selected state. */
+export function IconStarOutlineRegular() {
+  return svgIcon(starIconSvg)
+}
+
+export { bellSvg as bellIconSvg }
+
+/** 16px like the DSH primitives' menu glyphs; the asset keeps its 24×24 grid. */
+const menuSize = (svg: string) => svg.replace('width="24" height="24"', 'width="16" height="16"')
+
+export function IconBellOutlineRegular() {
+  return svgIcon(menuSize(bellSvg))
+}
+
+export function IconBellOffOutlineRegular() {
+  return svgIcon(menuSize(bellOffSvg))
 }

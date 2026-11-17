@@ -2,7 +2,7 @@ import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/c
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 
 /** Sections render top to bottom; only Working and Archived get labels. */
-export type Section = 'Pinned' | 'Inbox' | 'Working' | 'Archived'
+export type Section = 'Pinned' | 'Inbox' | 'Working' | 'Archived' | 'Snoozed'
 
 export interface Placement {
   section: Section
@@ -18,7 +18,10 @@ export function placeSessions(
   list: SessionListState,
   statuses: SessionStatusSnapshot,
   pinned: readonly string[],
-  archived: readonly string[]
+  archived: readonly string[],
+  worktreeActive: ReadonlySet<string> = new Set(),
+  snoozed: ReadonlySet<string> = new Set(),
+  automation: ReadonlySet<string> = new Set()
 ): { order: string[]; placements: Map<string, Placement> } {
   const pins = new Set(pinned)
   const archives = new Set(archived)
@@ -30,21 +33,25 @@ export function placeSessions(
     const children = list.projectionsBySession[id]?.values.subagentCatalog ?? []
     const running =
       (status?.running ?? row.running) ||
+      worktreeActive.has(id) ||
       children.some((child) => statuses.get(child.id)?.running ?? list.byId[child.id]?.running)
+    const automationIdle = automation.has(id) && !running && !pending && status?.completionUnread === false
     // Archive wins over the pin set and live status: DSH never leads with archived
     // rows and does not open them, so they stay at the bottom until restored.
     const section: Section = archives.has(id)
       ? 'Archived'
       : pins.has(id)
         ? 'Pinned'
-        : pending
-          ? 'Inbox'
-          : running
-            ? 'Working'
-            : 'Inbox'
+        : !row.blank && (snoozed.has(id) || automationIdle)
+          ? 'Snoozed'
+          : pending
+            ? 'Inbox'
+            : running
+              ? 'Working'
+              : 'Inbox'
     placements.set(id, { section, blank: row.blank })
   }
-  const rank: Record<Section, number> = { Pinned: 0, Inbox: 1, Working: 2, Archived: 3 }
+  const rank: Record<Section, number> = { Pinned: 0, Inbox: 1, Working: 2, Archived: 3, Snoozed: 4 }
   const order = list.ids
     .filter((id) => {
       const row = list.byId[id]

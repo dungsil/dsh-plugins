@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session Notifications",
+    "description": "Shows browser notifications and plays a sound when a session needs approval, an answer, or a plan review, or finishes an answer."
+  }
+}

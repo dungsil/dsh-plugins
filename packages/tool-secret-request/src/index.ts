@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
-import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
+import { parseRpcRequest, rpcResponse } from '@dungsil/dsh-plugin-server'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { channel, endpointPrefix, maxSecretLength, type SecretRequest, type SecretStatus } from './protocol.js'
@@ -83,22 +83,10 @@ export function apply(ctx: Context) {
           methods: ['POST'],
           requestBody: 'buffered',
           async fetch(request) {
-            let body
-            try {
-              body = clientRequestSchema.safeParse(await request.json())
-            } catch {
-              return new Response('Invalid request', { status: 400 })
-            }
-            if (!body.success || body.data.method !== `${endpointPrefix}${endpoint}`) {
-              return new Response('Invalid request', { status: 400 })
-            }
-            const result = await handle(endpoint, body.data.payload, request.signal)
-            return Response.json(
-              { type: 'server-response', rpcId: body.data.rpcId, result },
-              {
-                headers: { 'Cache-Control': 'no-store' },
-              }
-            )
+            const parsed = await parseRpcRequest(request, `${endpointPrefix}${endpoint}`)
+            if (!parsed) return new Response('Invalid request', { status: 400 })
+            const result = await handle(endpoint, parsed.payload, request.signal)
+            return rpcResponse(parsed.rpcId, result)
           },
         }),
       `request-secret: ${endpoint} route`

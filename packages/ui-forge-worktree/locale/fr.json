@@ -7,13 +7,17 @@
     "title": "Arbre de travail",
     "create": "Nouvel arbre de travail",
     "current": "Branche actuelle",
+    "origin": "Copie de travail d’origine",
+    "attached": "Cette session démarre dans l’arbre de travail sélectionné.",
     "detached": "HEAD détachée",
     "loading": "Chargement de l’arbre de travail…",
     "saving": "Enregistrement de la sélection…",
     "reserved": "Un nouvel arbre de travail sera créé à l’envoi de votre premier message.",
     "locked": "La sélection de l’arbre de travail ne peut plus être modifiée une fois cette session démarrée.",
-    "error": "Impossible de confirmer la sélection de l’arbre de travail. Actualisez avant de réessayer.",
-    "refresh": "Actualiser la sélection",
-    "blocked": "Aucun nouvel arbre de travail n’est disponible pour cette copie de travail."
+    "error": "Impossible de confirmer la sélection de l’arbre de travail. Rechargez la page avant de réessayer.",
+    "blocked": "Aucun nouvel arbre de travail n’est disponible pour cette copie de travail.",
+    "more": "Charger plus",
+    "worktreesLoading": "Chargement des arbres de travail existants…",
+    "worktreesUnavailable": "Impossible de charger les arbres de travail existants."
   }
 }

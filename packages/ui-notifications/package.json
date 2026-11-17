@@ -1,0 +1,106 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-notifications",
+  "version": "0.0.0",
+  "description": "Browser notifications and sounds when a DeepSeek Harness session needs input or finishes an answer.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-notifications"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-session": "0.2.2-rc.3",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "market": {
+    "order": 6,
+    "title": {
+      "en": "Session Notifications",
+      "ko": "세션 알림",
+      "zh": "会话通知",
+      "ja": "セッション通知",
+      "es": "Notificaciones de sesión",
+      "fr": "Notifications de session",
+      "de": "Sitzungsbenachrichtigungen",
+      "ru": "Уведомления сеансов",
+      "pt": "Notificações de sessão"
+    },
+    "description": {
+      "en": "Shows browser notifications and plays a sound when a session needs approval, an answer, or a plan review, or finishes an answer.",
+      "ko": "세션에 승인, 답변, 계획 검토가 필요하거나 답변이 완료되면 브라우저 알림을 표시하고 소리를 재생합니다.",
+      "zh": "当会话需要批准、回答或计划审阅，或完成回答时，显示浏览器通知并播放提示音。",
+      "ja": "セッションで承認、回答、プランのレビューが必要になったとき、または回答が完了したときに、ブラウザー通知を表示して音を鳴らします。",
+      "es": "Muestra notificaciones del navegador y reproduce un sonido cuando una sesión necesita una aprobación, una respuesta o una revisión del plan, o termina una respuesta.",
+      "fr": "Affiche des notifications du navigateur et joue un son lorsqu’une session nécessite une approbation, une réponse ou une revue du plan, ou termine une réponse.",
+      "de": "Zeigt Browserbenachrichtigungen an und spielt einen Ton ab, wenn eine Sitzung eine Freigabe, eine Antwort oder eine Planprüfung benötigt oder eine Antwort abschließt.",
+      "ru": "Показывает уведомления браузера и воспроизводит звук, когда сеансу требуется одобрение, ответ или проверка плана либо когда ответ готов.",
+      "pt": "Mostra notificações do navegador e reproduz um som quando uma sessão precisa de aprovação, de uma resposta ou de uma revisão do plano, ou conclui uma resposta."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "notifications",
+      "sound",
+      "sessions",
+      "approval"
+    ]
+  }
+}
