@@ -105,7 +105,7 @@ export function nextFavorite(
   const currentEffort = current?.reasoningEffort ?? currentModel?.reasoning?.defaultEffort
   const index = usable.findIndex(
     ({ favorite, effort }) =>
-      favorite.provider === current?.provider && favorite.model === current.model && effort === currentEffort
+      favorite.provider === current?.provider && favorite.model === current?.model && effort === currentEffort
   )
   return usable[(index + 1) % usable.length]!.favorite
 }
