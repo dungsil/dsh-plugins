@@ -605,7 +605,7 @@ export function apply(ctx: Context) {
     })
   )
   ctx.slots.inject('conversation.input.dock', () =>
-    ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links` }, Links)
+    ctx.slots.register({ name: 'conversation.input.dock', id: `${name}-links`, order: 30 }, Links)
   )
   ctx.slots.inject('sidebar.right.pane.tab', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab', key: name }, Requests)
