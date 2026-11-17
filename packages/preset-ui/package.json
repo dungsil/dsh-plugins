@@ -31,6 +31,7 @@
     "@dungsil/dsh-plugin-ui-forge-pulls": "workspace:*",
     "@dungsil/dsh-plugin-ui-forge-worktree": "workspace:*",
     "@dungsil/dsh-plugin-ui-image-paths": "workspace:*",
+    "@dungsil/dsh-plugin-ui-image-viewer": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-picker": "workspace:*",
     "@dungsil/dsh-plugin-ui-model-settings": "workspace:*",
     "@dungsil/dsh-plugin-ui-setting-skills": "workspace:*",
