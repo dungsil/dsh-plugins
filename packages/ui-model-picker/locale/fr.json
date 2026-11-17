@@ -17,6 +17,11 @@
     "error": "Impossible de modifier la sélection. Vérifiez la sélection actuelle avant de réessayer.",
     "retry": "Recharger les modèles",
     "busy": "Modification…",
-    "apply": "Appliquer"
+    "apply": "Appliquer",
+    "favorites": "Favoris",
+    "addFavorite": "Ajouter aux favoris",
+    "removeFavorite": "Retirer des favoris",
+    "unavailable": "Indisponible",
+    "cycleFavorites": "Passer au modèle favori suivant"
   }
 }

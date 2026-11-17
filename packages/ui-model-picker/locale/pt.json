@@ -17,6 +17,11 @@
     "error": "Não foi possível alterar a seleção. Verifique a seleção atual antes de tentar novamente.",
     "retry": "Recarregar modelos",
     "busy": "Alterando…",
-    "apply": "Aplicar"
+    "apply": "Aplicar",
+    "favorites": "Favoritos",
+    "addFavorite": "Adicionar aos favoritos",
+    "removeFavorite": "Remover dos favoritos",
+    "unavailable": "Indisponível",
+    "cycleFavorites": "Alternar para o próximo modelo favorito"
   }
 }
