@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Traduction des paragraphes de réponse",
+    "description": "Traduit à la demande un paragraphe de réponse en langue étrangère et l’affiche sous l’original. Utilise le service de traduction officiel et ses réglages."
+  }
+}

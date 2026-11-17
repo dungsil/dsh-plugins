@@ -1,0 +1,109 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-answer-translation",
+  "version": "0.0.0",
+  "description": "Translate one foreign-language answer paragraph on demand with the official translation service.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-answer-translation"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-api-remotes": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-chat": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-experimental-client-ui-cot-translation": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-experimental-translator": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-session": "0.2.2-rc.3",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "franc-min": "6.2.0",
+    "happy-dom": "21.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.1",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
+    }
+  },
+  "market": {
+    "order": 23,
+    "title": {
+      "en": "Answer Paragraph Translation",
+      "ko": "답변 문단 번역",
+      "zh": "回答段落翻译",
+      "ja": "回答段落の翻訳",
+      "es": "Traducción de párrafos de respuestas",
+      "fr": "Traduction des paragraphes de réponse",
+      "de": "Übersetzung von Antwortabsätzen",
+      "ru": "Перевод абзацев ответа",
+      "pt": "Tradução de parágrafos das respostas"
+    },
+    "description": {
+      "en": "Translate a foreign-language answer paragraph on demand and show it below the original. Uses the official translation service and its settings.",
+      "ko": "외국어로 된 답변 문단을 요청할 때만 번역하여 원문 아래에 표시합니다. 공식 번역 서비스와 그 설정을 사용합니다.",
+      "zh": "仅在请求时翻译外语回答段落，并将译文显示在原文下方。使用官方翻译服务及其设置。",
+      "ja": "外国語の回答段落を要求したときだけ翻訳し、原文の下に表示します。公式の翻訳サービスとその設定を使用します。",
+      "es": "Traduce bajo demanda un párrafo de respuesta en otro idioma y lo muestra debajo del original. Usa el servicio oficial de traducción y su configuración.",
+      "fr": "Traduit à la demande un paragraphe de réponse en langue étrangère et l’affiche sous l’original. Utilise le service de traduction officiel et ses réglages.",
+      "de": "Übersetzt einen fremdsprachigen Antwortabsatz auf Anfrage und zeigt ihn unter dem Original an. Nutzt den offiziellen Übersetzungsdienst und dessen Einstellungen.",
+      "ru": "Переводит абзац ответа на иностранном языке по запросу и показывает перевод под оригиналом. Использует официальную службу перевода и её настройки.",
+      "pt": "Traduz sob demanda um parágrafo de resposta em outro idioma e o mostra abaixo do original. Usa o serviço oficial de tradução e suas configurações."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "chat",
+      "translation",
+      "paragraph",
+      "answer",
+      "language"
+    ]
+  }
+}

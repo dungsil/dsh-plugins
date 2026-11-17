@@ -16,6 +16,8 @@
       name: '@dungsil/dsh-plugin-ui-image-paths'
     - id: dungsil-ui-image-viewer
       name: '@dungsil/dsh-plugin-ui-image-viewer'
+    - id: dungsil-ui-answer-translation
+      name: '@dungsil/dsh-plugin-ui-answer-translation'
     - id: dungsil-sidebar-inbox
       name: '@dungsil/dsh-plugin-ui-sidebar-inbox'
     - id: dungsil-ui-model-settings
