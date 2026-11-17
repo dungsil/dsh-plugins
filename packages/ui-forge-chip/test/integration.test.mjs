@@ -35,7 +35,15 @@ async function setup(t, { method = 'merge' } = {}) {
   run(repo, 'commit', '-qm', 'base')
   run(repo, 'worktree', 'add', '-q', '-b', 'topic', work)
   const session = { id: 'one', header: { cwd: repo } }
-  const agent = { session, status: 'idle' }
+  const agent = {
+    session,
+    status: 'idle',
+    maintenance: 0,
+    async runMaintenance(task) {
+      this.maintenance++
+      return task(new AbortController().signal)
+    },
+  }
   let current = work
   let afterSpawn
   let policy = { mode: 'workspace-write' }
@@ -98,9 +106,12 @@ async function setup(t, { method = 'merge' } = {}) {
     },
     connection: hostConnection,
     logger: { warn: (message) => warnings.push(message) },
+    configEditor: {},
+    fiber: {},
     effect: (fn) => fn(),
+    inject: () => {},
   }
-  apply(ctx, { integrationMethod: method })
+  apply(ctx, { defaultAction: { get: () => 'commit' }, integrationMethod: method })
   let connection
   installConnection(
     { provide: (_name, handle) => (connection = handle) },
@@ -169,6 +180,7 @@ await test('fast-forward가 가능하면 우선 제안하고 원본 브랜치만
   assert.equal(result.ok, true)
   assert.equal(run(env.repo, 'rev-parse', 'HEAD'), head)
   assert.equal(await readFile(join(env.repo, 'b.txt'), 'utf8'), 'b\n')
+  assert.equal(env.agent.maintenance, 1)
   assert.equal(await env.inspect(), null)
 })
 

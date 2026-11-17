@@ -16,7 +16,11 @@ import {
 } from './protocol.js'
 
 type Session = { readonly header: { readonly cwd?: string }; readonly id: string }
-type Agent = { readonly session: Session; readonly status: string }
+type Agent = {
+  readonly session: Session
+  readonly status: string
+  runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>
+}
 type Collected = { readFrom(offset: number): { text: string; lossy: boolean } }
 type Host = {
   agents: { get(id: string): Agent | undefined }
@@ -381,51 +385,55 @@ export function registerIntegration(ctx: Context, preferred: () => MergeMethod) 
       if (agent.status !== 'idle') throw new IntegrationError('busy')
       const chosen = method as IntegrationMethod
       const scope = { host, session: agent.session }
-      const located = await locate(host, agent.session, signal)
-      if (!located) throw new IntegrationError('stale')
-      const lock = key(located.target.canonical)
-      if (running.has(lock)) throw new IntegrationError('busy')
-      running.add(lock)
-      try {
-        const inspection = await inspect(host, agent.session, preferred(), signal, chosen)
-        const proposal = inspection?.proposal
-        if (
-          !inspection ||
-          !proposal ||
-          proposal.target.branch !== targetBranch ||
-          proposal.target.head !== targetHead ||
-          proposal.source.head !== sourceHead ||
-          !proposal.methods.includes(chosen)
-        )
-          throw new IntegrationError('stale')
-        if (proposal.blocker) throw new IntegrationError('blocked')
-        // Writes ignore the request signal: killing Git halfway leaves state only cleanup can judge.
-        const started = Date.now() - 1000
-        let failure = ''
-        for (const args of steps(chosen, inspection)) {
-          try {
-            const result = await git(scope, inspection.target.execution, args, AbortSignal.timeout(120000), 120000)
-            if (result.code === 0) continue
-            failure = `git ${args[0]}:\n${[result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n')}`
-          } catch (error) {
-            // The sandbox refused or Git could not finish; only cleanup can judge what changed.
-            failure = `git ${args[0]} could not run in the Session sandbox: ${String(error)}`
+      // Like the other chip actions, integration runs in the maintenance window so no turn starts meanwhile.
+      return agent.runMaintenance(async (maintenance) => {
+        const control = AbortSignal.any([signal, maintenance])
+        const located = await locate(host, agent.session, control)
+        if (!located) throw new IntegrationError('stale')
+        const lock = key(located.target.canonical)
+        if (running.has(lock)) throw new IntegrationError('busy')
+        running.add(lock)
+        try {
+          const inspection = await inspect(host, agent.session, preferred(), control, chosen)
+          const proposal = inspection?.proposal
+          if (
+            !inspection ||
+            !proposal ||
+            proposal.target.branch !== targetBranch ||
+            proposal.target.head !== targetHead ||
+            proposal.source.head !== sourceHead ||
+            !proposal.methods.includes(chosen)
+          )
+            throw new IntegrationError('stale')
+          if (proposal.blocker) throw new IntegrationError('blocked')
+          // Writes ignore the request signal: killing Git halfway leaves state only cleanup can judge.
+          const started = Date.now() - 1000
+          let failure = ''
+          for (const args of steps(chosen, inspection)) {
+            try {
+              const result = await git(scope, inspection.target.execution, args, AbortSignal.timeout(120000), 120000)
+              if (result.code === 0) continue
+              failure = `git ${args[0]}:\n${[result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n')}`
+            } catch (error) {
+              // The sandbox refused or Git could not finish; only cleanup can judge what changed.
+              failure = `git ${args[0]} could not run in the Session sandbox: ${String(error)}`
+            }
+            break
           }
-          break
-        }
-        if (failure) {
-          let outcome
-          try {
-            outcome = await cleanup(scope, chosen, inspection, started, failure)
-          } catch (error) {
-            outcome = { cleaned: false, diagnostic: `${failure}\nCleanup could not run: ${String(error)}` }
+          if (failure) {
+            let outcome
+            try {
+              outcome = await cleanup(scope, chosen, inspection, started, failure)
+            } catch (error) {
+              outcome = { cleaned: false, diagnostic: `${failure}\nCleanup could not run: ${String(error)}` }
+            }
+            throw new IntegrationError(outcome.cleaned ? 'failed' : 'cleanup-refused', outcome.diagnostic)
           }
-          throw new IntegrationError(outcome.cleaned ? 'failed' : 'cleanup-refused', outcome.diagnostic)
+          return { method: chosen, head: await headOf(scope, inspection.target.execution, AbortSignal.timeout(10000)) }
+        } finally {
+          running.delete(lock)
         }
-        return { method: chosen, head: await headOf(scope, inspection.target.execution, AbortSignal.timeout(10000)) }
-      } finally {
-        running.delete(lock)
-      }
+      })
     },
   }
   for (const method of [inspectMethod, runMethod] as const)

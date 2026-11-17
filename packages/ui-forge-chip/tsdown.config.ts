@@ -4,7 +4,10 @@ import manifest from './package.json' with { type: 'json' }
 export default defineConfig([
   {
     ...nodeConfig,
-    deps: { alwaysBundle: ['@dungsil/dsh-plugin-server'], neverBundle: ['@deepseek-ai/dsh-client-connection'] },
+    deps: {
+      alwaysBundle: ['@dungsil/dsh-plugin-server', '@dungsil/dsh-task-prompts'],
+      neverBundle: ['@deepseek-ai/dsh-client-connection'],
+    },
   },
   clientConfig(manifest.name, {
     entry: ['src/client.tsx'],

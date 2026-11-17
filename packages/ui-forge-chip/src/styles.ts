@@ -1,5 +1,6 @@
 export const styles = `
 .dsh-forge-chip { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; width: calc(100% - 2 * var(--dsh-composer-side-clearance) - 4 * var(--dsh-composer-dock-inset)); max-width: calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset)); margin: 0 auto; padding-bottom: 8px; }
+.dsh-forge-chip:empty { display: none; }
 .dsh-forge-chip-actions { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; }
 .dsh-forge-chip-actions > .dsh-forge-chip-trigger { border-radius: 14px 0 0 14px; }
 .dsh-forge-chip-actions .dsh-forge-chip-menu { flex: none; border-radius: 0 14px 14px 0; border-left: 0; padding: 0 7px; }
