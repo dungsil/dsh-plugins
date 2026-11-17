@@ -39,7 +39,7 @@ const TARGET_SCRIPTS: Readonly<Record<string, Script>> = {
   ne: 'devanagari',
 }
 
-// franc-min codes for languages written in the Latin or Cyrillic scripts.
+// franc-min Latin and Cyrillic codes with an ISO 639-1 equivalent; it cannot identify other targets.
 const FRANC_LANGUAGES: Readonly<Record<string, string>> = {
   eng: 'en',
   fra: 'fr',
@@ -56,14 +56,35 @@ const FRANC_LANGUAGES: Readonly<Record<string, string>> = {
   ces: 'cs',
   ron: 'ro',
   hun: 'hu',
+  jav: 'jv',
+  swh: 'sw',
+  sun: 'su',
+  hau: 'ha',
+  fuv: 'ff',
+  bos: 'bs',
+  hrv: 'hr',
+  srp: 'sr',
+  yor: 'yo',
+  uzn: 'uz',
+  zlm: 'ms',
+  ibo: 'ig',
+  tgl: 'tl',
+  azj: 'az',
+  run: 'rn',
+  plt: 'mg',
+  qug: 'qu',
+  nya: 'ny',
+  kin: 'rw',
+  zul: 'zu',
+  lin: 'ln',
+  som: 'so',
   rus: 'ru',
   ukr: 'uk',
   bel: 'be',
   bul: 'bg',
-  srp: 'sr',
-  mkd: 'mk',
   kaz: 'kk',
 }
+const IDENTIFIABLE = new Set(Object.values(FRANC_LANGUAGES))
 
 function count(text: string, pattern: RegExp) {
   return text.match(pattern)?.length ?? 0
@@ -109,8 +130,9 @@ export function isForeign(text: string, target: string): boolean {
   const language = targetLanguage(target)
   if (script !== (TARGET_SCRIPTS[language] ?? 'latin')) return true
   if (script !== 'latin' && script !== 'cyrillic') return false
-  // Same alphabet: only a clear statistical winner identifies another language.
-  if (count(text, /\p{L}/gu) < 20) return false
+  // Same alphabet: only a clear statistical winner identifies another language, and only for targets
+  // franc-min knows; a Danish paragraph would otherwise be misread as Swedish for a Danish reader.
+  if (!IDENTIFIABLE.has(language) || count(text, /\p{L}/gu) < 20) return false
   const [first, second] = francAll(text)
   if (!first || first[0] === 'und' || (second && first[1] - second[1] < 0.2)) return false
   return (FRANC_LANGUAGES[first[0]] ?? first[0]) !== language
