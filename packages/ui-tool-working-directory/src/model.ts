@@ -44,8 +44,11 @@ export const directoryModel = ({ phase, block }: ToolCallPhaseProps): DirectoryM
   if (block.error) {
     parts.push(JSON.stringify(block.error, null, 2))
   }
-  const meta = block.meta
-  const stopped = typeof meta === 'object' && meta !== null && !Array.isArray(meta) && meta?.stopped === true
+  const meta =
+    typeof block.meta === 'object' && block.meta !== null && !Array.isArray(block.meta)
+      ? (block.meta as Record<string, unknown>)
+      : null
+  const stopped = meta?.stopped === true
   let state: DirectoryState = block.isError ? 'error' : 'ok'
   if (block.error?.code === 'interrupted' || stopped) {
     state = 'stopped'

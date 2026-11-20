@@ -18,7 +18,6 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-sidebar-inbox](./packages/ui-sidebar-inbox)       | Inbox·Working·Archived 상태별 사이드바 목록 배치 플러그인           |   MIT    |
 | [@dungsil/dsh-plugin-ui-notifications](./packages/ui-notifications)       | 입력이 필요하거나 답변이 완료된 세션을 브라우저 알림과 소리로 알림  |   MIT    |
 | [@dungsil/dsh-plugin-tool-secret-request](./packages/tool-secret-request) | 비밀값을 메시지 내 입력 카드에서 받고 모델에는 참조만 전달하는 도구 |   MIT    |
-| [@dungsil/dsh-plugin-ui-tool-working-directory](./packages/ui-tool-working-directory) | 작업 폴더 확인·변경 도구의 경로·상태·입력·결과를 표시하는 UI |   MIT    |
 | [@dungsil/dsh-plugin-model-settings](./packages/model-settings)           | 세션 제목 모델을 관리하는 소유자 전용 API                           |   MIT    |
 | [@dungsil/dsh-plugin-ui-model-settings](./packages/ui-model-settings)     | 상황별 모델 설정 UI (모델 설정 기능 플러그인을 함께 설치함)         |   MIT    |
 | [@dungsil/dsh-plugin-ui-forge-worktree](./packages/ui-forge-worktree)     | 입력창에서 현재 브랜치나 새 Git 워크트리를 선택하는 UI              |   MIT    |
@@ -31,6 +30,8 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 | [@dungsil/dsh-plugin-ui-usage](./packages/ui-usage)                       | 세션에 기록된 토큰 사용량과 일별·모델별 집계를 확인하는 대시보드    |   MIT    |
 | [@dungsil/dsh-plugin-ui-token-usage](./packages/ui-token-usage)           | 대화 화면의 토큰 수를 만·억 등 축약 단위와 정확한 값으로 표시       |   MIT    |
 | [@dungsil/dsh-plugin-cli-proxy-api](./packages/cli-proxy-api)             | CLIProxyAPI 모델 연결과 계정별 할당량 조회 UI                       |   MIT    |
+
+작업 폴더 도구의 상태·경로·입력·결과는 [작업 폴더 도구 표시](./packages/ui-tool-working-directory) 플러그인에서 확인할 수 있습니다.
 
 공식 `@deepseek-ai/dsh-experimental-forge-bundle`의 워크트리 설정은 [@dungsil/dsh-plugin-ui-setting-vcs](./packages/ui-setting-vcs)에서 관리합니다. 디렉터리와 이름 접두사는 한 번씩만 표시합니다. 변경 사항은 자동 저장하며 모델 도구와 Forge 패널에 공통으로 적용합니다. 기존 커밋 작성자·서명, 기본 체크아웃 선택, 추적 원격 브랜치, 시멘틱 이름 설정은 공식 번들에서 지원하지 않아 이전하지 않습니다. 보관 시 워크트리 삭제는 DSH `0.2.2-rc.2`부터 공식 번들이 기본으로 처리하므로 별도 설정이 없습니다. 세션을 보관하면 그 세션이 만든 깨끗한 워크트리를 정리하고 브랜치와 커밋은 유지합니다. 디렉터리는 저장소 아래의 상대 경로만 지원하며 기존 절대 경로나 상위 경로를 자동 변환하지 않습니다.
 

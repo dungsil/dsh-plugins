@@ -34,9 +34,15 @@ await test('원본 결과와 구조화된 오류를 유지한다', () => {
   const props = {
     phase: 'result',
     block: {
-      args: args(''), call: { argsRaw: '{"cd":""}' },
-      content: [{ type: 'text', text: 'ok' }, { type: 'other', message: 'extra' }],
-      isError: true, error: { code: 'ENOENT', reason: 'missing' }, meta: {},
+      args: args(''),
+      call: { argsRaw: '{"cd":""}' },
+      content: [
+        { type: 'text', text: 'ok' },
+        { type: 'other', message: 'extra' },
+      ],
+      isError: true,
+      error: { code: 'ENOENT', reason: 'missing' },
+      meta: {},
     },
   }
   const actual = directoryModel(props)
@@ -47,7 +53,10 @@ await test('원본 결과와 구조화된 오류를 유지한다', () => {
 })
 
 await test('중단 상태는 일반 실패와 구분한다', () => {
-  const stopped = { ...initial('result'), block: { ...initial('result').block, content: [], meta: { stopped: true } } }
+  const stopped = {
+    ...initial('result'),
+    block: { ...initial('result').block, content: [], meta: { stopped: true } },
+  }
   assert.equal(directoryModel(stopped).state, 'stopped')
 })
 
