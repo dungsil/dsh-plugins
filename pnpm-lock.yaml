@@ -1426,6 +1426,10 @@ importers:
         version: 0.23.4(typescript@7.0.2)
 
   packages/ui-setting-mcp:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: ^0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.1.0
