@@ -32,7 +32,10 @@ await test('HTTP 전환은 이전 stdio 필드를 비운다', () => {
 await test('잘못된 인수와 환경 템플릿을 거부한다', () => {
   assert.equal(entryOf({ ...draftOf('ok'), command: 'node', args: '{"bad":true}' }), undefined)
   assert.equal(entryOf({ ...draftOf('ok'), command: 'echo ${HOME}' }), undefined)
-  assert.equal(entryOf({ ...draftOf('ok'), command: 'node', args: '["x"]', env: '{"K":"${credential:REF}"}' })?.command, 'node')
+  assert.equal(
+    entryOf({ ...draftOf('ok'), command: 'node', args: '["x"]', env: '{"K":"${credential:REF}"}' })?.command,
+    'node'
+  )
 })
 
 await test('false 및 사용자 제공 설정을 올바르게 재정의로 인식한다', () => {

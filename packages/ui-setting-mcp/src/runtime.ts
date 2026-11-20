@@ -8,10 +8,13 @@ export interface ConfigForm {
     readonly revision?: number
   }
   subscribe(listener: () => void): () => void
-  mutate(changes: readonly (
-    | { op: 'set'; path: readonly string[]; value: unknown }
-    | { op: 'unset'; path: readonly string[] }
-  )[], revision: number): Promise<boolean>
+  mutate(
+    changes: readonly (
+      | { op: 'set'; path: readonly string[]; value: unknown }
+      | { op: 'unset'; path: readonly string[] }
+    )[],
+    revision: number
+  ): Promise<boolean>
 }
 export type RemoteResult<T> = { ok: true; value: T } | { ok: false; error?: unknown }
 

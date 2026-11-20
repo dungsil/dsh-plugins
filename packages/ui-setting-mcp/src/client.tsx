@@ -26,13 +26,16 @@ export function apply(ctx: Context) {
     child.effect(() => installStyles(styles), 'ui-setting-mcp: settings style')
     return runtime.configForms.whileServed(['mcp-manager'], () =>
       child.slots.inject('settings.section', () =>
-        child.slots.register({
-          name: 'settings.section',
-          id: 'dungsil-ui-setting-mcp',
-          order: 22,
-          label: () => copy().meta.title,
-          inject: () => ({ ctx: child, source }),
-        }, McpSettings)
+        child.slots.register(
+          {
+            name: 'settings.section',
+            id: 'dungsil-ui-setting-mcp',
+            order: 22,
+            label: () => copy().meta.title,
+            inject: () => ({ ctx: child, source }),
+          },
+          McpSettings
+        )
       )
     )
   })
