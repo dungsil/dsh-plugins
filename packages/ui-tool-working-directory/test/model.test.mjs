@@ -10,7 +10,7 @@ const initial = (phase, cd = '') => ({
 })
 
 await test('빈 경로는 조회로 판단하고 지정한 경로의 공백은 유지한다', () => {
-  for (const value of [undefined, null, '', ' \\t', 42]) assert.equal(directoryPath(value), null)
+  for (const value of [undefined, null, '', ' \t', 42]) assert.equal(directoryPath(value), null)
   assert.equal(directoryPath(' /with spaces/ '), ' /with spaces/ ')
 })
 
