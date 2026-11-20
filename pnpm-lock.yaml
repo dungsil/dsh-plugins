@@ -637,6 +637,9 @@ importers:
       '@dungsil/dsh-plugin-ui-notifications':
         specifier: workspace:*
         version: link:../ui-notifications
+      '@dungsil/dsh-plugin-ui-setting-mcp':
+        specifier: workspace:*
+        version: link:../ui-setting-mcp
       '@dungsil/dsh-plugin-ui-setting-skills':
         specifier: workspace:*
         version: link:../ui-setting-skills

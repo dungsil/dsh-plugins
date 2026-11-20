@@ -24,6 +24,8 @@
       name: '@dungsil/dsh-plugin-ui-model-settings'
     - id: dungsil-model-settings
       name: '@dungsil/dsh-plugin-model-settings'
+    - id: dungsil-ui-setting-mcp
+      name: '@dungsil/dsh-plugin-ui-setting-mcp'
     - id: dungsil-ui-setting-skills
       name: '@dungsil/dsh-plugin-ui-setting-skills'
     - id: dungsil-ui-setting-vcs
