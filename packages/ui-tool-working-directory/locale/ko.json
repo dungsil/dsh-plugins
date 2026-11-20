@@ -1,0 +1,16 @@
+{
+  "ui": {
+    "change": "작업 폴더 변경",
+    "current": "현재 작업 폴더",
+    "error": "실패",
+    "input": "입력",
+    "inspect": "도구 호출 자세히 보기",
+    "ok": "완료",
+    "output": "결과",
+    "preparing": "준비 중",
+    "rawInput": "원본 입력",
+    "read": "현재 작업 폴더 확인",
+    "running": "실행 중",
+    "stopped": "중지됨"
+  }
+}

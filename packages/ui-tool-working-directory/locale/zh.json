@@ -1,0 +1,16 @@
+{
+  "ui": {
+    "change": "更改工作目录",
+    "current": "当前工作目录",
+    "error": "失败",
+    "input": "输入",
+    "inspect": "检查工具调用",
+    "ok": "已完成",
+    "output": "输出",
+    "preparing": "准备中",
+    "rawInput": "原始输入",
+    "read": "检查当前工作目录",
+    "running": "运行中",
+    "stopped": "已停止"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "ui": {
+    "change": "Change working directory",
+    "current": "Current working directory",
+    "error": "Failed",
+    "input": "Input",
+    "inspect": "Inspect tool call",
+    "ok": "Completed",
+    "output": "Output",
+    "preparing": "Preparing",
+    "rawInput": "Original input",
+    "read": "Check current working directory",
+    "running": "Running",
+    "stopped": "Stopped"
+  }
+}
