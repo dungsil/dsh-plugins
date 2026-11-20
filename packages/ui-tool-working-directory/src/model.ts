@@ -24,10 +24,11 @@ export const directoryInput = (input: string): string | null => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return input
   }
-  if (!('cd' in value)) {
+  const record = value as Record<string, unknown>
+  if (!('cd' in record)) {
     return null
   }
-  return typeof value.cd === 'string' ? directoryPath(value.cd) : input
+  return typeof record.cd === 'string' ? directoryPath(record.cd) : input
 }
 
 /** 준비 중 인수는 같은 객체 안에서 자라므로 렌더마다 읽는다. */
@@ -43,8 +44,8 @@ export const directoryModel = ({ phase, block }: ToolCallPhaseProps): DirectoryM
   if (block.error) {
     parts.push(JSON.stringify(block.error, null, 2))
   }
-  const stopped =
-    typeof block.meta === 'object' && block.meta !== null && 'stopped' in block.meta && block.meta.stopped === true
+  const meta = block.meta
+  const stopped = typeof meta === 'object' && meta !== null && !Array.isArray(meta) && meta?.stopped === true
   let state: DirectoryState = block.isError ? 'error' : 'ok'
   if (block.error?.code === 'interrupted' || stopped) {
     state = 'stopped'
