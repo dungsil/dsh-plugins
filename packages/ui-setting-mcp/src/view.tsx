@@ -257,7 +257,9 @@ export function McpSettings({ ctx, source }: { ctx: Context; source: McpSource }
           )
         })}
       </div>
-      {page.statuses.some((s) => !snapshot?.entries[s.name] && s.configured !== false) && <p>{t('pluginHelp')}</p>}
+      {snapshot && page.statuses.some((s) => !snapshot.entries[s.name] && s.configured !== false) && (
+        <p>{t('pluginHelp')}</p>
+      )}
       {snapshot?.inherited.length ? <p>{t('inheritedHelp')}</p> : null}
       {page.editor && <EditorModal editor={page.editor} page={page} state={state} t={t} />}
       {page.removing && (
