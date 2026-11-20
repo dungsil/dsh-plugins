@@ -20,7 +20,7 @@ const stateKeys: Record<string, McpKey> = {
 type EditorKey = 'name' | 'command' | 'args' | 'env' | 'cwd' | 'url' | 'headers'
 
 function EditorField({
-  name,
+  name: _name,
   value,
   label,
   hint,
