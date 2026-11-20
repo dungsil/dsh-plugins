@@ -1,0 +1,89 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-tool-working-directory",
+  "version": "0.1.0",
+  "description": "Readable working-directory tool call cards for DeepSeek Harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-tool-working-directory"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-tool": "0.2.2-rc.3",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-tool": "^0.2.2-rc.3"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.3",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ]
+    }
+  },
+  "market": {
+    "order": 6.1,
+    "title": {
+      "en": "Working directory tool view",
+      "ko": "작업 폴더 도구 표시",
+      "zh": "工作目录工具视图"
+    },
+    "description": {
+      "en": "Show working-directory changes and lookups with clear status and inspectable input/output.",
+      "ko": "작업 폴더 확인·변경 도구를 상태와 입력·결과를 확인할 수 있는 전용 행으로 표시합니다.",
+      "zh": "以专用视图显示工作目录的查看和更改操作，并保留状态、输入和输出。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "working-directory",
+      "tools",
+      "tool-view",
+      "cwd"
+    ]
+  }
+}
