@@ -1,0 +1,102 @@
+{
+  "name": "@dungsil/dsh-plugin-ui-setting-mcp",
+  "version": "0.1.0",
+  "description": "MCP server settings and runtime status for DeepSeek Harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/ui-setting-mcp"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-api-remotes": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "@dungsil/dsh-ui": "workspace:*",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-api-remotes": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.3"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.3",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "market": {
+    "order": 7.3,
+    "title": {
+      "en": "MCP Server Settings",
+      "ko": "MCP 서버 설정",
+      "zh": "MCP 服务器设置",
+      "ja": "MCP Server Settings",
+      "es": "MCP Server Settings",
+      "fr": "MCP Server Settings",
+      "de": "MCP Server Settings",
+      "pt": "MCP Server Settings",
+      "ru": "MCP Server Settings"
+    },
+    "description": {
+      "en": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+      "ko": "MCP 서버 설정 페이지를 추가합니다. 서버 설정 편집, 실시간 연결 상태, 저장된 설정 테스트와 재시작을 제공합니다.",
+      "zh": "管理 MCP 服务器的配置、连接状态、测试和重启。",
+      "ja": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+      "es": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+      "fr": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+      "de": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+      "pt": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+      "ru": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls."
+    },
+    "category": "ui",
+    "labels": [],
+    "keywords": [
+      "mcp",
+      "settings",
+      "servers",
+      "connection"
+    ]
+  }
+}
