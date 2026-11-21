@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Forge CI failure notifications",
+    "description": "Optionally notify the active agent about failures in linked PR/MR checks, with durable deduplication and configurable wake behavior."
+  }
+}

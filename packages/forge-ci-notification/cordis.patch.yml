@@ -1,0 +1,5 @@
+- insert:
+    - id: dungsil-forge-ci-notification
+      name: '@dungsil/dsh-plugin-forge-ci-notification'
+      config:
+        mode: 'off'
