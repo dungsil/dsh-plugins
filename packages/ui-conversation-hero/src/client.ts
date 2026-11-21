@@ -30,9 +30,6 @@ export function HeroFrame({ hero, children }: HeroFrameProps) {
 
 export function apply(ctx: Context) {
   ctx.slots.inject('conversation.hero.frame', () =>
-    ctx.slots.register(
-      { id: 'dungsil-centered-hero', name: 'conversation.hero.frame' },
-      HeroFrame
-    )
+    ctx.slots.register({ id: 'dungsil-centered-hero', name: 'conversation.hero.frame' }, HeroFrame)
   )
 }

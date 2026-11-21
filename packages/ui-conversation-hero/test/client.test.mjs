@@ -51,7 +51,9 @@ await test('공식 슬롯이 준비되었을 때 프레임을 등록하고 해�
       register(entry, component) {
         options = entry
         Frame = component
-        return () => { released = true }
+        return () => {
+          released = true
+        }
       },
     },
   })
@@ -70,8 +72,13 @@ await test('새 대화에서만 카드 너비를 제한하고 입력창과 스�
   let Frame
   module.apply({
     slots: {
-      inject(_name, mount) { mount() },
-      register(_entry, component) { Frame = component; return () => {} },
+      inject(_name, mount) {
+        mount()
+      },
+      register(_entry, component) {
+        Frame = component
+        return () => {}
+      },
     },
   })
   const body = { type: 'scroll-body', props: { draft: '작성 중' } }
