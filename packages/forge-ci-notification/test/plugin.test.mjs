@@ -203,6 +203,20 @@ await test('지속 투영은 수락된 알림을 소비해도 기록하고 재�
   assert.deepEqual(after, state)
 })
 
+await test('출처가 없거나 중복 키가 잘못된 일반 메시지는 투영에서 제외한다', async () => {
+  const state = projection.apply(projection.init(), {
+    type: 'agent/inbox/spliced',
+    data: {
+      inserted: [
+        { content: [], source: undefined },
+        { content: [], source: { kind: 'forge-ci-notification', dedupKey: null } },
+        { content: [], source: { kind: 'another-source' } },
+      ],
+    },
+  })
+  assert.deepEqual(state.delivered, [])
+})
+
 await test('외부 PR 데이터는 JSON으로 이스케이프하고 길이를 제한한다', async () => {
   const checks = Array.from({ length: 21 }, () => ({
     state: 'failure',

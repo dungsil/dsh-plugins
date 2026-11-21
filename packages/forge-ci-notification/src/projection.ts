@@ -11,7 +11,7 @@ export const projection = {
       return state
     }
     const keys = event.data.inserted.flatMap(({ source }) =>
-      source.kind === 'forge-ci-notification' ? [source.dedupKey] : []
+      source?.kind === 'forge-ci-notification' && typeof source.dedupKey === 'string' ? [source.dedupKey] : []
     )
     const added = keys.filter((key) => !state.delivered.includes(key))
     // 소비·취소 뒤에도 수락된 알림은 남아 있어야 재시작 때 다시 깨우지 않는다.
