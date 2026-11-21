@@ -197,7 +197,7 @@ await test('외부 PR 데이터는 JSON으로 이스케이프하고 길이를 �
   const part = message.content[0]
   assert.equal(part.type, 'text')
   assert.match(part.text, /외부 PR 및 검사 데이터/u)
-  const payload = JSON.parse(part.text.slice(part.text.indexOf('{\\n')))
+  const payload = JSON.parse(part.text.slice(part.text.indexOf('{')))
   assert.equal(payload.title, hostile)
   assert.equal(payload.attacker, undefined)
   assert.equal(payload.failedChecks.length, 20)
