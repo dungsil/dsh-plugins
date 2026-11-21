@@ -13,7 +13,9 @@ export const Config = z.object({
   mode: z.union(['off', 'next-turn', 'wake']).default('off'),
 })
 export type DeliveryMode = 'off' | 'next-turn' | 'wake'
-export interface Config { readonly mode?: DeliveryMode }
+export interface Config {
+  readonly mode?: DeliveryMode
+}
 
 export const inject = ['agents', 'forgeSession', 'sessionProjections'] as const
 
