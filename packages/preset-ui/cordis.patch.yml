@@ -5,6 +5,8 @@
       name: '@dungsil/dsh-plugin-korean-ime'
     - id: dungsil-yoonmoon
       name: '@dungsil/dsh-plugin-yoonmoon'
+    - id: dungsil-ui-conversation-hero
+      name: '@dungsil/dsh-plugin-ui-conversation-hero'
     - id: dungsil-ui-forge-chip
       name: '@dungsil/dsh-plugin-ui-forge-chip'
       config: {}

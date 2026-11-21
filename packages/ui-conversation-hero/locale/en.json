@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Centered New Conversation",
+    "description": "Keep the empty conversation's composer at a readable width, without remounting the editor when the conversation starts."
+  }
+}
