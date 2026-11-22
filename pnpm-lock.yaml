@@ -378,12 +378,6 @@ importers:
 
   packages/forge-ci-notification:
     dependencies:
-      '@deepseek-ai/dsh-experimental-forge':
-        specifier: 0.2.2-rc.3
-        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
-      '@deepseek-ai/dsh-llm':
-        specifier: 0.2.2-rc.3
-        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-error@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))
       '@deepseek-ai/schemastery':
         specifier: 3.19.0
         version: 3.19.0
@@ -397,9 +391,15 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(cbef900d773c0d0ee336f7e4f4030cb2)
+      '@deepseek-ai/dsh-experimental-forge':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)
       '@deepseek-ai/dsh-experimental-forge-session':
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(f8f338338a1ac0b5e6cf92c0021c43e4)
+      '@deepseek-ai/dsh-llm':
+        specifier: 0.2.2-rc.3
+        version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-error@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))
       '@deepseek-ai/dsh-session':
         specifier: 0.2.2-rc.3
         version: 0.2.2-rc.3(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-error@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-scope@0.2.2-rc.3(@deepseek-ai/cordis@4.1.0))
@@ -412,6 +412,9 @@ importers:
       '@dungsil/dsh-tsdown':
         specifier: workspace:*
         version: link:../../tools/tsdown
+      semver:
+        specifier: 7.8.6
+        version: 7.8.6
       tsdown:
         specifier: 0.23.7
         version: 0.23.7(typescript@7.0.2)
