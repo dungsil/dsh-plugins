@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import Llm, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import SkillRegistry, { isModelInvocable, isUserInvocable, renderSkillContent } from '@deepseek-ai/dsh-skill'
+import Projections from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -24,6 +25,7 @@ await test('DSH는 여섯 스킬을 모두 찾아내고 제자리 재로드 시 
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(SkillRegistry)
@@ -85,6 +87,7 @@ await test('번들 지침은 우선순위가 더 높은 사용자 지정 스킬�
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(SkillRegistry)
@@ -109,6 +112,7 @@ await test('쓰기 도구는 선택된 모델과 입력만 사용하고 파이�
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(NativeToolExecutor)
@@ -257,6 +261,7 @@ await test('선택적 모델 설정 서비스는 나중에 연결되고 해제�
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(Llm)
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(NativeToolExecutor)

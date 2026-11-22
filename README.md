@@ -35,7 +35,7 @@ https://raw.githubusercontent.com/dungsil/dsh-plugins/main/market/index.json
 
 공식 `@deepseek-ai/dsh-experimental-forge-bundle`의 워크트리 설정은 [@dungsil/dsh-plugin-ui-setting-vcs](./packages/ui-setting-vcs)에서 관리합니다. 디렉터리와 이름 접두사는 한 번씩만 표시합니다. 변경 사항은 자동 저장하며 모델 도구와 Forge 패널에 공통으로 적용합니다. 기존 커밋 작성자·서명, 기본 체크아웃 선택, 추적 원격 브랜치, 시멘틱 이름 설정은 공식 번들에서 지원하지 않아 이전하지 않습니다. 보관 시 워크트리 삭제는 DSH `0.2.2-rc.2`부터 공식 번들이 기본으로 처리하므로 별도 설정이 없습니다. 세션을 보관하면 그 세션이 만든 깨끗한 워크트리를 정리하고 브랜치와 커밋은 유지합니다. 디렉터리는 저장소 아래의 상대 경로만 지원하며 기존 절대 경로나 상위 경로를 자동 변환하지 않습니다.
 
-`ui-forge-pulls`는 공식 Forge 패널에 없는 PR/MR 본문과 일반 댓글·리뷰 목록, 댓글·승인·변경 요청 작성만 제공합니다. CI 검사, 변경 파일과 diff, 병합, 세션 목록의 PR 상태 표시는 공식 Forge 패널을 사용합니다. GitLab·Gitea·Forgejo에서도 같은 기능을 쓰려면 해당 forge provider 플러그인을 함께 설치합니다.
+`ui-forge-pulls`는 공식 Forge 패널에 없는 PR/MR 본문과 일반 댓글·리뷰 목록, 댓글·승인·변경 요청 작성만 제공합니다. CI 검사, 변경 파일과 diff, 병합, 세션 목록의 PR 상태 표시는 공식 Forge 패널을 사용합니다. GitLab·Gitea·Forgejo에서도 같은 기능을 쓰려면 해당 forge provider 플러그인을 함께 설치합니다. DSH `0.2.3`부터는 공식 Forge 번들에 GitLab provider가 포함되므로 `forge-gitlab`은 DSH `0.2.2` 계열에서만 활성화됩니다.
 
 ## 대체된 패키지
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import { createScope } from '@deepseek-ai/dsh-scope'
+import Projections from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
 import { createPwshInstructionsAdapter } from '../dist/pwsh-adapter.js'
@@ -18,6 +19,7 @@ const definition = (description = 'Native pwsh instructions') => ({
 async function fixture(t) {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(Tools, {})
   let saved = null

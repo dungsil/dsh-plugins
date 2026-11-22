@@ -30,15 +30,15 @@
     "prepack": "pnpm build"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-config-editor": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.3",
-    "@deepseek-ai/schemastery": "3.19.0",
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-app-boot": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-config-editor": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-credentials-local": "0.2.3-alpha.2",
+    "@deepseek-ai/schemastery": "3.20.0-alpha.1",
     "@dungsil/dsh-plugin-server": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
@@ -51,10 +51,10 @@
     "tsdown": "0.23.7"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-client-connection": "^0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1",
-    "@deepseek-ai/dsh-config-editor": "^0.2.2-rc.1"
+    "@deepseek-ai/cordis": "^4.0.5 || ^4.2.0-alpha.1",
+    "@deepseek-ai/dsh-client-connection": "^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-config-editor": "^0.2.2-rc.1 || ^0.2.3-alpha.2"
   },
   "engines": {
     "dsh": "^0.2.2-rc.1",

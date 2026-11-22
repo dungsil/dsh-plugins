@@ -35,8 +35,8 @@
     "@dungsil/dsh-plugin-yoonmoon": "workspace:*"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.3-alpha.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "semver": "7.8.6",

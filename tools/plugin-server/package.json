@@ -13,7 +13,7 @@
     "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-connection": "0.2.3-alpha.2",
     "@dungsil/dsh-tsconfig": "workspace:*"
   }
 }

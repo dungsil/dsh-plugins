@@ -41,7 +41,7 @@ await test('실제 configEditor로 기본값을 저장하고 owner만 읽으며 
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   let ctx

@@ -80,7 +80,10 @@ function timestamp(value: unknown): string {
   return result
 }
 export class GiteaProvider implements ForgeProvider {
-  readonly hosts: Set<string>
+  readonly hosts: readonly string[]
+  readonly label: string
+  readonly changeRequestNoun = 'pull-request'
+  private readonly served: Set<string>
   constructor(
     readonly run: TeaRunner,
     hosts: readonly string[],
@@ -89,7 +92,8 @@ export class GiteaProvider implements ForgeProvider {
   ) {
     if (!hosts.length) throw new Error('hosts must list at least one host')
     if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes <= 0) throw new Error('Invalid output limit')
-    this.hosts = new Set(
+    this.label = forge === 'forgejo' ? 'Forgejo' : 'Gitea'
+    this.served = new Set(
       hosts.map((host) => {
         const url = new URL(`https://${host}`)
         if (
@@ -104,6 +108,7 @@ export class GiteaProvider implements ForgeProvider {
         return url.host
       })
     )
+    this.hosts = [...this.served]
   }
   repositoryFromRemote(raw: string): ForgeRepository | undefined {
     try {
@@ -117,7 +122,7 @@ export class GiteaProvider implements ForgeProvider {
         .replace(/\/$/, '')
         .replace(/\.git$/, '')
         .split('/')
-      if (!this.hosts.has(host) || parts.length !== 2 || !parts.every(segment)) return
+      if (!this.served.has(host) || parts.length !== 2 || !parts.every(segment)) return
       return { forge: this.forge, host, owner: parts[0]!, name: parts[1]! }
     } catch {
       return
@@ -132,7 +137,7 @@ export class GiteaProvider implements ForgeProvider {
         !match ||
         !segment(match[1]!) ||
         !segment(match[2]!) ||
-        !this.hosts.has(url.host) ||
+        !this.served.has(url.host) ||
         !Number.isSafeInteger(Number(match[3]))
       )
         return
@@ -147,7 +152,7 @@ export class GiteaProvider implements ForgeProvider {
   private check(repository: ForgeRepository) {
     if (
       repository.forge !== this.forge ||
-      !this.hosts.has(repository.host) ||
+      !this.served.has(repository.host) ||
       !segment(repository.owner) ||
       !segment(repository.name)
     )
@@ -171,7 +176,7 @@ export class GiteaProvider implements ForgeProvider {
     body?: unknown
   ): Promise<string> {
     signal.throwIfAborted()
-    if (!this.hosts.has(host)) throw new Failure('unavailable', 'Host is not configured')
+    if (!this.served.has(host)) throw new Failure('unavailable', 'Host is not configured')
     const logins = await this.run(['login', 'list', '--output', 'json'], signal)
     if (Buffer.byteLength(logins.stdout) + Buffer.byteLength(logins.stderr) > this.maxOutputBytes)
       throw new Failure('too-large', 'tea login list exceeds maxOutputBytes')
@@ -364,12 +369,14 @@ export class GiteaProvider implements ForgeProvider {
   async readiness(host: string, signal: AbortSignal) {
     try {
       object(await this.json(host, 'user', signal))
-      return { state: 'ready' as const, message: null }
+      return { state: 'ready' as const, message: null, signIn: null }
     } catch (error) {
       const failure = this.failure(error, signal)
+      const unauthenticated = failure.code === 'unauthenticated'
       return {
-        state: failure.code === 'unauthenticated' ? ('unauthenticated' as const) : ('unavailable' as const),
+        state: unauthenticated ? ('unauthenticated' as const) : ('unavailable' as const),
         message: failure.message,
+        signIn: unauthenticated ? { command: `tea login add --url https://${host}` } : null,
       }
     }
   }

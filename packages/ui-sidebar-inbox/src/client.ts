@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session-status/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { WorkspaceBrowserProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { placeSessions, type Placement } from './inbox.js'
@@ -67,6 +68,12 @@ function writePreviousSort(mode: NativeSort) {
 
 /** Keep native React rows, search, menus, selection and keyboard order intact. */
 export function apply(ctx: Context) {
+  // DSH 0.2.2 keeps the status table on uiSession; 0.2.3 provides it as the uiSession.sessionStatus service.
+  if ('sessionStatus' in ctx.uiSession) install(ctx)
+  else ctx.inject(['uiSession.sessionStatus'], install)
+}
+
+function install(ctx: Context) {
   // Ship dictionaries independently of separately installed language packs.
   for (const [language, dictionary] of Object.entries(dictionaries)) {
     ctx.effect(() => ctx.locale.register(NS, language, dictionary), `sidebar-inbox: ${language} copy`)

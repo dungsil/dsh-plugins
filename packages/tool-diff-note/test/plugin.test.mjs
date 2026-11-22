@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Context } from '@deepseek-ai/cordis'
+import Projections from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -14,6 +15,7 @@ import * as plugin from '../dist/index.js'
 await test('도구 런타임을 통해 추가와 삭제를 포함한 정확한 과거 조각과 근거를 기록한다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(NativeToolExecutor)
@@ -69,14 +71,20 @@ await test('도구 런타임을 통해 추가와 삭제를 포함한 정확한 �
 await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 해제와 재로드 후에도 중복하지 않는다', async (t) => {
   const ctx = new Context()
   t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(NativeToolExecutor)
-  const baseline = await ctx.systemPrompt.assemble()
+  // DSH 0.2.3 adds a fresh `systemUpdates` callback to every assembly, so compare the prompt data only.
+  const assemble = async () => {
+    const { systemUpdates: _, ...prompt } = await ctx.systemPrompt.assemble()
+    return prompt
+  }
+  const baseline = await assemble()
   const fork = ctx.plugin(plugin)
   await fork
 
-  const assembled = await ctx.systemPrompt.assemble()
+  const assembled = await assemble()
   const sections = assembled.sections.filter((section) => section.name === 'dungsil:diff-note')
   assert.equal(sections.length, 1)
   const text = sections[0].text
@@ -98,14 +106,14 @@ await test('최종 답변 직전 사용 지침과 도구 설명을 등록하고 
   assert.match(schema.parameters.properties.note.description, /conversation language/u)
 
   await fork.dispose()
-  assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
+  assert.deepEqual(await assemble(), baseline)
   assert.equal(ctx.tools.get('diff_note'), undefined)
   const reloaded = ctx.plugin(plugin)
   await reloaded
-  assert.deepEqual(await ctx.systemPrompt.assemble(), assembled)
+  assert.deepEqual(await assemble(), assembled)
   assert.equal(ctx.tools.schemas().filter((tool) => tool.name === 'diff_note').length, 1)
   await reloaded.dispose()
-  assert.deepEqual(await ctx.systemPrompt.assemble(), baseline)
+  assert.deepEqual(await assemble(), baseline)
 })
 
 await test('모든 지원 로케일에 같은 키와 비어 있지 않은 차이 카드 번역이 있다', async () => {

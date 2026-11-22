@@ -33,16 +33,16 @@
     "execa": "10.2.1"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.3",
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-subprocess": "0.2.3-alpha.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "tsdown": "0.23.7"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.1.0",
-    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5",
-    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5"
+    "@deepseek-ai/cordis": "~4.1.0 || ~4.2.0-alpha.1",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5 || 0.2.3-alpha.2",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5 || 0.2.3-alpha.2"
   },
   "engines": {
     "dsh": "^0.2.2-rc.1",

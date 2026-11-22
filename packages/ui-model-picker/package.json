@@ -32,16 +32,16 @@
     "prepack": "pnpm build"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-shortcuts": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-store": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-conversation": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-model-selection": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-session": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.3",
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-shortcuts": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-store": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-model-selection": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.3-alpha.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "@dungsil/dsh-ui": "workspace:*",
@@ -53,7 +53,7 @@
     "tsdown": "0.23.7"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.1-rc.5 || ^0.2.2-rc.1 || ^0.2.3-alpha.2"
   },
   "engines": {
     "dsh": "^0.2.2-rc.1",

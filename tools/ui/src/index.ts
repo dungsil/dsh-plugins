@@ -3,6 +3,7 @@ export { ButtonPicker } from './button-picker.js'
 export { PluginPage } from './page.js'
 export { pageStyles } from './page-styles.js'
 export { AnnotatedDiffBlock, annotatedDiffStyles } from './annotated-diff.js'
+export { rankByName } from './rank-by-name.js'
 
 // Keep upstream primitives behind this facade without changing their props or identity.
 export {
@@ -31,7 +32,6 @@ export {
   Tooltip,
   focusWithoutRing,
   isMobileDevice,
-  rankByName,
   useDismissOnOutsidePointer,
   useMarkdownDelegate,
   writeClipboard,

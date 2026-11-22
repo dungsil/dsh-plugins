@@ -5,6 +5,7 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import SkillRegistry, { isModelInvocable, isUserInvocable, renderSkillContent } from '@deepseek-ai/dsh-skill'
 import * as SkillFilesystem from '@deepseek-ai/dsh-skill-filesystem'
+import Projections from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as plugin from '../dist/index.js'
 
@@ -13,6 +14,7 @@ await test('제자리 재로드 후에도 프롬프트마다 규칙을 한 번�
   t.after(() => ctx.fiber.dispose())
   await ctx.plugin(SkillRegistry)
   await ctx.plugin(SkillFilesystem, { includeDefaultRoots: false, watch: false })
+  await ctx.plugin(Projections)
   await ctx.plugin(SystemPrompt, { personaPrefix: 'Existing deployment instructions.' })
   assert.deepEqual(await ctx.skills.list(), [])
   const baseline = renderPrompt(await ctx.systemPrompt.assemble())

@@ -55,9 +55,12 @@ await test('설치 메타데이터는 세 언어로 market과 일치하고 이�
   assert.equal(manifest.exports['./locale/*.json'], './locale/*.json')
   assert.equal(
     manifest.peerDependencies['@deepseek-ai/dsh-experimental-forge'],
-    '0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5'
+    '0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5 || 0.2.3-alpha.2'
   )
-  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-subprocess'], '0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5')
+  assert.equal(
+    manifest.peerDependencies['@deepseek-ai/dsh-subprocess'],
+    '0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5 || 0.2.3-alpha.2'
+  )
   for (const language of ['en', 'ko', 'zh']) {
     const locale = JSON.parse(await readFile(new URL(`../locale/${language}.json`, import.meta.url), 'utf8'))
     assert.deepEqual(locale, {
@@ -82,6 +85,9 @@ await test('플러그인은 공식 forge 서비스만 주입하고 독립 family
     config
   )
   assert.equal(registered.forge, family)
+  assert.equal(registered.label, family === 'forgejo' ? 'Forgejo' : 'Gitea')
+  assert.equal(registered.changeRequestNoun, 'pull-request')
+  assert.deepEqual(registered.hosts, [host])
   assert.equal(manifest.dsh.client, undefined)
   assert.equal(manifest.exports['./client'], undefined)
   assert.ok(!Object.keys(manifest.devDependencies).some((key) => /ui-vcs|react|client-ui/.test(key)))
@@ -151,7 +157,9 @@ await test('fetch는 실제 계약의 snapshot과 검사 결과를 정규화하�
 
 await test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호한 로그인은 요청하지 않는다', async () => {
   const denied = mock(() => ({ message: 'denied' }), { status: 401 })
-  assert.equal((await denied.provider.readiness(host, signal())).state, 'unauthenticated')
+  const status = await denied.provider.readiness(host, signal())
+  assert.equal(status.state, 'unauthenticated')
+  assert.deepEqual(status.signIn, { command: `tea login add --url https://${host}` })
   const ambiguous = mock(undefined, {
     logins: [
       { name: 'a', url: `https://${host}` },
@@ -160,7 +168,9 @@ await test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호�
   })
   assert.equal((await ambiguous.provider.readiness(host, signal())).state, 'unauthenticated')
   assert.ok(!ambiguous.calls.some(({ args }) => args[0] === 'api'))
-  assert.equal((await mock().provider.readiness('unconfigured.example', signal())).state, 'unavailable')
+  const unconfigured = await mock().provider.readiness('unconfigured.example', signal())
+  assert.equal(unconfigured.state, 'unavailable')
+  assert.equal(unconfigured.signIn, null)
 })
 
 await test('잘못된 JSON과 snapshot 및 초과 출력은 성공으로 정규화하지 않는다', async () => {

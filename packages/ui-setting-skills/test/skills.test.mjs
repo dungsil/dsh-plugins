@@ -74,7 +74,7 @@ async function fixture(t, withRegistry = false) {
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home: dsh,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   const start = async () => {

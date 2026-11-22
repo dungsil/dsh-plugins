@@ -52,12 +52,6 @@ async function mount(
       React.createElement('span', { className }, React.createElement('input', { ...props, ref }))
     ),
     isMobileDevice: () => mobile,
-    rankByName: (items, query) =>
-      items.filter(({ name }) => {
-        let at = 0
-        for (const char of name.toLowerCase()) if (char === query.toLowerCase()[at]) at++
-        return at === query.length
-      }),
     MenuSurface: React.forwardRef((props, ref) => React.createElement('div', { ...props, ref })),
     focusWithoutRing: (element) => element.focus(),
     useDismissOnOutsidePointer() {},

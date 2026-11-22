@@ -16,7 +16,13 @@ const source = stripTypeScriptTypes(await readFile(new URL('../src/client.ts', i
 const previousKey = 'dungsil.sidebar-inbox.sort.v1'
 const selectedKey = 'dungsil.sidebar-inbox.selected-sort.v1'
 
-function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denied = false } = {}) {
+function harness({
+  saved = [],
+  orderBy = 'updated',
+  groupBy = 'workspace',
+  denied = false,
+  statusService = false,
+} = {}) {
   const storage = new Map(saved)
   let viewWrites = 0
   let storageWrites = 0
@@ -78,9 +84,12 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
       return () => dataListeners.delete(listener)
     },
   })
+  let provideStatus
   const ctx = {
     effect: (callback) => callback(),
-    inject: () => {},
+    inject: (deps, callback) => {
+      if (deps.includes('uiSession.sessionStatus')) provideStatus = () => callback({ ...ctx, uiSession: status })
+    },
     locale: {
       register() {},
       bind: () => (key) => key,
@@ -95,10 +104,12 @@ function harness({ saved = [], orderBy = 'updated', groupBy = 'workspace', denie
     },
     sessions: { list: store({ phase: 'ready' }) },
     workspaces: { list: store({ phase: 'ready', pinnedSessionIds: [], archivedSessionIds: [] }) },
-    uiSession: { sessionStatus: store(new Map()) },
   }
+  const status = { sessionStatus: store(new Map()) }
+  ctx.uiSession = statusService ? {} : status
   context.apply(ctx)
   return {
+    provideStatus: () => provideStatus(),
     storage,
     mount: () => mount(),
     snapshot: () => snapshot,
@@ -237,6 +248,15 @@ await test('세션과 에이전트 상태가 갱신되어도 선택한 에이전
   const app = harness()
   app.mount()
   app.refresh()
+  app.refresh()
+  assert.equal(app.snapshot().orderBy, 'agent-activity')
+})
+
+await test('세션 상태가 별도 서비스인 DSH 0.2.3에서는 서비스가 제공된 뒤에만 정렬을 설치한다', () => {
+  const app = harness({ statusService: true })
+  assert.throws(() => app.mount())
+  app.provideStatus()
+  app.mount()
   app.refresh()
   assert.equal(app.snapshot().orderBy, 'agent-activity')
 })
