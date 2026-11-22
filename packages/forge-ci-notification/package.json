@@ -42,7 +42,7 @@
     "@deepseek-ai/dsh-session-projection": "0.2.2-rc.3",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
-    "tsdown": "0.23.4"
+    "tsdown": "0.23.7"
   },
   "engines": {
     "dsh": "^0.2.2-rc.3",
