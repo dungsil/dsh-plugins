@@ -59,7 +59,7 @@
     "@dungsil/dsh-task-prompts": "workspace:*",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
-    "tsdown": "0.23.4"
+    "tsdown": "0.23.7"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.1.0",

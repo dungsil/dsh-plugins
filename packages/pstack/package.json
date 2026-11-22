@@ -41,7 +41,7 @@
     "@deepseek-ai/dsh-skill-filesystem": "0.2.2-rc.3",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
-    "tsdown": "0.23.4"
+    "tsdown": "0.23.7"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
