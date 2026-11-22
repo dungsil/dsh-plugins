@@ -8,6 +8,7 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import Llm, { LlmAdapter } from '@deepseek-ai/dsh-llm'
+import Projections from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
 import * as plugin from '../dist/index.js'
@@ -58,7 +59,7 @@ async function fixture(t, { enabled = true, duplicate = false, withSystemPrompt 
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   const registrations = new Map()
@@ -143,6 +144,7 @@ async function fixture(t, { enabled = true, duplicate = false, withSystemPrompt 
     await root.plugin(Connection)
     await root.plugin(Llm)
     if (withSystemPrompt) {
+      await root.plugin(Projections)
       await root.plugin(SystemPrompt)
       await root.plugin(Tools, {})
       root.tools.setExecutor({

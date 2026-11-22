@@ -140,7 +140,7 @@ export async function profileFixture(
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   let ctx
@@ -171,6 +171,7 @@ export async function profileFixture(
       await root.plugin(LocalCredentialProvider, { path: join(home, 'credentials.yaml'), watch: false })
       await root.plugin(Connection)
       await root.plugin(Llm)
+      await root.plugin(Projections)
       if (yoonmoonConfig) {
         await root.plugin(Skills)
         await root.plugin(SystemPrompt)
@@ -178,7 +179,6 @@ export async function profileFixture(
         await root.plugin(NativeToolExecutor)
       }
       await root.plugin(Sessions)
-      await root.plugin(Projections)
       await root.plugin(AgentRegistry)
       if (yoonmoonConfig) harness = await mountAgentLoopTestHarness(root)
       await root.plugin(Titles, { fallbackMaxWords: 5, fallbackMaxBytes: 40, maxTitleBytes: 80 })

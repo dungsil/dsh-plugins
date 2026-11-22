@@ -5,6 +5,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session-status/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -251,6 +252,12 @@ interface IconSlots {
 }
 
 export function apply(ctx: Context) {
+  // DSH 0.2.2 keeps the status table on uiSession; 0.2.3 provides it as the uiSession.sessionStatus service.
+  if ('sessionStatus' in ctx.uiSession) install(ctx)
+  else ctx.inject(['uiSession.sessionStatus'], install)
+}
+
+function install(ctx: Context) {
   const endpoint = endpointOf(document.baseURI)
   const preferences = createPreferenceStore({
     key: scopedName(endpoint, 'preferences'),

@@ -193,7 +193,7 @@ async function fixture(t) {
     startedBundles: ['fixture-bundle'],
     patchPath: join(dir, 'cordis.patch.yml'),
     installAnchor: join(home, 'package.json'),
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   let ctx

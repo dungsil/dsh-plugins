@@ -1,5 +1,5 @@
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session-status/client'
 
 /** Sections render top to bottom; only Working and Archived get labels. */
 export type Section = 'Pinned' | 'Inbox' | 'Working' | 'Archived' | 'Snoozed'

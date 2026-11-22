@@ -302,7 +302,7 @@ await test('실제 configEditor로 선택 엔트리만 영속 저장하고 재�
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   let ctx

@@ -33,22 +33,22 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-agent": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-experimental-forge-session": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-llm": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-session": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-session-projection": "0.2.2-rc.3",
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-agent": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-experimental-forge-session": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-llm": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.3-alpha.2",
     "@dungsil/dsh-tsconfig": "workspace:*",
     "@dungsil/dsh-tsdown": "workspace:*",
     "semver": "7.8.6",
     "tsdown": "0.23.7"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.1.0",
-    "@deepseek-ai/dsh-experimental-forge": "^0.2.2-rc.3",
-    "@deepseek-ai/dsh-llm": "^0.2.2-rc.3"
+    "@deepseek-ai/cordis": "^4.1.0 || ^4.2.0-alpha.1",
+    "@deepseek-ai/dsh-experimental-forge": "^0.2.2-rc.3 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-llm": "^0.2.2-rc.3 || ^0.2.3-alpha.2"
   },
   "engines": {
     "dsh": "^0.2.2-rc.3",

@@ -6,7 +6,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dungsil/dsh-plugins.git",
-    "directory": "packages/forge-gitlab"
+    "directory": "deprecated/forge-gitlab"
   },
   "files": [
     "dist",
@@ -37,6 +37,7 @@
     "@deepseek-ai/dsh-experimental-forge": "0.2.2-rc.3",
     "@deepseek-ai/dsh-subprocess": "0.2.2-rc.3",
     "@dungsil/dsh-tsconfig": "workspace:*",
+    "semver": "7.8.6",
     "tsdown": "0.23.7"
   },
   "peerDependencies": {
@@ -45,7 +46,7 @@
     "@deepseek-ai/dsh-subprocess": "0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5"
   },
   "engines": {
-    "dsh": "^0.2.2-rc.1",
+    "dsh": ">=0.2.2-rc.1 <0.2.3-0",
     "node": ">=24.9.0"
   },
   "dsh": {
@@ -53,27 +54,5 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "market": {
-    "order": 11.1,
-    "title": {
-      "en": "GitLab",
-      "ko": "GitLab",
-      "zh": "GitLab"
-    },
-    "description": {
-      "en": "GitLab provider for the DSH experimental forge registry, using glab on the host.",
-      "ko": "호스트의 glab CLI로 GitLab MR을 읽고 공식 forge registry에 제공합니다. 별도 UI는 추가하지 않습니다.",
-      "zh": "通过主机上的 glab CLI 为官方 forge registry 提供 GitLab MR，不添加独立界面。"
-    },
-    "category": "tools",
-    "labels": [],
-    "keywords": [
-      "gitlab",
-      "forge",
-      "provider",
-      "mr",
-      "glab",
-      "self-hosted"
-    ]
-  }
+  "market": false
 }
