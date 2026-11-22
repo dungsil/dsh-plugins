@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-tool-working-directory",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Readable working-directory tool call cards for DeepSeek Harness.",
   "license": "MIT",
   "repository": {

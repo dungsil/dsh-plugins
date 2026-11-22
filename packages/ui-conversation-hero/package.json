@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-conversation-hero",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Limit the blank conversation composer to a centered, readable width without altering active chat.",
   "license": "MIT",
   "repository": {

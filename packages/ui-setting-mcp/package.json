@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-setting-mcp",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "MCP server settings and runtime status for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
