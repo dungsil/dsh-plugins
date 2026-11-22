@@ -45,6 +45,12 @@ class Failure extends Error {
     super(message)
   }
 }
+/** Several or unusable tea logins for one host, which adding another login does not fix. */
+class AmbiguousLogin extends Failure {
+  constructor() {
+    super('unauthenticated', 'Configure exactly one tea login for this HTTPS host')
+  }
+}
 function responseMessage(stdout: string, status: number): string {
   let message = ''
   try {
@@ -196,13 +202,14 @@ export class GiteaProvider implements ForgeProvider {
         return false
       }
     })
+    if (!matches.length) throw new Failure('unauthenticated', 'Configure exactly one tea login for this HTTPS host')
     if (
-      matches.length !== 1 ||
+      matches.length > 1 ||
       typeof matches[0].name !== 'string' ||
       !matches[0].name ||
       matches[0].name.startsWith('-')
     )
-      throw new Failure('unauthenticated', 'Configure exactly one tea login for this HTTPS host')
+      throw new AmbiguousLogin()
     const result = await this.run(
       [
         'api',
@@ -376,7 +383,11 @@ export class GiteaProvider implements ForgeProvider {
       return {
         state: unauthenticated ? ('unauthenticated' as const) : ('unavailable' as const),
         message: failure.message,
-        signIn: unauthenticated ? { command: `tea login add --url https://${host}` } : null,
+        // Another login cannot resolve duplicate or unusable logins, so only a missing or rejected one gets the command.
+        signIn:
+          unauthenticated && !(error instanceof AmbiguousLogin)
+            ? { command: `tea login add --url https://${host}` }
+            : null,
       }
     }
   }

@@ -155,7 +155,7 @@ await test('fetch는 실제 계약의 snapshot과 검사 결과를 정규화하�
   }
 })
 
-await test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호한 로그인은 요청하지 않는다', async () => {
+await test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호한 로그인은 요청하지 않으며 로그인 추가 명령도 안내하지 않는다', async () => {
   const denied = mock(() => ({ message: 'denied' }), { status: 401 })
   const status = await denied.provider.readiness(host, signal())
   assert.equal(status.state, 'unauthenticated')
@@ -166,7 +166,12 @@ await test('HTTP 오류가 exit 0이어도 인증 실패로 분류하고 모호�
       { name: 'b', url: `https://${host}` },
     ],
   })
-  assert.equal((await ambiguous.provider.readiness(host, signal())).state, 'unauthenticated')
+  const ambiguousStatus = await ambiguous.provider.readiness(host, signal())
+  assert.equal(ambiguousStatus.state, 'unauthenticated')
+  assert.equal(ambiguousStatus.signIn, null)
+  const missing = await mock(undefined, { logins: [] }).provider.readiness(host, signal())
+  assert.equal(missing.state, 'unauthenticated')
+  assert.deepEqual(missing.signIn, { command: `tea login add --url https://${host}` })
   assert.ok(!ambiguous.calls.some(({ args }) => args[0] === 'api'))
   const unconfigured = await mock().provider.readiness('unconfigured.example', signal())
   assert.equal(unconfigured.state, 'unavailable')
