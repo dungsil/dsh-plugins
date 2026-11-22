@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-token-usage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Show conversation token counts in readable compact units with the exact count.",
   "license": "MIT",
   "repository": {

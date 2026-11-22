@@ -1,5 +1,7 @@
 # @dungsil/dsh-preset-tools
 
+## [0.2.4](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-tools%400.2.3...%40dungsil%2Fdsh-preset-tools%400.2.4) (2026-11-22)
+
 ## [0.2.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-tools%400.2.2...%40dungsil%2Fdsh-preset-tools%400.2.3) (2026-11-17)
 
 ## [0.2.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-tools%400.2.1...%40dungsil%2Fdsh-preset-tools%400.2.2) (2026-11-17)

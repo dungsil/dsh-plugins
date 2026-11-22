@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-setting-vcs",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Configure Git worktree and forge panel defaults in DeepSeek Harness settings.",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,12 @@
 # @dungsil/dsh-preset-ui
 
+## [0.5.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.4.0...%40dungsil%2Fdsh-preset-ui%400.5.0) (2026-11-22)
+
+### Features
+
+- **mcp:** MCP 서버 설정 UI를 백포트한다 ([#258](https://github.com/dungsil/dsh-plugins/issues/258)) ([f2ee459](https://github.com/dungsil/dsh-plugins/commit/f2ee45996c35e99aff54be9d6ff92ba552b720c3))
+- **ui:** 새 대화 입력창 너비 제한 플러그인을 백포트한다 ([#260](https://github.com/dungsil/dsh-plugins/issues/260)) ([b084d4e](https://github.com/dungsil/dsh-plugins/commit/b084d4ea891d092e0d1798820996c6a2d2c5642d))
+
 ## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-preset-ui%400.3.2...%40dungsil%2Fdsh-preset-ui%400.4.0) (2026-11-17)
 
 ### Features

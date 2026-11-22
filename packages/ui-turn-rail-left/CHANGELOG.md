@@ -1,5 +1,11 @@
 # @dungsil/dsh-plugin-ui-turn-rail-left
 
+## [0.4.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.3.2...%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.4.0) (2026-11-22)
+
+### Features
+
+- **compat:** DSH 0.2.3-alpha.2를 지원하고 0.2.2 rc 호환을 유지한다 ([#263](https://github.com/dungsil/dsh-plugins/issues/263)) ([48abf1a](https://github.com/dungsil/dsh-plugins/commit/48abf1a97094314917348e0fc7fdef122c180bf8))
+
 ## [0.3.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.3.1...%40dungsil%2Fdsh-plugin-ui-turn-rail-left%400.3.2) (2026-11-17)
 
 - feat(ui-forge-chip): Git 칩에 단축키와 키보드 이동, 세션 상태 캐시를 추가한다 (#247) (9667c48)

@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-forge-ci-notification",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Optional, deduplicated CI failure notices to agents for linked Forge pull requests.",
   "license": "MIT",
   "repository": {

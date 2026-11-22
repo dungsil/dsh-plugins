@@ -1,5 +1,15 @@
 # @dungsil/dsh-plugin-forge-gitea
 
+## [0.2.0](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-forge-gitea%400.1.3...%40dungsil%2Fdsh-plugin-forge-gitea%400.2.0) (2026-11-22)
+
+### Features
+
+- **compat:** DSH 0.2.3-alpha.2를 지원하고 0.2.2 rc 호환을 유지한다 ([#263](https://github.com/dungsil/dsh-plugins/issues/263)) ([48abf1a](https://github.com/dungsil/dsh-plugins/commit/48abf1a97094314917348e0fc7fdef122c180bf8))
+
+### Bug Fixes
+
+- **forge:** DSH 0.2.2-rc.4와 rc.5를 peer 호환 버전에 추가한다 ([#256](https://github.com/dungsil/dsh-plugins/issues/256)) ([e06bb19](https://github.com/dungsil/dsh-plugins/commit/e06bb19d2a76717e6206ca23246366e73a089457))
+
 ## [0.1.3](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-forge-gitea%400.1.2...%40dungsil%2Fdsh-plugin-forge-gitea%400.1.3) (2026-11-17)
 
 ## [0.1.2](https://github.com/dungsil/dsh-plugins/compare/%40dungsil%2Fdsh-plugin-forge-gitea%400.1.1...%40dungsil%2Fdsh-plugin-forge-gitea%400.1.2) (2026-11-17)

@@ -131,6 +131,16 @@
       },
       "versions": [
         {
+          "version": "0.2.4",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.3",
           "publishTimestamp": 1794924047,
           "source": {
@@ -248,6 +258,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.4.0",
           "publishTimestamp": 1794924047,
@@ -376,6 +396,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.10.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.9.2",
           "publishTimestamp": 1794924047,
@@ -575,6 +605,16 @@
       },
       "versions": [
         {
+          "version": "0.6.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.2 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.5.3",
           "publishTimestamp": 1794924047,
           "source": {
@@ -702,6 +742,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.8.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.7.2",
           "publishTimestamp": 1794924047,
@@ -841,6 +891,16 @@
       },
       "versions": [
         {
+          "version": "0.6.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.5.3",
           "publishTimestamp": 1794924047,
           "source": {
@@ -969,6 +1029,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -1036,6 +1106,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.4.2",
           "publishTimestamp": 1794924047,
@@ -1165,6 +1245,16 @@
       },
       "versions": [
         {
+          "version": "0.4.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.3.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -1273,6 +1363,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1794924047,
           "source": {
@@ -1280,6 +1380,42 @@
           },
           "engines": {
             "dsh": "^0.2.2-rc.1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "@dungsil/dsh-plugin-ui-tool-working-directory",
+      "title": {
+        "en": "Working directory tool view",
+        "ko": "작업 폴더 도구 표시",
+        "zh": "工作目录工具视图"
+      },
+      "description": {
+        "en": "Show working-directory changes and lookups with clear status and inspectable input/output.",
+        "ko": "작업 폴더 확인·변경 도구를 상태와 입력·결과를 확인할 수 있는 전용 행으로 표시합니다.",
+        "zh": "以专用视图显示工作目录的查看和更改操作，并保留状态、输入和输出。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-tool-working-directory"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["working-directory", "tools", "tool-view", "cwd"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
           }
         }
       ]
@@ -1320,6 +1456,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.10.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.9.2",
           "publishTimestamp": 1794924047,
@@ -1479,6 +1625,16 @@
       },
       "versions": [
         {
+          "version": "0.7.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
+        {
           "version": "0.6.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -1581,6 +1737,54 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-setting-mcp",
+      "title": {
+        "en": "MCP Server Settings",
+        "ko": "MCP 서버 설정",
+        "zh": "MCP 服务器设置",
+        "ja": "MCP Server Settings",
+        "es": "MCP Server Settings",
+        "fr": "MCP Server Settings",
+        "de": "MCP Server Settings",
+        "pt": "MCP Server Settings",
+        "ru": "MCP Server Settings"
+      },
+      "description": {
+        "en": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+        "ko": "MCP 서버 설정 페이지를 추가합니다. 서버 설정 편집, 실시간 연결 상태, 저장된 설정 테스트와 재시작을 제공합니다.",
+        "zh": "管理 MCP 服务器的配置、连接状态、测试和重启。",
+        "ja": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+        "es": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+        "fr": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+        "de": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+        "pt": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls.",
+        "ru": "Adds an MCP servers settings page with configuration editing, live connection status, saved-configuration tests, and restart controls."
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-setting-mcp"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["mcp", "settings", "servers", "connection"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-setting-vcs",
       "title": {
         "en": "VCS settings",
@@ -1604,6 +1808,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.3.2",
           "publishTimestamp": 1794924047,
@@ -1682,6 +1896,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.4.2",
           "publishTimestamp": 1794924047,
@@ -1785,6 +2009,42 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-ui-conversation-hero",
+      "title": {
+        "en": "Centered New Conversation",
+        "ko": "새 대화 중앙 배치",
+        "zh": "新会话居中布局"
+      },
+      "description": {
+        "en": "Keep the empty conversation's composer at a readable width, without remounting the editor when the conversation starts.",
+        "ko": "새 대화의 입력창 너비를 읽기 편하게 제한하고 첫 메시지 전송 시 입력창을 다시 생성하지 않습니다.",
+        "zh": "限制空白会话输入框的最大宽度，在开始对话时保留原有输入框。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/ui-conversation-hero"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "ui",
+        "keywords": ["conversation", "hero", "composer", "layout", "width"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-forge-worktree",
       "title": {
         "en": "Worktree picker",
@@ -1820,6 +2080,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
         {
           "version": "0.2.2",
           "publishTimestamp": 1794924047,
@@ -1898,6 +2168,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.6.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.5.0",
           "publishTimestamp": 1794924047,
@@ -2057,6 +2337,16 @@
       },
       "versions": [
         {
+          "version": "0.4.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.3.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2153,6 +2443,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.3",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2218,6 +2518,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.1.3",
           "publishTimestamp": 1794924047,
@@ -2297,6 +2607,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2374,6 +2694,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.6.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.5.2",
           "publishTimestamp": 1794924047,
@@ -2513,6 +2843,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.1-rc.5 || ^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2609,6 +2949,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.2.2",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2651,6 +3001,42 @@
       ]
     },
     {
+      "name": "@dungsil/dsh-plugin-forge-ci-notification",
+      "title": {
+        "en": "Forge CI failure notifications",
+        "ko": "Forge CI 실패 알림",
+        "zh": "Forge CI 失败通知"
+      },
+      "description": {
+        "en": "Optionally notify the active agent about failures in linked PR/MR checks, with durable deduplication and configurable wake behavior.",
+        "ko": "연결된 PR/MR의 CI 실패를 에이전트의 다음 턴에 알리며, 중복 방지와 깨우기 여부를 설정할 수 있습니다.",
+        "zh": "可选地向当前智能体报告关联 PR/MR 的 CI 检查失败，支持持久去重和可配置的唤醒行为。"
+      },
+      "repository": {
+        "url": "https://github.com/dungsil/dsh-plugins",
+        "directory": "packages/forge-ci-notification"
+      },
+      "author": "dungsil",
+      "metadata": {
+        "category": "tools",
+        "keywords": ["forge", "ci", "pull-request", "merge-request", "notification", "agent"],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        }
+      ]
+    },
+    {
       "name": "@dungsil/dsh-plugin-ui-image-paths",
       "title": {
         "en": "Image Paths",
@@ -2674,6 +3060,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.2.3",
           "publishTimestamp": 1794924047,
@@ -2753,6 +3149,16 @@
       },
       "versions": [
         {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2789,6 +3195,16 @@
       },
       "versions": [
         {
+          "version": "0.3.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.3"
+          }
+        },
+        {
           "version": "0.2.0",
           "publishTimestamp": 1794924047,
           "source": {
@@ -2824,6 +3240,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.1"
+          }
+        },
         {
           "version": "0.1.0",
           "publishTimestamp": 1794924047,
@@ -2872,6 +3298,16 @@
         "sortKeys": {}
       },
       "versions": [
+        {
+          "version": "0.4.0",
+          "publishTimestamp": 1795358769,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "^0.2.2-rc.2"
+          }
+        },
         {
           "version": "0.3.0",
           "publishTimestamp": 1794924047,

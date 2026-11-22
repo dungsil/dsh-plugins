@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-image-paths",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Resolve Markdown images against each message's recorded working directory.",
   "license": "MIT",
   "repository": {

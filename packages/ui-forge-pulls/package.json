@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-forge-pulls",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "PR/MR descriptions, comments and reviews for DeepSeek Harness.",
   "license": "MIT",
   "repository": {

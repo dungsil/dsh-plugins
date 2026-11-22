@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-ui-answer-translation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Translate one foreign-language answer paragraph on demand with the official translation service.",
   "license": "MIT",
   "repository": {
