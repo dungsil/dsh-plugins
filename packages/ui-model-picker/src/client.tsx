@@ -280,7 +280,8 @@ export function apply(ctx: Context) {
         row.style.display = display
         row.disabled = false
       }
-    })
+      // The official row only exists while the current model supports reasoning.
+    }, [reasoning !== undefined])
 
     useLayoutEffect(() => {
       const menu = root.current?.closest<HTMLElement>('[data-model-menu]')
