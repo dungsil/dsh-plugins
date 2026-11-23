@@ -1,0 +1,85 @@
+{
+  "name": "@dungsil/dsh-plugin-forge-merge-archive",
+  "version": "0.1.0",
+  "description": "Archive a session when every change request it created has been merged, behind an opt-in switch.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/forge-merge-archive"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.19.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-agent": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-experimental-forge-session": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.3-alpha.2",
+    "@deepseek-ai/dsh-workspace": "0.2.3-alpha.2",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "tsdown": "0.23.7"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0 || ^4.2.0-alpha.1",
+    "@deepseek-ai/dsh-experimental-forge": "^0.2.2-rc.3 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-experimental-forge-session": "^0.2.2-rc.3 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-session": "^0.2.2-rc.3 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-workspace": "^0.2.2-rc.3 || ^0.2.3-alpha.2"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.3",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 15,
+    "title": {
+      "en": "Archive sessions on PR merge",
+      "ko": "PR 머지 시 세션 보관",
+      "zh": "PR 合并时归档会话"
+    },
+    "description": {
+      "en": "Optionally archive a session once every change request it created is merged, without stopping an active turn.",
+      "ko": "세션이 만든 변경 요청이 모두 머지되면 진행 중인 턴을 끊지 않고 세션을 보관합니다.",
+      "zh": "当会话创建的变更请求全部合并后，可选择归档该会话，不会中断正在进行的回合。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "forge",
+      "pull-request",
+      "merge-request",
+      "archive",
+      "workspace"
+    ]
+  }
+}
