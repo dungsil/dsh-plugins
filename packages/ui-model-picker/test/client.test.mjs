@@ -12,7 +12,15 @@ const favorite = (model, reasoningEffort) => ({ provider: 'provider', model, rea
 // model menu: the model row, the reasoning row, and the options outlet.
 async function mount(
   t,
-  { language = 'ko', favorites, defaultEffort = 'low', noDefault = false, runtime = 'desktop' } = {}
+  {
+    language = 'ko',
+    favorites,
+    defaultEffort = 'low',
+    noDefault = false,
+    effortIds = ['low', 'medium', 'high'],
+    legacy = false,
+    runtime = 'desktop',
+  } = {}
 ) {
   const window = new Window()
   const { document } = window
@@ -46,7 +54,7 @@ async function mount(
     setTimeout,
   })
 
-  const efforts = ['low', 'medium', 'high'].map((id) => ({ id, name: id }))
+  const efforts = effortIds.map((id) => ({ id, name: id }))
   const groups = [
     {
       id: 'provider',
@@ -123,7 +131,8 @@ async function mount(
   card.getClientRects = () => [{}]
   const menu = document.createElement('div')
   menu.id = 'menu'
-  menu.setAttribute('data-model-menu', '')
+  // DSH 0.2.2 marks the menu surface only with its role.
+  if (!legacy) menu.setAttribute('data-model-menu', '')
   menu.setAttribute('role', 'menu')
   menu.innerHTML =
     '<button role="menuitem" id="model-row">Model</button><button role="menuitem" id="effort-row">Effort</button><div data-slot="conversation.input.model.options" id="options"></div>'
@@ -145,7 +154,7 @@ async function mount(
     locked: false,
     dismiss: () => dismissed++,
     reportFailure: (message) => failures.push(message),
-    openPane: (value) => (controls.opened = value),
+    ...(legacy ? {} : { openPane: (value) => (controls.opened = value) }),
   }
   await render(
     card.querySelector('#target'),
@@ -381,4 +390,47 @@ await test('모든 로케일이 동일한 UI 키와 비어 있지 않은 번역�
     assert.deepEqual(Object.keys(resource.ui).sort(), keys)
     assert.ok(Object.values(resource.ui).every((value) => typeof value === 'string' && value.trim()))
   }
+})
+
+await test('슬라이더를 그리지 않는 모델 상태에서는 공식 추론 강도 행을 숨기지 않는다', async (t) => {
+  const h = await mount(t, { effortIds: [] })
+  const row = h.document.getElementById('effort-row')
+  assert.equal(h.slider(), null)
+  assert.equal(row.style.display, '')
+  assert.equal(row.disabled, false)
+})
+
+await test('DSH 0.2.2 메뉴에서는 즐겨찾기 행 없이 방향키가 슬라이더를 지나간다', async (t) => {
+  const h = await mount(t, { legacy: true })
+  assert.equal(h.menu.querySelector('[data-model-menu-pane]'), null)
+  assert.equal(h.document.getElementById('effort-row').style.display, 'none')
+  h.document.getElementById('model-row').focus()
+  const press = () =>
+    React.act(async () =>
+      h.document.activeElement.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    )
+  await press()
+  await press()
+  assert.ok(h.document.activeElement === h.slider())
+})
+
+await test('저장 중 포커스가 슬라이더를 벗어나도 확정한 단계와 즐겨찾기 대상을 유지한다', async (t) => {
+  const h = await mount(t)
+  await h.drag(2)
+  assert.equal(h.requests.length, 1)
+  await h.fire(new h.window.FocusEvent('blur', { bubbles: false }))
+  await h.fire(new h.window.FocusEvent('focusout', { bubbles: true }))
+  assert.equal(h.slider().getAttribute('aria-valuetext'), 'high')
+  assert.match(h.menu.querySelector('.dsh-picker-star').getAttribute('aria-label'), /high$/)
+  await h.reply()
+  assert.equal(h.slider().getAttribute('aria-valuetext'), 'high')
+})
+
+await test('즐겨찾기 창이 닫힌 뒤 선택이 완료되면 메뉴를 닫지 않는다', async (t) => {
+  const h = await mount(t, { favorites: [favorite('first', 'medium'), favorite('second', 'high')] })
+  const root = await h.renderPane()
+  await React.act(async () => h.pane.querySelectorAll('button[role=menuitemradio]')[1].click())
+  await React.act(async () => root.unmount())
+  await h.reply()
+  assert.equal(h.dismissed(), 0)
 })

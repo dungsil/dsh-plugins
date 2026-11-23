@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -262,8 +262,11 @@ export function apply(ctx: Context) {
     const interaction = useRef<Interaction>({ draft: selected, gesture: null, selected })
     const [snapshot, setSnapshot] = useState<Interaction>(interaction.current)
     const busy = isBusy(state)
+    // Hide the official row only while the slider replaces it, so one of them is always drawn.
+    const active = Boolean(reasoning && choices.length > 0 && state.current)
 
     useLayoutEffect(() => {
+      if (!active) return
       const anchor = root.current?.closest('[data-slot="conversation.input.model.options"]')
       const row = anchor?.previousElementSibling
       if (
@@ -273,18 +276,19 @@ export function apply(ctx: Context) {
       )
         return
       // The official cell class sets display, which outranks the hidden attribute.
-      const display = row.style.display
+      const { display } = row.style
+      const { disabled } = row
       row.style.display = 'none'
       row.disabled = true
       return () => {
         row.style.display = display
-        row.disabled = false
+        row.disabled = disabled
       }
-      // The official row only exists while the current model supports reasoning.
-    }, [reasoning !== undefined])
+    }, [active])
 
     useLayoutEffect(() => {
-      const menu = root.current?.closest<HTMLElement>('[data-model-menu]')
+      // DSH 0.2.2 marks the menu surface only with its role.
+      const menu = root.current?.closest<HTMLElement>('[data-model-menu], [role="menu"]')
       if (!menu) return
       // The official arrow-key traversal only visits buttons; walk the slider too.
       const keydown = (event: KeyboardEvent) => {
@@ -336,7 +340,7 @@ export function apply(ctx: Context) {
         )
     }
 
-    if (!reasoning || choices.length === 0 || !state.current) return <div ref={root} hidden />
+    if (!reasoning || !active || !state.current) return <div ref={root} hidden />
     const draft = Math.min(transition(snapshot, { selected, type: 'sync' }).state.draft, choices.length - 1)
     const progress = choices.length > 1 ? draft / (choices.length - 1) : 0
     // A composer lock disables the slider; a selection in flight only blocks
@@ -400,7 +404,7 @@ export function apply(ctx: Context) {
             }}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
-                dispatch({ type: 'cancel' })
+                if (interaction.current.gesture !== null) dispatch({ type: 'cancel' })
                 return
               }
               if (!sliderKeys.has(event.key)) return
@@ -418,7 +422,10 @@ export function apply(ctx: Context) {
               event.stopPropagation()
               dispatch({ gesture: 'keyboard', type: 'commit' })
             }}
-            onBlur={() => dispatch({ type: 'cancel' })}
+            // A committed draft stays shown while its selection is saving.
+            onBlur={() => {
+              if (interaction.current.gesture !== null) dispatch({ type: 'cancel' })
+            }}
           />
         </div>
       </div>
@@ -451,6 +458,13 @@ export function apply(ctx: Context) {
     const t = useText()
     const list = useFavorites()
     const pane = useRef<HTMLDivElement>(null)
+    const mounted = useRef(true)
+    useEffect(() => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+      }
+    }, [])
     const current = state.current
     const currentEffort = current?.reasoningEffort ?? model?.reasoning?.defaultEffort
     const currentFavorite: ModelSelection | null = current
@@ -478,7 +492,8 @@ export function apply(ctx: Context) {
       })
     const choose = (favorite: ModelSelection) => {
       directory.select(favorite).then(
-        (outcome) => (outcome.ok ? dismiss() : reportFailure(t.error)),
+        // Once the pane is gone, the menu or editor now owns focus; do not close or refocus it.
+        (outcome) => (!outcome.ok ? reportFailure(t.error) : mounted.current && dismiss()),
         () => reportFailure(t.error)
       )
     }
