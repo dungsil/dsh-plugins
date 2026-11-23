@@ -472,6 +472,24 @@ importers:
         specifier: 0.23.7
         version: 0.23.7(typescript@7.0.2)
 
+  packages/forge-read-cache:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.2.0-alpha.1
+        version: 4.2.0-alpha.1(@deepseek-ai/cordis-plugin-include@1.2.0-alpha.1)(@deepseek-ai/cordis-plugin-loader@1.2.0-alpha.1)
+      '@deepseek-ai/dsh-experimental-forge':
+        specifier: 0.2.3-alpha.2
+        version: 0.2.3-alpha.2(@deepseek-ai/cordis@4.2.0-alpha.1)
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
+      tsdown:
+        specifier: 0.23.7
+        version: 0.23.7(typescript@7.0.2)
+
   packages/i-have-adhd:
     devDependencies:
       '@deepseek-ai/cordis':

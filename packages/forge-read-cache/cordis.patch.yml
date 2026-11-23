@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-forge-read-cache
+      name: '@dungsil/dsh-plugin-forge-read-cache'
