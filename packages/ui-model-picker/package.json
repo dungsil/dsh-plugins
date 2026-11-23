@@ -1,7 +1,7 @@
 {
   "name": "@dungsil/dsh-plugin-ui-model-picker",
   "version": "0.6.0",
-  "description": "Model and reasoning effort picker for the DeepSeek Harness composer.",
+  "description": "Reasoning effort slider and model favorites for the DeepSeek Harness model menu.",
   "license": "MIT",
   "repository": {
     "type": "git",
