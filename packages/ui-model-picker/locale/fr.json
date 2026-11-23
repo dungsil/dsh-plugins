@@ -4,26 +4,15 @@
     "description": "Un sélecteur compact dans la zone de saisie avec des menus de modèles et un curseur d’effort de raisonnement."
   },
   "ui": {
-    "model": "Sélectionner un modèle",
     "effort": "Effort de raisonnement",
-    "choose": "Sélectionner l’effort de raisonnement",
-    "configure": "Configurer l’effort de raisonnement",
-    "openPicker": "Ouvrir le sélecteur de modèles",
-    "reset": "Rétablir la valeur par défaut",
-    "loading": "Chargement des modèles…",
-    "empty": "Aucun modèle disponible.",
-    "partial": "Certains fournisseurs n’ont pas pu être chargés.",
-    "missing": "Le modèle actuel n’est pas disponible.",
-    "error": "Impossible de modifier la sélection. Vérifiez la sélection actuelle avant de réessayer.",
-    "retry": "Recharger les modèles",
-    "busy": "Modification…",
-    "apply": "Appliquer",
-    "search": "Rechercher des modèles",
-    "searchEmpty": "Aucun modèle correspondant.",
+    "default": "Par défaut",
     "favorites": "Favoris",
     "addFavorite": "Ajouter aux favoris",
     "removeFavorite": "Retirer des favoris",
     "unavailable": "Indisponible",
+    "noFavorites": "Aucun favori. Utilisez l’étoile pour enregistrer le modèle et l’effort actuels.",
+    "error": "Impossible de modifier la sélection. Vérifiez la sélection actuelle avant de réessayer.",
+    "openPicker": "Ouvrir le sélecteur de modèles",
     "cycleFavorites": "Passer au modèle favori suivant"
   }
 }

@@ -4,26 +4,15 @@
     "description": "Un selector compacto en el cuadro de entrada con menús de modelos y un control deslizante de esfuerzo de razonamiento."
   },
   "ui": {
-    "model": "Seleccionar modelo",
     "effort": "Esfuerzo de razonamiento",
-    "choose": "Seleccionar esfuerzo de razonamiento",
-    "configure": "Configurar esfuerzo de razonamiento",
-    "openPicker": "Abrir selector de modelos",
-    "reset": "Restablecer valor predeterminado",
-    "loading": "Cargando modelos…",
-    "empty": "No hay modelos disponibles.",
-    "partial": "No se pudieron cargar algunos proveedores.",
-    "missing": "El modelo actual no está disponible.",
-    "error": "No se pudo cambiar la selección. Comprueba la selección actual antes de volver a intentarlo.",
-    "retry": "Recargar modelos",
-    "busy": "Cambiando…",
-    "apply": "Aplicar",
-    "search": "Buscar modelos",
-    "searchEmpty": "No hay modelos coincidentes.",
+    "default": "Predeterminado",
     "favorites": "Favoritos",
     "addFavorite": "Añadir a favoritos",
     "removeFavorite": "Quitar de favoritos",
     "unavailable": "No disponible",
+    "noFavorites": "Aún no hay favoritos. Usa la estrella para guardar el modelo y el esfuerzo actuales.",
+    "error": "No se pudo cambiar la selección. Comprueba la selección actual antes de volver a intentarlo.",
+    "openPicker": "Abrir selector de modelos",
     "cycleFavorites": "Cambiar al siguiente modelo favorito"
   }
 }

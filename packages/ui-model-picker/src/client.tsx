@@ -1,37 +1,19 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ModelCatalogModel, ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ShortcutBinding, ShortcutCommand, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { installStyles, localizedCopy, useLocaleSnapshot } from '@dungsil/dsh-ui/client'
-import { ComposerTrigger } from '@dungsil/dsh-ui/composer'
-import {
-  IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconCheckOutlineRegular,
-  IconDataOutlineRegular,
-  IconResetOutlineRegular,
-  IconStarOutlineRegular,
-} from '@dungsil/dsh-ui/icons'
-import {
-  Input,
-  MenuSurface,
-  Tooltip,
-  focusWithoutRing,
-  isMobileDevice,
-  rankByName,
-  useDismissOnOutsidePointer,
-} from '@dungsil/dsh-ui'
+import { IconCheckOutlineRegular, IconChevronRightOutlineRegular, IconStarOutlineRegular } from '@dungsil/dsh-ui/icons'
 import { styles } from './styles.js'
 import { registerRetention } from './retention.js'
 import { availableFavorite, createFavoriteStore, nextFavorite, sameFavorite } from './favorites.js'
+import { transition } from './interaction.js'
+import type { Action, Interaction } from './interaction.js'
 import en from '../locale/en.json' with { type: 'json' }
 import ko from '../locale/ko.json' with { type: 'json' }
 import zh from '../locale/zh.json' with { type: 'json' }
@@ -57,55 +39,74 @@ const copy = {
   zh: zh.ui,
 }
 
+const FAVORITES_PANE = 'dungsil-model-favorites'
+const sliderKeys = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'])
+// The rows the official menu walks with the arrow keys, plus this plugin's slider.
+const menuRows =
+  'button[role="menuitem"]:not([disabled]), button[role="menuitemradio"]:not([disabled]), button[role="switch"]:not([disabled]), input.dsh-effort-input:not(:disabled)'
+
+interface EffortChoice {
+  key: string
+  effort?: string
+  label: string
+}
+
+interface MenuControls {
+  locked: boolean
+  dismiss: () => void
+  reportFailure: (message: string) => void
+  /** Absent before DSH 0.2.3, which has no plugin detail panes. */
+  openPane?: (pane: { key: string; title: string }) => void
+}
+
+type SessionKey = Parameters<Context['modelDirectories']['directoryFor']>[0]
+
+const isBusy = (state: ReturnType<ModelDirectory['store']['getSnapshot']>) =>
+  state.status === 'selecting' || (state.pending ?? null) !== null
+
 export function apply(ctx: Context) {
   registerRetention(ctx)
   const commandId = 'dungsil.model-picker.open' as ShortcutCommandId
   const cycleId = 'dungsil.model-picker.cycle-favorites' as ShortcutCommandId
-  const pickers = new Map<
-    HTMLDivElement,
-    {
-      disabled: boolean
-      owns: (node: Node) => boolean
-      open: () => void
-      next: () => ModelSelection | null
-      cycle: (selection: ModelSelection) => void
-    }
-  >()
   const favorites = createFavoriteStore(() => window.localStorage)
   const binding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt'] }
   const cycleBinding: ShortcutBinding = { code: 'KeyP', modifiers: ['alt', 'shift'] }
-  // One visible picker is the target. With several composers on screen, the
-  // target is the picker whose popover holds the input, or the one sharing the
-  // closest ancestor with it that holds no other visible picker.
+  const text = () => localizedCopy(copy, ctx.locale.getSnapshot().active)
+
+  // Each composer registers a marker inside its card; shortcuts act on the
+  // official model trigger of the composer that holds the input focus.
+  const targets = new Map<HTMLElement, ModelDirectory>()
+  const cardOf = (element: HTMLElement) => element.closest('[data-composer-card]')
+  const triggerOf = (element: HTMLElement) =>
+    cardOf(element)?.querySelector<HTMLButtonElement>(
+      '[data-slot="conversation.input.model"] button[aria-haspopup="menu"]'
+    ) ?? null
   const pickerFor = (target: Element | null) => {
-    const visible = [...pickers].filter(([element]) => element.isConnected && element.getClientRects().length > 0)
-    if (visible.length < 2) return visible[0]?.[1]
-    if (!target) return undefined
-    const popover = visible.find(([, picker]) => picker.owns(target))
-    if (popover) return popover[1]
-    const owners = visible.filter(([element]) => {
-      let scope = element.parentElement
-      while (scope && !scope.contains(target)) scope = scope.parentElement
-      return scope !== null && visible.every(([other]) => other === element || !scope!.contains(other))
+    const visible = [...targets].filter(([element]) => {
+      const card = cardOf(element)
+      return element.isConnected && card !== null && card.getClientRects().length > 0
     })
-    return owners.length === 1 ? owners[0]![1] : undefined
+    if (visible.length < 2) return visible[0]
+    if (!target) return undefined
+    return visible.find(([element]) => {
+      if (cardOf(element)?.contains(target)) return true
+      const menu = triggerOf(element)?.getAttribute('aria-controls')
+      return menu ? (document.getElementById(menu)?.contains(target) ?? false) : false
+    })
   }
   const targetOf = (context?: { target: Element | null }) => context?.target ?? document.activeElement
-  const shortcutCatalog = ctx.shortcuts.runtime === 'web' ? ctx.shortcuts.fixedCatalog : ctx.shortcuts.catalog
   ctx.effect(() => {
-    const label = () => {
-      const locale = ctx.locale.getSnapshot().active
-      return localizedCopy(copy, locale).openPicker
-    }
     const resolve = (context?: { target: Element | null }) => {
       const picker = pickerFor(targetOf(context))
-      if (!picker) return { status: 'pass' } as const
-      if (picker.disabled) return { status: 'blocked', reason: 'Model picker is locked or busy' } as const
-      return { status: 'handled', run: picker.open } as const
+      const trigger = picker && triggerOf(picker[0])
+      if (!picker || !trigger) return { status: 'pass' } as const
+      if (trigger.disabled || isBusy(picker[1].store.getSnapshot()))
+        return { status: 'blocked', reason: 'Model picker is locked or busy' } as const
+      return { status: 'handled', run: () => trigger.click() } as const
     }
     const cycle: ShortcutCommand = {
       id: cycleId,
-      label: () => localizedCopy(copy, ctx.locale.getSnapshot().active).cycleFavorites,
+      label: () => text().cycleFavorites,
       aliases: ['favorite', 'model', '즐겨찾기', '모델', '收藏', '模型'],
       // Web admits no Alt+Shift default, so Web users bind it in shortcut settings.
       defaults: {
@@ -118,10 +119,13 @@ export function apply(ctx: Context) {
       resolve(context) {
         const picker = pickerFor(targetOf(context))
         if (!picker) return { status: 'pass' }
-        if (picker.disabled) return { status: 'blocked', reason: 'Model picker is locked or busy' }
-        const next = picker.next()
+        const [element, directory] = picker
+        const snapshot = directory.store.getSnapshot()
+        if (triggerOf(element)?.disabled !== false || isBusy(snapshot))
+          return { status: 'blocked', reason: 'Model picker is locked or busy' }
+        const next = nextFavorite(favorites.getSnapshot(), snapshot.groups, snapshot.current)
         if (!next) return { status: 'blocked', reason: 'Fewer than two available favorites' }
-        return { status: 'handled', run: () => picker.cycle(next) }
+        return { status: 'handled', run: () => void directory.select(next).catch(() => {}) }
       },
     }
     const registerCycle = () => {
@@ -137,7 +141,7 @@ export function apply(ctx: Context) {
     if (ctx.shortcuts.runtime === 'web') {
       const unregister = ctx.shortcuts.registerFixed({
         id: commandId,
-        label,
+        label: () => text().openPicker,
         keys: ['Alt', 'P'],
         bindings: [binding],
         group: 'input',
@@ -172,7 +176,7 @@ export function apply(ctx: Context) {
     }
     const unregister = ctx.shortcuts.register({
       id: commandId,
-      label,
+      label: () => text().openPicker,
       aliases: ['model', 'reasoning', '모델', '추론', '模型'],
       defaults: {
         'desktop:windows': binding,
@@ -194,429 +198,275 @@ export function apply(ctx: Context) {
     return () => window.removeEventListener('storage', sync)
   }, 'ui-model-picker: favorites')
 
-  function Picker({
-    locked,
-    directory,
-  }: Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & { directory: ModelDirectory }) {
+  function useDirectory(sessionId: SessionKey) {
+    const directory = ctx.modelDirectories.directoryFor(sessionId)
     const subscribe = useCallback((listener: () => void) => directory.store.subscribe(listener), [directory])
     const getSnapshot = useCallback(() => directory.store.getSnapshot(), [directory])
     const state = useSyncExternalStore(subscribe, getSnapshot)
-    const subscribeShortcuts = useCallback(
-      (listener: () => void) => shortcutCatalog.subscribe(listener),
-      [shortcutCatalog]
-    )
-    const shortcutKeys = useSyncExternalStore(subscribeShortcuts, () => shortcutCatalog.getSnapshot()).find(
-      (entry) => entry.id === commandId
-    )?.keys
-    const favoriteList = useSyncExternalStore(
+    const group = state.groups.find((item) => item.id === state.current?.provider)
+    const model = group?.models.find((item) => item.id === state.current?.model)
+    return { directory, state, model }
+  }
+  function useFavorites() {
+    return useSyncExternalStore(
       (listener) => favorites.subscribe(listener),
       () => favorites.getSnapshot()
     )
-    const { active: locale } = useLocaleSnapshot(ctx.locale)
-    const text = localizedCopy(copy, locale)
-    const [requestedPanel, setPanel] = useState<'model' | 'effort' | null>(null)
-    // A model chosen from the list while its reasoning effort is still unset.
-    // It is staged only inside the popover; the selection changes when the
-    // effort is committed, so the real model never changes first.
-    const [staged, setStaged] = useState<{ provider: string; model: string } | null>(null)
-    const [draft, setDraft] = useState(0)
-    const [query, setQuery] = useState('')
-    const [highlighted, setHighlighted] = useState<number | null>(null)
-    const gesture = useRef<{ kind: 'pointer' | 'keyboard'; start: number; pointerId?: number } | null>(null)
-    const draftRef = useRef(0)
-    const returnToModelButton = useRef(false)
-    const focusPanel = useRef<string | null>(null)
-    const [failed, setFailed] = useState(false)
-    const trigger = useRef<HTMLButtonElement | null>(null)
-    const anchor = useRef<HTMLDivElement>(null)
-    const popup = useRef<HTMLDivElement>(null)
-    const pending = useRef(false)
-    const sliderSelection = useRef<ModelSelection | null>(null)
-    const mounted = useRef(true)
-    const id = useId()
-    const current = state.current
-    const group = state.groups.find((item) => item.id === current?.provider)
-    const model = group?.models.find((item) => item.id === current?.model)
+  }
+  function useText() {
+    return localizedCopy(copy, useLocaleSnapshot(ctx.locale).active)
+  }
+
+  function Star({ favorite, name, onToggle }: { favorite: ModelSelection; name: string; onToggle?: () => void }) {
+    const list = useFavorites()
+    const t = useText()
+    const saved = list.some((item) => sameFavorite(item, favorite))
+    const label = `${saved ? t.removeFavorite : t.addFavorite}: ${name}`
+    return (
+      <button
+        type="button"
+        role="switch"
+        className="dsh-picker-star"
+        aria-checked={saved}
+        aria-label={label}
+        title={label}
+        onClick={() => {
+          favorites.toggle(favorite)
+          onToggle?.()
+        }}
+      >
+        <IconStarOutlineRegular />
+      </button>
+    )
+  }
+
+  // Replaces the official reasoning row of the root menu with a stepped slider.
+  // The official row stays mounted but hidden and disabled while the slider is
+  // drawn, so the menu's arrow keys and Tab never land on it.
+  function EffortSlider({ sessionId, locked, reportFailure }: MenuControls & { sessionId: SessionKey }) {
+    const { directory, state, model } = useDirectory(sessionId)
+    const t = useText()
+    const root = useRef<HTMLDivElement>(null)
     const reasoning = model?.reasoning
-    const efforts = reasoning?.efforts ?? []
-    // The popover renders the staged model when the list queued one; otherwise
-    // it renders the committed selection.
-    const stagedGroup = staged ? state.groups.find((item) => item.id === staged.provider) : undefined
-    const stagedModel = staged ? stagedGroup?.models.find((item) => item.id === staged.model) : model
-    const stagedReasoning = stagedModel?.reasoning
-    const stagedEfforts = stagedReasoning?.efforts ?? []
-    const panel = requestedPanel === 'effort' && !stagedEfforts.length ? 'model' : requestedPanel
-    const effective = current?.reasoningEffort ?? reasoning?.defaultEffort
-    const effortIndex = efforts.findIndex((item) => item.id === effective)
-    const effortLabel = efforts.length ? (efforts[effortIndex]?.name ?? state.retainedEffort) : undefined
-    const stagedName = stagedModel?.name ?? (staged ? staged.model : current?.model) ?? text.model
-    const orderedGroups = [...state.groups].sort((a, b) => {
-      const priority = (id: string) => (id === 'deepseek-account' ? 0 : id === 'deepseek-official' ? 1 : 2)
-      return priority(a.id) - priority(b.id)
-    })
-    const showSearch = state.groups.reduce((count, provider) => count + provider.models.length, 0) > 4
-    let globalIndex = 0
-    const filteredGroups = orderedGroups
-      .map((provider) => ({
-        ...provider,
-        models: rankByName(provider.models, showSearch ? query.trim() : '').map((option) => ({
-          option,
-          index: globalIndex++,
-        })),
-      }))
-      .filter((provider) => provider.models.length > 0)
-    const visibleModels = filteredGroups.flatMap((provider) =>
-      provider.models.map(({ option, index }) => ({ provider: provider.id, option, index }))
+    const choices: EffortChoice[] = reasoning
+      ? [
+          ...(reasoning.defaultEffort === undefined ? [{ key: 'default', label: t.default }] : []),
+          ...reasoning.efforts.map((effort) => ({ key: effort.id, effort: effort.id, label: effort.name })),
+        ]
+      : []
+    const effective = state.current?.reasoningEffort ?? reasoning?.defaultEffort
+    const selected = Math.max(
+      0,
+      choices.findIndex((choice) => choice.effort === effective)
     )
-    const selectedVisible = visibleModels.findIndex(
-      ({ provider, option }) => provider === current?.provider && option.id === current?.model
-    )
-    const activeIndex = Math.min(highlighted ?? Math.max(0, selectedVisible), visibleModels.length - 1)
-    const setSliderDraft = (value: number) => {
-      draftRef.current = value
-      setDraft(value)
-    }
-    const cancelGesture = () => {
-      if (!gesture.current) return
-      setSliderDraft(gesture.current.start)
-      gesture.current = null
-    }
-    const busy = state.status === 'selecting'
-    const disabled = locked || busy
-
-    useEffect(() => {
-      mounted.current = true
-      void directory.load().catch(() => {})
-      return () => {
-        mounted.current = false
-      }
-    }, [directory])
-
-    const close = (refocus = true) => {
-      gesture.current = null
-      sliderSelection.current = null
-      setPanel(null)
-      setStaged(null)
-      if (refocus && trigger.current) focusWithoutRing(trigger.current)
-    }
-
-    const restorePopupFocus = () => {
-      if (!popup.current?.contains(document.activeElement)) return
-      const target = trigger.current?.disabled
-        ? anchor.current?.parentElement?.querySelector<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]'
-          )
-        : trigger.current
-      if (target) focusWithoutRing(target)
-    }
-
-    useDismissOnOutsidePointer(
-      anchor,
-      panel !== null,
-      () => {
-        gesture.current = null
-        sliderSelection.current = null
-        setPanel(null)
-        setStaged(null)
-      },
-      popup
-    )
+    const interaction = useRef<Interaction>({ draft: selected, gesture: null, selected })
+    const [snapshot, setSnapshot] = useState<Interaction>(interaction.current)
+    const busy = isBusy(state)
+    // Hide the official row only while the slider replaces it, so one of them is always drawn.
+    const active = Boolean(reasoning && choices.length > 0 && state.current)
 
     useLayoutEffect(() => {
-      if (!panel || !popup.current || !anchor.current) return
-      const element = popup.current
-      const position = () => {
-        const box = anchor.current!.getBoundingClientRect()
-        element.style.left = `${Math.max(8, Math.min(box.right - element.offsetWidth, window.innerWidth - element.offsetWidth - 8))}px`
-        const above = box.top - element.offsetHeight - 8
-        element.style.top = `${Math.max(8, above >= 8 ? above : Math.min(box.bottom + 8, window.innerHeight - element.offsetHeight - 8))}px`
+      if (!active) return
+      const anchor = root.current?.closest('[data-slot="conversation.input.model.options"]')
+      const row = anchor?.previousElementSibling
+      if (
+        !(row instanceof HTMLButtonElement) ||
+        !row.matches('button[role="menuitem"]') ||
+        !row.previousElementSibling?.matches('button[role="menuitem"]')
+      )
+        return
+      // The official cell class sets display, which outranks the hidden attribute.
+      const { display } = row.style
+      const { disabled } = row
+      row.style.display = 'none'
+      row.disabled = true
+      return () => {
+        row.style.display = display
+        row.disabled = disabled
       }
-      position()
-      const observer = new ResizeObserver(position)
-      observer.observe(element)
-      const resize = () => close()
-      const scroll = (event: Event) => {
-        if (!element.contains(event.target as Node)) position()
-      }
-      window.addEventListener('resize', resize)
-      window.addEventListener('scroll', scroll, true)
+    }, [active])
+
+    useLayoutEffect(() => {
+      // DSH 0.2.2 marks the menu surface only with its role.
+      const menu = root.current?.closest<HTMLElement>('[data-model-menu], [role="menu"]')
+      if (!menu) return
+      // The official arrow-key traversal only visits buttons; walk the slider too.
       const keydown = (event: KeyboardEvent) => {
         if (
-          event.defaultPrevented ||
-          event.isComposing ||
+          (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') ||
           event.altKey ||
           event.ctrlKey ||
           event.metaKey ||
-          (event.shiftKey && event.key !== 'Tab')
+          event.shiftKey ||
+          event.isComposing ||
+          menu.getAttribute('role') !== 'menu'
         )
           return
-        if (event.key === 'Escape' || (event.key === 'Tab' && event.shiftKey)) {
-          event.preventDefault()
-          cancelGesture()
-          if (panel === 'model' && stagedEfforts.length) {
-            returnToModelButton.current = true
-            setPanel('effort')
-          } else close()
-          return
-        }
-        if (
-          panel === 'model' &&
-          event.key === 'ArrowLeft' &&
-          stagedEfforts.length &&
-          (!(event.target instanceof HTMLInputElement) || event.target.value === '')
-        ) {
-          event.preventDefault()
-          returnToModelButton.current = true
-          setPanel('effort')
-          return
-        }
-        if (
-          panel === 'effort' &&
-          event.key === 'ArrowRight' &&
-          event.target === element.querySelector('.dsh-codex-model')
-        ) {
-          event.preventDefault()
-          setQuery('')
-          setHighlighted(null)
-          setPanel('model')
-          return
-        }
-        if (
-          panel === 'model' &&
-          showSearch &&
-          (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
-          !element.querySelector('.dsh-codex-favorites')?.contains(event.target as Node)
-        ) {
-          event.preventDefault()
-          // Tab confirms the highlighted model. ArrowUp at the start of the
-          // results provides a keyboard route to the separate favorites area.
-          if (!disabled && event.key === 'ArrowUp' && activeIndex <= 0) {
-            const favoriteButtons = element.querySelectorAll<HTMLButtonElement>(
-              '.dsh-codex-favorites button:not(:disabled)'
-            )
-            const lastFavorite = favoriteButtons[favoriteButtons.length - 1]
-            if (lastFavorite) {
-              lastFavorite.focus()
-              return
-            }
-          }
-          if (!disabled && visibleModels.length) {
-            setHighlighted(
-              (activeIndex + (event.key === 'ArrowUp' ? -1 : 1) + visibleModels.length) % visibleModels.length
-            )
-            element.querySelector<HTMLInputElement>('[role=searchbox]')?.focus()
-          }
-          return
-        }
-        if (
-          panel === 'model' &&
-          event.target instanceof HTMLInputElement &&
-          event.target.type !== 'range' &&
-          (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey)) &&
-          activeIndex >= 0
-        ) {
-          event.preventDefault()
-          const choice = visibleModels[activeIndex]
-          if (!disabled && choice) stageModel(choice.provider, choice.option)
-          return
-        }
-        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || event.target instanceof HTMLInputElement)
-          return
-        const buttons = [...element.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
-        if (!buttons.length) return
+        const items = [...menu.querySelectorAll<HTMLElement>(menuRows)]
+        const index = items.indexOf(document.activeElement as HTMLElement)
+        if (index < 0) return
         event.preventDefault()
-        const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
-        buttons[
-          event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? buttons.length - 1
-              : (index + (event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length
-        ]?.focus()
+        event.stopPropagation()
+        items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
       }
-      element.addEventListener('keydown', keydown)
-      return () => {
-        observer.disconnect()
-        window.removeEventListener('resize', resize)
-        window.removeEventListener('scroll', scroll, true)
-        element.removeEventListener('keydown', keydown)
-      }
-    }, [panel, showSearch, query, highlighted, state.groups, current, stagedEfforts.length, disabled])
+      menu.addEventListener('keydown', keydown, true)
+      return () => menu.removeEventListener('keydown', keydown, true)
+    }, [])
 
-    useLayoutEffect(() => {
-      const element = popup.current
-      if (!panel || !element) {
-        focusPanel.current = null
-        return
-      }
-      const changedPanel = focusPanel.current !== panel
-      focusPanel.current = panel
-      if (!changedPanel && !element.contains(document.activeElement) && document.activeElement !== trigger.current)
-        return
-      if (panel === 'model' && isMobileDevice()) {
-        trigger.current?.focus()
-        returnToModelButton.current = false
-        return
-      }
-      const focusable =
-        (returnToModelButton.current ? element.querySelector<HTMLElement>('.dsh-codex-model:not(:disabled)') : null) ??
-        element.querySelector<HTMLElement>('[role=searchbox]:not(:disabled)') ??
-        element.querySelector<HTMLElement>('[aria-current=true]') ??
-        element.querySelector<HTMLElement>('input:not(:disabled)') ??
-        element.querySelector<HTMLElement>('button:not(:disabled)')
-      returnToModelButton.current = false
-      focusable?.focus()
-    }, [panel, showSearch])
-
-    const visibleIdentity = visibleModels.map(({ provider, option }) => JSON.stringify([provider, option.id])).join(',')
-    useLayoutEffect(() => {
-      if (panel !== 'model' || !showSearch || activeIndex < 0) return
-      document.getElementById(id + '-model-' + activeIndex)?.scrollIntoView?.({ block: 'nearest' })
-    }, [panel, showSearch, activeIndex, visibleIdentity, id])
-
-    useEffect(() => {
-      if (!panel) return
-      window.addEventListener('blur', cancelGesture)
-      return () => window.removeEventListener('blur', cancelGesture)
-    }, [panel])
-
-    useEffect(() => {
-      if (locked) {
-        gesture.current = null
-        restorePopupFocus()
-        sliderSelection.current = null
-        setPanel(null)
-        setStaged(null)
-      }
-    }, [locked])
-    // Keep the slider mounted for its own committed selection, including when
-    // the shared projection arrives after the RPC response. External changes
-    // still discard the draft so it cannot be applied to another selection.
-    useEffect(() => {
-      const selection = sliderSelection.current
-      sliderSelection.current = null
-      if (
-        selection &&
-        current?.provider === selection.provider &&
-        current?.model === selection.model &&
-        current?.reasoningEffort === selection.reasoningEffort
-      ) {
-        setStaged(null)
-        return
-      }
-      gesture.current = null
-      restorePopupFocus()
-      setPanel(null)
-      setStaged(null)
-    }, [current?.provider, current?.model, current?.reasoningEffort])
-
-    // `refocus` is false for the cycle shortcut, which keeps focus in the editor.
-    const select = async (selection: ModelSelection, keepSlider = false, refocus = true) => {
-      if (disabled || pending.current) return
-      pending.current = true
-      sliderSelection.current = keepSlider ? selection : null
-      setFailed(false)
-      try {
-        const result = await directory.select(selection)
-        if (!mounted.current) return
-        if (result.ok) {
-          if (!keepSlider) close(refocus)
-        } else {
-          sliderSelection.current = null
-          setFailed(true)
-        }
-      } catch {
-        sliderSelection.current = null
-        if (mounted.current) setFailed(true)
-      } finally {
-        pending.current = false
-      }
-    }
-    const show = (button: HTMLButtonElement) => {
-      trigger.current = button
-      if (panel) {
-        close()
-        return
-      }
-      setStaged(null)
-      setQuery('')
-      setHighlighted(null)
-      setSliderDraft(Math.max(0, effortIndex))
-      setFailed(false)
-      setPanel('effort')
-      void directory.load().catch(() => {})
-    }
-    useLayoutEffect(() => {
-      const element = anchor.current
-      if (!element) return
-      pickers.set(element, {
-        disabled,
-        owns: (node) => popup.current?.contains(node) ?? false,
-        next: () => {
-          const snapshot = directory.store.getSnapshot()
-          return nextFavorite(favorites.getSnapshot(), snapshot.groups, snapshot.current)
-        },
-        cycle: (selection) => void select(selection, false, panel !== null),
-        open: () => {
-          if (trigger.current) show(trigger.current)
-        },
-      })
-      return () => {
-        pickers.delete(element)
-      }
-    })
-
-    const selectEffort = (index: number) => {
-      const target = staged ?? (current ? { provider: current.provider, model: current.model } : null)
-      const effort = stagedEfforts[index]
-      if (!target || !effort) return
-      void select(
-        {
-          provider: target.provider,
-          model: target.model,
-          reasoningEffort: effort.id,
-        },
-        true
-      )
-    }
-    // A model picked from the list is staged only while its effort is unset.
-    // A model without a choice of efforts keeps applying immediately; the rest
-    // apply together with the effort chosen on the slider.
-    const stageModel = (provider: string, option: ModelCatalogModel) => {
-      const same = provider === current?.provider && option.id === current?.model
-      const optionReasoning = option.reasoning
-      const optionEfforts = optionReasoning?.efforts ?? []
-      if (optionEfforts.length < 2) {
-        if (same) {
-          close()
-          return
-        }
-        const effort = optionReasoning?.defaultEffort
-        void select({
-          provider,
-          model: option.id,
-          ...(effort === undefined ? {} : { reasoningEffort: effort }),
+    const dispatch = (action: Action) => {
+      const synced = transition(interaction.current, { selected, type: 'sync' }).state
+      const result = transition(synced, action)
+      interaction.current = result.state
+      setSnapshot(result.state)
+      const choice = result.commit === undefined ? undefined : choices[result.commit]
+      const current = state.current
+      if (!choice || !current) return
+      directory
+        .select({
+          provider: current.provider,
+          model: current.model,
+          ...(choice.effort === undefined ? {} : { reasoningEffort: choice.effort }),
         })
-        return
-      }
-      // The slider has no provider-default stop, so start from this model's
-      // declared default or, failing that, the effort already in use.
-      const preferredEffort = same
-        ? (current?.reasoningEffort ?? optionReasoning?.defaultEffort)
-        : (optionReasoning?.defaultEffort ?? current?.reasoningEffort)
-      setStaged({ provider, model: option.id })
-      setSliderDraft(
-        Math.max(
-          0,
-          optionEfforts.findIndex((item) => item.id === preferredEffort)
+        .then(
+          (outcome) => {
+            if (outcome.ok) return
+            dispatch({ type: 'cancel' })
+            reportFailure(t.error)
+          },
+          () => {
+            dispatch({ type: 'cancel' })
+            reportFailure(t.error)
+          }
         )
-      )
-      setFailed(false)
-      setPanel('effort')
     }
 
-    // Favorites keep an explicit effort so a cycle restores the exact combination.
-    const currentEffort = current?.reasoningEffort ?? reasoning?.defaultEffort
+    if (!reasoning || !active || !state.current) return <div ref={root} hidden />
+    const draft = Math.min(transition(snapshot, { selected, type: 'sync' }).state.draft, choices.length - 1)
+    const progress = choices.length > 1 ? draft / (choices.length - 1) : 0
+    // A composer lock disables the slider; a selection in flight only blocks
+    // input so the focused slider keeps focus until the selection settles.
+    const blocked = locked || busy
+    const disabled = (locked && !busy) || choices.length < 2
+    const draftChoice = choices[draft]
+    const draftEffort = draftChoice?.effort ?? reasoning.defaultEffort
+    const favorite: ModelSelection = {
+      provider: state.current.provider,
+      model: state.current.model,
+      ...(draftEffort === undefined ? {} : { reasoningEffort: draftEffort }),
+    }
+    return (
+      <div className="dsh-effort" ref={root}>
+        <div className="dsh-effort-header">
+          <span className="dsh-effort-label">{t.effort}</span>
+          <span className="dsh-effort-value">{draftChoice?.label}</span>
+          <Star favorite={favorite} name={[model?.name ?? favorite.model, draftChoice?.label].join(', ')} />
+        </div>
+        <div className="dsh-effort-track">
+          <div className="dsh-effort-rail" aria-hidden="true">
+            <div
+              className="dsh-effort-fill"
+              style={{ width: `calc(${progress * 100}% + var(--dsh-effort-track) * ${0.5 - progress})` }}
+            />
+          </div>
+          <div className="dsh-effort-dots" aria-hidden="true">
+            {choices.map((choice, index) => (
+              <span
+                className="dsh-effort-dot"
+                data-filled={index <= draft}
+                key={choice.key}
+                style={{ left: `${choices.length === 1 ? 0 : (index / (choices.length - 1)) * 100}%` }}
+              />
+            ))}
+          </div>
+          <input
+            className="dsh-effort-input"
+            type="range"
+            min={0}
+            max={choices.length - 1}
+            step={1}
+            value={draft}
+            disabled={disabled}
+            aria-disabled={blocked || disabled}
+            aria-label={t.effort}
+            aria-valuetext={draftChoice?.label}
+            onPointerDown={(event) => {
+              if (blocked) return
+              dispatch({ gesture: 'pointer', type: 'begin' })
+              event.currentTarget.setPointerCapture?.(event.pointerId)
+            }}
+            onPointerUp={() => dispatch({ gesture: 'pointer', type: 'commit' })}
+            onPointerCancel={() => dispatch({ type: 'cancel' })}
+            onLostPointerCapture={() => {
+              if (interaction.current.gesture === 'pointer') dispatch({ type: 'cancel' })
+            }}
+            onChange={(event) => {
+              if (!blocked) dispatch({ index: Number(event.currentTarget.value), type: 'change' })
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                if (interaction.current.gesture !== null) dispatch({ type: 'cancel' })
+                return
+              }
+              if (!sliderKeys.has(event.key)) return
+              // Keep the composer and the menu from reading the slider's keys.
+              event.stopPropagation()
+              if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) {
+                event.preventDefault()
+                dispatch({ type: 'cancel' })
+                return
+              }
+              if (!blocked && interaction.current.gesture === null) dispatch({ gesture: 'keyboard', type: 'begin' })
+            }}
+            onKeyUp={(event) => {
+              if (!sliderKeys.has(event.key)) return
+              event.stopPropagation()
+              dispatch({ gesture: 'keyboard', type: 'commit' })
+            }}
+            // A committed draft stays shown while its selection is saving.
+            onBlur={() => {
+              if (interaction.current.gesture !== null) dispatch({ type: 'cancel' })
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Root-menu row that opens the favorites pane (DSH 0.2.3 and later).
+  function FavoritesRow({ locked, openPane }: MenuControls) {
+    const t = useText()
+    const list = useFavorites()
+    if (!openPane) return null
+    return (
+      <button
+        type="button"
+        role="menuitem"
+        className="dsh-picker-cell"
+        data-model-menu-pane={FAVORITES_PANE}
+        disabled={locked}
+        onClick={() => openPane({ key: FAVORITES_PANE, title: t.favorites })}
+      >
+        <span className="dsh-picker-cell-label">{t.favorites}</span>
+        <span className="dsh-picker-cell-value">{list.length || ''}</span>
+        <IconChevronRightOutlineRegular />
+      </button>
+    )
+  }
+
+  function FavoritesPane({ sessionId, locked, dismiss, reportFailure }: MenuControls & { sessionId: SessionKey }) {
+    const { directory, state, model } = useDirectory(sessionId)
+    const t = useText()
+    const list = useFavorites()
+    const pane = useRef<HTMLDivElement>(null)
+    const mounted = useRef(true)
+    useEffect(() => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+      }
+    }, [])
+    const current = state.current
+    const currentEffort = current?.reasoningEffort ?? model?.reasoning?.defaultEffort
     const currentFavorite: ModelSelection | null = current
       ? {
           provider: current.provider,
@@ -624,37 +474,7 @@ export function apply(ctx: Context) {
           ...(currentEffort === undefined ? {} : { reasoningEffort: currentEffort }),
         }
       : null
-    const draftTarget = staged ?? current
-    const draftEffort = stagedEfforts[draft]?.id
-    const draftFavorite: ModelSelection | null =
-      draftTarget && draftEffort !== undefined
-        ? { provider: draftTarget.provider, model: draftTarget.model, reasoningEffort: draftEffort }
-        : null
-    const star = (favorite: ModelSelection, name: string, removesRow = false) => {
-      const saved = favoriteList.some((item) => sameFavorite(item, favorite))
-      const label = `${saved ? text.removeFavorite : text.addFavorite}: ${name}`
-      return (
-        <button
-          type="button"
-          className="dsh-codex-star"
-          aria-pressed={saved}
-          aria-label={label}
-          title={label}
-          onClick={() => {
-            favorites.toggle(favorite)
-            // A removed row takes its focused button with it.
-            if (removesRow)
-              setTimeout(() => {
-                if (!popup.current?.contains(document.activeElement))
-                  popup.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
-              })
-          }}
-        >
-          <IconStarOutlineRegular />
-        </button>
-      )
-    }
-    const favoriteName = (favorite: ModelSelection) => {
+    const describe = (favorite: ModelSelection) => {
       // A listed model keeps its catalog name even when the saved effort is gone.
       const listed = availableFavorite(state.groups, { provider: favorite.provider, model: favorite.model })
       const effort =
@@ -664,405 +484,107 @@ export function apply(ctx: Context) {
             favorite.reasoningEffort)
       return { option: availableFavorite(state.groups, favorite), name: listed?.name ?? favorite.model, effort }
     }
-
+    // A removed row takes its focused star with it; keep focus in the pane.
+    const keepFocus = () =>
+      setTimeout(() => {
+        if (!pane.current?.contains(document.activeElement))
+          pane.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
+      })
+    const choose = (favorite: ModelSelection) => {
+      directory.select(favorite).then(
+        // Once the pane is gone, the menu or editor now owns focus; do not close or refocus it.
+        (outcome) => (!outcome.ok ? reportFailure(t.error) : mounted.current && dismiss()),
+        () => reportFailure(t.error)
+      )
+    }
+    const busy = locked || isBusy(state)
+    let focused = false
     return (
-      <>
-        <div className="dsh-codex-picker" ref={anchor} aria-busy={busy}>
-          <Tooltip label={efforts.length ? text.configure : text.model} shortcutKeys={shortcutKeys} side="top" portal>
-            <ComposerTrigger
-              ref={trigger}
-              className="dsh-codex-trigger"
-              icon={<IconDataOutlineRegular size={16} />}
-              label={model?.name ?? current?.model ?? text.model}
-              detail={effortLabel}
-              disabled={locked}
-              aria-disabled={disabled}
-              aria-label={`${efforts.length ? text.choose : text.model}: ${model?.name ?? current?.model ?? text.model}${effortLabel ? `, ${effortLabel}` : ''}`}
-              aria-haspopup="dialog"
-              aria-expanded={panel !== null}
-              aria-controls={panel ? id : undefined}
-              onClick={(event) => {
-                if (!disabled) show(event.currentTarget)
-              }}
-              onKeyDown={(event) => {
-                if (
-                  !panel &&
-                  !disabled &&
-                  !event.altKey &&
-                  !event.ctrlKey &&
-                  !event.metaKey &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing &&
-                  (event.key === 'ArrowUp' || event.key === 'ArrowDown')
-                ) {
-                  event.preventDefault()
-                  show(event.currentTarget)
-                }
-              }}
+      <div ref={pane}>
+        <div className="dsh-picker-favorites-title">
+          <span>{t.favorites}</span>
+          {currentFavorite && (
+            <Star
+              favorite={currentFavorite}
+              name={[model?.name ?? currentFavorite.model, describe(currentFavorite).effort].filter(Boolean).join(', ')}
             />
-          </Tooltip>
-        </div>
-        {panel &&
-          createPortal(
-            <MenuSurface
-              id={id}
-              ref={popup}
-              role="dialog"
-              aria-label={panel === 'model' ? text.model : text.effort}
-              className="dsh-codex-popover"
-            >
-              {panel === 'model' ? (
-                stagedEfforts.length > 0 && (
-                  <button type="button" className="dsh-codex-back" onClick={() => setPanel('effort')}>
-                    <IconChevronLeftOutlineRegular size={14} /> {text.effort}
-                  </button>
-                )
-              ) : (
-                <header className="dsh-codex-header">
-                  <button
-                    type="button"
-                    className="dsh-codex-reset"
-                    disabled={locked || !(staged ?? current)}
-                    aria-disabled={disabled || !(staged ?? current)}
-                    aria-label={text.reset}
-                    title={text.reset}
-                    onClick={() => {
-                      const target = staged ?? (current ? { provider: current.provider, model: current.model } : null)
-                      if (target) void select(target)
-                    }}
-                  >
-                    <IconResetOutlineRegular />
-                  </button>
-                  <button
-                    type="button"
-                    className="dsh-codex-model"
-                    disabled={locked}
-                    aria-disabled={disabled}
-                    title={stagedName}
-                    onClick={() => {
-                      if (!disabled) {
-                        setQuery('')
-                        setHighlighted(null)
-                        setPanel('model')
-                      }
-                    }}
-                  >
-                    <strong>{stagedEfforts[draft]?.name}</strong>
-                    <span>
-                      {stagedName} <IconChevronRightOutlineRegular size={14} />
-                    </span>
-                  </button>
-                  {draftFavorite ? (
-                    star(draftFavorite, `${stagedName}, ${stagedEfforts[draft]?.name ?? draftEffort}`)
-                  ) : (
-                    <span />
-                  )}
-                  <button
-                    type="button"
-                    className="dsh-codex-apply"
-                    disabled={locked}
-                    aria-disabled={disabled}
-                    onClick={() => selectEffort(draft)}
-                  >
-                    {text.apply}
-                  </button>
-                </header>
-              )}
-              {state.status === 'loading' && (
-                <p className="dsh-codex-notice" role="status">
-                  {text.loading}
-                </p>
-              )}
-              {busy && (
-                <p className={panel === 'effort' ? 'dsh-codex-status' : 'dsh-codex-notice'} role="status">
-                  {text.busy}
-                </p>
-              )}
-              {(failed || state.error) && (
-                <p className="dsh-codex-notice" role="alert">
-                  {text.error}
-                </p>
-              )}
-              {state.failures.length > 0 && (
-                <p className="dsh-codex-notice" role="status">
-                  {text.partial}
-                </p>
-              )}
-              {state.routable === false && (
-                <p className="dsh-codex-notice" role="status">
-                  {text.missing}
-                </p>
-              )}
-              {panel === 'model' ? (
-                <>
-                  {showSearch && (
-                    <Input
-                      type="text"
-                      role="searchbox"
-                      className="dsh-codex-search"
-                      aria-label={text.search}
-                      placeholder={text.search}
-                      value={query}
-                      readOnly={busy}
-                      aria-controls={id + '-models'}
-                      aria-activedescendant={activeIndex < 0 ? undefined : id + '-model-' + activeIndex}
-                      onChange={(event) => {
-                        setQuery(event.target.value)
-                        setHighlighted(0)
-                      }}
-                    />
-                  )}
-                  {(currentFavorite || favoriteList.length > 0) && (
-                    <section className="dsh-codex-favorites" aria-label={text.favorites}>
-                      <div className="dsh-codex-provider dsh-codex-favorites-title">
-                        <span>{text.favorites}</span>
-                        {currentFavorite &&
-                          star(
-                            currentFavorite,
-                            [model?.name ?? current!.model, effortLabel].filter(Boolean).join(', ')
-                          )}
-                      </div>
-                      {favoriteList.map((favorite) => {
-                        const { option, name, effort } = favoriteName(favorite)
-                        const selected = currentFavorite !== null && sameFavorite(currentFavorite, favorite)
-                        return (
-                          <div
-                            className="dsh-codex-favorite"
-                            key={`${favorite.provider}\u0000${favorite.model}\u0000${favorite.reasoningEffort ?? ''}`}
-                          >
-                            <button
-                              type="button"
-                              className="dsh-codex-option"
-                              disabled={disabled || !option}
-                              onClick={() => void select(favorite)}
-                            >
-                              <span>
-                                {name}
-                                {(effort || !option) && (
-                                  <small>
-                                    {[effort, option ? undefined : text.unavailable].filter(Boolean).join(' · ')}
-                                  </small>
-                                )}
-                              </span>
-                              <span className="dsh-codex-check" aria-hidden="true">
-                                {selected && <IconCheckOutlineRegular size={14} />}
-                              </span>
-                            </button>
-                            {star(favorite, [name, effort].filter(Boolean).join(', '), true)}
-                          </div>
-                        )
-                      })}
-                    </section>
-                  )}
-                  <div id={id + '-models'} className="dsh-codex-models" role="listbox" aria-label={text.model}>
-                    {filteredGroups.map((provider) => (
-                      <section key={provider.id} role="group" aria-label={provider.name}>
-                        <div className="dsh-codex-provider" aria-hidden="true">
-                          {provider.name}
-                        </div>
-                        {provider.models.map(({ option, index }) => (
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={provider.id === current?.provider && option.id === current?.model}
-                            aria-current={
-                              provider.id === current?.provider && option.id === current?.model ? 'true' : undefined
-                            }
-                            className="dsh-codex-option"
-                            id={id + '-model-' + index}
-                            data-search-option={showSearch ? '' : undefined}
-                            data-highlighted={showSearch && activeIndex === index ? '' : undefined}
-                            key={option.id}
-                            disabled={disabled}
-                            tabIndex={showSearch ? -1 : undefined}
-                            onMouseMove={() => {
-                              if (showSearch) setHighlighted(index)
-                            }}
-                            onClick={() => stageModel(provider.id, option)}
-                          >
-                            <span>
-                              {option.name}
-                              {option.description && <small>{option.description}</small>}
-                            </span>
-                            <span className="dsh-codex-check" aria-hidden="true">
-                              {provider.id === current?.provider && option.id === current?.model && (
-                                <IconCheckOutlineRegular size={14} />
-                              )}
-                            </span>
-                          </button>
-                        ))}
-                      </section>
-                    ))}
-                  </div>
-                  {state.status !== 'loading' && visibleModels.length === 0 && (
-                    <p className="dsh-codex-notice" role="status">
-                      {state.groups.some((provider) => provider.models.length) ? text.searchEmpty : text.empty}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className="dsh-codex-option"
-                    disabled={busy}
-                    onClick={() => {
-                      setFailed(false)
-                      void directory.load().catch(() => {})
-                    }}
-                  >
-                    {text.retry}
-                  </button>
-                </>
-              ) : (
-                stagedEfforts.length > 0 && (
-                  <div className="dsh-codex-slider">
-                    <div
-                      className="dsh-codex-rail"
-                      style={
-                        {
-                          '--dsh-codex-progress': `${stagedEfforts.length > 1 ? (draft / (stagedEfforts.length - 1)) * 100 : 0}%`,
-                        } as React.CSSProperties
-                      }
-                    >
-                      <div className="dsh-codex-track" aria-hidden="true">
-                        {stagedEfforts.map((effort, index) => (
-                          <span key={effort.id} data-filled={index <= draft} />
-                        ))}
-                      </div>
-                      <input
-                        id={`${id}-effort`}
-                        type="range"
-                        min={0}
-                        max={stagedEfforts.length - 1}
-                        step={1}
-                        value={draft}
-                        disabled={locked || stagedEfforts.length < 2}
-                        aria-disabled={disabled || stagedEfforts.length < 2}
-                        aria-label={text.effort}
-                        aria-valuetext={stagedEfforts[draft]?.name}
-                        onChange={(event) => {
-                          if (!disabled) setSliderDraft(Number(event.target.value))
-                        }}
-                        onPointerDown={(event) => {
-                          if (disabled) return
-                          gesture.current = { kind: 'pointer', start: draftRef.current, pointerId: event.pointerId }
-                          event.currentTarget.setPointerCapture?.(event.pointerId)
-                        }}
-                        onPointerUp={(event) => {
-                          if (gesture.current?.kind !== 'pointer' || gesture.current.pointerId !== event.pointerId)
-                            return
-                          gesture.current = null
-                          selectEffort(draftRef.current)
-                        }}
-                        onPointerCancel={(event) => {
-                          if (gesture.current?.kind === 'pointer' && gesture.current.pointerId === event.pointerId)
-                            cancelGesture()
-                        }}
-                        onLostPointerCapture={(event) => {
-                          if (gesture.current?.kind === 'pointer' && gesture.current.pointerId === event.pointerId)
-                            cancelGesture()
-                        }}
-                        onBlur={cancelGesture}
-                        onKeyDown={(event) => {
-                          if (
-                            !event.nativeEvent.isComposing &&
-                            (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) &&
-                            [
-                              'ArrowLeft',
-                              'ArrowRight',
-                              'ArrowUp',
-                              'ArrowDown',
-                              'Home',
-                              'End',
-                              'PageUp',
-                              'PageDown',
-                            ].includes(event.key)
-                          ) {
-                            event.preventDefault()
-                            if (gesture.current?.kind === 'keyboard') cancelGesture()
-                            return
-                          }
-                          if (
-                            event.defaultPrevented ||
-                            event.nativeEvent.isComposing ||
-                            event.altKey ||
-                            event.ctrlKey ||
-                            event.metaKey ||
-                            event.shiftKey
-                          )
-                            return
-                          if (event.key === 'Escape') cancelGesture()
-                          else if (
-                            !disabled &&
-                            [
-                              'ArrowLeft',
-                              'ArrowRight',
-                              'ArrowUp',
-                              'ArrowDown',
-                              'Home',
-                              'End',
-                              'PageUp',
-                              'PageDown',
-                            ].includes(event.key) &&
-                            !gesture.current
-                          ) {
-                            gesture.current = { kind: 'keyboard', start: draftRef.current }
-                          }
-                        }}
-                        onKeyUp={(event) => {
-                          if (
-                            event.defaultPrevented ||
-                            event.nativeEvent.isComposing ||
-                            event.altKey ||
-                            event.ctrlKey ||
-                            event.metaKey ||
-                            event.shiftKey
-                          ) {
-                            if (gesture.current?.kind === 'keyboard') cancelGesture()
-                            return
-                          }
-                          if (
-                            [
-                              'ArrowLeft',
-                              'ArrowRight',
-                              'ArrowUp',
-                              'ArrowDown',
-                              'Home',
-                              'End',
-                              'PageUp',
-                              'PageDown',
-                            ].includes(event.key)
-                          ) {
-                            if (gesture.current?.kind !== 'keyboard') return
-                            gesture.current = null
-                            selectEffort(draftRef.current)
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                )
-              )}
-            </MenuSurface>,
-            document.body
           )}
-      </>
+        </div>
+        {list.length === 0 && <p className="dsh-picker-empty">{t.noFavorites}</p>}
+        {list.map((favorite) => {
+          const { option, name, effort } = describe(favorite)
+          const checked = currentFavorite !== null && sameFavorite(currentFavorite, favorite)
+          const autoFocus = !focused && !busy && option !== undefined
+          if (autoFocus) focused = true
+          return (
+            <div
+              className="dsh-picker-favorite"
+              key={`${favorite.provider}\u0000${favorite.model}\u0000${favorite.reasoningEffort ?? ''}`}
+            >
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={checked}
+                className="dsh-picker-cell"
+                disabled={busy || !option}
+                autoFocus={autoFocus}
+                onClick={() => choose(favorite)}
+              >
+                <span className="dsh-picker-cell-label">
+                  {name}
+                  {(effort || !option) && (
+                    <small>{[effort, option ? undefined : t.unavailable].filter(Boolean).join(' · ')}</small>
+                  )}
+                </span>
+                <span className="dsh-picker-check" aria-hidden="true">
+                  {checked && <IconCheckOutlineRegular />}
+                </span>
+              </button>
+              <Star favorite={favorite} name={[name, effort].filter(Boolean).join(', ')} onToggle={keepFocus} />
+            </div>
+          )
+        })}
+      </div>
     )
   }
 
-  ctx.slots.inject('conversation.input.model', () =>
+  function Target({ sessionId }: { sessionId: SessionKey }) {
+    const marker = useRef<HTMLSpanElement>(null)
+    useLayoutEffect(() => {
+      const element = marker.current
+      if (!element || ctx.sessions.subagentAddress(sessionId) !== undefined) return
+      targets.set(element, ctx.modelDirectories.directoryFor(sessionId))
+      return () => {
+        targets.delete(element)
+      }
+    }, [sessionId])
+    return <span ref={marker} hidden />
+  }
+
+  ctx.slots.inject('conversation.input.overlay', () =>
     ctx.slots.register(
-      {
-        name: 'conversation.input.model',
-        priority: -100,
-      },
-      (props) =>
-        !props.useSession((state) => state.subagent) ? (
-          <Picker
-            key={props.sessionId}
-            locked={props.locked}
-            directory={ctx.modelDirectories.directoryFor(props.sessionId)}
-          />
-        ) : null
+      { id: 'dungsil-model-picker-target', name: 'conversation.input.overlay', order: -99 },
+      (props) => <Target sessionId={props.sessionId} />
     )
+  )
+  ctx.slots.inject('conversation.input.model.options', () => {
+    const disposeSlider = ctx.slots.register(
+      { id: 'dungsil-effort-slider', name: 'conversation.input.model.options', order: -1000 },
+      (props) => <EffortSlider {...(props as unknown as MenuControls)} sessionId={props.sessionId} />
+    )
+    const disposeRow = ctx.slots.register(
+      { id: 'dungsil-model-favorites', name: 'conversation.input.model.options', order: 1000 },
+      (props) => <FavoritesRow {...(props as unknown as MenuControls)} />
+    )
+    return () => {
+      disposeSlider()
+      disposeRow()
+    }
+  })
+  ctx.slots.inject('conversation.input.model.pane', () =>
+    ctx.slots.register({ key: FAVORITES_PANE, name: 'conversation.input.model.pane' }, (props) => (
+      <FavoritesPane {...(props as unknown as MenuControls)} sessionId={props.sessionId} />
+    ))
   )
   ctx.effect(() => installStyles(styles), 'ui-model-picker: styles')
 }
