@@ -1,0 +1,73 @@
+{
+  "name": "@dungsil/dsh-plugin-forge-read-cache",
+  "version": "0.1.0",
+  "description": "Share repository-scoped forge sign-in and branch lookups across sessions.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/forge-read-cache"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.2.0-alpha.1",
+    "@deepseek-ai/dsh-experimental-forge": "0.2.3-alpha.2",
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "tsdown": "0.23.7"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0 || ^4.2.0-alpha.1",
+    "@deepseek-ai/dsh-experimental-forge": "^0.2.2-rc.3 || ^0.2.3-alpha.2"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.3",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 16,
+    "title": {
+      "en": "Forge read sharing",
+      "ko": "Forge 읽기 공유",
+      "zh": "Forge 读取共享"
+    },
+    "description": {
+      "en": "Share sign-in checks and branch lookups across sessions of the same repository to avoid repeated CLI probes.",
+      "ko": "같은 저장소의 여러 세션이 로그인 확인과 브랜치 조회를 공유해 반복되는 CLI 실행을 줄입니다.",
+      "zh": "在同一仓库的多个会话之间共享登录检查和分支查询，减少重复的命令行调用。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "forge",
+      "readiness",
+      "branch",
+      "session",
+      "cache"
+    ]
+  }
+}

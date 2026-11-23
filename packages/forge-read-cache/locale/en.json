@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Forge read sharing",
+    "description": "Share sign-in checks and branch lookups across sessions of the same repository to avoid repeated CLI probes."
+  }
+}
