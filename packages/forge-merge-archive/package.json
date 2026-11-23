@@ -1,6 +1,6 @@
 {
   "name": "@dungsil/dsh-plugin-forge-merge-archive",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Archive a session when every change request it created has been merged, behind an opt-in switch.",
   "license": "MIT",
   "repository": {

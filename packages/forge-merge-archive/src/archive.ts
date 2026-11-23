@@ -1,5 +1,5 @@
 import type { BindingOrigin, SessionChangeRequest } from '@deepseek-ai/dsh-experimental-forge-session'
-import type { ChangeRequestState } from '@deepseek-ai/dsh-experimental-forge/types'
+import type { ChangeRequestState, ChangeRequestUpdate } from '@deepseek-ai/dsh-experimental-forge/types'
 
 // Only an open request blocks archiving. A closed request is no longer work in progress.
 const SETTLED_STATES: ReadonlySet<ChangeRequestState> = new Set<ChangeRequestState>(['merged', 'closed'])
@@ -9,9 +9,9 @@ const SETTLED_STATES: ReadonlySet<ChangeRequestState> = new Set<ChangeRequestSta
 const OWN_ORIGINS: ReadonlySet<BindingOrigin> = new Set<BindingOrigin>(['created', 'discovered'])
 
 export const stateOf = (entry: SessionChangeRequest): ChangeRequestState | undefined => {
-  const { update } = entry
-  if (update === null || !('snapshot' in update)) return undefined
-  return update.snapshot.state
+  const update: ChangeRequestUpdate | undefined = entry.update ?? undefined
+  if (update === undefined || !('snapshot' in update)) return undefined
+  return update.snapshot?.state
 }
 
 /** Whether this binding was produced by the session itself and can count as archive evidence. */
