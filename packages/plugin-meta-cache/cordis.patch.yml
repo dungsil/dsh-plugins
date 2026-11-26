@@ -1,0 +1,3 @@
+- insert:
+    - id: dungsil-plugin-meta-cache
+      name: '@dungsil/dsh-plugin-plugin-meta-cache'

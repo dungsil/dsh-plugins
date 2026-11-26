@@ -1,0 +1,66 @@
+{
+  "name": "@dungsil/dsh-plugin-plugin-meta-cache",
+  "version": "0.0.0",
+  "description": "Cache plugin names, descriptions, and icons so the Plugins page opens without re-reading every plugin's files.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungsil/dsh-plugins.git",
+    "directory": "packages/plugin-meta-cache"
+  },
+  "files": [
+    "dist",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "@dungsil/dsh-tsconfig": "workspace:*",
+    "@dungsil/dsh-tsdown": "workspace:*",
+    "tsdown": "0.23.7"
+  },
+  "engines": {
+    "dsh": "^0.2.2-rc.3",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "market": {
+    "order": 16,
+    "title": {
+      "en": "Plugin metadata cache",
+      "ko": "플러그인 메타데이터 캐시",
+      "zh": "插件元数据缓存"
+    },
+    "description": {
+      "en": "Serve plugin names, descriptions, and icons from a stale-while-revalidate cache to open the Plugins page faster.",
+      "ko": "플러그인 이름·설명·아이콘을 캐시해 플러그인 페이지가 더 빠르게 열리도록 합니다.",
+      "zh": "缓存插件名称、描述和图标，使插件页面更快打开。"
+    },
+    "category": "tools",
+    "labels": [],
+    "keywords": [
+      "plugin",
+      "metadata",
+      "cache",
+      "performance"
+    ]
+  }
+}
