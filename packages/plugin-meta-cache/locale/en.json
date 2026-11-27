@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin metadata cache",
+    "description": "Serve plugin names, descriptions, and icons from a stale-while-revalidate cache to open the Plugins page faster."
+  }
+}

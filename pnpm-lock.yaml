@@ -657,6 +657,18 @@ importers:
         specifier: 0.23.7
         version: 0.23.7(typescript@7.0.2)
 
+  packages/plugin-meta-cache:
+    devDependencies:
+      '@dungsil/dsh-tsconfig':
+        specifier: workspace:*
+        version: link:../../tools/tsconfig
+      '@dungsil/dsh-tsdown':
+        specifier: workspace:*
+        version: link:../../tools/tsdown
+      tsdown:
+        specifier: 0.23.7
+        version: 0.23.7(typescript@7.0.2)
+
   packages/preset-tools:
     dependencies:
       '@dungsil/dsh-plugin-agent-browser':
