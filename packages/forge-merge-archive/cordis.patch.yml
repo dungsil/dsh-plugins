@@ -1,0 +1,5 @@
+- insert:
+    - id: dungsil-forge-merge-archive
+      name: '@dungsil/dsh-plugin-forge-merge-archive'
+      config:
+        archiveOnMerge: false

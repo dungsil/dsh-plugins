@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Archive sessions on PR merge",
+    "description": "Optionally archive a session once every change request it created is merged, without stopping an active turn."
+  }
+}
